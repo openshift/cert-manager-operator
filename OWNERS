@@ -3,9 +3,11 @@ reviewers:
   - s-urbaniak
   - sttts
   - deads2k
+  - slaskawi
 approvers:
   - stlaz
   - sttts
   - deads2k
   - s-urbaniak
+  - slaskawi
 components: cert-manager-operator
