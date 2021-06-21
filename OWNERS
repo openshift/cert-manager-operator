@@ -1,0 +1,11 @@
+reviewers:
+  - stlaz
+  - s-urbaniak
+  - sttts
+  - deads2k
+approvers:
+  - stlaz
+  - sttts
+  - deads2k
+  - s-urbaniak
+components: cert-manager-operator
