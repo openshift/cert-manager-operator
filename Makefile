@@ -17,7 +17,7 @@ CONTROLLER_GEN_VERSION :=v0.2.5
 # $2 - apis
 # $3 - manifests
 # $4 - output
-$(call add-crd-gen,operator-alpha,./pkg/api/operator/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
+$(call add-crd-gen,operator-alpha,./api/operator/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
 
 # generate bindata targets
 $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
