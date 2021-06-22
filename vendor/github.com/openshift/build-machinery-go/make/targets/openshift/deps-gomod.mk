@@ -24,6 +24,7 @@ verify-deps:
 		echo "If this is an intentional change (a carry patch) please update the 'deps.diff' using 'make update-deps-overrides'." && \
 		false \
 	)
+	rm -rf $(tmp_dir)
 .PHONY: verify-deps
 
 update-deps-overrides: tmp_dir:=$(shell mktemp -d)
