@@ -2,8 +2,6 @@ package operatorclient
 
 import (
 	"context"
-	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -22,9 +20,13 @@ type OperatorClient struct {
 
 var _ v1helpers.OperatorClient = &OperatorClient{}
 
-// TODO: Implement this
 func (c OperatorClient) GetObjectMeta() (*metav1.ObjectMeta, error) {
-	return nil, fmt.Errorf("not implemented")
+	instance, err := c.Informers.Operator().V1alpha1().Certmanagers().Lister().Get("cluster")
+	if err != nil {
+		return nil, err
+	}
+
+	return &instance.ObjectMeta, nil
 }
 
 func (c OperatorClient) Informer() cache.SharedIndexInformer {
