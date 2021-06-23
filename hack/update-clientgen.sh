@@ -10,7 +10,7 @@ verify="${VERIFY:-}"
 for group in operator; do
   bash ${CODEGEN_PKG}/generate-groups.sh "client,lister,informer" \
     github.com/openshift/cert-manager-operator/pkg/${group} \
-    github.com/openshift/cert-manager-operator/api \
+    github.com/openshift/cert-manager-operator/apis \
     "${group}:v1alpha1" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
     --plural-exceptions=DNS:DNSes,DNSList:DNSList,Endpoints:Endpoints,Features:Features,FeaturesList:FeaturesList,SecurityContextConstraints:SecurityContextConstraints \
