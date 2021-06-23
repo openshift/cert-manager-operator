@@ -28,3 +28,13 @@ type CertmanagerSpec struct {
 type CertmanagerStatus struct {
 	apiv1.OperatorStatus `json:",inline"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CertmanagerList is a collection of items
+type CertmanagerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Certmanager `json:"items"`
+}

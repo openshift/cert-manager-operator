@@ -36,11 +36,12 @@ test-e2e: test-unit
 
 update-scripts:
 	hack/update-deepcopy.sh
-	hack/update-protobuf.sh
+	hack/update-clientgen.sh
 .PHONY: update-scripts
 update: update-scripts update-codegen-crds
 
 verify-scripts:
-	bash -x hack/verify-deepcopy.sh
+	hack/verify-deepcopy.sh
+	hack/verify-clientgen.sh
 .PHONY: verify-scripts
 verify: verify-scripts verify-codegen-crds
