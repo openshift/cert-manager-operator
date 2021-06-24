@@ -7,11 +7,11 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-ge
 
 verify="${VERIFY:-}"
 
-for group in operator; do
+for group in ${API_GROUP_VERSIONS}; do
   bash ${CODEGEN_PKG}/generate-groups.sh "client,lister,informer" \
-    github.com/openshift/cert-manager-operator/pkg/${group} \
+    github.com/openshift/cert-manager-operator/pkg/"${group%\/*}" \
     github.com/openshift/cert-manager-operator/apis \
-    "${group}:v1alpha1" \
+    "${group/\//:}" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
     --plural-exceptions=DNS:DNSes,DNSList:DNSList,Endpoints:Endpoints,Features:Features,FeaturesList:FeaturesList,SecurityContextConstraints:SecurityContextConstraints \
     ${verify}
