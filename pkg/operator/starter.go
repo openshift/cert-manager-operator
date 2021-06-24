@@ -10,15 +10,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/api/config/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
-	"github.com/openshift/library-go/pkg/operator/genericoperatorclient"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/pkg/controller/deployment"
+	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
@@ -33,10 +33,16 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return err
 	}
 
-	genericOperatorClient, dynamicInformers, err := genericoperatorclient.NewClusterScopedOperatorClient(
-		cc.KubeConfig, operatorv1.GroupVersion.WithResource("certmanagers"))
+	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
 		return err
+	}
+
+	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, 10*time.Minute)
+
+	operatorClient := &operatorclient.OperatorClient{
+		Informers: certManagerInformers,
+		Client:    certManagerOperatorClient.OperatorV1alpha1(),
 	}
 
 	clusterOperator, err := configClient.ConfigV1().ClusterOperators().Get(ctx, "cert-manager-operator", metav1.GetOptions{})
@@ -66,7 +72,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		},
 		configClient.ConfigV1(),
 		configInformers.Config().V1().ClusterOperators(),
-		genericOperatorClient,
+		operatorClient,
 		versionRecorder,
 		cc.EventRecorder,
 	)
@@ -74,7 +80,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	deploymentController := deployment.NewCertManagerDeploymentController(
 		operatorclient.TargetNamespace, operatorclient.TargetNamespace,
 		os.Getenv("OPERAND_CERT_MANAGER_IMAGE_VERSION"),
-		genericOperatorClient,
+		operatorClient,
 		kubeClient,
 		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
 		configClient.ConfigV1().ClusterOperators(),
@@ -84,7 +90,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		configInformers,
-		dynamicInformers,
+		certManagerInformers,
 		kubeInformersForTargetNamespace,
 	} {
 		informer.Start(ctx.Done())
