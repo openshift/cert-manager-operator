@@ -208,7 +208,6 @@ github.com/openshift/library-go/pkg/network
 github.com/openshift/library-go/pkg/operator/apiserver/controller/workload
 github.com/openshift/library-go/pkg/operator/condition
 github.com/openshift/library-go/pkg/operator/events
-github.com/openshift/library-go/pkg/operator/genericoperatorclient
 github.com/openshift/library-go/pkg/operator/management
 github.com/openshift/library-go/pkg/operator/resource/resourceapply
 github.com/openshift/library-go/pkg/operator/resource/resourcehelper
@@ -710,8 +709,6 @@ k8s.io/client-go/applyconfigurations/storage/v1beta1
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/fake
 k8s.io/client-go/dynamic
-k8s.io/client-go/dynamic/dynamicinformer
-k8s.io/client-go/dynamic/dynamiclister
 k8s.io/client-go/informers
 k8s.io/client-go/informers/admissionregistration
 k8s.io/client-go/informers/admissionregistration/v1
