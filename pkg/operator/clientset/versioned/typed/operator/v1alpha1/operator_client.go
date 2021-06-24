@@ -10,7 +10,7 @@ import (
 
 type OperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	CertmanagersGetter
+	CertManagersGetter
 }
 
 // OperatorV1alpha1Client is used to interact with features provided by the operator.openshift.io group.
@@ -18,8 +18,8 @@ type OperatorV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *OperatorV1alpha1Client) Certmanagers() CertmanagerInterface {
-	return newCertmanagers(c)
+func (c *OperatorV1alpha1Client) CertManagers() CertManagerInterface {
+	return newCertManagers(c)
 }
 
 // NewForConfig creates a new OperatorV1alpha1Client for the given config.

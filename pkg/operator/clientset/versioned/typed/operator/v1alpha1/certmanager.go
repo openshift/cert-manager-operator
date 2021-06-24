@@ -14,41 +14,41 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-// CertmanagersGetter has a method to return a CertmanagerInterface.
+// CertManagersGetter has a method to return a CertManagerInterface.
 // A group's client should implement this interface.
-type CertmanagersGetter interface {
-	Certmanagers() CertmanagerInterface
+type CertManagersGetter interface {
+	CertManagers() CertManagerInterface
 }
 
-// CertmanagerInterface has methods to work with Certmanager resources.
-type CertmanagerInterface interface {
-	Create(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.CreateOptions) (*v1alpha1.Certmanager, error)
-	Update(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (*v1alpha1.Certmanager, error)
-	UpdateStatus(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (*v1alpha1.Certmanager, error)
+// CertManagerInterface has methods to work with CertManager resources.
+type CertManagerInterface interface {
+	Create(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.CreateOptions) (*v1alpha1.CertManager, error)
+	Update(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (*v1alpha1.CertManager, error)
+	UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (*v1alpha1.CertManager, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.Certmanager, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.CertmanagerList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.CertManager, error)
+	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.CertManagerList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Certmanager, err error)
-	CertmanagerExpansion
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error)
+	CertManagerExpansion
 }
 
-// certmanagers implements CertmanagerInterface
-type certmanagers struct {
+// certManagers implements CertManagerInterface
+type certManagers struct {
 	client rest.Interface
 }
 
-// newCertmanagers returns a Certmanagers
-func newCertmanagers(c *OperatorV1alpha1Client) *certmanagers {
-	return &certmanagers{
+// newCertManagers returns a CertManagers
+func newCertManagers(c *OperatorV1alpha1Client) *certManagers {
+	return &certManagers{
 		client: c.RESTClient(),
 	}
 }
 
-// Get takes name of the certmanager, and returns the corresponding certmanager object, and an error if there is any.
-func (c *certmanagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Certmanager, err error) {
-	result = &v1alpha1.Certmanager{}
+// Get takes name of the certManager, and returns the corresponding certManager object, and an error if there is any.
+func (c *certManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.CertManager, err error) {
+	result = &v1alpha1.CertManager{}
 	err = c.client.Get().
 		Resource("certmanagers").
 		Name(name).
@@ -58,13 +58,13 @@ func (c *certmanagers) Get(ctx context.Context, name string, options v1.GetOptio
 	return
 }
 
-// List takes label and field selectors, and returns the list of Certmanagers that match those selectors.
-func (c *certmanagers) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.CertmanagerList, err error) {
+// List takes label and field selectors, and returns the list of CertManagers that match those selectors.
+func (c *certManagers) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.CertManagerList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
 	}
-	result = &v1alpha1.CertmanagerList{}
+	result = &v1alpha1.CertManagerList{}
 	err = c.client.Get().
 		Resource("certmanagers").
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -74,8 +74,8 @@ func (c *certmanagers) List(ctx context.Context, opts v1.ListOptions) (result *v
 	return
 }
 
-// Watch returns a watch.Interface that watches the requested certmanagers.
-func (c *certmanagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested certManagers.
+func (c *certManagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,26 +88,26 @@ func (c *certmanagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.In
 		Watch(ctx)
 }
 
-// Create takes the representation of a certmanager and creates it.  Returns the server's representation of the certmanager, and an error, if there is any.
-func (c *certmanagers) Create(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.CreateOptions) (result *v1alpha1.Certmanager, err error) {
-	result = &v1alpha1.Certmanager{}
+// Create takes the representation of a certManager and creates it.  Returns the server's representation of the certManager, and an error, if there is any.
+func (c *certManagers) Create(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.CreateOptions) (result *v1alpha1.CertManager, err error) {
+	result = &v1alpha1.CertManager{}
 	err = c.client.Post().
 		Resource("certmanagers").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(certmanager).
+		Body(certManager).
 		Do(ctx).
 		Into(result)
 	return
 }
 
-// Update takes the representation of a certmanager and updates it. Returns the server's representation of the certmanager, and an error, if there is any.
-func (c *certmanagers) Update(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (result *v1alpha1.Certmanager, err error) {
-	result = &v1alpha1.Certmanager{}
+// Update takes the representation of a certManager and updates it. Returns the server's representation of the certManager, and an error, if there is any.
+func (c *certManagers) Update(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
+	result = &v1alpha1.CertManager{}
 	err = c.client.Put().
 		Resource("certmanagers").
-		Name(certmanager.Name).
+		Name(certManager.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(certmanager).
+		Body(certManager).
 		Do(ctx).
 		Into(result)
 	return
@@ -115,21 +115,21 @@ func (c *certmanagers) Update(ctx context.Context, certmanager *v1alpha1.Certman
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *certmanagers) UpdateStatus(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (result *v1alpha1.Certmanager, err error) {
-	result = &v1alpha1.Certmanager{}
+func (c *certManagers) UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
+	result = &v1alpha1.CertManager{}
 	err = c.client.Put().
 		Resource("certmanagers").
-		Name(certmanager.Name).
+		Name(certManager.Name).
 		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(certmanager).
+		Body(certManager).
 		Do(ctx).
 		Into(result)
 	return
 }
 
-// Delete takes name of the certmanager and deletes it. Returns an error if one occurs.
-func (c *certmanagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+// Delete takes name of the certManager and deletes it. Returns an error if one occurs.
+func (c *certManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
 		Resource("certmanagers").
 		Name(name).
@@ -139,7 +139,7 @@ func (c *certmanagers) Delete(ctx context.Context, name string, opts v1.DeleteOp
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *certmanagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *certManagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	var timeout time.Duration
 	if listOpts.TimeoutSeconds != nil {
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
@@ -153,9 +153,9 @@ func (c *certmanagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 		Error()
 }
 
-// Patch applies the patch and returns the patched certmanager.
-func (c *certmanagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Certmanager, err error) {
-	result = &v1alpha1.Certmanager{}
+// Patch applies the patch and returns the patched certManager.
+func (c *certManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error) {
+	result = &v1alpha1.CertManager{}
 	err = c.client.Patch(pt).
 		Resource("certmanagers").
 		Name(name).

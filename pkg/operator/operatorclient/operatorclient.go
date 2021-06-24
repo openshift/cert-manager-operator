@@ -15,13 +15,13 @@ import (
 
 type OperatorClient struct {
 	Informers operatorclientinformers.SharedInformerFactory
-	Client    operatorconfigclient.CertmanagersGetter
+	Client    operatorconfigclient.CertManagersGetter
 }
 
 var _ v1helpers.OperatorClient = &OperatorClient{}
 
 func (c OperatorClient) GetObjectMeta() (*metav1.ObjectMeta, error) {
-	instance, err := c.Informers.Operator().V1alpha1().Certmanagers().Lister().Get("cluster")
+	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
 		return nil, err
 	}
@@ -30,11 +30,11 @@ func (c OperatorClient) GetObjectMeta() (*metav1.ObjectMeta, error) {
 }
 
 func (c OperatorClient) Informer() cache.SharedIndexInformer {
-	return c.Informers.Operator().V1alpha1().Certmanagers().Informer()
+	return c.Informers.Operator().V1alpha1().CertManagers().Informer()
 }
 
 func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
-	instance, err := c.Informers.Operator().V1alpha1().Certmanagers().Lister().Get("cluster")
+	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -43,7 +43,7 @@ func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv
 }
 
 func (c OperatorClient) UpdateOperatorSpec(resourceVersion string, spec *operatorv1.OperatorSpec) (*operatorv1.OperatorSpec, string, error) {
-	original, err := c.Informers.Operator().V1alpha1().Certmanagers().Lister().Get("cluster")
+	original, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
 		return nil, "", err
 	}
@@ -51,7 +51,7 @@ func (c OperatorClient) UpdateOperatorSpec(resourceVersion string, spec *operato
 	copy.ResourceVersion = resourceVersion
 	copy.Spec.OperatorSpec = *spec
 
-	ret, err := c.Client.Certmanagers().Update(context.TODO(), copy, metav1.UpdateOptions{})
+	ret, err := c.Client.CertManagers().Update(context.TODO(), copy, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, "", err
 	}
@@ -60,7 +60,7 @@ func (c OperatorClient) UpdateOperatorSpec(resourceVersion string, spec *operato
 }
 
 func (c OperatorClient) UpdateOperatorStatus(resourceVersion string, status *operatorv1.OperatorStatus) (*operatorv1.OperatorStatus, error) {
-	original, err := c.Informers.Operator().V1alpha1().Certmanagers().Lister().Get("cluster")
+	original, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (c OperatorClient) UpdateOperatorStatus(resourceVersion string, status *ope
 	copy.ResourceVersion = resourceVersion
 	copy.Status.OperatorStatus = *status
 
-	ret, err := c.Client.Certmanagers().UpdateStatus(context.TODO(), copy, metav1.UpdateOptions{})
+	ret, err := c.Client.CertManagers().UpdateStatus(context.TODO(), copy, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}

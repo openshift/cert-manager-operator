@@ -8,8 +8,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Certmanagers returns a CertmanagerInformer.
-	Certmanagers() CertmanagerInformer
+	// CertManagers returns a CertManagerInformer.
+	CertManagers() CertManagerInformer
 }
 
 type version struct {
@@ -23,7 +23,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Certmanagers returns a CertmanagerInformer.
-func (v *version) Certmanagers() CertmanagerInformer {
-	return &certmanagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+// CertManagers returns a CertManagerInformer.
+func (v *version) CertManagers() CertManagerInformer {
+	return &certManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

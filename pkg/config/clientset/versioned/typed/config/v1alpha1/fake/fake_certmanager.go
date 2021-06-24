@@ -14,29 +14,29 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-// FakeCertmanagers implements CertmanagerInterface
-type FakeCertmanagers struct {
+// FakeCertManagers implements CertManagerInterface
+type FakeCertManagers struct {
 	Fake *FakeConfigV1alpha1
 }
 
 var certmanagersResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1alpha1", Resource: "certmanagers"}
 
-var certmanagersKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1alpha1", Kind: "Certmanager"}
+var certmanagersKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1alpha1", Kind: "CertManager"}
 
-// Get takes name of the certmanager, and returns the corresponding certmanager object, and an error if there is any.
-func (c *FakeCertmanagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Certmanager, err error) {
+// Get takes name of the certManager, and returns the corresponding certManager object, and an error if there is any.
+func (c *FakeCertManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.CertManager, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(certmanagersResource, name), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootGetAction(certmanagersResource, name), &v1alpha1.CertManager{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.Certmanager), err
+	return obj.(*v1alpha1.CertManager), err
 }
 
-// List takes label and field selectors, and returns the list of Certmanagers that match those selectors.
-func (c *FakeCertmanagers) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.CertmanagerList, err error) {
+// List takes label and field selectors, and returns the list of CertManagers that match those selectors.
+func (c *FakeCertManagers) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.CertManagerList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(certmanagersResource, certmanagersKind, opts), &v1alpha1.CertmanagerList{})
+		Invokes(testing.NewRootListAction(certmanagersResource, certmanagersKind, opts), &v1alpha1.CertManagerList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -45,8 +45,8 @@ func (c *FakeCertmanagers) List(ctx context.Context, opts v1.ListOptions) (resul
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.CertmanagerList{ListMeta: obj.(*v1alpha1.CertmanagerList).ListMeta}
-	for _, item := range obj.(*v1alpha1.CertmanagerList).Items {
+	list := &v1alpha1.CertManagerList{ListMeta: obj.(*v1alpha1.CertManagerList).ListMeta}
+	for _, item := range obj.(*v1alpha1.CertManagerList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -54,64 +54,64 @@ func (c *FakeCertmanagers) List(ctx context.Context, opts v1.ListOptions) (resul
 	return list, err
 }
 
-// Watch returns a watch.Interface that watches the requested certmanagers.
-func (c *FakeCertmanagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested certManagers.
+func (c *FakeCertManagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewRootWatchAction(certmanagersResource, opts))
 }
 
-// Create takes the representation of a certmanager and creates it.  Returns the server's representation of the certmanager, and an error, if there is any.
-func (c *FakeCertmanagers) Create(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.CreateOptions) (result *v1alpha1.Certmanager, err error) {
+// Create takes the representation of a certManager and creates it.  Returns the server's representation of the certManager, and an error, if there is any.
+func (c *FakeCertManagers) Create(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.CreateOptions) (result *v1alpha1.CertManager, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(certmanagersResource, certmanager), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootCreateAction(certmanagersResource, certManager), &v1alpha1.CertManager{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.Certmanager), err
+	return obj.(*v1alpha1.CertManager), err
 }
 
-// Update takes the representation of a certmanager and updates it. Returns the server's representation of the certmanager, and an error, if there is any.
-func (c *FakeCertmanagers) Update(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (result *v1alpha1.Certmanager, err error) {
+// Update takes the representation of a certManager and updates it. Returns the server's representation of the certManager, and an error, if there is any.
+func (c *FakeCertManagers) Update(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(certmanagersResource, certmanager), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootUpdateAction(certmanagersResource, certManager), &v1alpha1.CertManager{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.Certmanager), err
+	return obj.(*v1alpha1.CertManager), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeCertmanagers) UpdateStatus(ctx context.Context, certmanager *v1alpha1.Certmanager, opts v1.UpdateOptions) (*v1alpha1.Certmanager, error) {
+func (c *FakeCertManagers) UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (*v1alpha1.CertManager, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(certmanagersResource, "status", certmanager), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootUpdateSubresourceAction(certmanagersResource, "status", certManager), &v1alpha1.CertManager{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.Certmanager), err
+	return obj.(*v1alpha1.CertManager), err
 }
 
-// Delete takes name of the certmanager and deletes it. Returns an error if one occurs.
-func (c *FakeCertmanagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+// Delete takes name of the certManager and deletes it. Returns an error if one occurs.
+func (c *FakeCertManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(certmanagersResource, name), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootDeleteAction(certmanagersResource, name), &v1alpha1.CertManager{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeCertmanagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeCertManagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	action := testing.NewRootDeleteCollectionAction(certmanagersResource, listOpts)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.CertmanagerList{})
+	_, err := c.Fake.Invokes(action, &v1alpha1.CertManagerList{})
 	return err
 }
 
-// Patch applies the patch and returns the patched certmanager.
-func (c *FakeCertmanagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Certmanager, err error) {
+// Patch applies the patch and returns the patched certManager.
+func (c *FakeCertManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(certmanagersResource, name, pt, data, subresources...), &v1alpha1.Certmanager{})
+		Invokes(testing.NewRootPatchSubresourceAction(certmanagersResource, name, pt, data, subresources...), &v1alpha1.CertManager{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.Certmanager), err
+	return obj.(*v1alpha1.CertManager), err
 }

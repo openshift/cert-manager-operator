@@ -2,6 +2,6 @@
 
 package v1alpha1
 
-// CertmanagerListerExpansion allows custom methods to be added to
-// CertmanagerLister.
-type CertmanagerListerExpansion interface{}
+// CertManagerListerExpansion allows custom methods to be added to
+// CertManagerLister.
+type CertManagerListerExpansion interface{}

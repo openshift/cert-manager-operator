@@ -10,7 +10,7 @@ import (
 
 type ConfigV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	CertmanagersGetter
+	CertManagersGetter
 }
 
 // ConfigV1alpha1Client is used to interact with features provided by the config.openshift.io group.
@@ -18,8 +18,8 @@ type ConfigV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ConfigV1alpha1Client) Certmanagers() CertmanagerInterface {
-	return newCertmanagers(c)
+func (c *ConfigV1alpha1Client) CertManagers() CertManagerInterface {
+	return newCertManagers(c)
 }
 
 // NewForConfig creates a new ConfigV1alpha1Client for the given config.

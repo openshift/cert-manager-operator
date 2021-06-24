@@ -38,7 +38,7 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	switch resource {
 	// Group=config.openshift.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("certmanagers"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().Certmanagers().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().CertManagers().Informer()}, nil
 
 	}
 

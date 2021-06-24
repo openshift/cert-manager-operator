@@ -32,7 +32,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	metav1.AddToGroupVersion(scheme, GroupVersion)
 
 	scheme.AddKnownTypes(GroupVersion,
-		&Certmanager{},
+		&CertManager{},
 	)
 
 	return nil

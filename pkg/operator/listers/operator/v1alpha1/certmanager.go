@@ -9,38 +9,38 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// CertmanagerLister helps list Certmanagers.
+// CertManagerLister helps list CertManagers.
 // All objects returned here must be treated as read-only.
-type CertmanagerLister interface {
-	// List lists all Certmanagers in the indexer.
+type CertManagerLister interface {
+	// List lists all CertManagers in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha1.Certmanager, err error)
-	// Get retrieves the Certmanager from the index for a given name.
+	List(selector labels.Selector) (ret []*v1alpha1.CertManager, err error)
+	// Get retrieves the CertManager from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1alpha1.Certmanager, error)
-	CertmanagerListerExpansion
+	Get(name string) (*v1alpha1.CertManager, error)
+	CertManagerListerExpansion
 }
 
-// certmanagerLister implements the CertmanagerLister interface.
-type certmanagerLister struct {
+// certManagerLister implements the CertManagerLister interface.
+type certManagerLister struct {
 	indexer cache.Indexer
 }
 
-// NewCertmanagerLister returns a new CertmanagerLister.
-func NewCertmanagerLister(indexer cache.Indexer) CertmanagerLister {
-	return &certmanagerLister{indexer: indexer}
+// NewCertManagerLister returns a new CertManagerLister.
+func NewCertManagerLister(indexer cache.Indexer) CertManagerLister {
+	return &certManagerLister{indexer: indexer}
 }
 
-// List lists all Certmanagers in the indexer.
-func (s *certmanagerLister) List(selector labels.Selector) (ret []*v1alpha1.Certmanager, err error) {
+// List lists all CertManagers in the indexer.
+func (s *certManagerLister) List(selector labels.Selector) (ret []*v1alpha1.CertManager, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.Certmanager))
+		ret = append(ret, m.(*v1alpha1.CertManager))
 	})
 	return ret, err
 }
 
-// Get retrieves the Certmanager from the index for a given name.
-func (s *certmanagerLister) Get(name string) (*v1alpha1.Certmanager, error) {
+// Get retrieves the CertManager from the index for a given name.
+func (s *certManagerLister) Get(name string) (*v1alpha1.CertManager, error) {
 	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
@@ -48,5 +48,5 @@ func (s *certmanagerLister) Get(name string) (*v1alpha1.Certmanager, error) {
 	if !exists {
 		return nil, errors.NewNotFound(v1alpha1.Resource("certmanager"), name)
 	}
-	return obj.(*v1alpha1.Certmanager), nil
+	return obj.(*v1alpha1.CertManager), nil
 }

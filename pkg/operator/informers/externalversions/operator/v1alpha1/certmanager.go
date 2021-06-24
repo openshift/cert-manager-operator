@@ -16,58 +16,58 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// CertmanagerInformer provides access to a shared informer and lister for
-// Certmanagers.
-type CertmanagerInformer interface {
+// CertManagerInformer provides access to a shared informer and lister for
+// CertManagers.
+type CertManagerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.CertmanagerLister
+	Lister() v1alpha1.CertManagerLister
 }
 
-type certmanagerInformer struct {
+type certManagerInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewCertmanagerInformer constructs a new informer for Certmanager type.
+// NewCertManagerInformer constructs a new informer for CertManager type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewCertmanagerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredCertmanagerInformer(client, resyncPeriod, indexers, nil)
+func NewCertManagerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredCertManagerInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredCertmanagerInformer constructs a new informer for Certmanager type.
+// NewFilteredCertManagerInformer constructs a new informer for CertManager type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredCertmanagerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredCertManagerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().Certmanagers().List(context.TODO(), options)
+				return client.OperatorV1alpha1().CertManagers().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().Certmanagers().Watch(context.TODO(), options)
+				return client.OperatorV1alpha1().CertManagers().Watch(context.TODO(), options)
 			},
 		},
-		&operatorv1alpha1.Certmanager{},
+		&operatorv1alpha1.CertManager{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *certmanagerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredCertmanagerInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *certManagerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredCertManagerInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *certmanagerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.Certmanager{}, f.defaultInformer)
+func (f *certManagerInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&operatorv1alpha1.CertManager{}, f.defaultInformer)
 }
 
-func (f *certmanagerInformer) Lister() v1alpha1.CertmanagerLister {
-	return v1alpha1.NewCertmanagerLister(f.Informer().GetIndexer())
+func (f *certManagerInformer) Lister() v1alpha1.CertManagerLister {
+	return v1alpha1.NewCertManagerLister(f.Informer().GetIndexer())
 }

@@ -12,8 +12,8 @@ type FakeConfigV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeConfigV1alpha1) Certmanagers() v1alpha1.CertmanagerInterface {
-	return &FakeCertmanagers{c}
+func (c *FakeConfigV1alpha1) CertManagers() v1alpha1.CertManagerInterface {
+	return &FakeCertManagers{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
