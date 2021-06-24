@@ -8,8 +8,8 @@ metadata:
 spec:
   group: operator.openshift.io
   names:
-    kind: Certmanager
-    listKind: CertmanagerList
+    kind: CertManager
+    listKind: CertManagerList
     plural: certmanagers
     singular: certmanager
   scope: Namespaced
@@ -17,7 +17,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Certmanager provides information to configure an operator to
+        description: CertManager provides information to configure an operator to
           manage certmanager.
         type: object
         required:

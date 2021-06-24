@@ -9,32 +9,32 @@ import (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Certmanager provides information to configure an operator to manage certmanager.
-type Certmanager struct {
+// CertManager provides information to configure an operator to manage certmanager.
+type CertManager struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// +required
-	Spec CertmanagerSpec `json:"spec,omitempty"`
+	Spec CertManagerSpec `json:"spec,omitempty"`
 	// +optional
-	Status CertmanagerStatus `json:"status,omitempty"`
+	Status CertManagerStatus `json:"status,omitempty"`
 }
 
-type CertmanagerSpec struct {
+type CertManagerSpec struct {
 	apiv1.OperatorSpec `json:",inline"`
 }
 
-type CertmanagerStatus struct {
+type CertManagerStatus struct {
 	apiv1.OperatorStatus `json:",inline"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// CertmanagerList is a collection of items
-type CertmanagerList struct {
+// CertManagerList is a collection of items
+type CertManagerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []Certmanager `json:"items"`
+	Items []CertManager `json:"items"`
 }

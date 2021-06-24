@@ -3,27 +3,27 @@
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/scheme"
+	v1alpha1 "github.com/openshift/cert-manager-operator/apis/config/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/config/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
-type OperatorV1alpha1Interface interface {
+type ConfigV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CertManagersGetter
 }
 
-// OperatorV1alpha1Client is used to interact with features provided by the operator.openshift.io group.
-type OperatorV1alpha1Client struct {
+// ConfigV1alpha1Client is used to interact with features provided by the config.openshift.io group.
+type ConfigV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *OperatorV1alpha1Client) CertManagers() CertManagerInterface {
+func (c *ConfigV1alpha1Client) CertManagers() CertManagerInterface {
 	return newCertManagers(c)
 }
 
-// NewForConfig creates a new OperatorV1alpha1Client for the given config.
-func NewForConfig(c *rest.Config) (*OperatorV1alpha1Client, error) {
+// NewForConfig creates a new ConfigV1alpha1Client for the given config.
+func NewForConfig(c *rest.Config) (*ConfigV1alpha1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -32,12 +32,12 @@ func NewForConfig(c *rest.Config) (*OperatorV1alpha1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &OperatorV1alpha1Client{client}, nil
+	return &ConfigV1alpha1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new OperatorV1alpha1Client for the given config and
+// NewForConfigOrDie creates a new ConfigV1alpha1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *OperatorV1alpha1Client {
+func NewForConfigOrDie(c *rest.Config) *ConfigV1alpha1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -45,9 +45,9 @@ func NewForConfigOrDie(c *rest.Config) *OperatorV1alpha1Client {
 	return client
 }
 
-// New creates a new OperatorV1alpha1Client for the given RESTClient.
-func New(c rest.Interface) *OperatorV1alpha1Client {
-	return &OperatorV1alpha1Client{c}
+// New creates a new ConfigV1alpha1Client for the given RESTClient.
+func New(c rest.Interface) *ConfigV1alpha1Client {
+	return &ConfigV1alpha1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -65,7 +65,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *OperatorV1alpha1Client) RESTClient() rest.Interface {
+func (c *ConfigV1alpha1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

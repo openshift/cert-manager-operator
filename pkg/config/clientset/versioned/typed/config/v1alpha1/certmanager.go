@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
-	scheme "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/scheme"
+	v1alpha1 "github.com/openshift/cert-manager-operator/apis/config/v1alpha1"
+	scheme "github.com/openshift/cert-manager-operator/pkg/config/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -40,7 +40,7 @@ type certManagers struct {
 }
 
 // newCertManagers returns a CertManagers
-func newCertManagers(c *OperatorV1alpha1Client) *certManagers {
+func newCertManagers(c *ConfigV1alpha1Client) *certManagers {
 	return &certManagers{
 		client: c.RESTClient(),
 	}

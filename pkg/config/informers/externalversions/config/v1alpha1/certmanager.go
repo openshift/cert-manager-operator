@@ -6,10 +6,10 @@ import (
 	"context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
-	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
-	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
+	configv1alpha1 "github.com/openshift/cert-manager-operator/apis/config/v1alpha1"
+	versioned "github.com/openshift/cert-manager-operator/pkg/config/clientset/versioned"
+	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/config/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/config/listers/config/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -45,16 +45,16 @@ func NewFilteredCertManagerInformer(client versioned.Interface, resyncPeriod tim
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().CertManagers().List(context.TODO(), options)
+				return client.ConfigV1alpha1().CertManagers().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorV1alpha1().CertManagers().Watch(context.TODO(), options)
+				return client.ConfigV1alpha1().CertManagers().Watch(context.TODO(), options)
 			},
 		},
-		&operatorv1alpha1.CertManager{},
+		&configv1alpha1.CertManager{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,7 +65,7 @@ func (f *certManagerInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *certManagerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.CertManager{}, f.defaultInformer)
+	return f.factory.InformerFor(&configv1alpha1.CertManager{}, f.defaultInformer)
 }
 
 func (f *certManagerInformer) Lister() v1alpha1.CertManagerLister {

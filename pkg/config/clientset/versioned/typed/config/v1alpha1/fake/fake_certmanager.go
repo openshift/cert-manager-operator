@@ -5,7 +5,7 @@ package fake
 import (
 	"context"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	v1alpha1 "github.com/openshift/cert-manager-operator/apis/config/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -16,12 +16,12 @@ import (
 
 // FakeCertManagers implements CertManagerInterface
 type FakeCertManagers struct {
-	Fake *FakeOperatorV1alpha1
+	Fake *FakeConfigV1alpha1
 }
 
-var certmanagersResource = schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1alpha1", Resource: "certmanagers"}
+var certmanagersResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1alpha1", Resource: "certmanagers"}
 
-var certmanagersKind = schema.GroupVersionKind{Group: "operator.openshift.io", Version: "v1alpha1", Kind: "CertManager"}
+var certmanagersKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1alpha1", Kind: "CertManager"}
 
 // Get takes name of the certManager, and returns the corresponding certManager object, and an error if there is any.
 func (c *FakeCertManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.CertManager, err error) {
