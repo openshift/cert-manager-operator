@@ -1,5 +1,6 @@
 // Code generated for package assets by go-bindata DO NOT EDIT. (@generated)
 // sources:
+// bindata/cert-manager/empty
 package assets
 
 import (
@@ -53,6 +54,23 @@ func (fi bindataFileInfo) Sys() interface{} {
 	return nil
 }
 
+var _certManagerEmpty = []byte(``)
+
+func certManagerEmptyBytes() ([]byte, error) {
+	return _certManagerEmpty, nil
+}
+
+func certManagerEmpty() (*asset, error) {
+	bytes, err := certManagerEmptyBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager/empty", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
 // could not be loaded.
@@ -104,7 +122,9 @@ func AssetNames() []string {
 }
 
 // _bindata is a table, holding each asset generator, mapped to its name.
-var _bindata = map[string]func() (*asset, error){}
+var _bindata = map[string]func() (*asset, error){
+	"cert-manager/empty": certManagerEmpty,
+}
 
 // AssetDir returns the file names below a certain
 // directory embedded in the file by go-bindata.
@@ -146,7 +166,11 @@ type bintree struct {
 	Children map[string]*bintree
 }
 
-var _bintree = &bintree{nil, map[string]*bintree{}}
+var _bintree = &bintree{nil, map[string]*bintree{
+	"cert-manager": {nil, map[string]*bintree{
+		"empty": {certManagerEmpty, map[string]*bintree{}},
+	}},
+}}
 
 // RestoreAsset restores an asset under the given directory
 func RestoreAsset(dir, name string) error {
