@@ -45,3 +45,5 @@ verify-scripts:
 	hack/verify-clientgen.sh
 .PHONY: verify-scripts
 verify: verify-scripts verify-codegen-crds
+
+
