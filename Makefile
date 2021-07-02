@@ -1,5 +1,7 @@
 GO_REQUIRED_MIN_VERSION = 1.16
 
+MANIFEST_SOURCE := https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
+
 # Include the library makefiles
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 	golang.mk \
@@ -35,11 +37,15 @@ GO_TEST_PACKAGES :=./pkg/... ./cmd/...
 test-e2e: GO_TEST_PACKAGES :=./test/e2e/...
 test-e2e: test-unit
 
+update-manifests:
+	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
+.PHONY: update-manifests
+
 update-scripts:
 	hack/update-deepcopy.sh
 	hack/update-clientgen.sh
 .PHONY: update-scripts
-update: update-scripts update-codegen-crds
+update: update-scripts update-codegen-crds update-manifests
 
 verify-scripts:
 	hack/verify-deepcopy.sh
