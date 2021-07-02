@@ -5,6 +5,7 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 	golang.mk \
 	targets/openshift/bindata.mk \
 	targets/openshift/images.mk \
+	targets/openshift/imagebuilder.mk \
 	targets/openshift/deps.mk \
 	targets/openshift/operator/telepresence.mk \
 	targets/openshift/operator/profile-manifests.mk \
@@ -24,7 +25,7 @@ $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/binda
 
 # generate image targets
 IMAGE_REGISTRY :=registry.svc.ci.openshift.org
-$(call build-image,cert-manager-operator,$(IMAGE_REGISTRY)/ocp/4.8:cert-manager-operator,./images/ci/Dockerfile,.)
+$(call build-image,cert-manager-operator,$(IMAGE_REGISTRY)/ocp/4.9:cert-manager-operator,./images/ci/Dockerfile,.)
 
 # exclude e2e test from unit tests
 GO_TEST_PACKAGES :=./pkg/... ./cmd/...
@@ -45,3 +46,17 @@ verify-scripts:
 	hack/verify-clientgen.sh
 .PHONY: verify-scripts
 verify: verify-scripts verify-codegen-crds
+
+local-deploy-manifests:
+	kubectl apply -f ./manifests
+	kubectl apply -f ./bundle/cert-manager-operator/manifests
+.PHONY: local-deploy-manifests
+
+local-run: local-deploy-manifests build
+	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$(HOME)/.kube/config --namespace=openshift-cert-manager-operator
+.PHONY: local-run
+
+clean:
+	- oc delete namespace cert-manager
+	- oc delete -f ./bindata/cert-manager-crds
+.PHONY: local-run
