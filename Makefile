@@ -14,13 +14,14 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 	targets/openshift/crd-schema-gen.mk \
 )
 
-CONTROLLER_GEN_VERSION :=v0.2.5
+CONTROLLER_GEN_VERSION :=v0.6.0
 
 # $1 - target name
 # $2 - apis
 # $3 - manifests
 # $4 - output
 $(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
+$(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
 
 # generate bindata targets
 $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
@@ -45,7 +46,7 @@ update-scripts:
 	hack/update-deepcopy.sh
 	hack/update-clientgen.sh
 .PHONY: update-scripts
-update: update-scripts update-codegen-crds update-manifests
+update: update-scripts update-codegen-crds update-manifests update-crds
 
 verify-scripts:
 	hack/verify-deepcopy.sh
@@ -59,10 +60,11 @@ local-deploy-manifests:
 .PHONY: local-deploy-manifests
 
 local-run: local-deploy-manifests build
-	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$(HOME)/.kube/config --namespace=openshift-cert-manager-operator
+	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
 .PHONY: local-run
 
-clean:
+local-clean:
 	- oc delete namespace cert-manager
 	- oc delete -f ./bindata/cert-manager-crds
-.PHONY: local-run
+.PHONY: local-clean
+
