@@ -7,17 +7,19 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/openshift/cert-manager-operator/pkg/operator/kubeclient"
+	"k8s.io/client-go/kubernetes"
 
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/pkg/controller/deployment"
+	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
 )
 
 const (
@@ -25,19 +27,29 @@ const (
 )
 
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
-	kubeConfigContainer, err := kubeclient.NewKubeClientContainer(cc.ProtoKubeConfig, cc.KubeConfig)
+	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
 	if err != nil {
 		return err
 	}
 
-	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(kubeConfigContainer.CertManagerOperatorClient, resyncInterval)
+	configClient, err := configclient.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+
+	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+
+	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
 
 	operatorClient := &operatorclient.OperatorClient{
 		Informers: certManagerInformers,
-		Client:    kubeConfigContainer.CertManagerOperatorClient.OperatorV1alpha1(),
+		Client:    certManagerOperatorClient.OperatorV1alpha1(),
 	}
 
-	clusterOperator, err := kubeConfigContainer.ConfigClient.ConfigV1().ClusterOperators().Get(ctx, "cert-manager-operator", metav1.GetOptions{})
+	clusterOperator, err := configClient.ConfigV1().ClusterOperators().Get(ctx, "cert-manager-operator", metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
@@ -51,16 +63,23 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	}
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
-	kubeInformersForTargetNamespace := v1helpers.NewKubeInformersForNamespaces(kubeConfigContainer.KubeConfig,
+	kubeInformersForTargetNamespace := v1helpers.NewKubeInformersForNamespaces(kubeClient,
 		"",
 		"kube-system",
 		"cert-manager",
 		operatorclient.TargetNamespace,
 	)
 
-	configInformers := configinformers.NewSharedInformerFactory(kubeConfigContainer.ConfigClient, resyncInterval)
+	configInformers := configinformers.NewSharedInformerFactory(configClient, resyncInterval)
 
-	certManagerControllerSet := deployment.NewCertManagerControllerSet(kubeInformersForTargetNamespace, kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace), operatorClient, kubeConfigContainer, cc.EventRecorder, versionRecorder)
+	certManagerControllerSet := deployment.NewCertManagerControllerSet(
+		kubeClient,
+		kubeInformersForTargetNamespace,
+		configClient.ConfigV1(),
+		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
+		operatorClient, resourceapply.NewKubeClientHolder(kubeClient),
+		cc.EventRecorder, versionRecorder,
+	)
 	controllersToStart := certManagerControllerSet.ToArray()
 
 	statusController := status.NewClusterOperatorStatusController(
@@ -68,7 +87,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		[]configv1.ObjectReference{
 			{Resource: "namespaces", Name: operatorclient.TargetNamespace},
 		},
-		kubeConfigContainer.ConfigClient.ConfigV1(),
+		configClient.ConfigV1(),
 		configInformers.Config().V1().ClusterOperators(),
 		operatorClient,
 		versionRecorder,

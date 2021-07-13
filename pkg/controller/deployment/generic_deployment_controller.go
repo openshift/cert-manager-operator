@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
-	"github.com/openshift/cert-manager-operator/pkg/operator/kubeclient"
-	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/apiserver/controller/workload"
@@ -16,21 +17,30 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/client-go/informers"
+
+	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
+	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
 type genericDeploymentController struct {
-	kubeClientContainer kubeclient.KubeClientContainer
-	operatorClient      v1helpers.OperatorClient
+	kubeClient     kubernetes.Interface
+	operatorClient v1helpers.OperatorClient
 
 	deploymentFile string
 }
 
-func newGenericDeploymentController(controllerName, deploymentFile string, operatorClient v1helpers.OperatorClient, kubeClientContainer kubeclient.KubeClientContainer, kubeInformersForTargetNamespace informers.SharedInformerFactory, openshiftClusterConfigClient configv1.ClusterOperatorInterface, eventsRecorder events.Recorder, versionRecorder status.VersionGetter) factory.Controller {
+func newGenericDeploymentController(
+	controllerName, deploymentFile string,
+	operatorClient v1helpers.OperatorClient,
+	kubeClient kubernetes.Interface,
+	kubeInformersForTargetNamespace informers.SharedInformerFactory,
+	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
+	eventsRecorder events.Recorder,
+	versionRecorder status.VersionGetter,
+) factory.Controller {
 	controller := &genericDeploymentController{
-		kubeClientContainer: kubeClientContainer,
-		operatorClient:      operatorClient,
+		kubeClient:     kubeClient,
+		operatorClient: operatorClient,
 
 		deploymentFile: deploymentFile,
 	}
@@ -43,7 +53,7 @@ func newGenericDeploymentController(controllerName, deploymentFile string, opera
 		operandNamePrefix,
 		conditionsPrefix,
 		operatorClient,
-		kubeClientContainer.KubeConfig,
+		kubeClient,
 		kubeInformersForTargetNamespace.Core().V1().Pods().Lister(),
 		[]factory.Informer{
 			operatorClient.Informer(),
@@ -68,7 +78,7 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 	assert, _ := assets.Asset(c.deploymentFile)
 	deployment := resourceread.ReadDeploymentV1OrDie(assert)
 	_, opStatus, _, _ := c.operatorClient.GetOperatorState()
-	appliedDeployment, _, err = resourceapply.ApplyDeployment(c.kubeClientContainer.KubeConfig.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
+	appliedDeployment, _, err = resourceapply.ApplyDeployment(c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
 
 	if err != nil {
 		return nil, false, append(errors, fmt.Errorf("applying deployment %v failed: %w", deployment.Name, err))

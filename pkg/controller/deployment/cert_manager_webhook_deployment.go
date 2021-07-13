@@ -1,16 +1,18 @@
 package deployment
 
 import (
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/staticresourcecontroller"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
-	"k8s.io/client-go/informers"
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
-	"github.com/openshift/cert-manager-operator/pkg/operator/kubeclient"
 )
 
 const (
@@ -35,21 +37,21 @@ var (
 )
 
 func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.OperatorClient,
-	kubeClientContainer kubeclient.KubeClientContainer,
+	kubeClientContainer *resourceapply.ClientHolder,
 	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
 	eventsRecorder events.Recorder) factory.Controller {
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerWebhookStaticResourcesControllerName,
 		assets.Asset,
 		certManagerWebhookAssetFiles,
-		kubeClientContainer.ToKubeClientHolder(),
+		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
 func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient,
-	kubeClientContainer kubeclient.KubeClientContainer,
+	kubeclient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder, versionRecorder status.VersionGetter) factory.Controller {
@@ -57,7 +59,7 @@ func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.Operator
 		certManagerWebhookDeploymentControllerName,
 		certManagerWebhookDeploymentFile,
 		operatorClient,
-		kubeClientContainer,
+		kubeclient,
 		kubeInformersForTargetNamespace,
 		openshiftClusterConfigClient,
 		eventsRecorder,
