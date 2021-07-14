@@ -2,17 +2,16 @@ package operator
 
 import (
 	"context"
-	"os"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
@@ -20,6 +19,11 @@ import (
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
+)
+
+const (
+	resyncInterval = 10 * time.Minute
 )
 
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
@@ -28,7 +32,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return err
 	}
 
-	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
+	configClient, err := configclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -38,7 +42,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return err
 	}
 
-	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, 10*time.Minute)
+	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
 
 	operatorClient := &operatorclient.OperatorClient{
 		Informers: certManagerInformers,
@@ -60,10 +64,23 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
 	kubeInformersForTargetNamespace := v1helpers.NewKubeInformersForNamespaces(kubeClient,
+		"",
+		"kube-system",
+		"cert-manager",
 		operatorclient.TargetNamespace,
 	)
 
-	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
+	configInformers := configinformers.NewSharedInformerFactory(configClient, resyncInterval)
+
+	certManagerControllerSet := deployment.NewCertManagerControllerSet(
+		kubeClient,
+		kubeInformersForTargetNamespace,
+		configClient.ConfigV1(),
+		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
+		operatorClient, resourceapply.NewKubeClientHolder(kubeClient),
+		cc.EventRecorder, versionRecorder,
+	)
+	controllersToStart := certManagerControllerSet.ToArray()
 
 	statusController := status.NewClusterOperatorStatusController(
 		"cert-manager",
@@ -77,16 +94,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		cc.EventRecorder,
 	)
 
-	deploymentController := deployment.NewCertManagerDeploymentController(
-		operatorclient.TargetNamespace, operatorclient.TargetNamespace,
-		os.Getenv("OPERAND_CERT_MANAGER_IMAGE_VERSION"),
-		operatorClient,
-		kubeClient,
-		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
-		configClient.ConfigV1().ClusterOperators(),
-		cc.EventRecorder,
-		versionRecorder,
-	)
+	controllersToStart = append(controllersToStart, statusController)
 
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		configInformers,
@@ -96,10 +104,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		informer.Start(ctx.Done())
 	}
 
-	for _, controller := range []interface{ Run(context.Context, int) }{
-		statusController,
-		deploymentController,
-	} {
+	for _, controller := range controllersToStart {
 		go controller.Run(ctx, 1)
 	}
 
