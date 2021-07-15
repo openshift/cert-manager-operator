@@ -78,7 +78,7 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 	assert, _ := assets.Asset(c.deploymentFile)
 	deployment := resourceread.ReadDeploymentV1OrDie(assert)
 	_, opStatus, _, _ := c.operatorClient.GetOperatorState()
-	appliedDeployment, _, err = resourceapply.ApplyDeployment(c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
+	appliedDeployment, _, err = resourceapply.ApplyDeployment(ctx, c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
 
 	if err != nil {
 		return nil, false, append(errors, fmt.Errorf("applying deployment %v failed: %w", deployment.Name, err))

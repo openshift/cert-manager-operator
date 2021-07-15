@@ -23,10 +23,8 @@ const (
 
 var (
 	certManagerWebhookAssetFiles = []string{
-		// FIXME: Add Mutating Webhook Configuration into github.com/openshift/library-go/pkg/operator/resource/resourceapply/unstructured.go
-		// Then, this these guys back on.
-		//"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-mutatingwebhookconfiguration.yaml",
-		//"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml",
+		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-mutatingwebhookconfiguration.yaml",
+		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml",
 		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-dynamic-serving-rb.yaml",
 		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-dynamic-serving-role.yaml",
 		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-sa.yaml",
