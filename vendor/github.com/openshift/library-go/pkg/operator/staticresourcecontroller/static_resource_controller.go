@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	configv1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/restmapper"
 	"strings"
 	"time"
+
+	configv1 "github.com/openshift/api/config/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/restmapper"
 
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -35,10 +38,6 @@ import (
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
-const (
-	workQueueKey = "key"
-)
-
 var (
 	genericScheme = runtime.NewScheme()
 	genericCodecs = serializer.NewCodecFactory(genericScheme)
@@ -48,6 +47,8 @@ var (
 func init() {
 	utilruntime.Must(api.InstallKube(genericScheme))
 	utilruntime.Must(migrationv1alpha1.AddToScheme(genericScheme))
+	utilruntime.Must(apiextensions.AddToScheme(genericScheme))
+	utilruntime.Must(admissionregistrationv1.AddToScheme(genericScheme))
 }
 
 type StaticResourceController struct {
@@ -212,7 +213,7 @@ func (c StaticResourceController) Sync(ctx context.Context, syncContext factory.
 
 	errors := []error{}
 	var notFoundErrorsCount int
-	directResourceResults := resourceapply.ApplyDirectly(c.clients, syncContext.Recorder(), c.manifests, c.files...)
+	directResourceResults := resourceapply.ApplyDirectly(ctx, c.clients, syncContext.Recorder(), c.manifests, c.files...)
 	for _, currResult := range directResourceResults {
 		if apierrors.IsNotFound(currResult.Error) {
 			notFoundErrorsCount++
