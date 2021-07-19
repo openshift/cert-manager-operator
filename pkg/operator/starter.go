@@ -5,6 +5,7 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -15,11 +16,12 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
+
 	"github.com/openshift/cert-manager-operator/pkg/controller/deployment"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
-	configclient "github.com/openshift/client-go/config/clientset/versioned"
 )
 
 const (
@@ -38,6 +40,11 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	}
 
 	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+
+	apiExtensionsClient, err := apiextensionsclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -77,7 +84,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		kubeInformersForTargetNamespace,
 		configClient.ConfigV1(),
 		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
-		operatorClient, resourceapply.NewKubeClientHolder(kubeClient),
+		operatorClient, resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
 		cc.EventRecorder, versionRecorder,
 	)
 	controllersToStart := certManagerControllerSet.ToArray()
