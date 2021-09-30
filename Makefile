@@ -1,6 +1,23 @@
 GO_REQUIRED_MIN_VERSION = 1.16
 
-MANIFEST_SOURCE := https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
+RUNTIME?=docker
+
+APP_NAME?=cert-manager-operator
+IMAGE_REGISTRY?=registry.svc.ci.openshift.org
+
+CONTROLLER_GEN_VERSION=v0.6.0
+
+BUNDLE_IMAGE_NAME=cert-manager-operator-bundle
+BUNDLE_IMAGE_PATH=$(IMAGE_REGISTRY)/$(BUNDLE_IMAGE_NAME)
+BUNDLE_IMAGE_TAG?=latest
+
+TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
+
+MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
+
+OPERATOR_SDK_VERSION?=v1.12.0
+OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
+OPERATOR_SDK_DIR=$(dir $(OPERATOR_SDK))
 
 # Include the library makefiles
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
@@ -14,20 +31,18 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 	targets/openshift/crd-schema-gen.mk \
 )
 
-CONTROLLER_GEN_VERSION :=v0.6.0
 
 # $1 - target name
 # $2 - apis
 # $3 - manifests
 # $4 - output
-$(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
-$(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/cert-manager-operator/manifests,./bundle/cert-manager-operator/manifests)
+$(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/manifests,./bundle/manifests)
+$(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/manifests,./bundle/manifests)
 
 # generate bindata targets
 $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
 
 # generate image targets
-IMAGE_REGISTRY :=registry.svc.ci.openshift.org
 $(call build-image,cert-manager-operator,$(IMAGE_REGISTRY)/ocp/4.9:cert-manager-operator,./images/ci/Dockerfile,.)
 
 # exclude e2e test from unit tests
@@ -46,7 +61,7 @@ update-scripts:
 	hack/update-deepcopy.sh
 	hack/update-clientgen.sh
 .PHONY: update-scripts
-update: update-scripts update-codegen-crds update-manifests update-crds
+update: update-scripts update-codegen-crds update-manifests
 
 verify-scripts:
 	hack/verify-deepcopy.sh
@@ -56,7 +71,7 @@ verify: verify-scripts verify-codegen-crds
 
 local-deploy-manifests:
 	kubectl apply -f ./manifests
-	kubectl apply -f ./bundle/cert-manager-operator/manifests
+	kubectl apply -f ./bundle/manifests
 .PHONY: local-deploy-manifests
 
 local-run: local-deploy-manifests build
@@ -68,3 +83,30 @@ local-clean:
 	- oc delete -f ./bindata/cert-manager-crds
 .PHONY: local-clean
 
+operator-build-bundle:
+	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG) -f ./bundle/bundle.Dockerfile ./bundle
+.PHONY: operator-build-bundle
+
+operator-push-bundle: operator-build-bundle
+	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG)
+.PHONY: operator-push-bundle
+
+ensure-operator-sdk:
+ifeq "" "$(wildcard $(OPERATOR_SDK))"
+	$(info Installing Operator SDK into '$(OPERATOR_SDK)')
+	mkdir -p '$(OPERATOR_SDK_DIR)'
+	curl -L https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$(shell go env GOOS)_$(shell go env GOHOSTARCH) -o $(OPERATOR_SDK)
+	chmod +x $(OPERATOR_SDK)
+else
+	$(info Using existing Operator SDK from "$(OPERATOR_SDK)")
+endif
+.PHONY: ensure-operator-sdk
+
+operator-run-bundle: ensure-operator-sdk
+	- kubectl create namespace $(TEST_OPERATOR_NAMESPACE)
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG) --namespace $(TEST_OPERATOR_NAMESPACE)
+.PHONY: operator-run-bundle
+
+operator-clean:
+	- kubectl delete namespace $(TEST_OPERATOR_NAMESPACE)
+.PHONY: operator-clean

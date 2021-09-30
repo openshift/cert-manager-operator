@@ -40,6 +40,25 @@ Connect to your OpenShift cluster and run the following command:
 
 This command will install all the necessary Operator manifests as well as all necessary CRDs. After this part is complete, it will run the Operator locally.
 
+## Running the operator in the cluster
+
+Connect to your OpenShift cluster and run the following command:
+
+    make operator-clean operator-push-bundle operator-run-bundle IMAGE_REGISTRY=<registry>/<org>
+
+This command will:
+- remove any existing operator that might be in your cluster
+- build and push the bundle into `<registry>/<org>/cert-manager-operator-bundle:latest`
+- download Operator SDK if necessary
+- install the bundle into your cluster
+
+!!! WARNING !!!
+
+As for the time-being, the bundle uses a hardcoded image in `slaskawi`'s repo. This will change when we start building
+the Operator images on each commit.
+
+!!! WARNING !!!
+
 ## Updating resources
 
 Use the following command to update all generated resources:
