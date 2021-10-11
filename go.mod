@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
+	github.com/google/go-jsonnet v0.17.0
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
 	github.com/openshift/api v0.0.0-20210706092853-b63d499a70ce
 	github.com/openshift/build-machinery-go v0.0.0-20210614124016-792d61687197
