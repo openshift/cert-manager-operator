@@ -107,6 +107,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: certificaterequests.cert-manager.io
 spec:
   conversion:
@@ -813,12 +814,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsCertificaterequestsCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -845,6 +840,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: certificates.cert-manager.io
 spec:
   conversion:
@@ -1033,6 +1029,20 @@ spec:
                 secretName:
                   description: SecretName is the name of the secret resource that will be automatically created and managed by this Certificate resource. It will be populated with a private key and certificate, signed by the denoted issuer.
                   type: string
+                secretTemplate:
+                  description: SecretTemplate defines annotations and labels to be propagated to the Kubernetes Secret when it is created or updated. Once created, labels and annotations are not yet removed from the Secret when they are removed from the template. See https://github.com/jetstack/cert-manager/issues/4292
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                  type: object
                 subject:
                   description: Full X509 name specification (https://golang.org/pkg/crypto/x509/pkix/#Name).
                   properties:
@@ -1331,6 +1341,20 @@ spec:
                 secretName:
                   description: SecretName is the name of the secret resource that will be automatically created and managed by this Certificate resource. It will be populated with a private key and certificate, signed by the denoted issuer.
                   type: string
+                secretTemplate:
+                  description: SecretTemplate defines annotations and labels to be propagated to the Kubernetes Secret when it is created or updated. Once created, labels and annotations are not yet removed from the Secret when they are removed from the template. See https://github.com/jetstack/cert-manager/issues/4292
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                  type: object
                 subject:
                   description: Full X509 name specification (https://golang.org/pkg/crypto/x509/pkix/#Name).
                   properties:
@@ -1634,6 +1658,20 @@ spec:
                 secretName:
                   description: SecretName is the name of the secret resource that will be automatically created and managed by this Certificate resource. It will be populated with a private key and certificate, signed by the denoted issuer.
                   type: string
+                secretTemplate:
+                  description: SecretTemplate defines annotations and labels to be propagated to the Kubernetes Secret when it is created or updated. Once created, labels and annotations are not yet removed from the Secret when they are removed from the template. See https://github.com/jetstack/cert-manager/issues/4292
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                  type: object
                 subject:
                   description: Full X509 name specification (https://golang.org/pkg/crypto/x509/pkix/#Name).
                   properties:
@@ -1911,10 +1949,11 @@ spec:
                   description: Options to control private keys used for the Certificate.
                   properties:
                     algorithm:
-                      description: Algorithm is the private key algorithm of the corresponding private key for this certificate. If provided, allowed values are either ` + "`" + `RSA` + "`" + ` or ` + "`" + `ECDSA` + "`" + ` If ` + "`" + `algorithm` + "`" + ` is specified and ` + "`" + `size` + "`" + ` is not provided, key size of 256 will be used for ` + "`" + `ECDSA` + "`" + ` key algorithm and key size of 2048 will be used for ` + "`" + `RSA` + "`" + ` key algorithm.
+                      description: Algorithm is the private key algorithm of the corresponding private key for this certificate. If provided, allowed values are either ` + "`" + `RSA` + "`" + `,` + "`" + `Ed25519` + "`" + ` or ` + "`" + `ECDSA` + "`" + ` If ` + "`" + `algorithm` + "`" + ` is specified and ` + "`" + `size` + "`" + ` is not provided, key size of 256 will be used for ` + "`" + `ECDSA` + "`" + ` key algorithm and key size of 2048 will be used for ` + "`" + `RSA` + "`" + ` key algorithm. key size is ignored when using the ` + "`" + `Ed25519` + "`" + ` key algorithm.
                       enum:
                         - RSA
                         - ECDSA
+                        - Ed25519
                       type: string
                     encoding:
                       description: The private key cryptography standards (PKCS) encoding for this certificate's private key to be encoded in. If provided, allowed values are ` + "`" + `PKCS1` + "`" + ` and ` + "`" + `PKCS8` + "`" + ` standing for PKCS#1 and PKCS#8, respectively. Defaults to ` + "`" + `PKCS1` + "`" + ` if not specified.
@@ -1926,7 +1965,7 @@ spec:
                       description: RotationPolicy controls how private keys should be regenerated when a re-issuance is being processed. If set to Never, a private key will only be generated if one does not already exist in the target ` + "`" + `spec.secretName` + "`" + `. If one does exists but it does not have the correct algorithm or size, a warning will be raised to await user intervention. If set to Always, a private key matching the specified requirements will be generated whenever a re-issuance occurs. Default is 'Never' for backward compatibility.
                       type: string
                     size:
-                      description: Size is the key bit size of the corresponding private key for this certificate. If ` + "`" + `algorithm` + "`" + ` is set to ` + "`" + `RSA` + "`" + `, valid values are ` + "`" + `2048` + "`" + `, ` + "`" + `4096` + "`" + ` or ` + "`" + `8192` + "`" + `, and will default to ` + "`" + `2048` + "`" + ` if not specified. If ` + "`" + `algorithm` + "`" + ` is set to ` + "`" + `ECDSA` + "`" + `, valid values are ` + "`" + `256` + "`" + `, ` + "`" + `384` + "`" + ` or ` + "`" + `521` + "`" + `, and will default to ` + "`" + `256` + "`" + ` if not specified. No other values are allowed.
+                      description: Size is the key bit size of the corresponding private key for this certificate. If ` + "`" + `algorithm` + "`" + ` is set to ` + "`" + `RSA` + "`" + `, valid values are ` + "`" + `2048` + "`" + `, ` + "`" + `4096` + "`" + ` or ` + "`" + `8192` + "`" + `, and will default to ` + "`" + `2048` + "`" + ` if not specified. If ` + "`" + `algorithm` + "`" + ` is set to ` + "`" + `ECDSA` + "`" + `, valid values are ` + "`" + `256` + "`" + `, ` + "`" + `384` + "`" + ` or ` + "`" + `521` + "`" + `, and will default to ` + "`" + `256` + "`" + ` if not specified. If ` + "`" + `algorithm` + "`" + ` is set to ` + "`" + `Ed25519` + "`" + `, Size is ignored. No other values are allowed.
                       type: integer
                   type: object
                 renewBefore:
@@ -1939,6 +1978,20 @@ spec:
                 secretName:
                   description: SecretName is the name of the secret resource that will be automatically created and managed by this Certificate resource. It will be populated with a private key and certificate, signed by the denoted issuer.
                   type: string
+                secretTemplate:
+                  description: SecretTemplate defines annotations and labels to be propagated to the Kubernetes Secret when it is created or updated. Once created, labels and annotations are not yet removed from the Secret when they are removed from the template. See https://github.com/jetstack/cert-manager/issues/4292
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels is a key value map to be copied to the target Kubernetes Secret.
+                      type: object
+                  type: object
                 subject:
                   description: Full X509 name specification (https://golang.org/pkg/crypto/x509/pkix/#Name).
                   properties:
@@ -2087,12 +2140,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsCertificatesCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -2119,6 +2166,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: challenges.acme.cert-manager.io
 spec:
   conversion:
@@ -2464,6 +2512,18 @@ spec:
                     http01:
                       description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                       properties:
+                        gatewayHTTPRoute:
+                          description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                          properties:
+                            labels:
+                              additionalProperties:
+                                type: string
+                              description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                              type: object
+                            serviceType:
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                              type: string
+                          type: object
                         ingress:
                           description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                           properties:
@@ -2492,7 +2552,7 @@ spec:
                               description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                               type: string
                             podTemplate:
-                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                               properties:
                                 metadata:
                                   description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -3009,7 +3069,7 @@ spec:
                                   type: object
                               type: object
                             serviceType:
-                              description: Optional service type for Kubernetes solver service
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                               type: string
                           type: object
                       type: object
@@ -3409,6 +3469,18 @@ spec:
                     http01:
                       description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                       properties:
+                        gatewayHTTPRoute:
+                          description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                          properties:
+                            labels:
+                              additionalProperties:
+                                type: string
+                              description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                              type: object
+                            serviceType:
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                              type: string
+                          type: object
                         ingress:
                           description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                           properties:
@@ -3437,7 +3509,7 @@ spec:
                               description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                               type: string
                             podTemplate:
-                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                               properties:
                                 metadata:
                                   description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -3954,7 +4026,7 @@ spec:
                                   type: object
                               type: object
                             serviceType:
-                              description: Optional service type for Kubernetes solver service
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                               type: string
                           type: object
                       type: object
@@ -4354,6 +4426,18 @@ spec:
                     http01:
                       description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                       properties:
+                        gatewayHTTPRoute:
+                          description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                          properties:
+                            labels:
+                              additionalProperties:
+                                type: string
+                              description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                              type: object
+                            serviceType:
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                              type: string
+                          type: object
                         ingress:
                           description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                           properties:
@@ -4361,7 +4445,7 @@ spec:
                               description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                               type: string
                             ingressTemplate:
-                              description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                              description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                               properties:
                                 metadata:
                                   description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -4899,7 +4983,7 @@ spec:
                                   type: object
                               type: object
                             serviceType:
-                              description: Optional service type for Kubernetes solver service
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                               type: string
                           type: object
                       type: object
@@ -5300,6 +5384,18 @@ spec:
                     http01:
                       description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                       properties:
+                        gatewayHTTPRoute:
+                          description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                          properties:
+                            labels:
+                              additionalProperties:
+                                type: string
+                              description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                              type: object
+                            serviceType:
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                              type: string
+                          type: object
                         ingress:
                           description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                           properties:
@@ -5307,7 +5403,7 @@ spec:
                               description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                               type: string
                             ingressTemplate:
-                              description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                              description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                               properties:
                                 metadata:
                                   description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -5328,7 +5424,7 @@ spec:
                               description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                               type: string
                             podTemplate:
-                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                              description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                               properties:
                                 metadata:
                                   description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -5845,7 +5941,7 @@ spec:
                                   type: object
                               type: object
                             serviceType:
-                              description: Optional service type for Kubernetes solver service
+                              description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                               type: string
                           type: object
                       type: object
@@ -5925,12 +6021,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsChallengesAcmeCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -5957,6 +6047,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: clusterissuers.cert-manager.io
 spec:
   conversion:
@@ -6340,6 +6431,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -6368,7 +6471,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -6885,7 +6988,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -7013,7 +7116,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -7497,6 +7600,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -7525,7 +7640,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -8042,7 +8157,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -8170,7 +8285,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -8654,6 +8769,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -8661,7 +8788,7 @@ spec:
                                     description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                                     type: string
                                   ingressTemplate:
-                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -9199,7 +9326,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -9327,7 +9454,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -9547,7 +9674,7 @@ spec:
                     solvers:
                       description: 'Solvers is a list of challenge solvers that will be used to solve ACME challenges for the matching domains. Solver configurations must be provided in order to obtain certificates from an ACME server. For more information, see: https://cert-manager.io/docs/configuration/acme/'
                       items:
-                        description: Configures an issuer to solve challenges using the specified options. Only one of HTTP01 or DNS01 may be provided.
+                        description: An ACMEChallengeSolver describes how to solve ACME challenges for the issuer it is part of. A selector may be provided to use different solving strategies for different DNS names. Only one of HTTP01 or DNS01 must be provided.
                         properties:
                           dns01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the DNS01 challenge flow.
@@ -9813,6 +9940,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -9820,7 +9959,7 @@ spec:
                                     description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                                     type: string
                                   ingressTemplate:
-                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -9841,7 +9980,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -10358,7 +10497,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -10486,7 +10625,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -10612,12 +10751,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsClusterissuersCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -10644,6 +10777,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: issuers.cert-manager.io
 spec:
   conversion:
@@ -11027,6 +11161,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -11055,7 +11201,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -11572,7 +11718,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -11700,7 +11846,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -12184,6 +12330,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -12212,7 +12370,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -12729,7 +12887,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -12857,7 +13015,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -13341,6 +13499,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -13348,7 +13518,7 @@ spec:
                                     description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                                     type: string
                                   ingressTemplate:
-                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -13886,7 +14056,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -14014,7 +14184,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -14234,7 +14404,7 @@ spec:
                     solvers:
                       description: 'Solvers is a list of challenge solvers that will be used to solve ACME challenges for the matching domains. Solver configurations must be provided in order to obtain certificates from an ACME server. For more information, see: https://cert-manager.io/docs/configuration/acme/'
                       items:
-                        description: Configures an issuer to solve challenges using the specified options. Only one of HTTP01 or DNS01 may be provided.
+                        description: An ACMEChallengeSolver describes how to solve ACME challenges for the issuer it is part of. A selector may be provided to use different solving strategies for different DNS names. Only one of HTTP01 or DNS01 must be provided.
                         properties:
                           dns01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the DNS01 challenge flow.
@@ -14500,6 +14670,18 @@ spec:
                           http01:
                             description: Configures cert-manager to attempt to complete authorizations by performing the HTTP01 challenge flow. It is not possible to obtain certificates for wildcard domain names (e.g. ` + "`" + `*.example.com` + "`" + `) using the HTTP01 challenge mechanism.
                             properties:
+                              gatewayHTTPRoute:
+                                description: The Gateway API is a sig-network community API that models service networking in Kubernetes (https://gateway-api.sigs.k8s.io/). The Gateway solver will create HTTPRoutes with the specified labels in the same namespace as the challenge. This solver is experimental, and fields / behaviour may change in the future.
+                                properties:
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    description: The labels that cert-manager will use when creating the temporary HTTPRoute needed for solving the HTTP-01 challenge. These labels must match the label selector of at least one Gateway.
+                                    type: object
+                                  serviceType:
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
+                                    type: string
+                                type: object
                               ingress:
                                 description: The ingress based HTTP01 challenge solver will solve challenges by creating or modifying Ingress resources in order to route requests for '/.well-known/acme-challenge/XYZ' to 'challenge solver' pods that are provisioned by cert-manager for each Challenge to be completed.
                                 properties:
@@ -14507,7 +14689,7 @@ spec:
                                     description: The ingress class to use when creating Ingress resources to solve ACME challenges that use this challenge solver. Only one of 'class' or 'name' may be specified.
                                     type: string
                                   ingressTemplate:
-                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges
+                                    description: Optional ingress template used to configure the ACME challenge solver ingress used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the ingress used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -14528,7 +14710,7 @@ spec:
                                     description: The name of the ingress resource that should have ACME challenge solving routes inserted into it in order to solve HTTP01 challenges. This is typically used in conjunction with ingress controllers like ingress-gce, which maintains a 1:1 mapping between external IPs and ingress resources.
                                     type: string
                                   podTemplate:
-                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges
+                                    description: Optional pod template used to configure the ACME challenge solver pods used for HTTP01 challenges.
                                     properties:
                                       metadata:
                                         description: ObjectMeta overrides for the pod used to solve HTTP01 challenges. Only the 'labels' and 'annotations' fields may be set. If labels or annotations overlap with in-built values, the values here will override the in-built values.
@@ -15045,7 +15227,7 @@ spec:
                                         type: object
                                     type: object
                                   serviceType:
-                                    description: Optional service type for Kubernetes solver service
+                                    description: Optional service type for Kubernetes solver service. Supported values are NodePort or ClusterIP. If unset, defaults to NodePort.
                                     type: string
                                 type: object
                             type: object
@@ -15173,7 +15355,7 @@ spec:
                           type: object
                       type: object
                     caBundle:
-                      description: PEM encoded CA bundle used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
+                      description: PEM-encoded CA bundle (base64-encoded) used to validate Vault server certificate. Only used if the Server URL is using HTTPS protocol. This parameter is ignored for plain HTTP protocol connection. If not set the system root certificates are used to validate the TLS connection.
                       format: byte
                       type: string
                     namespace:
@@ -15299,12 +15481,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsIssuersCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -15331,6 +15507,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: orders.acme.cert-manager.io
 spec:
   conversion:
@@ -15985,12 +16162,6 @@ spec:
       storage: true
       subresources:
         status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
 `)
 
 func certManagerCrdsOrdersAcmeCertManagerIoCrdYamlBytes() ([]byte, error) {
@@ -16016,6 +16187,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector
 rules:
   - apiGroups:
@@ -16105,6 +16277,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16139,6 +16312,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector
   namespace: cert-manager
 spec:
@@ -16155,6 +16329,7 @@ spec:
         app.kubernetes.io/component: cainjector
         app.kubernetes.io/instance: cert-manager
         app.kubernetes.io/name: cainjector
+        app.kubernetes.io/version: v1.5.4
     spec:
       containers:
         - args:
@@ -16167,7 +16342,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          image: quay.io/jetstack/cert-manager-cainjector:v1.4.0
+          image: quay.io/jetstack/cert-manager-cainjector:v1.5.4
           imagePullPolicy: IfNotPresent
           name: cert-manager
           resources: {}
@@ -16199,6 +16374,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector:leaderelection
   namespace: kube-system
 roleRef:
@@ -16234,6 +16410,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector:leaderelection
   namespace: kube-system
 rules:
@@ -16297,6 +16474,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-cainjector
   namespace: cert-manager
 `)
@@ -16324,6 +16502,7 @@ metadata:
     app.kubernetes.io/component: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-approve:cert-manager-io
 rules:
   - apiGroups:
@@ -16360,6 +16539,7 @@ metadata:
     app.kubernetes.io/component: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-approve:cert-manager-io
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16394,6 +16574,7 @@ metadata:
     app.kubernetes.io/component: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-certificatesigningrequests
 rules:
   - apiGroups:
@@ -16451,6 +16632,7 @@ metadata:
     app.kubernetes.io/component: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-certificatesigningrequests
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16506,6 +16688,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-certificates
 rules:
   - apiGroups:
@@ -16588,6 +16771,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-certificates
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16622,6 +16806,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-challenges
 rules:
   - apiGroups:
@@ -16686,6 +16871,17 @@ rules:
       - delete
       - update
   - apiGroups:
+      - networking.x-k8s.io
+    resources:
+      - httproutes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - update
+  - apiGroups:
       - route.openshift.io
     resources:
       - routes/custom-host
@@ -16730,6 +16926,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-challenges
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16764,6 +16961,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-clusterissuers
 rules:
   - apiGroups:
@@ -16824,6 +17022,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-clusterissuers
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16858,6 +17057,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-ingress-shim
 rules:
   - apiGroups:
@@ -16895,6 +17095,22 @@ rules:
     verbs:
       - update
   - apiGroups:
+      - networking.x-k8s.io
+    resources:
+      - gateways
+      - httproutes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.x-k8s.io
+    resources:
+      - gateways/finalizers
+      - httproutes/finalizers
+    verbs:
+      - update
+  - apiGroups:
       - ""
     resources:
       - events
@@ -16926,6 +17142,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-ingress-shim
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -16960,6 +17177,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-issuers
 rules:
   - apiGroups:
@@ -17020,6 +17238,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-issuers
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17054,6 +17273,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-orders
 rules:
   - apiGroups:
@@ -17134,6 +17354,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-controller-orders
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17168,6 +17389,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager
   namespace: cert-manager
 spec:
@@ -17188,6 +17410,7 @@ spec:
         app.kubernetes.io/component: controller
         app.kubernetes.io/instance: cert-manager
         app.kubernetes.io/name: cert-manager
+        app.kubernetes.io/version: v1.5.4
     spec:
       containers:
         - args:
@@ -17201,7 +17424,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          image: quay.io/jetstack/cert-manager-controller:v1.4.0
+          image: quay.io/jetstack/cert-manager-controller:v1.5.4
           imagePullPolicy: IfNotPresent
           name: cert-manager
           ports:
@@ -17236,6 +17459,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
   name: cert-manager-edit
@@ -17288,6 +17512,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager:leaderelection
   namespace: kube-system
 roleRef:
@@ -17324,6 +17549,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager:leaderelection
   namespace: kube-system
 rules:
@@ -17385,6 +17611,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager
   namespace: cert-manager
 `)
@@ -17412,11 +17639,13 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager
   namespace: cert-manager
 spec:
   ports:
-    - port: 9402
+    - name: tcp-prometheus-servicemonitor
+      port: 9402
       protocol: TCP
       targetPort: 9402
   selector:
@@ -17449,6 +17678,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.5.4
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
     rbac.authorization.k8s.io/aggregate-to-view: "true"
@@ -17498,6 +17728,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook
   namespace: cert-manager
 spec:
@@ -17514,6 +17745,7 @@ spec:
         app.kubernetes.io/component: webhook
         app.kubernetes.io/instance: cert-manager
         app.kubernetes.io/name: webhook
+        app.kubernetes.io/version: v1.5.4
     spec:
       containers:
         - args:
@@ -17529,7 +17761,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          image: quay.io/jetstack/cert-manager-webhook:v1.4.0
+          image: quay.io/jetstack/cert-manager-webhook:v1.5.4
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 3
@@ -17545,6 +17777,7 @@ spec:
           ports:
             - containerPort: 10250
               name: https
+              protocol: TCP
           readinessProbe:
             failureThreshold: 3
             httpGet:
@@ -17584,6 +17817,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook:dynamic-serving
   namespace: cert-manager
 roleRef:
@@ -17620,6 +17854,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook:dynamic-serving
   namespace: cert-manager
 rules:
@@ -17667,6 +17902,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook
 webhooks:
   - admissionReviewVersions:
@@ -17678,13 +17914,14 @@ webhooks:
         namespace: cert-manager
         path: /mutate
     failurePolicy: Fail
+    matchPolicy: Equivalent
     name: webhook.cert-manager.io
     rules:
       - apiGroups:
           - cert-manager.io
           - acme.cert-manager.io
         apiVersions:
-          - '*'
+          - v1
         operations:
           - CREATE
           - UPDATE
@@ -17718,6 +17955,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook
   namespace: cert-manager
 `)
@@ -17745,6 +17983,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook:subjectaccessreviews
 rules:
   - apiGroups:
@@ -17778,6 +18017,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook:subjectaccessreviews
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17813,12 +18053,14 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook
   namespace: cert-manager
 spec:
   ports:
     - name: https
       port: 443
+      protocol: TCP
       targetPort: 10250
   selector:
     app.kubernetes.io/component: webhook
@@ -17852,6 +18094,7 @@ metadata:
     app.kubernetes.io/component: webhook
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
+    app.kubernetes.io/version: v1.5.4
   name: cert-manager-webhook
 webhooks:
   - admissionReviewVersions:
@@ -17863,6 +18106,7 @@ webhooks:
         namespace: cert-manager
         path: /validate
     failurePolicy: Fail
+    matchPolicy: Equivalent
     name: webhook.cert-manager.io
     namespaceSelector:
       matchExpressions:
@@ -17879,7 +18123,7 @@ webhooks:
           - cert-manager.io
           - acme.cert-manager.io
         apiVersions:
-          - '*'
+          - v1
         operations:
           - CREATE
           - UPDATE
