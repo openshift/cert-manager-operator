@@ -13,7 +13,7 @@ BUNDLE_IMAGE_TAG?=latest
 
 TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
 
-MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
 
 OPERATOR_SDK_VERSION?=v1.12.0
 OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
@@ -74,7 +74,7 @@ local-deploy-manifests:
 	kubectl apply -f ./bundle/manifests
 .PHONY: local-deploy-manifests
 
-local-run: local-deploy-manifests build
+local-run:
 	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
 .PHONY: local-run
 

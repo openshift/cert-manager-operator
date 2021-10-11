@@ -18,19 +18,19 @@ import (
 const (
 	certManagerWebhookStaticResourcesControllerName = operatorName + "-webhook-static-resources-"
 	certManagerWebhookDeploymentControllerName      = operatorName + "-webhook-deployment-"
-	certManagerWebhookDeploymentFile                = "cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-deployment.yaml"
+	certManagerWebhookDeploymentFile                = "cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml"
 )
 
 var (
 	certManagerWebhookAssetFiles = []string{
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-mutatingwebhookconfiguration.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-dynamic-serving-rb.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-dynamic-serving-role.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-sa.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-subjectaccessreviews-cr.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml",
-		"cert-manager-deployment/cert-manager-webhook/cert-manager-webhook-svc.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-mutatingwebhookconfiguration.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-rb.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-role.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-sa.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-cr.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml",
 	}
 )
 
