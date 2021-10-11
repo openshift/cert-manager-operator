@@ -18,7 +18,7 @@ import (
 const (
 	certManagerControllerStaticResourcesControllerName = operatorName + "-controller-static-resources-"
 	certManagerControllerDeploymentControllerName      = operatorName + "-controller-deployment-"
-	certManagerControllerDeploymentFile                = "cert-manager-deployment/cert-manager-controller/cert-manager-deployment.yaml"
+	certManagerControllerDeploymentFile                = "cert-manager-deployment/controller/cert-manager-deployment.yaml"
 )
 
 var (
@@ -30,28 +30,28 @@ var (
 		"cert-manager-crds/issuers.cert-manager.io-crd.yaml",
 		"cert-manager-crds/orders.acme.cert-manager.io-crd.yaml",
 		"cert-manager-deployment/cert-manager-namespace.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-approve-cert-manager-io-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-approve-cert-manager-io-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-certificates-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-certificates-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-certificatesigningrequests-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-certificatesigningrequests-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-challenges-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-challenges-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-clusterissuers-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-clusterissuers-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-ingress-shim-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-ingress-shim-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-issuers-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-issuers-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-orders-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-controller-orders-crb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-edit-cr.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-leaderelection-rb.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-leaderelection-role.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-sa.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-svc.yaml",
-		"cert-manager-deployment/cert-manager-controller/cert-manager-view-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-certificates-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-certificates-crb.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-challenges-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-challenges-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-clusterissuers-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-clusterissuers-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-ingress-shim-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-ingress-shim-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-issuers-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-issuers-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-orders-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-controller-orders-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-edit-cr.yaml",
+		"cert-manager-deployment/controller/cert-manager-leaderelection-rb.yaml",
+		"cert-manager-deployment/controller/cert-manager-leaderelection-role.yaml",
+		"cert-manager-deployment/controller/cert-manager-sa.yaml",
+		"cert-manager-deployment/controller/cert-manager-svc.yaml",
+		"cert-manager-deployment/controller/cert-manager-view-cr.yaml",
 	}
 )
 

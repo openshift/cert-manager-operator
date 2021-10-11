@@ -18,16 +18,16 @@ import (
 const (
 	certManagerCAInjectorStaticResourcesControllerName = operatorName + "-cainjector-static-resources-"
 	certManagerCAInjectorDeploymentControllerName      = operatorName + "-cainjector-deployment-"
-	certManagerCAInjectorDeploymentFile                = "cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-deployment.yaml"
+	certManagerCAInjectorDeploymentFile                = "cert-manager-deployment/cainjector/cert-manager-cainjector-deployment.yaml"
 )
 
 var (
 	certManagerCAInjectorAssetFiles = []string{
-		"cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-cr.yaml",
-		"cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-crb.yaml",
-		"cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-leaderelection-rb.yaml",
-		"cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-leaderelection-role.yaml",
-		"cert-manager-deployment/cert-manager-cainjector/cert-manager-cainjector-sa.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-cr.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-crb.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-leaderelection-rb.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-leaderelection-role.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-sa.yaml",
 	}
 )
 

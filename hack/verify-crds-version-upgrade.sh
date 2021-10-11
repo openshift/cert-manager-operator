@@ -14,7 +14,7 @@ mkdir -p "${TMP_ROOT}"
 
 if [ ! -f ./_output/tools/bin/yq ]; then
     mkdir -p ./_output/tools/bin
-    curl -s -f -L https://github.com/mikefarah/yq/releases/download/2.4.0/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
+    curl -s -f -L https://github.com/mikefarah/yq/releases/download/v4.13.3/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
     chmod +x ./_output/tools/bin/yq
 fi
 

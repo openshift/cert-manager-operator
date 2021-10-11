@@ -1,37 +1,53 @@
 #!/bin/bash
 
+set -e
+
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
 MANIFEST_SOURCE=${1:?"missing Cert Manager manifest url. You can use either http:// or file://"}
 
 mkdir -p ./_output
 
-echo "---- Downloading Manifest file from $MANIFEST_SOURCE ----"
+echo "---- Downloading manifest file from $MANIFEST_SOURCE ----"
 curl -NLs "$MANIFEST_SOURCE" -o ./_output/manifest.yaml
 
-echo "---- Installing YAML Spliiter util ----"
-go install ./vendor/github.com/mogensen/kubernetes-split-yaml
+echo "---- Installing tooling ----"
+if [ ! -f ./_output/tools/bin/yq ]; then
+    mkdir -p ./_output/tools/bin
+    curl -s -f -L https://github.com/mikefarah/yq/releases/download/v4.13.3/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
+    chmod +x ./_output/tools/bin/yq
+fi
 
-echo "---- Removing old content of ./bindata ----"
+go install ./vendor/github.com/google/go-jsonnet/cmd/jsonnet
+
+echo "---- Patching manifest ----"
+# Upstream manifest includes yaml items in a single file as separate yaml documents.
+# JSON cannot handle this so create one yaml document which includes an array of items instead.
+./_output/tools/bin/yq \
+    --output-format json \
+    eval-all '. as $item ireduce ([]; . + $item)' \
+    _output/manifest.yaml \
+    >_output/manifest_as_array.json
+
+# Patch manifest using jsonnet.
+# This produces a map of patched target items having the filename as key and the patched item as value.
+jsonnet \
+    --tla-code-file manifest=_output/manifest_as_array.json \
+    jsonnet/main.jsonnet \
+    | ./_output/tools/bin/yq e '.' - \
+    > _output/targets_as_map.json
+
+# regenerate all bindata
 rm -rf bindata
-mkdir -p bindata/cert-manager-deployment/cert-manager-controller
-mkdir -p bindata/cert-manager-deployment/cert-manager-webhook
-mkdir -p bindata/cert-manager-deployment/cert-manager-cainjector
-mkdir -p bindata/cert-manager-crds
 
-echo "---- Splitting resources ----"
-# Split generated resources into separate files
-kubernetes-split-yaml --outdir bindata/cert-manager-deployment ./_output/manifest.yaml
-
-echo "---- Processing resources ----"
-# Remove colons from names
-find ./bindata/ -type f -name '*:*' -execdir bash -c 'mv "$1" "${1//:/-}"' bash {} \;
-# Move CRDs into a separate directory, we'll probably need to process them further?
-grep -lir 'CustomResourceDefinition' ./bindata | xargs mv -t bindata/cert-manager-crds
-# Remove lines containing word Helm
-find ./bindata -name "*.yaml" -type f | xargs sed -i -e '/[hH]elm/d'
-# Move files to their own directories
-grep -lir "app.kubernetes.io/component: cainjector" ./bindata/ | xargs mv -t ./bindata/cert-manager-deployment/cert-manager-cainjector
-grep -lir "app.kubernetes.io/component: controller" ./bindata/ | xargs mv -t ./bindata/cert-manager-deployment/cert-manager-controller
-grep -lir "app.kubernetes.io/component: cert-manager" ./bindata/ | xargs mv -t ./bindata/cert-manager-deployment/cert-manager-controller
-grep -lir "app.kubernetes.io/component: webhook" ./bindata/ | xargs mv -t ./bindata/cert-manager-deployment/cert-manager-webhook
+# Split the produced target items in separate files and convert back to yaml.
+for file in $(./_output/tools/bin/yq eval 'keys | join(" ")' _output/targets_as_map.json)
+do
+    dir=$(dirname "${file}")
+    mkdir -p "./bindata/${dir}"
+    echo "${file}"
+    ./_output/tools/bin/yq \
+        --output-format yaml --prettyPrint \
+        eval ".[\"${file}\"]" _output/targets_as_map.json \
+        > "./bindata/${file}"
+done
