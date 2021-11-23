@@ -6,7 +6,7 @@ metadata:
   annotations:
     capabilities: Seamless Upgrades
     categories: Security
-    containerImage: registry.stage.redhat.io/cert-manager/cert-manager-operator:1.5
+    containerImage: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-1.5-rhel-8:latest
     createdAt: '2021-09-21T00:00:00'
     operators.operatorframework.io/project_layout: unknown
     repository: https://github.com/openshift/cert-manager-operator
@@ -60,7 +60,7 @@ spec:
                             fieldPath: metadata.name
                       - name: OPERATOR_NAME
                         value: cert-manager-operator
-                    image: registry.stage.redhat.io/cert-manager/cert-manager-operator:1.5
+                    image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-1.5-rhel-8:latest
                     imagePullPolicy: Always
                     name: cert-manager-operator
                     resources: { }
