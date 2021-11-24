@@ -77,6 +77,9 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 
 	assert, _ := assets.Asset(c.deploymentFile)
 	deployment := resourceread.ReadDeploymentV1OrDie(assert)
+	for _, c := range deployment.Spec.Template.Spec.Containers {
+		c.Image = certManagerImage(c.Image)
+	}
 	_, opStatus, _, _ := c.operatorClient.GetOperatorState()
 	appliedDeployment, _, err = resourceapply.ApplyDeployment(ctx, c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
 

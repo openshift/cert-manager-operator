@@ -60,6 +60,8 @@ spec:
                             fieldPath: metadata.name
                       - name: OPERATOR_NAME
                         value: cert-manager-operator
+                      - name: RELATED_IMAGE_CERT_MANAGER
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-1.5-rhel-8:latest
                     image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-1.5-rhel-8:latest
                     imagePullPolicy: Always
                     name: cert-manager-operator
