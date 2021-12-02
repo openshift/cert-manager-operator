@@ -16336,7 +16336,7 @@ spec:
             - --v=2
             - --leader-election-namespace=kube-system
           command:
-            - /app/cmd/cainjector/cainjector
+            - /usr/bin/cainjector
           env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -17418,7 +17418,7 @@ spec:
             - --cluster-resource-namespace=$(POD_NAMESPACE)
             - --leader-election-namespace=kube-system
           command:
-            - /app/cmd/controller/controller
+            - /usr/bin/controller
           env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -17755,7 +17755,7 @@ spec:
             - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
             - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc
           command:
-            - /app/cmd/webhook/webhook
+            - /usr/bin/webhook
           env:
             - name: POD_NAMESPACE
               valueFrom:

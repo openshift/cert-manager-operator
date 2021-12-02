@@ -28,9 +28,7 @@ local cleanupDeployments(manifest) =
         spec+: {
           containers: [
             c {
-              // this is to align with the bazel images. this will most likely change once we build our own docker image.
-              // produces a cmd like i.e. '/app/cmd/webhook/webhook' which corresponds to the entrypoint of the bazel images.
-              local cmd = '/app/cmd/' + manifest.metadata.labels['app.kubernetes.io/component'] + '/' + manifest.metadata.labels['app.kubernetes.io/component'],
+              local cmd = '/usr/bin/' + manifest.metadata.labels['app.kubernetes.io/component'],
               [if c.name == 'cert-manager' then 'command']: [cmd],
             }
             for c in super.containers
