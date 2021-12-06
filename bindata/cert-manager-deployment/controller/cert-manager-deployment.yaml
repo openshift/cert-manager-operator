@@ -35,7 +35,7 @@ spec:
             - --cluster-resource-namespace=$(POD_NAMESPACE)
             - --leader-election-namespace=kube-system
           command:
-            - /app/cmd/controller/controller
+            - /usr/bin/controller
           env:
             - name: POD_NAMESPACE
               valueFrom:
