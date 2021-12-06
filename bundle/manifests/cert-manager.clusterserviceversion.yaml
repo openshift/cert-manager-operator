@@ -6,7 +6,7 @@ metadata:
   annotations:
     capabilities: Seamless Upgrades
     categories: Security
-    containerImage: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-1.5-rhel-8:latest
+    containerImage: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-rhel-8:latest
     createdAt: '2021-09-21T00:00:00'
     operators.operatorframework.io/project_layout: unknown
     repository: https://github.com/openshift/cert-manager-operator
@@ -61,8 +61,8 @@ spec:
                       - name: OPERATOR_NAME
                         value: cert-manager-operator
                       - name: RELATED_IMAGE_CERT_MANAGER
-                        value: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-1.5-rhel-8:latest
-                    image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-1.5-rhel-8:latest
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-jetstack-cert-manager-rhel-8:latest
+                    image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-rhel-8:latest
                     imagePullPolicy: Always
                     name: cert-manager-operator
                     resources: { }
