@@ -64,3 +64,38 @@ the Operator images on each commit.
 Use the following command to update all generated resources:
 
     make update
+
+## Upgrading cert-manager
+
+Update the version of cert-manager in the `Makefile`:
+
+```shell
+  $ git diff Makefile
+  diff --git a/Makefile b/Makefile
+  index e414cc7..d04d45d 100644
+  --- a/Makefile
+  +++ b/Makefile
+  @@ -13,7 +13,7 @@ BUNDLE_IMAGE_TAG?=latest
+  
+  TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
+  
+  -MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+  +MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
+  
+  OPERATOR_SDK_VERSION?=v1.12.0
+  OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
+```
+
+Execute the `update-manifests` target:
+
+```shell
+$ make update
+hack/update-cert-manager-manifests.sh https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
+---- Downloading manifest file from https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml ----
+---- Installing tooling ----
+---- Patching manifest ----
+cert-manager-crds/certificaterequests.cert-manager.io-crd.yaml
+...
+```
+
+Check the changes in the `bindata/` folder and assert any inconsistencies or errors.

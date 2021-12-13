@@ -13,7 +13,7 @@ BUNDLE_IMAGE_TAG?=latest
 
 TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
 
-MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
 
 OPERATOR_SDK_VERSION?=v1.12.0
 OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
