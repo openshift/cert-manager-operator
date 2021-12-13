@@ -1,4 +1,6 @@
-self_dir :=$(dir $(lastword $(MAKEFILE_LIST)))
+include $(addprefix $(dir $(lastword $(MAKEFILE_LIST))), \
+	../../lib/golang.mk \
+)
 
 # We need to force localle so different envs sort files the same way for recursive traversals
 deps_diff :=LC_COLLATE=C diff --no-dereference -N
@@ -32,11 +34,3 @@ update-deps-overrides:
 	$(call restore-deps,$(tmp_dir))
 	cp "$(tmp_dir)"/{updated,current}/deps.diff
 .PHONY: update-deps-overrides
-
-
-# We need to be careful to expand all the paths before any include is done
-# or self_dir could be modified for the next include by the included file.
-# Also doing this at the end of the file allows us to use self_dir before it could be modified.
-include $(addprefix $(self_dir), \
-	../../lib/golang.mk \
-)
