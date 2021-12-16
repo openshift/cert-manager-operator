@@ -1,3 +1,6 @@
+local targetOperandNamespace = 'openshift-cert-manager';
+local sourceOperandNamespace = 'cert-manager';
+
 // returns labels which are not 'helm.sh/chart' and don't have a 'helm' value (case insensitive)
 local filterHelmLabels(labels) = {
   [k]: labels[k]
@@ -15,11 +18,12 @@ local cleanupHelmLabels(manifest) = manifest {
 
 // adds a command based on labels of the cert-manager container.
 // removes helm labels in template metadata.
-// applies only to deployments.
-local cleanupDeployments(manifest) =
-  if manifest.kind != 'Deployment'
-  then manifest
-  else manifest {
+// changes the operand namespace
+local processManifests(manifest) =
+  if manifest.kind == 'Deployment' then manifest {
+    metadata+: {
+      namespace: targetOperandNamespace,
+    },
     spec+: {
       template+: {
         metadata+: {
@@ -36,7 +40,27 @@ local cleanupDeployments(manifest) =
         },
       },
     },
+  } else if manifest.kind == 'Namespace' then manifest {
+    metadata+: {
+      name: targetOperandNamespace,
+    }
+  } else if manifest.kind == 'RoleBinding' then manifest {
+    // We need conditional processing here as leader election RoleBindings needs to go into kube-system
+    metadata+: {
+      [if 'namespace' in manifest.metadata && manifest.metadata.namespace == sourceOperandNamespace then 'namespace']: targetOperandNamespace,
+    },
+    subjects: [
+      s {
+        [if s.namespace == sourceOperandNamespace then 'namespace']: targetOperandNamespace,
+      }
+      for s in super.subjects
+    ],
+  } else manifest {
+    metadata+: {
+      [if 'namespace' in manifest.metadata && manifest.metadata.namespace == sourceOperandNamespace then 'namespace']: targetOperandNamespace,
+    },
   };
+
 
 local suffix = {
   CustomResourceDefinition: 'crd',
@@ -65,6 +89,6 @@ local path(item) =
 
 // top level function (aka 'main')
 function(manifest) {
-  [std.strReplace(path(item), ':', '-')]: cleanupDeployments(cleanupHelmLabels(item))
+  [std.strReplace(path(item), ':', '-')]: processManifests(cleanupHelmLabels(item))
   for item in manifest
 }
