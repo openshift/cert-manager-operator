@@ -17,4 +17,4 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager

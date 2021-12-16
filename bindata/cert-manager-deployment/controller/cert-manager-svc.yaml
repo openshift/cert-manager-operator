@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/name: cert-manager
     app.kubernetes.io/version: v1.6.1
   name: cert-manager
-  namespace: cert-manager
+  namespace: openshift-cert-manager
 spec:
   ports:
     - name: tcp-prometheus-servicemonitor

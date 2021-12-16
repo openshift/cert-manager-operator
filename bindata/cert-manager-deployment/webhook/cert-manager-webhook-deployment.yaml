@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.6.1
   name: cert-manager-webhook
-  namespace: cert-manager
+  namespace: openshift-cert-manager
 spec:
   replicas: 1
   selector:
