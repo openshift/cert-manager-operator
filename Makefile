@@ -71,7 +71,7 @@ verify: verify-scripts verify-codegen-crds
 
 local-deploy-manifests:
 	kubectl apply -f ./manifests
-	kubectl apply -f ./bundle/manifests
+	kubectl apply $$(ls ./bundle/manifests/*.crd.yaml | awk ' { print " -f " $$1 } ')
 .PHONY: local-deploy-manifests
 
 local-run:
