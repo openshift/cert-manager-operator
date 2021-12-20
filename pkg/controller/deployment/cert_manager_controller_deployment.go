@@ -5,6 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -55,10 +56,7 @@ var (
 	}
 )
 
-func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.OperatorClient,
-	kubeClientContainer *resourceapply.ClientHolder,
-	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
-	eventsRecorder events.Recorder) factory.Controller {
+func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.OperatorClient, kubeClientContainer *resourceapply.ClientHolder, kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces, eventsRecorder events.Recorder, deploymentChecker *deploymentChecker) factory.Controller {
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerControllerStaticResourcesControllerName,
 		assets.Asset,
@@ -66,14 +64,10 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
-	).AddKubeInformers(kubeInformersForTargetNamespace)
+	).WithPrecondition(deploymentChecker.shouldSync).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClient,
-	kubeClient kubernetes.Interface,
-	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
-	eventsRecorder events.Recorder, versionRecorder status.VersionGetter) factory.Controller {
+func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClient, kubeClient kubernetes.Interface, kubeInformersForTargetNamespace informers.SharedInformerFactory, openshiftClusterConfigClient configv1.ClusterOperatorInterface, eventsRecorder events.Recorder, versionRecorder status.VersionGetter, deploymentChecker *deploymentChecker) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerControllerDeploymentControllerName,
 		certManagerControllerDeploymentFile,
@@ -82,5 +76,6 @@ func NewCertManagerControllerDeploymentController(operatorClient v1helpers.Opera
 		kubeInformersForTargetNamespace,
 		openshiftClusterConfigClient,
 		eventsRecorder,
-		versionRecorder)
+		versionRecorder,
+		deploymentChecker)
 }

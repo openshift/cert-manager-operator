@@ -5,6 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -34,10 +35,7 @@ var (
 	}
 )
 
-func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.OperatorClient,
-	kubeClientContainer *resourceapply.ClientHolder,
-	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
-	eventsRecorder events.Recorder) factory.Controller {
+func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.OperatorClient, kubeClientContainer *resourceapply.ClientHolder, kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces, eventsRecorder events.Recorder, deploymentChecker *deploymentChecker) factory.Controller {
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerWebhookStaticResourcesControllerName,
 		assets.Asset,
@@ -45,14 +43,10 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
-	).AddKubeInformers(kubeInformersForTargetNamespace)
+	).WithPrecondition(deploymentChecker.shouldSync).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient,
-	kubeclient kubernetes.Interface,
-	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
-	eventsRecorder events.Recorder, versionRecorder status.VersionGetter) factory.Controller {
+func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient, kubeclient kubernetes.Interface, kubeInformersForTargetNamespace informers.SharedInformerFactory, openshiftClusterConfigClient configv1.ClusterOperatorInterface, eventsRecorder events.Recorder, versionRecorder status.VersionGetter, deploymentChecker *deploymentChecker) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerWebhookDeploymentControllerName,
 		certManagerWebhookDeploymentFile,
@@ -61,5 +55,6 @@ func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.Operator
 		kubeInformersForTargetNamespace,
 		openshiftClusterConfigClient,
 		eventsRecorder,
-		versionRecorder)
+		versionRecorder,
+		deploymentChecker)
 }

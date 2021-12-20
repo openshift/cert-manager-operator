@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"

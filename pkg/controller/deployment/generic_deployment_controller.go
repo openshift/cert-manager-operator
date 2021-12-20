@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/apiserver/controller/workload"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -26,6 +27,8 @@ type genericDeploymentController struct {
 	kubeClient     kubernetes.Interface
 	operatorClient v1helpers.OperatorClient
 
+	deploymentChecker *deploymentChecker
+
 	deploymentFile string
 }
 
@@ -37,10 +40,13 @@ func newGenericDeploymentController(
 	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
+	deploymentChecker *deploymentChecker,
 ) factory.Controller {
 	controller := &genericDeploymentController{
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
+
+		deploymentChecker: deploymentChecker,
 
 		deploymentFile: deploymentFile,
 	}
@@ -91,5 +97,5 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 }
 
 func (c *genericDeploymentController) PreconditionFulfilled(ctx context.Context) (bool, error) {
-	return true, nil
+	return c.deploymentChecker.shouldSync(ctx)
 }

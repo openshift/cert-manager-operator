@@ -5,6 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -31,13 +32,14 @@ func NewCertManagerControllerSet(
 	eventRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 ) *CertManagerControllerSet {
+	deploymentChecker := newDeploymentChecker(kubeClient.AppsV1())
 	return &CertManagerControllerSet{
-		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
-		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
-		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
+		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder, deploymentChecker),
+		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder, deploymentChecker),
+		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder, deploymentChecker),
+		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder, deploymentChecker),
+		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder, deploymentChecker),
+		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder, deploymentChecker),
 	}
 }
 
