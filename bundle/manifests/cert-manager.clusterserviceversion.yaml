@@ -13,19 +13,6 @@ metadata:
     support: The OpenShift Engineering Team
     operatorframework.io/suggested-namespace: openshift-cert-manager-operator
     operatorframework.io/cluster-monitoring: "true"
-    alm-examples: |
-      [
-        {
-          "apiVersion": "operator.openshift.io/v1alpha1",
-          "kind": "CertManager",
-          "metadata": {
-            "name": "cluster"
-          },
-          "spec": {
-            "managementState": "Managed"
-          }
-        }
-      ]
   name: openshift-cert-manager.v0.0.1
   namespace: placeholder
 spec:
