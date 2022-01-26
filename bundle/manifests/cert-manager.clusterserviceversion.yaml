@@ -24,6 +24,24 @@ spec:
       - kind: CertManager
         name: certmanagers.config.openshift.io
         version: v1alpha1
+      - kind: CertificateRequest
+        name: certificaterequests.cert-manager.io
+        version: v1
+      - kind: Certificate
+        name: certificates.cert-manager.io
+        version: v1
+      - kind: Challenge
+        name: challenges.acme.cert-manager.io
+        version: v1
+      - kind: ClusterIssuer
+        name: clusterissuers.cert-manager.io
+        version: v1
+      - kind: Issuer
+        name: issuers.cert-manager.io
+        version: v1
+      - kind: Order
+        name: orders.acme.cert-manager.io
+        version: v1
   description: |
     Cert Manager Operator provides seamless support for [Cert Manager](https://github.com/jetstack/cert-manager) in OpenShift.
 

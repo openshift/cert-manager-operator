@@ -23,12 +23,6 @@ const (
 
 var (
 	certManagerControllerAssetFiles = []string{
-		"cert-manager-crds/certificaterequests.cert-manager.io-crd.yaml",
-		"cert-manager-crds/certificates.cert-manager.io-crd.yaml",
-		"cert-manager-crds/challenges.acme.cert-manager.io-crd.yaml",
-		"cert-manager-crds/clusterissuers.cert-manager.io-crd.yaml",
-		"cert-manager-crds/issuers.cert-manager.io-crd.yaml",
-		"cert-manager-crds/orders.acme.cert-manager.io-crd.yaml",
 		"cert-manager-deployment/cert-manager-namespace.yaml",
 		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml",
 		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml",
