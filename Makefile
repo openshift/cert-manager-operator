@@ -80,7 +80,7 @@ local-run:
 
 local-clean:
 	- oc delete namespace cert-manager
-	- oc delete -f ./bindata/cert-manager-crds
+	- oc delete -f ./bundle/manifests/
 .PHONY: local-clean
 
 operator-build-bundle:

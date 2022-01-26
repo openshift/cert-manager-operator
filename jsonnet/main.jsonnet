@@ -79,13 +79,13 @@ local suffix = {
 // create a path including the file name based on the item.
 local path(item) =
   // CRDs go into cert-manager-crds directory
-  if item.kind == 'CustomResourceDefinition' then 'cert-manager-crds/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
+  if item.kind == 'CustomResourceDefinition' then 'bundle/manifests/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
   // everything that has a component label goes into its own subdirectory
   else if 'labels' in item.metadata &&
           'app.kubernetes.io/component' in item.metadata.labels
-  then 'cert-manager-deployment/' + item.metadata.labels['app.kubernetes.io/component'] + '/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
+  then 'bindata/cert-manager-deployment/' + item.metadata.labels['app.kubernetes.io/component'] + '/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
   // else, leave it at the top-level
-  else 'cert-manager-deployment/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml';
+  else 'bindata/cert-manager-deployment/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml';
 
 // top level function (aka 'main')
 function(manifest) {

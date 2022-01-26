@@ -39,15 +39,17 @@ jsonnet \
 
 # regenerate all bindata
 rm -rf bindata
+# regenerate all cert manager crds
+rm -rf bundle/manifests/*-crd.yaml
 
 # Split the produced target items in separate files and convert back to yaml.
 for file in $(./_output/tools/bin/yq eval 'keys | join(" ")' _output/targets_as_map.json)
 do
     dir=$(dirname "${file}")
-    mkdir -p "./bindata/${dir}"
+    mkdir -p "${dir}"
     echo "${file}"
     ./_output/tools/bin/yq \
         --output-format yaml --prettyPrint \
         eval ".[\"${file}\"]" _output/targets_as_map.json \
-        > "./bindata/${file}"
+        > "${file}"
 done
