@@ -9,7 +9,7 @@ The Operator uses the [upstream deployment manifests](https://github.com/jetstac
 - [cert_manager_controller_deployment.go](pkg/controller/deployment/cert_manager_controller_deployment.go)
 - [cert_manager_webhook_deployment.go](pkg/controller/deployment/cert_manager_webhook_deployment.go)
 
-The deployment is triggered upon creating a cluster-scoped `CertManager` object named `cluster`. An example might be found in the [deploy](deploy) directory.
+The Operator automatically deploys a cluster-scoped `CertManager` object named `cluster` if it's missing (with default values).
 
 ### Directory structure
 

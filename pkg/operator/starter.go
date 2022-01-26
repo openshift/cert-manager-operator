@@ -101,7 +101,13 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		cc.EventRecorder,
 	)
 
-	controllersToStart = append(controllersToStart, statusController)
+	defaultCertManagerController := deployment.NewDefaultCertManagerController(
+		operatorClient,
+		certManagerOperatorClient.OperatorV1alpha1(),
+		cc.EventRecorder,
+	)
+
+	controllersToStart = append(controllersToStart, statusController, defaultCertManagerController)
 
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		configInformers,
