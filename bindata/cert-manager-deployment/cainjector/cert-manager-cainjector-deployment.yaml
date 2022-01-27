@@ -30,7 +30,7 @@ spec:
             - --v=2
             - --leader-election-namespace=kube-system
           command:
-            - /usr/bin/cainjector
+            - /app/cmd/cainjector/cainjector
           env:
             - name: POD_NAMESPACE
               valueFrom:

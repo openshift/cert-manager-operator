@@ -32,7 +32,8 @@ local processManifests(manifest) =
         spec+: {
           containers: [
             c {
-              local cmd = '/usr/bin/' + manifest.metadata.labels['app.kubernetes.io/component'],
+              // this path is unified with the upstream making the operator easier for ad-hoc testing (e.g. running operator against the upstream images).
+              local cmd = '/app/cmd/' + manifest.metadata.labels['app.kubernetes.io/component'] + '/' + manifest.metadata.labels['app.kubernetes.io/component'],
               [if c.name == 'cert-manager' then 'command']: [cmd],
             }
             for c in super.containers
