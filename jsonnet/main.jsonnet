@@ -45,7 +45,21 @@ local processManifests(manifest) =
     metadata+: {
       name: targetOperandNamespace,
     }
-  } else if manifest.kind == 'RoleBinding' then manifest {
+  } else if manifest.kind == 'CustomResourceDefinition' then manifest {
+       // Cert Manager uses conversion webhook, we need to make sure we override the
+       // namespace that we use.
+       spec+: {
+         conversion+: {
+           webhook+: {
+             clientConfig+: {
+               service+: {
+                 name: targetOperandNamespace
+               }
+             }
+           }
+         }
+       }
+     } else if manifest.kind == 'RoleBinding' then manifest {
     // We need conditional processing here as leader election RoleBindings needs to go into kube-system
     metadata+: {
       [if 'namespace' in manifest.metadata && manifest.metadata.namespace == sourceOperandNamespace then 'namespace']: targetOperandNamespace,

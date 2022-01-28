@@ -15,7 +15,7 @@ spec:
     webhook:
       clientConfig:
         service:
-          name: cert-manager-webhook
+          name: openshift-cert-manager
           namespace: cert-manager
           path: /convert
       conversionReviewVersions:
