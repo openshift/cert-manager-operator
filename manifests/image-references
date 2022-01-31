@@ -1,8 +1,0 @@
-kind: ImageStream
-apiVersion: image.openshift.io/v1
-spec:
-  tags:
-  - name: cert-manager-operator
-    from:
-      kind: DockerImage
-      name: quay.io/openshift/origin-cert-manager-operator
