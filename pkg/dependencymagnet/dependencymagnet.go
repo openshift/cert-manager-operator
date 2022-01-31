@@ -1,3 +1,4 @@
+//go:build dependencymagnet
 // +build dependencymagnet
 
 package tools

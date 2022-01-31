@@ -94,7 +94,7 @@ func (c *FakeCertManagers) UpdateStatus(ctx context.Context, certManager *v1alph
 // Delete takes name of the certManager and deletes it. Returns an error if one occurs.
 func (c *FakeCertManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(certmanagersResource, name), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootDeleteActionWithOptions(certmanagersResource, name, opts), &v1alpha1.CertManager{})
 	return err
 }
 
