@@ -27,5 +27,6 @@ for group in ${API_GROUP_VERSIONS}; do
     "${group/\//:}" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
     --plural-exceptions=DNS:DNSes,DNSList:DNSList,Endpoints:Endpoints,Features:Features,FeaturesList:FeaturesList,SecurityContextConstraints:SecurityContextConstraints \
+    --output-base ../../.. \
     ${verify}
 done
