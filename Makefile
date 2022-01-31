@@ -1,11 +1,9 @@
-GO_REQUIRED_MIN_VERSION = 1.16
+GO_REQUIRED_MIN_VERSION = 1.17
 
 RUNTIME?=docker
 
 APP_NAME?=cert-manager-operator
 IMAGE_REGISTRY?=registry.svc.ci.openshift.org
-
-CONTROLLER_GEN_VERSION=v0.6.0
 
 BUNDLE_IMAGE_NAME=cert-manager-operator-bundle
 BUNDLE_IMAGE_PATH=$(IMAGE_REGISTRY)/$(BUNDLE_IMAGE_NAME)
