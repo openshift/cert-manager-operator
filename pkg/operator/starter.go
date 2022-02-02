@@ -85,7 +85,9 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		configClient.ConfigV1(),
 		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
 		operatorClient, resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
-		cc.EventRecorder, versionRecorder,
+		cc.EventRecorder,
+		status.VersionForOperandFromEnv(),
+		versionRecorder,
 	)
 	controllersToStart := certManagerControllerSet.ToArray()
 

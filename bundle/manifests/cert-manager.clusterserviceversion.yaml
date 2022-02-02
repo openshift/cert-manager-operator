@@ -13,7 +13,7 @@ metadata:
     support: The OpenShift Engineering Team
     operatorframework.io/suggested-namespace: openshift-cert-manager-operator
     operatorframework.io/cluster-monitoring: "true"
-  name: openshift-cert-manager.v0.0.1
+  name: openshift-cert-manager.v1.6.1
   namespace: placeholder
 spec:
   customresourcedefinitions:
@@ -82,6 +82,10 @@ spec:
                         value: cert-manager-operator
                       - name: RELATED_IMAGE_CERT_MANAGER
                         value: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-jetstack-cert-manager-rhel-8:latest
+                      - name: OPERAND_IMAGE_VERSION
+                        value: 1.6.1
+                      - name: OPERATOR_IMAGE_VERSION
+                        value: 1.6.1
                     image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-rhel-8:latest
                     imagePullPolicy: Always
                     name: cert-manager-operator
@@ -173,6 +177,12 @@ spec:
                 - create
                 - update
                 - watch
+            - apiGroups:
+                - coordination.k8s.io
+              resources:
+                - leases
+              verbs:
+                - "*"
           serviceAccountName: cert-manager-operator
     strategy: deployment
   installModes:
@@ -200,4 +210,4 @@ spec:
   provider:
     name: Red Hat
     url: aos-auth-staff@redhat.com
-  version: 0.0.1
+  version: 1.6.1

@@ -29,15 +29,16 @@ func NewCertManagerControllerSet(
 	operatorClient v1helpers.OperatorClient,
 	kubeClientContainer *resourceapply.ClientHolder,
 	eventRecorder events.Recorder,
+	targetVersion string,
 	versionRecorder status.VersionGetter,
 ) *CertManagerControllerSet {
 	return &CertManagerControllerSet{
 		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
+		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, targetVersion, versionRecorder),
 		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
+		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, targetVersion, versionRecorder),
 		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, versionRecorder),
+		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, kubeClient, informersFactory, configClient.ClusterOperators(), eventRecorder, targetVersion, versionRecorder),
 	}
 }
 
