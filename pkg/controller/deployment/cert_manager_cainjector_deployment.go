@@ -50,10 +50,11 @@ func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.Opera
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
-	eventsRecorder events.Recorder, versionRecorder status.VersionGetter,
+	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter,
 ) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerCAInjectorDeploymentControllerName,
+		targetVersion,
 		certManagerCAInjectorDeploymentFile,
 		operatorClient,
 		kubeClient,

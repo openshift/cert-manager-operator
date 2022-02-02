@@ -30,7 +30,7 @@ type genericDeploymentController struct {
 }
 
 func newGenericDeploymentController(
-	controllerName, deploymentFile string,
+	controllerName, targetVersion, deploymentFile string,
 	operatorClient v1helpers.OperatorClient,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,

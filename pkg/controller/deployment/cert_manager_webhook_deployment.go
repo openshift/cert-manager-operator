@@ -52,9 +52,10 @@ func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.Operator
 	kubeclient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
-	eventsRecorder events.Recorder, versionRecorder status.VersionGetter) factory.Controller {
+	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerWebhookDeploymentControllerName,
+		targetVersion,
 		certManagerWebhookDeploymentFile,
 		operatorClient,
 		kubeclient,
