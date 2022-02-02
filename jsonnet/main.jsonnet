@@ -46,6 +46,11 @@ local processManifests(manifest) =
       name: targetOperandNamespace,
     }
   } else if manifest.kind == 'CustomResourceDefinition' then manifest {
+       metadata+: {
+         annotations+: {
+           "cert-manager.io/inject-ca-from-secret": targetOperandNamespace + "/cert-manager-webhook-ca"
+         },
+       },
        // Cert Manager uses conversion webhook, we need to make sure we override the
        // namespace that we use.
        spec+: {
@@ -53,7 +58,7 @@ local processManifests(manifest) =
            webhook+: {
              clientConfig+: {
                service+: {
-                 name: targetOperandNamespace
+                 namespace: targetOperandNamespace
                }
              }
            }
