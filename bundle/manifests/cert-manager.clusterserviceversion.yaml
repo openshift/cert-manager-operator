@@ -173,6 +173,12 @@ spec:
                 - create
                 - update
                 - watch
+            - apiGroups:
+                - coordination.k8s.io
+              resources:
+                - leases
+              verbs:
+                - "*"
           serviceAccountName: cert-manager-operator
     strategy: deployment
   installModes:
