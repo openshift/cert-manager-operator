@@ -164,6 +164,19 @@ spec:
                 - replicasets
               verbs:
                 - "*"
+            - apiGroups:
+                - config.openshift.io
+              resources:
+                - clusteroperators
+                - clusteroperators/status
+              verbs:
+                - "*"
+            - apiGroups:
+              - config.openshift.io
+              resources:
+                - infrastructures
+              verbs:
+                - get
       permissions:
         - rules:
             - apiGroups:
