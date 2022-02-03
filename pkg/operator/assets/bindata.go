@@ -199,7 +199,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager-cainjector
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentCainjectorCertManagerCainjectorCrbYamlBytes() ([]byte, error) {
@@ -461,7 +461,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentCertManagerCertManagerControllerApproveCertManagerIoCrbYamlBytes() ([]byte, error) {
@@ -554,7 +554,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentCertManagerCertManagerControllerCertificatesigningrequestsCrbYamlBytes() ([]byte, error) {
@@ -693,7 +693,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerCertificatesCrbYamlBytes() ([]byte, error) {
@@ -848,7 +848,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerChallengesCrbYamlBytes() ([]byte, error) {
@@ -944,7 +944,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerClusterissuersCrbYamlBytes() ([]byte, error) {
@@ -1064,7 +1064,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerIngressShimCrbYamlBytes() ([]byte, error) {
@@ -1160,7 +1160,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerIssuersCrbYamlBytes() ([]byte, error) {
@@ -1276,7 +1276,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerOrdersCrbYamlBytes() ([]byte, error) {
@@ -1809,7 +1809,7 @@ var _certManagerDeploymentWebhookCertManagerWebhookMutatingwebhookconfigurationY
 kind: MutatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from-secret: cert-manager/cert-manager-webhook-ca
+    cert-manager.io/inject-ca-from-secret: openshift-cert-manager/cert-manager-webhook-ca
   labels:
     app: webhook
     app.kubernetes.io/component: webhook
@@ -1824,7 +1824,7 @@ webhooks:
     clientConfig:
       service:
         name: cert-manager-webhook
-        namespace: cert-manager
+        namespace: openshift-cert-manager
         path: /mutate
     failurePolicy: Fail
     matchPolicy: Equivalent
@@ -1940,7 +1940,7 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager-webhook
-    namespace: cert-manager
+    namespace: openshift-cert-manager
 `)
 
 func certManagerDeploymentWebhookCertManagerWebhookSubjectaccessreviewsCrbYamlBytes() ([]byte, error) {
@@ -2001,7 +2001,7 @@ var _certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfiguratio
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from-secret: cert-manager/cert-manager-webhook-ca
+    cert-manager.io/inject-ca-from-secret: openshift-cert-manager/cert-manager-webhook-ca
   labels:
     app: webhook
     app.kubernetes.io/component: webhook
@@ -2016,7 +2016,7 @@ webhooks:
     clientConfig:
       service:
         name: cert-manager-webhook
-        namespace: cert-manager
+        namespace: openshift-cert-manager
         path: /validate
     failurePolicy: Fail
     matchPolicy: Equivalent
