@@ -64,6 +64,24 @@ local processManifests(manifest) =
            }
          }
        }
+     } else if manifest.kind == 'ValidatingWebhookConfiguration' || manifest.kind == 'MutatingWebhookConfiguration' then manifest {
+       metadata+: {
+         annotations+: {
+           "cert-manager.io/inject-ca-from-secret": targetOperandNamespace + "/cert-manager-webhook-ca"
+         },
+       },
+       // Cert Manager uses conversion webhook, we need to make sure we override the
+       // namespace that we use.
+       webhooks: [
+         w {
+           clientConfig+: {
+             service+: {
+               namespace: targetOperandNamespace
+             }
+           }
+         }
+         for w in super.webhooks
+       ]
      } else if manifest.kind == 'RoleBinding' then manifest {
     // We need conditional processing here as leader election RoleBindings needs to go into kube-system
     metadata+: {
