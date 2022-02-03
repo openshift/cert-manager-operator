@@ -82,7 +82,7 @@ local processManifests(manifest) =
          }
          for w in super.webhooks
        ]
-     } else if manifest.kind == 'RoleBinding' then manifest {
+     } else if manifest.kind == 'RoleBinding' || manifest.kind == 'ClusterRoleBinding' then manifest {
     // We need conditional processing here as leader election RoleBindings needs to go into kube-system
     metadata+: {
       [if 'namespace' in manifest.metadata && manifest.metadata.namespace == sourceOperandNamespace then 'namespace']: targetOperandNamespace,
