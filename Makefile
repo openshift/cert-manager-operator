@@ -59,7 +59,7 @@ update-scripts:
 	hack/update-deepcopy.sh
 	hack/update-clientgen.sh
 .PHONY: update-scripts
-update: update-scripts update-codegen-crds update-manifests
+update: update-scripts update-codegen-crds update-manifests update-bindata
 
 verify-scripts:
 	hack/verify-deepcopy.sh
