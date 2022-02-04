@@ -50,6 +50,9 @@ local processManifests(manifest) =
   } else if manifest.kind == 'Namespace' then manifest {
     metadata+: {
       name: targetOperandNamespace,
+      annotations+: {
+        "openshift.io/cluster-monitoring": "true",
+      },
     }
   } else if manifest.kind == 'CustomResourceDefinition' then manifest {
        metadata+: {
