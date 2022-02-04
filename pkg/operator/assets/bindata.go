@@ -1666,7 +1666,7 @@ spec:
             - --secure-port=10250
             - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
             - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
-            - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc
+            - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.openshift-cert-manager,cert-manager-webhook.openshift-cert-manager.svc
           command:
             - /app/cmd/webhook/webhook
           env:
