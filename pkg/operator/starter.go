@@ -5,7 +5,6 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -44,11 +43,6 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return err
 	}
 
-	apiExtensionsClient, err := apiextensionsclient.NewForConfig(cc.KubeConfig)
-	if err != nil {
-		return err
-	}
-
 	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
 
 	operatorClient := &operatorclient.OperatorClient{
@@ -71,9 +65,8 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
 	kubeInformersForTargetNamespace := v1helpers.NewKubeInformersForNamespaces(kubeClient,
-		"",
 		"kube-system",
-		"cert-manager",
+		"openshift-cert-manager",
 		operatorclient.TargetNamespace,
 	)
 
@@ -84,7 +77,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		kubeInformersForTargetNamespace,
 		configClient.ConfigV1(),
 		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
-		operatorClient, resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
+		operatorClient, resourceapply.NewKubeClientHolder(kubeClient),
 		cc.EventRecorder,
 		status.VersionForOperandFromEnv(),
 		versionRecorder,
