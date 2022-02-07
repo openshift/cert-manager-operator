@@ -31,6 +31,7 @@ var (
 		"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-cr.yaml",
 		"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml",
 		"cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml",
+		"cert-manager-deployment/webhook/cert-manager-webhook-configmap.yaml",
 	}
 )
 

@@ -57,19 +57,6 @@ local processManifests(manifest) =
            "cert-manager.io/inject-ca-from-secret": targetOperandNamespace + "/cert-manager-webhook-ca"
          },
        },
-       // Cert Manager uses conversion webhook, we need to make sure we override the
-       // namespace that we use.
-       spec+: {
-         conversion+: {
-           webhook+: {
-             clientConfig+: {
-               service+: {
-                 namespace: targetOperandNamespace
-               }
-             }
-           }
-         }
-       }
      } else if manifest.kind == 'ValidatingWebhookConfiguration' || manifest.kind == 'MutatingWebhookConfiguration' then manifest {
        metadata+: {
          annotations+: {
@@ -118,6 +105,7 @@ local suffix = {
   ValidatingWebhookConfiguration: 'validatingwebhookconfiguration',
   Service: 'svc',
   Deployment: 'deployment',
+  ConfigMap: 'configmap'
 };
 
 // create a path including the file name based on the item.

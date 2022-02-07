@@ -46,6 +46,10 @@ var (
 		"cert-manager-deployment/controller/cert-manager-sa.yaml",
 		"cert-manager-deployment/controller/cert-manager-svc.yaml",
 		"cert-manager-deployment/controller/cert-manager-view-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-cr.yaml",
+		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-crb.yaml",
 	}
 )
 
