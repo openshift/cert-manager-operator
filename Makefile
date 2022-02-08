@@ -11,7 +11,7 @@ BUNDLE_IMAGE_TAG?=latest
 
 TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
 
-MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.7.1/cert-manager.yaml
 
 OPERATOR_SDK_VERSION?=v1.12.0
 OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
@@ -68,6 +68,7 @@ verify-scripts:
 verify: verify-scripts verify-codegen-crds
 
 local-deploy-manifests:
+	- kubectl create namespace openshift-cert-manager-operator
 	kubectl apply $$(ls ./bundle/manifests/*crd.yaml | awk ' { print " -f " $$1 } ')
 .PHONY: local-deploy-manifests
 
