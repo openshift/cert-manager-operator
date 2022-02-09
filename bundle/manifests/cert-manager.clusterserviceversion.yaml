@@ -13,6 +13,7 @@ metadata:
     support: The OpenShift Engineering Team
     operatorframework.io/suggested-namespace: openshift-cert-manager-operator
     operatorframework.io/cluster-monitoring: "true"
+    console.openshift.io/disable-operand-delete: "true"
   name: openshift-cert-manager.v1.7.1
   namespace: placeholder
 spec:
