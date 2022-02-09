@@ -39,6 +39,7 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 	kubeClientContainer *resourceapply.ClientHolder,
 	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
 	eventsRecorder events.Recorder) factory.Controller {
+	ownerReferenceSetter := NewOwnerReferenceSetter(operatorClient)
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerWebhookStaticResourcesControllerName,
 		assets.Asset,
@@ -46,7 +47,7 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
-	).AddKubeInformers(kubeInformersForTargetNamespace)
+	).AddKubeInformers(kubeInformersForTargetNamespace).WithPreprocessFunc(ownerReferenceSetter.preprocessResources)
 }
 
 func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient,

@@ -23,8 +23,9 @@ import (
 )
 
 type genericDeploymentController struct {
-	kubeClient     kubernetes.Interface
-	operatorClient v1helpers.OperatorClient
+	kubeClient           kubernetes.Interface
+	operatorClient       v1helpers.OperatorClient
+	OwnerReferenceSetter OwnerReferenceSetter
 
 	deploymentFile string
 }
@@ -43,6 +44,8 @@ func newGenericDeploymentController(
 		operatorClient: operatorClient,
 
 		deploymentFile: deploymentFile,
+
+		OwnerReferenceSetter: NewOwnerReferenceSetter(operatorClient),
 	}
 
 	return workload.NewController(
@@ -77,6 +80,11 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 
 	assert, _ := assets.Asset(c.deploymentFile)
 	deployment := resourceread.ReadDeploymentV1OrDie(assert)
+
+	untypedObj, err := c.OwnerReferenceSetter.preprocessResources(ctx, deployment)
+	// Can't fail - we've just passed the deployment there and it's just a matter of interface incompatibility
+	deployment = untypedObj.(*appsv1.Deployment)
+
 	for index := range deployment.Spec.Template.Spec.Containers {
 		deployment.Spec.Template.Spec.Containers[index].Image = certManagerImage(deployment.Spec.Template.Spec.Containers[index].Image)
 	}
