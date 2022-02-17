@@ -99,3 +99,21 @@ cert-manager-crds/certificaterequests.cert-manager.io-crd.yaml
 ```
 
 Check the changes in the `bindata/` folder and assert any inconsistencies or errors.
+
+## Running e2e tests locally
+
+The testsuite assumes, that Cert Manager Operator has been successfully deployed in the cluster and 
+it also successfully deployed Cert Manager (the operand). This is exactly what Prow is doing in cooperation with 
+`make test-e2e-wait-for-stable-state`.
+
+If you'd like to run all the tests locally, you need to ensure the same requirements are met. The easiest way to do it
+is to:
+
+    make local-deploy-manifests local-run
+
+Then, let it run for a few minutes. Once the operands are deployed, just invoke:
+
+    make test-e2e -o test-e2e-wait-for-stable-state
+
+The `-o test-e2e-wait-for-stable-state` skips checking if the operator is deployed. Depending on how do you're testing it,
+you may or may not want to invoke it.

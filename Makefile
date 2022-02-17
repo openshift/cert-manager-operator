@@ -48,9 +48,29 @@ $(call build-image,cert-manager-operator-bundle,$(IMAGE_OPERATOR_BUNDLE),./bundl
 GO_TEST_PACKAGES :=./pkg/... ./cmd/...
 
 # re-use test-unit target for e2e tests
+test-e2e: test-e2e-wait-for-stable-state
+	$(MAKE) GO_TEST_PACKAGES=./test/e2e/... test-unit
 .PHONY: test-e2e
-test-e2e: GO_TEST_PACKAGES :=./test/e2e/...
-test-e2e: test-unit
+
+test-e2e-wait-for-stable-state:
+	@echo "---- Waiting for stable state ----"
+	# This ensures the test-e2e-debug-cluster is called if a timeout is reached.
+	oc wait --for=condition=Available=true deployment/cert-manager-cainjector -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	oc wait --for=condition=Available=true deployment/cert-manager-controller -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	oc wait --for=condition=Available=true deployment/cert-manager-webhook -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	@echo "---- /Waiting for stable state ----"
+.PHONY: test-e2e-wait-for-stable-state
+
+test-e2e-debug-cluster:
+	@echo "---- Debugging the current state ----"
+	- oc get pod -n openshift-cert-manager-operator
+	- oc get pod -n openshift-cert-manager
+	- oc get co
+	- oc get csv --all-namespaces
+	- oc get crd | grep -i cert
+	- oc get subscriptions --all-namespaces
+	@echo "---- /Debugging the current state ----"
+.PHONY: test-e2e-debug-cluster
 
 update-manifests:
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
