@@ -16,7 +16,7 @@ func Test_certManagerImage(t *testing.T) {
 		want string
 	}{
 		{
-			name: "Use default image on empty " + environmentalVariableCertManagerRelatedImage + " variable",
+			name: "Use default image on empty RELATED_IMAGE_CERT_MANAGER_CONTROLLER variable",
 			args: args{
 				defaultImage:       "quay.io/jetstack/cert-manager-controller:latest",
 				relatedImageEnvVar: "",
@@ -24,7 +24,7 @@ func Test_certManagerImage(t *testing.T) {
 			want: "quay.io/jetstack/cert-manager-controller:latest",
 		},
 		{
-			name: "Use related image on non-empty " + environmentalVariableCertManagerRelatedImage + " variable",
+			name: "Use related image on non-empty RELATED_IMAGE_CERT_MANAGER_CONTROLLER variable",
 			args: args{
 				defaultImage:       "quay.io/jetstack/cert-manager-controller:latest",
 				relatedImageEnvVar: "registry.redhat.io/cert-manager/cert-manager-operator-1.5-rhel-8:latest",
@@ -34,11 +34,11 @@ func Test_certManagerImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv(environmentalVariableCertManagerRelatedImage, tt.args.relatedImageEnvVar)
+			os.Setenv("RELATED_IMAGE_CERT_MANAGER_CONTROLLER", tt.args.relatedImageEnvVar)
 			if got := certManagerImage(tt.args.defaultImage); got != tt.want {
 				t.Errorf("certManagerImage() = %v, want %v", got, tt.want)
 			}
-			os.Unsetenv(environmentalVariableCertManagerRelatedImage)
+			os.Unsetenv("RELATED_IMAGE_CERT_MANAGER_CONTROLLER")
 		})
 	}
 }
