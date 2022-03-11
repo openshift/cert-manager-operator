@@ -29,6 +29,24 @@ type CertManagerStatus struct {
 	apiv1.OperatorStatus `json:",inline"`
 }
 
+type UnsupportedConfigOverrides struct {
+	Controller UnsupportedConfigOverridesForCertManagerController `json:"controller,omitempty"`
+	Webhook    UnsupportedConfigOverridesForCertManagerWebhook    `json:"webhook,omitempty"`
+	CAInjector UnsupportedConfigOverridesForCertManagerCAInjector `json:"cainjector,omitempty"`
+}
+
+type UnsupportedConfigOverridesForCertManagerController struct {
+	Args []string `json:"args,omitempty"`
+}
+
+type UnsupportedConfigOverridesForCertManagerWebhook struct {
+	Args []string `json:"args,omitempty"`
+}
+
+type UnsupportedConfigOverridesForCertManagerCAInjector struct {
+	Args []string `json:"args,omitempty"`
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // CertManagerList is a collection of items
