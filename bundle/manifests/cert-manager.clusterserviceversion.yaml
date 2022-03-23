@@ -14,6 +14,19 @@ metadata:
     operatorframework.io/suggested-namespace: openshift-cert-manager-operator
     operatorframework.io/cluster-monitoring: "true"
     console.openshift.io/disable-operand-delete: "true"
+    alm-examples: |
+      [
+        {
+          "apiVersion": "operator.openshift.io/v1alpha1",
+          "kind": "CertManager",
+          "metadata": {
+            "name": "cluster"
+          },
+          "spec": {
+            "managementState": "Managed"
+          }
+        }
+      ]
   name: openshift-cert-manager.v1.7.1
   namespace: placeholder
 spec:
