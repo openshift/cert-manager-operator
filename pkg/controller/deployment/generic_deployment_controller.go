@@ -80,7 +80,14 @@ func (c *genericDeploymentController) Sync(ctx context.Context, syncContext fact
 	for index := range deployment.Spec.Template.Spec.Containers {
 		deployment.Spec.Template.Spec.Containers[index].Image = certManagerImage(deployment.Spec.Template.Spec.Containers[index].Image)
 	}
-	_, opStatus, _, _ := c.operatorClient.GetOperatorState()
+	operatorSpec, opStatus, _, _ := c.operatorClient.GetOperatorState()
+	unsupportedExtensions, err := operatorclient.GetUnsupportedConfigOverrides(operatorSpec)
+	if err != nil {
+		return nil, false, append(errors, fmt.Errorf("Getting unsupportedConfigOverrides failed: %w", err))
+	}
+
+	deployment = UnsupportedConfigOverrides(deployment, unsupportedExtensions)
+
 	appliedDeployment, _, err = resourceapply.ApplyDeployment(ctx, c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
 
 	if err != nil {

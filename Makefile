@@ -69,6 +69,7 @@ test-e2e-debug-cluster:
 	- oc get csv --all-namespaces
 	- oc get crd | grep -i cert
 	- oc get subscriptions --all-namespaces
+	- oc logs deployment/cert-manager-operator -n openshift-cert-manager-operator
 	@echo "---- /Debugging the current state ----"
 .PHONY: test-e2e-debug-cluster
 

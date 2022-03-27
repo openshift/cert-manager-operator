@@ -117,3 +117,23 @@ Then, let it run for a few minutes. Once the operands are deployed, just invoke:
 
 The `-o test-e2e-wait-for-stable-state` skips checking if the operator is deployed. Depending on how do you're testing it,
 you may or may not want to invoke it.
+
+## Using unsupported config overrides options
+
+It is possible (although not supported) to specify custom settings to each Cert Manager image. In order to do it,
+you need to modify the `certmanager.operator/cluster` object:
+
+```asciidoc
+apiVersion: operator.openshift.io/v1alpha1
+kind: CertManager
+metadata:
+  name: cluster
+spec:
+  managementState: "Managed"
+  unsupportedConfigOverrides:
+    # Here's an example to supply custom DNS settings.
+    controller:
+      args:
+        - "--dns01-recursive-nameservers=1.1.1.1:53"
+        - "--dns01-recursive-nameservers-only"
+```

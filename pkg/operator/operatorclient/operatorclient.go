@@ -2,12 +2,14 @@ package operatorclient
 
 import (
 	"context"
+	"encoding/json"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	"github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
 	operatorconfigclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	operatorclientinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 
@@ -41,6 +43,18 @@ func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv
 	}
 
 	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
+}
+
+func GetUnsupportedConfigOverrides(operatorSpec *operatorv1.OperatorSpec) (*v1alpha1.UnsupportedConfigOverrides, error) {
+	if len(operatorSpec.UnsupportedConfigOverrides.Raw) != 0 {
+		out := &v1alpha1.UnsupportedConfigOverrides{}
+		err := json.Unmarshal(operatorSpec.UnsupportedConfigOverrides.Raw, out)
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	return nil, nil
 }
 
 func (c OperatorClient) UpdateOperatorSpec(ctx context.Context, resourceVersion string, spec *operatorv1.OperatorSpec) (*operatorv1.OperatorSpec, string, error) {
