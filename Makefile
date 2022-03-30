@@ -94,7 +94,7 @@ local-deploy-manifests:
 	kubectl apply $$(ls ./bundle/manifests/*crd.yaml | awk ' { print " -f " $$1 } ')
 .PHONY: local-deploy-manifests
 
-local-run:
+local-run: build
 	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
 .PHONY: local-run
 
