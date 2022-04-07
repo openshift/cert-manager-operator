@@ -242,4 +242,4 @@ spec:
   provider:
     name: Red Hat
     url: aos-auth-staff@redhat.com
-  version: 1.7.1
+  version: 1.7.1-1
