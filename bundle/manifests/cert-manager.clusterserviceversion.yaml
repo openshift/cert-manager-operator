@@ -28,7 +28,7 @@ metadata:
           }
         }
       ]
-  name: openshift-cert-manager.v1.7.1
+  name: openshift-cert-manager.v1.7.1-1
   namespace: placeholder
 spec:
   customresourcedefinitions:
