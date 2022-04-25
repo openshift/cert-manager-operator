@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: hello-openshift
+    app.kubernetes.io/component: hello-openshift
+    app.kubernetes.io/instance: hello-openshift
+  name: hello-openshift
+  namespace: hello
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      deployment: hello-openshift
+  template:
+    metadata:
+      labels:
+        deployment: hello-openshift
+    spec:
+      containers:
+        - image: openshift/hello-openshift:latest
+          imagePullPolicy: IfNotPresent
+          name: hello-openshift
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+            - containerPort: 8888
+              protocol: TCP
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        privileged: false
+        capabilities:
+          drop: All

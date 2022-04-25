@@ -1,5 +1,5 @@
 GO_REQUIRED_MIN_VERSION = 1.17
-
+GO_TEST_FLAGS=-v
 RUNTIME?=docker
 
 APP_NAME?=cert-manager-operator
