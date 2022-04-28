@@ -1,5 +1,4 @@
 GO_REQUIRED_MIN_VERSION = 1.17
-GO_TEST_FLAGS=-v
 RUNTIME?=docker
 
 APP_NAME?=cert-manager-operator
@@ -9,6 +8,13 @@ IMAGE_TAG?=latest
 IMAGE_OPERATOR?=$(IMAGE_REGISTRY)/$(IMAGE_ORG)/cert-manager-operator:$(IMAGE_TAG)
 IMAGE_OPERATOR_BUNDLE?=$(IMAGE_REGISTRY)/$(IMAGE_ORG)/cert-manager-operator-bundle:$(IMAGE_TAG)
 
+TESTS_IMAGE_REGISTRY?=quay.io
+TESTS_IMAGE_ORG?=ytripath
+TESTS_IMAGE_TAG?=$(IMAGE_TAG)
+TESTS_IMAGE?=$(TESTS_IMAGE_REGISTRY)/$(TESTS_IMAGE_ORG)/cert-manager-operator-scorecard-test:$(TESTS_IMAGE_TAG)
+TESTS_WAIT_TIME?=600s
+TESTS_NAMESPACE?=cert-manager-tests
+TESTS_SA?=cert-manager-operator-e2e-test-runner
 TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
@@ -44,12 +50,34 @@ $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/binda
 $(call build-image,cert-manager-operator,$(IMAGE_OPERATOR),./images/ci/Dockerfile,.)
 $(call build-image,cert-manager-operator-bundle,$(IMAGE_OPERATOR_BUNDLE),./bundle/bundle.Dockerfile,./bundle)
 
+# generate scorecard image targets
+.PHONY: build/custom-scorecard-tests
+build/custom-scorecard-tests:
+	go build -mod=vendor $(GO_GCFLAGS) $(GO_ASMFLAGS) -o $(BUILD_DIR)/$(@F) ./test
+
+.PHONY: build-e2e-image
+build-e2e-image:
+	docker build -f ./images/custom-scorecard-tests/Dockerfile -t $(TESTS_IMAGE) ./
+
+.PHONY: push-e2e-image
+push-e2e-image: build-e2e-image
+	docker push $(TESTS_IMAGE)
+
+.PHONY: run-e2e-image
+run-e2e-image:
+	IMAGE=${TESTS_IMAGE} envsubst < bundle/tests/scorecard/base.yaml > bundle/tests/scorecard/config.yaml 
+	oc project $(TESTS_NAMESPACE) || oc new-project $(TESTS_NAMESPACE)
+	oc get sa $(TESTS_SA) -n $(TESTS_NAMESPACE) || oc create sa $(TESTS_SA) -n $(TESTS_NAMESPACE)
+	oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:$(TESTS_NAMESPACE):$(TESTS_SA)
+	operator-sdk scorecard ./bundle --namespace=$(TESTS_NAMESPACE) --wait-time=$(TESTS_WAIT_TIME) -o json || true	
+	oc delete project $(TESTS_NAMESPACE)
+
 # exclude e2e test from unit tests
 GO_TEST_PACKAGES :=./pkg/... ./cmd/...
 
-# re-use test-unit target for e2e tests
-test-e2e: test-e2e-wait-for-stable-state
-	$(MAKE) GO_TEST_PACKAGES=./test/e2e/... test-unit
+test-e2e: 
+	$(MAKE) 'BUILD_DIR=.' build/custom-scorecard-tests
+	./custom-scorecard-tests --bundle ./bundle all
 .PHONY: test-e2e
 
 test-e2e-wait-for-stable-state:

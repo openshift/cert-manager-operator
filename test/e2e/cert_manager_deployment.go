@@ -3,20 +3,23 @@ package e2e
 import (
 	"context"
 	"embed"
+	"log"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	_ "embed"
-
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
+	apimanifests "github.com/operator-framework/api/pkg/manifests"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/openshift/cert-manager-operator/test/library"
 	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	"github.com/stretchr/testify/require"
+	scapiv1alpha3 "github.com/operator-framework/api/pkg/apis/scorecard/v1alpha3"
+
+	// "github.com/rs/zerolog/log"
+	"github.com/stretchr/testify/assert"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +34,21 @@ const (
 //go:embed testdata/*
 var testassets embed.FS
 
-func TestSelfSignedCerts(t *testing.T) {
+// create type Tests
+type Tests struct {
+	T *testing.T
+}
+
+func (test Tests) TestSelfSignedCerts(bundle *apimanifests.Bundle) scapiv1alpha3.TestResult {
 	ctx := context.Background()
+	t := test.T
 	loader := library.NewDynamicResourceLoader(ctx, t)
+
+	r := scapiv1alpha3.TestResult{}
+	r.Name = "TestSelfSignedCerts"
+	r.State = scapiv1alpha3.PassState
+	r.Errors = []string{}
+	r.Suggestions = []string{}
 
 	loader.CreateTestingNS("hello")
 	defer loader.DeleteTestingNS("hello")
@@ -45,25 +60,38 @@ func TestSelfSignedCerts(t *testing.T) {
 	defer loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"))
 
 	err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-		// TODO: The loader.KubeClient might be worth splitting out. Let's see once we have more tests.
 		secret, err := loader.KubeClient.CoreV1().Secrets("hello").Get(ctx, "root-secret", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			t.Logf("Unable to retrieve the root secret: %v", err)
+			log.Print(err)
 			return false, nil
-		}
-		if err != nil {
+		} else if err != nil {
 			return false, err
 		}
 		return library.VerifySecretNotNull(secret)
 	})
-	require.NoError(t, err)
+	log.Print("Certificate generated root-secret found")
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
+	return r
 }
 
-func TestACMECertsIngress(t *testing.T) {
+func (test Tests) TestACMECertsIngress(bundle *apimanifests.Bundle) scapiv1alpha3.TestResult {
 	ctx := context.Background()
+	t := &testing.T{}
 	loader := library.NewDynamicResourceLoader(ctx, t)
 	config, err := library.GetConfigForTest(t)
-	require.NoError(t, err)
+	r := scapiv1alpha3.TestResult{}
+	r.Name = "TestACMECertsIngress"
+	r.State = scapiv1alpha3.PassState
+	r.Errors = make([]string, 0)
+	r.Suggestions = make([]string, 0)
+	if err != nil {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+		return r
+	}
 
 	loader.CreateTestingNS("hello")
 	defer loader.DeleteTestingNS("hello")
@@ -75,9 +103,15 @@ func TestACMECertsIngress(t *testing.T) {
 	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
 
 	routeV1Client, err := routev1.NewForConfig(config)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	route, err := routeV1Client.Routes("openshift-console").Get(ctx, "console", metav1.GetOptions{})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 
 	ingress_host := "hey." + strings.Join(strings.Split(route.Spec.Host, ".")[1:], ".")
 	path_type := networkingv1.PathTypePrefix
@@ -118,37 +152,55 @@ func TestACMECertsIngress(t *testing.T) {
 		},
 	}
 	ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
 	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(ingress.ObjectMeta.Namespace).Get(ctx, "ingress-prod-secret", metav1.GetOptions{})
 		tlsConfig, isvalid := library.GetTLSConfig(secret)
 		if !isvalid {
-			t.Logf("Unable to retrieve the TLS config: %v", err)
+			log.Printf("Polling for the TLS config: %v", err)
 			return false, nil
 		}
 		is_host_correct, err := library.VerifyHostname(ingress_host, tlsConfig.Clone())
 		if err != nil {
-			t.Logf("Host: %v", err)
+			log.Printf("Polling until the host is correct: %v", err)
 			return false, nil
 		}
 		is_not_expired, err := library.VerifyExpiry(ingress_host+":443", tlsConfig.Clone())
 		if err != nil {
-			t.Logf("Expired: %v", err)
+			log.Printf("Polling until the expiry is correct: %v", err)
 			return false, nil
 		}
-		return is_host_correct && is_not_expired, nil
+		log.Printf("Hostname is correct: %v", is_host_correct)
+		log.Printf("Certificate is not expired: %v", is_not_expired)
+		return is_host_correct && is_not_expired, err
 	})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
+	return r
 }
 
-func TestCertRenew(t *testing.T) {
+func (test Tests) TestCertRenewal(bundle *apimanifests.Bundle) scapiv1alpha3.TestResult {
 	ctx := context.Background()
+	t := &testing.T{}
 	loader := library.NewDynamicResourceLoader(ctx, t)
+	r := scapiv1alpha3.TestResult{}
+	r.Name = "TestCertRenewal"
+	r.State = scapiv1alpha3.PassState
+	r.Errors = make([]string, 0)
+	r.Suggestions = make([]string, 0)
 	config, err := library.GetConfigForTest(t)
-	require.NoError(t, err)
-
+	if !assert.NoError(t, err) {
+		r.State = scapiv1alpha3.FailState
+		r.Errors = append(r.Errors, err.Error())
+		return r
+	}
 	loader.CreateTestingNS("hello")
 	defer loader.DeleteTestingNS("hello")
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"))
@@ -163,9 +215,15 @@ func TestCertRenew(t *testing.T) {
 	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
 
 	routeV1Client, err := routev1.NewForConfig(config)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	route, err := routeV1Client.Routes("openshift-console").Get(ctx, "console", metav1.GetOptions{})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 
 	ingress_host := "hello-test." + strings.Join(strings.Split(route.Spec.Host, ".")[1:], ".")
 	path_type := networkingv1.PathTypePrefix
@@ -202,7 +260,10 @@ func TestCertRenew(t *testing.T) {
 		},
 	}
 	ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
 	crt := &certmanagerv1.Certificate{
@@ -225,10 +286,16 @@ func TestCertRenew(t *testing.T) {
 		},
 	}
 	certmanagerv1Client, err := certmanagerclientset.NewForConfig(config)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	crt, err = certmanagerv1Client.CertmanagerV1().Certificates(crt.ObjectMeta.Namespace).Create(ctx, crt, metav1.CreateOptions{})
 	defer certmanagerv1Client.CertmanagerV1().Certificates(crt.ObjectMeta.Namespace).Delete(ctx, crt.ObjectMeta.Name, metav1.DeleteOptions{})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
 	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 		secret, _ := loader.KubeClient.CoreV1().Secrets("hello").Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
 		tlsConfig, isValid := library.GetTLSConfig(secret)
@@ -238,16 +305,16 @@ func TestCertRenew(t *testing.T) {
 
 		is_host_correct, err := library.VerifyHostname(ingress_host, tlsConfig.Clone())
 		if err != nil {
-			t.Errorf("Host %v", err)
+			t.Errorf("Host is incorrect %v", err)
 			return false, nil
 		}
 		is_not_expired, err := library.VerifyExpiry(ingress_host+":443", tlsConfig.Clone())
 		if err != nil {
-			t.Errorf("Expiry %v", err)
+			t.Errorf("Certificate is expired %v", err)
 			return false, nil
 		}
 		expiryTime, err := library.GetCertExpiry(ingress_host+":443", tlsConfig.Clone())
-		t.Logf("Expiry Before %v", expiryTime)
+		log.Printf("Expiry time before renew %v", expiryTime)
 		if err != nil {
 			return false, nil
 		}
@@ -258,12 +325,21 @@ func TestCertRenew(t *testing.T) {
 			return false, nil
 		}
 		expiryTimeNew, err := library.GetCertExpiry(ingress_host+":443", tlsConfig.Clone())
-		t.Logf("Expiry After %v", expiryTimeNew)
+		is_cert_renewed := expiryTimeNew.After(expiryTime)
+		if is_cert_renewed {
+			log.Printf("Expiry time after renew %v", expiryTimeNew)
+		}
 		if err != nil {
 			return false, nil
 		}
-		is_cert_renewed := expiryTimeNew.After(expiryTime)
+		log.Printf("Hostname is correct: %v", is_host_correct)
+		log.Printf("Certificate is not expired: %v", is_not_expired)
+		log.Printf("Certificate is renewed: %v", is_cert_renewed)
 		return is_host_correct && is_not_expired && is_cert_renewed, nil
 	})
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		r.Errors = append(r.Errors, err.Error())
+		r.State = scapiv1alpha3.FailState
+	}
+	return r
 }
