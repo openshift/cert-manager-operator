@@ -7,7 +7,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.7.1
+    app.kubernetes.io/version: v1.8.0
   name: certificaterequests.cert-manager.io
 spec:
   group: cert-manager.io
@@ -182,6 +182,9 @@ spec:
                       - type
                     type: object
                   type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
                 failureTime:
                   description: FailureTime stores the time that this CertificateRequest failed. This is used to influence garbage collection and back-off.
                   format: date-time

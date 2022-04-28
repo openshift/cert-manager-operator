@@ -11,7 +11,7 @@ IMAGE_OPERATOR_BUNDLE?=$(IMAGE_REGISTRY)/$(IMAGE_ORG)/cert-manager-operator-bund
 
 TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
 
-MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.7.1/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
 
 OPERATOR_SDK_VERSION?=v1.12.0
 OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
