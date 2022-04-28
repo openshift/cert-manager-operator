@@ -28,7 +28,7 @@ metadata:
           }
         }
       ]
-  name: openshift-cert-manager.v1.7.1
+  name: openshift-cert-manager.v1.8.0
   namespace: placeholder
 spec:
   customresourcedefinitions:
@@ -96,15 +96,15 @@ spec:
                       - name: OPERATOR_NAME
                         value: cert-manager-operator
                       - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                        value: quay.io/jetstack/cert-manager-webhook:v1.7.1
+                        value: quay.io/jetstack/cert-manager-webhook:v1.8.0
                       - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                        value: quay.io/jetstack/cert-manager-cainjector:v1.7.1
+                        value: quay.io/jetstack/cert-manager-cainjector:v1.8.0
                       - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                        value: quay.io/jetstack/cert-manager-controller:v1.7.1
+                        value: quay.io/jetstack/cert-manager-controller:v1.8.0
                       - name: OPERAND_IMAGE_VERSION
-                        value: 1.7.1
+                        value: 1.8.0
                       - name: OPERATOR_IMAGE_VERSION
-                        value: 1.7.1
+                        value: 1.8.0
                     image: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-rhel8:latest
                     imagePullPolicy: Always
                     name: cert-manager-operator
@@ -242,4 +242,4 @@ spec:
   provider:
     name: Red Hat
     url: aos-auth-staff@redhat.com
-  version: 1.7.1-1
+  version: 1.8.0
