@@ -1,0 +1,16 @@
+kind: Configuration
+apiversion: scorecard.operatorframework.io/v1alpha3
+metadata:
+  name: config
+
+stages:
+  - tests:
+      - image: ${IMAGE}
+        imagePullPolicy: Always
+        entrypoint:
+          - custom-scorecard-tests
+          - all
+        labels:
+          suite: custom
+          test: "All tests"
+serviceaccount: cert-manager-operator-e2e-test-runner

@@ -3,9 +3,11 @@ package library
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
+	scapiv1alpha3 "github.com/operator-framework/api/pkg/apis/scorecard/v1alpha3"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,4 +69,53 @@ func (d DynamicResourceLoader) DeleteTestingNS(baseName string) (bool, error) {
 		return true, err
 	}
 	return false, nil
+}
+
+func WrapResult(results []scapiv1alpha3.TestResult) scapiv1alpha3.TestStatus {
+	return scapiv1alpha3.TestStatus{
+		Results: results,
+	}
+}
+
+func Invoke(any interface{}, name string, args ...interface{}) (reflect.Value, error) {
+	method := reflect.ValueOf(any).MethodByName(name)
+	methodType := method.Type()
+	numIn := methodType.NumIn()
+	if numIn > len(args) {
+		return reflect.ValueOf(nil), fmt.Errorf("Method %s must have minimum %d params. Have %d", name, numIn, len(args))
+	}
+	if numIn != len(args) && !methodType.IsVariadic() {
+		return reflect.ValueOf(nil), fmt.Errorf("Method %s must have %d params. Have %d", name, numIn, len(args))
+	}
+	in := make([]reflect.Value, len(args))
+	for i := 0; i < len(args); i++ {
+		var inType reflect.Type
+		if methodType.IsVariadic() && i >= numIn-1 {
+			inType = methodType.In(numIn - 1).Elem()
+		} else {
+			inType = methodType.In(i)
+		}
+		argValue := reflect.ValueOf(args[i])
+		if !argValue.IsValid() {
+			return reflect.ValueOf(nil), fmt.Errorf("Method %s. Param[%d] must be %s. Have %s", name, i, inType, argValue.String())
+		}
+		argType := argValue.Type()
+		if argType.ConvertibleTo(inType) {
+			in[i] = argValue.Convert(inType)
+		} else {
+			return reflect.ValueOf(nil), fmt.Errorf("Method %s. Param[%d] must be %s. Have %s", name, i, inType, argType)
+		}
+	}
+	return method.Call(in)[0], nil
+}
+
+// Get all methods by struct
+func GetMethods(any interface{}) []string {
+	var methods []string
+	t := reflect.TypeOf(any)
+	for i := 0; i < t.NumMethod(); i++ {
+		method := t.Method(i)
+		methods = append(methods, method.Name)
+	}
+	return methods
 }
