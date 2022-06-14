@@ -134,6 +134,9 @@ spec:
     # Here's an example to supply custom DNS settings.
     controller:
       args:
-        - "--dns01-recursive-nameservers=1.1.1.1:53"
-        - "--dns01-recursive-nameservers-only"
+        - --v=2
+        - --cluster-resource-namespace=$(POD_NAMESPACE)
+        - --leader-election-namespace=kube-system
+        - --dns01-recursive-nameservers-only
+        - --dns01-recursive-nameservers=8.8.8.8:53,8.8.4.4:53
 ```
