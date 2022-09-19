@@ -9,3 +9,6 @@ spec:
       args:
         - "--dns01-recursive-nameservers=1.1.1.1:53"
         - "--dns01-recursive-nameservers-only"
+      envVars:
+        - name: HTTP_PROXY
+          value: "http://proxy.example.com:8080"
