@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	apiv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,15 +37,18 @@ type UnsupportedConfigOverrides struct {
 }
 
 type UnsupportedConfigOverridesForCertManagerController struct {
-	Args []string `json:"args,omitempty"`
+	Args    []string        `json:"args,omitempty"`
+	EnvVars []corev1.EnvVar `json:"envVars,omitempty"`
 }
 
 type UnsupportedConfigOverridesForCertManagerWebhook struct {
-	Args []string `json:"args,omitempty"`
+	Args    []string        `json:"args,omitempty"`
+	EnvVars []corev1.EnvVar `json:"envVars,omitempty"`
 }
 
 type UnsupportedConfigOverridesForCertManagerCAInjector struct {
-	Args []string `json:"args,omitempty"`
+	Args    []string        `json:"args,omitempty"`
+	EnvVars []corev1.EnvVar `json:"envVars,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
