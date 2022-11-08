@@ -10,7 +10,6 @@ set -o nounset
 set -o pipefail
 
 API_GROUP_VERSIONS="
-config/v1alpha1
 operator/v1alpha1
 "
 API_PACKAGES="

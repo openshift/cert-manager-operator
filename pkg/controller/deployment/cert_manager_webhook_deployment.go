@@ -4,7 +4,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 
-	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -52,7 +51,6 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient,
 	kubeclient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerWebhookDeploymentControllerName,
@@ -61,7 +59,6 @@ func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.Operator
 		operatorClient,
 		kubeclient,
 		kubeInformersForTargetNamespace,
-		openshiftClusterConfigClient,
 		eventsRecorder,
 		versionRecorder)
 }

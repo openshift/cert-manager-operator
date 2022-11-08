@@ -35,7 +35,6 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 # $3 - manifests
 # $4 - output
 $(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/manifests,./bundle/manifests)
-$(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/manifests,./bundle/manifests)
 
 # generate bindata targets
 $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)

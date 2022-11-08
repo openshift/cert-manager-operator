@@ -29,12 +29,15 @@ type genericDeploymentController struct {
 	deploymentFile string
 }
 
+type dummyClusterOperatorClient struct {
+	configv1.ClusterOperatorInterface
+}
+
 func newGenericDeploymentController(
 	controllerName, targetVersion, deploymentFile string,
 	operatorClient v1helpers.OperatorClient,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 ) factory.Controller {
@@ -64,7 +67,7 @@ func newGenericDeploymentController(
 			kubeInformersForTargetNamespace.Core().V1().Namespaces().Informer(),
 		},
 		controller,
-		openshiftClusterConfigClient,
+		&dummyClusterOperatorClient{},
 		eventsRecorder,
 		versionRecorder,
 	)
