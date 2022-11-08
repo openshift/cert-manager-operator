@@ -4,10 +4,16 @@ reviewers:
   - sttts
   - deads2k
   - slaskawi
+  - thejasn
+  - TrilokGeer
+  - swghosh
 approvers:
   - stlaz
   - sttts
   - deads2k
   - s-urbaniak
   - slaskawi
+  - thejasn
+  - TrilokGeer
+  - swghosh
 components: cert-manager-operator
