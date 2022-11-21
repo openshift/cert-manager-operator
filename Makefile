@@ -102,6 +102,14 @@ MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download
 
 ##@ Development
 
+# Include the library makefiles
+include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
+	targets/openshift/bindata.mk \
+)
+
+# generate bindata targets
+$(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
+
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
@@ -109,7 +117,6 @@ manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefin
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -129,6 +136,22 @@ update-manifests:
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
 .PHONY: update-manifests
 
+update-scripts:
+	hack/update-deepcopy.sh
+	hack/update-clientgen.sh
+.PHONY: update-scripts
+
+.PHONY: update
+update: update-scripts update-manifests update-bindata
+	 
+verify-scripts:
+	hack/verify-deepcopy.sh
+	hack/verify-clientgen.sh
+.PHONY: verify-scripts
+
+# TODO
+verify: verify-scripts
+
 ##@ Build
 GO=GO111MODULE=on GOFLAGS=-mod=vendor CGO_ENABLED=0 go
 
@@ -147,12 +170,6 @@ image-push: ## Push container image with the operator.
 	$(CONTAINER_ENGINE) push ${IMG} ${CONTAINER_PUSH_ARGS}
 
 ##@ Deployment
-
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
-
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
@@ -232,18 +249,8 @@ clean:
 # OPERATOR_SDK_VERSION?=v1.12.0
 # OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
 # OPERATOR_SDK_DIR=$(dir $(OPERATOR_SDK))
-#
-# # Include the library makefiles
-# include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
-# 	golang.mk \
-# 	targets/openshift/bindata.mk \
-# 	targets/openshift/images.mk \
-# 	targets/openshift/imagebuilder.mk \
-# 	targets/openshift/deps.mk \
-# 	targets/openshift/operator/telepresence.mk \
-# 	targets/openshift/operator/profile-manifests.mk \
-# 	targets/openshift/crd-schema-gen.mk \
-# )
+
+# Include the library makefiles
 #
 #
 # # $1 - target name
@@ -253,8 +260,6 @@ clean:
 # $(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/manifests,./bundle/manifests)
 # $(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/manifests,./bundle/manifests)
 #
-# # generate bindata targets
-# $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
 #
 # # generate image targets
 # $(call build-image,cert-manager-operator,$(IMAGE_OPERATOR),./images/ci/Dockerfile,.)
@@ -293,17 +298,6 @@ clean:
 # 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
 # .PHONY: update-manifests
 #
-# update-scripts:
-# 	hack/update-deepcopy.sh
-# 	hack/update-clientgen.sh
-# .PHONY: update-scripts
-# update: update-scripts update-codegen-crds update-manifests update-bindata
-#
-# verify-scripts:
-# 	hack/verify-deepcopy.sh
-# 	hack/verify-clientgen.sh
-# .PHONY: verify-scripts
-# verify: verify-scripts verify-codegen-crds
 #
 # local-deploy-manifests:
 # 	- kubectl create namespace openshift-cert-manager-operator

@@ -13,5 +13,6 @@ for group in ${API_GROUP_VERSIONS}; do
     github.com/openshift/cert-manager-operator/apis \
     "${group/\//:}" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
+    --output-base ../../.. \
     ${verify}
 done
