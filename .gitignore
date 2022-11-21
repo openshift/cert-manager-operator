@@ -18,3 +18,9 @@ telepresence.log
 
 # make tools output
 /_output
+
+# Downloaded binaries
+bin/
+
+# Test binaries
+testbin/
