@@ -114,7 +114,7 @@ local suffix = {
 // create a path including the file name based on the item.
 local path(item) =
   // CRDs go into cert-manager-crds directory
-  if item.kind == 'CustomResourceDefinition' then 'bundle/manifests/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
+  if item.kind == 'CustomResourceDefinition' then 'config/crd/bases/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml'
   // everything that has a component label goes into its own subdirectory
   else if 'labels' in item.metadata &&
           'app.kubernetes.io/component' in item.metadata.labels

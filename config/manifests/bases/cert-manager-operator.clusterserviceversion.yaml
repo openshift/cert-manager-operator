@@ -1,0 +1,70 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: cert-manager-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: CertificateRequest
+      name: cert-manager.io
+      version: v1
+    - kind: Certificate
+      name: cert-manager.io
+      version: v1
+    - kind: Challenge
+      name: acme.cert-manager.io
+      version: v1
+    - kind: ClusterIssuer
+      name: cert-manager.io
+      version: v1
+    - kind: Issuer
+      name: cert-manager.io
+      version: v1
+    - kind: Order
+      name: acme.cert-manager.io
+      version: v1
+    - description: CertManager is the Schema for the certmanagers API
+      displayName: Cert Manager
+      kind: CertManager
+      name: certmanagers.operator.openshift.io.openshift.io
+      version: v1alpha1
+    - description: CertManager is the Schema for the certmanagers API
+      displayName: Cert Manager
+      kind: CertManager
+      name: certmanagers.operator.openshift.io
+      version: v1alpha1
+  description: cert-manager-operator
+  displayName: cert-manager-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - cert-manager
+  - cert manager
+  - cert-manager-operator
+  - cert
+  links:
+  - name: Documentation
+    url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
+  maturity: alpha
+  provider:
+    name: Red Hat
+  version: 1.9.1

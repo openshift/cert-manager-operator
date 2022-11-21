@@ -67,6 +67,9 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
+//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers/finalizers,verbs=update
 func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClient,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
