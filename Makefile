@@ -308,6 +308,8 @@ clean:
 # $(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/manifests,./bundle/manifests)
 # $(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/manifests,./bundle/manifests)
 #
+# # generate bindata targets
+# $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
 #
 # # generate image targets
 # $(call build-image,cert-manager-operator,$(IMAGE_OPERATOR),./images/ci/Dockerfile,.)
@@ -319,12 +321,26 @@ clean:
 # 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
 # .PHONY: update-manifests
 #
+# update-scripts:
+# 	hack/update-deepcopy.sh
+# 	hack/update-clientgen.sh
+# .PHONY: update-scripts
+# update: update-scripts update-codegen-crds update-manifests update-bindata
+#
+# verify-scripts:
+# 	hack/verify-deepcopy.sh
+# 	hack/verify-clientgen.sh
+# .PHONY: verify-scripts
+# verify: verify-scripts verify-codegen-crds
 #
 # local-deploy-manifests:
 # 	- kubectl create namespace openshift-cert-manager-operator
 # 	kubectl apply $$(ls ./bundle/manifests/*crd.yaml | awk ' { print " -f " $$1 } ')
 # .PHONY: local-deploy-manifests
 #
+# local-run: build
+# 	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
+# .PHONY: local-run
 #
 # local-clean:
 # 	- oc delete namespace cert-manager
