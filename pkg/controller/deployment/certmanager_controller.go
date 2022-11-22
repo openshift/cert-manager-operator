@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	operatoropenshiftiov1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	operatoropenshiftiov1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
 // CertManagerReconciler reconciles a CertManager object

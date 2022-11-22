@@ -9,8 +9,8 @@ verify="${VERIFY:-}"
 
 for group in ${API_GROUP_VERSIONS}; do
   GOFLAGS="" bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
-    github.com/openshift/cert-manager-operator/apis \
-    github.com/openshift/cert-manager-operator/apis \
+    github.com/openshift/cert-manager-operator/api \
+    github.com/openshift/cert-manager-operator/api \
     "${group/\//:}" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
     --output-base ../../.. \
