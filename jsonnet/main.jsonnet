@@ -1,4 +1,4 @@
-local targetOperandNamespace = 'openshift-cert-manager';
+local targetOperandNamespace = 'cert-manager';
 local sourceOperandNamespace = 'cert-manager';
 
 // returns labels which are not 'helm.sh/chart' and don't have a 'helm' value (case insensitive)

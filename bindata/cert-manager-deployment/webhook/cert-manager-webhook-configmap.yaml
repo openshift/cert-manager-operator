@@ -8,4 +8,4 @@ metadata:
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager

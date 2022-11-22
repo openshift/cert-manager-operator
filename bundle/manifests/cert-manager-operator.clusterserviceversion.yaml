@@ -190,7 +190,7 @@ spec:
                   value: 1.9.1
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.9.1
-                image: quay.io/thejasn/cert-manager-operator:latest
+                image: controller:latest
                 imagePullPolicy: Always
                 name: cert-manager-operator
                 resources: {}

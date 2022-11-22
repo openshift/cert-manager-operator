@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/name: cainjector
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-cainjector
-  namespace: openshift-cert-manager
+  namespace: cert-manager
