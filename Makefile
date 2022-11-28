@@ -4,7 +4,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.0.0
+BUNDLE_VERSION ?= 0.0.1
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -214,6 +214,38 @@ define get-bin
 }
 endef
 
+.PHONY: test-e2e
+test-e2e: test-e2e-wait-for-stable-state
+	go test \
+	-timeout $(E2E_TIMEOUT) \
+	-count 1 \
+	-v \
+	-p 1 \
+	-tags e2e \
+	-run "$(TEST)" \
+	./test/e2e
+
+test-e2e-wait-for-stable-state:
+	@echo "---- Waiting for stable state ----"
+	# This ensures the test-e2e-debug-cluster is called if a timeout is reached.
+	oc wait --for=condition=Available=true deployment/cert-manager-cainjector -n cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	oc wait --for=condition=Available=true deployment/cert-manager -n cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	oc wait --for=condition=Available=true deployment/cert-manager-webhook -n cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
+	@echo "---- /Waiting for stable state ----"
+.PHONY: test-e2e-wait-for-stable-state
+
+test-e2e-debug-cluster:
+	@echo "---- Debugging the current state ----"
+	- oc get pod -n cert-manager-operator
+	- oc get pod -n cert-manager
+	- oc get co
+	- oc get csv --all-namespaces
+	- oc get crd | grep -i cert
+	- oc get subscriptions --all-namespaces
+	- oc logs deployment/cert-manager-operator -n cert-manager-operator
+	@echo "---- /Debugging the current state ----"
+.PHONY: test-e2e-debug-cluster
+ 
 .PHONY: lint
 ## Checks the code with golangci-lint
 lint: $(GOLANGCI_LINT_BIN)
@@ -265,34 +297,7 @@ clean:
 # $(call build-image,cert-manager-operator,$(IMAGE_OPERATOR),./images/ci/Dockerfile,.)
 # $(call build-image,cert-manager-operator-bundle,$(IMAGE_OPERATOR_BUNDLE),./bundle/bundle.Dockerfile,./bundle)
 #
-# # exclude e2e test from unit tests
-# GO_TEST_PACKAGES :=./pkg/... ./cmd/...
-#
-# # re-use test-unit target for e2e tests
-# test-e2e: test-e2e-wait-for-stable-state
-# 	$(MAKE) GO_TEST_PACKAGES=./test/e2e/... test-unit
-# .PHONY: test-e2e
-#
-# test-e2e-wait-for-stable-state:
-# 	@echo "---- Waiting for stable state ----"
-# 	# This ensures the test-e2e-debug-cluster is called if a timeout is reached.
-# 	oc wait --for=condition=Available=true deployment/cert-manager-cainjector -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
-# 	oc wait --for=condition=Available=true deployment/cert-manager-controller -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
-# 	oc wait --for=condition=Available=true deployment/cert-manager-webhook -n openshift-cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
-# 	@echo "---- /Waiting for stable state ----"
-# .PHONY: test-e2e-wait-for-stable-state
-#
-# test-e2e-debug-cluster:
-# 	@echo "---- Debugging the current state ----"
-# 	- oc get pod -n openshift-cert-manager-operator
-# 	- oc get pod -n openshift-cert-manager
-# 	- oc get co
-# 	- oc get csv --all-namespaces
-# 	- oc get crd | grep -i cert
-# 	- oc get subscriptions --all-namespaces
-# 	- oc logs deployment/cert-manager-operator -n openshift-cert-manager-operator
-# 	@echo "---- /Debugging the current state ----"
-# .PHONY: test-e2e-debug-cluster
+
 #
 # update-manifests:
 # 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
