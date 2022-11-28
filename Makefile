@@ -69,7 +69,7 @@ K8S_ENVTEST_VERSION := 1.21.4
 
 PACKAGE=github.com/openshift/cert-manager-operator
 
-BIN=bin/$(lastword $(subst /, ,$(PACKAGE)))
+BIN=$(lastword $(subst /, ,$(PACKAGE)))
 BIN_DIR=$(shell pwd)/bin
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -156,9 +156,9 @@ verify: verify-scripts
 GO=GO111MODULE=on GOFLAGS=-mod=vendor CGO_ENABLED=0 go
 
 build-operator: ## Build operator binary, no additional checks or code generation
-	$(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN) $(PACKAGE)
+	$(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN)
 
-build: generate build-operator fmt vet ## Build operator binary.
+build: generate fmt vet build-operator ## Build operator binary.
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run $(PACKAGE)
