@@ -59,6 +59,8 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/cmd/golangci-lint
+
 CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
 SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
@@ -163,7 +165,7 @@ build: generate fmt vet build-operator ## Build operator binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run $(PACKAGE)
 
-image-build: test ## Build container image with the operator.
+image-build: ## Build container image with the operator.
 	$(CONTAINER_ENGINE) build -t ${IMG} .
 
 image-push: ## Push container image with the operator.
@@ -247,9 +249,8 @@ test-e2e-debug-cluster:
 .PHONY: test-e2e-debug-cluster
  
 .PHONY: lint
-## Checks the code with golangci-lint
-lint: $(GOLANGCI_LINT_BIN)
-	$(GOLANGCI_LINT_BIN) run -c .golangci.yaml --deadline=30m
+lint: 
+	$(GOLANGCI_LINT) run --config .golangci.yaml	
 
 $(GOLANGCI_LINT_BIN):
 	mkdir -p $(BIN_DIR)
