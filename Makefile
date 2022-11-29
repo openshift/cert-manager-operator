@@ -151,6 +151,7 @@ update: update-scripts update-manifests update-bindata
 verify-scripts:
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
+	hack/verify-deps.sh
 .PHONY: verify-scripts
 
 # TODO
