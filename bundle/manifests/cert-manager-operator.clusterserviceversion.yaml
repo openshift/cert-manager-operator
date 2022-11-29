@@ -4,10 +4,14 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
+    olm.skipRange: <0.0.1
+    operatorframework.io/suggested-namespace: cert-manager-operator
     operators.operatorframework.io/builder: operator-sdk-v1.25.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    repository: https://github.com/openshift/cert-manager-operator
+    support: Red Hat, Inc.
   name: cert-manager-operator.v0.0.1
-  namespace: placeholder
+  namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
@@ -425,7 +429,7 @@ spec:
                   value: 1.9.1
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.9.1
-                image: controller:latest
+                image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: Always
                 name: cert-manager-operator
                 resources: {}
@@ -478,13 +482,13 @@ spec:
         serviceAccountName: cert-manager-operator-controller-manager
     strategy: deployment
   installModes:
-  - supported: false
+  - supported: true
     type: OwnNamespace
-  - supported: false
+  - supported: true
     type: SingleNamespace
   - supported: false
     type: MultiNamespace
-  - supported: true
+  - supported: false
     type: AllNamespaces
   keywords:
   - cert-manager

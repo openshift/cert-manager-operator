@@ -4,8 +4,12 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-  name: cert-manager-operator.v0.0.0
-  namespace: placeholder
+    olm.skipRange: <0.0.1
+    operatorframework.io/suggested-namespace: cert-manager-operator
+    repository: https://github.com/openshift/cert-manager-operator
+    support: Red Hat, Inc.
+  name: cert-manager-operator.v0.0.1
+  namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
@@ -48,13 +52,13 @@ spec:
       deployments: null
     strategy: ""
   installModes:
-  - supported: false
+  - supported: true
     type: OwnNamespace
-  - supported: false
+  - supported: true
     type: SingleNamespace
   - supported: false
     type: MultiNamespace
-  - supported: true
+  - supported: false
     type: AllNamespaces
   keywords:
   - cert-manager
@@ -67,4 +71,4 @@ spec:
   maturity: alpha
   provider:
     name: Red Hat
-  version: 1.9.1
+  version: 0.0.1
