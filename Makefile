@@ -156,11 +156,16 @@ generate-with-container:
 verify-scripts:
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
-	hack/verify-deps.sh
 .PHONY: verify-scripts
 
 # TODO
+.PHONY: verify
 verify: verify-scripts
+
+.PHONY: verify-deps
+verify-deps:
+	hack/verify-deps.sh
+
 
 ##@ Build
 GO=GO111MODULE=on GOFLAGS=-mod=vendor CGO_ENABLED=0 go
