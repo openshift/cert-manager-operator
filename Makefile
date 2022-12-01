@@ -84,6 +84,7 @@ SHELL = /usr/bin/env bash -o pipefail
 CONTAINER_ENGINE ?= docker
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
+CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/openshift/release:rhel-8-release-golang-1.17-openshift-4.10
 
 BUNDLE_DIR := bundle
 BUNDLE_MANIFEST_DIR := $(BUNDLE_DIR)/manifests
@@ -147,6 +148,10 @@ update-scripts:
 
 .PHONY: update
 update: update-scripts update-manifests update-bindata
+
+.PHONY: generate-with-container
+generate-with-container:
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
 verify-scripts:
 	hack/verify-deepcopy.sh
