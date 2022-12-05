@@ -27,6 +27,9 @@ import (
 	operatoropenshiftiov1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
+// TODO: This is just a placeholder controller to contain all the required rbac
+// in a single place. Needs to be deleted later.
+
 // CertManagerReconciler reconciles a CertManager object
 type CertManagerReconciler struct {
 	client.Client

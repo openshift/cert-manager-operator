@@ -149,8 +149,8 @@ update-scripts:
 .PHONY: update
 update: update-scripts update-manifests update-bindata
 
-.PHONY: generate-with-container
-generate-with-container:
+.PHONY: update-with-container
+update-with-container:
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
 verify-scripts:
@@ -158,7 +158,6 @@ verify-scripts:
 	hack/verify-clientgen.sh
 .PHONY: verify-scripts
 
-# TODO
 .PHONY: verify
 verify: verify-scripts
 
@@ -166,6 +165,9 @@ verify: verify-scripts
 verify-deps:
 	hack/verify-deps.sh
 
+local-run: build
+	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
+.PHONY: local-run
 
 ##@ Build
 GO=GO111MODULE=on GOFLAGS=-mod=vendor CGO_ENABLED=0 go
@@ -323,9 +325,6 @@ clean:
 # 	kubectl apply $$(ls ./bundle/manifests/*crd.yaml | awk ' { print " -f " $$1 } ')
 # .PHONY: local-deploy-manifests
 #
-# local-run: build
-# 	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
-# .PHONY: local-run
 #
 # local-clean:
 # 	- oc delete namespace cert-manager
