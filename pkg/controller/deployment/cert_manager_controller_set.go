@@ -24,7 +24,7 @@ func NewCertManagerControllerSet(
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
 	informersFactory informers.SharedInformerFactory,
-	operatorClient v1helpers.OperatorClient,
+	operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClientContainer *resourceapply.ClientHolder,
 	eventRecorder events.Recorder,
 	targetVersion string,

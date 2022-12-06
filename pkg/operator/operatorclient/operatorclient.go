@@ -90,3 +90,60 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 
 	return &ret.Status.OperatorStatus, nil
 }
+
+func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) error {
+	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
+	if err != nil {
+		return err
+	}
+
+	finalizers := instance.GetFinalizers()
+	for _, f := range finalizers {
+		if f == finalizer {
+			return nil
+		}
+	}
+
+	// updating finalizers
+	newFinalizers := append(finalizers, finalizer)
+	err = c.saveFinalizers(ctx, instance, newFinalizers)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c OperatorClient) RemoveFinalizer(ctx context.Context, finalizer string) error {
+	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
+	if err != nil {
+		return err
+	}
+
+	finalizers := instance.GetFinalizers()
+	found := false
+	newFinalizers := make([]string, 0, len(finalizers))
+	for _, f := range finalizers {
+		if f == finalizer {
+			found = true
+			continue
+		}
+		newFinalizers = append(newFinalizers, f)
+	}
+	if !found {
+		return nil
+	}
+
+	err = c.saveFinalizers(ctx, instance, newFinalizers)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c OperatorClient) saveFinalizers(ctx context.Context, instance *v1alpha1.CertManager, finalizers []string) error {
+	clone := instance.DeepCopy()
+	clone.SetFinalizers(finalizers)
+	_, err := c.Client.CertManagers().Update(ctx, clone, metav1.UpdateOptions{})
+	return err
+}

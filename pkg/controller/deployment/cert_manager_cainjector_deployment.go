@@ -16,7 +16,7 @@ import (
 
 const (
 	certManagerCAInjectorStaticResourcesControllerName = operatorName + "-cainjector-static-resources-"
-	certManagerCAInjectorDeploymentControllerName      = operatorName + "-cainjector-deployment-"
+	certManagerCAInjectorDeploymentControllerName      = operatorName + "-cainjector-deployment"
 	certManagerCAInjectorDeploymentFile                = "cert-manager-deployment/cainjector/cert-manager-cainjector-deployment.yaml"
 )
 
@@ -45,7 +45,7 @@ func NewCertManagerCAInjectorStaticResourcesController(operatorClient v1helpers.
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.OperatorClient,
+func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter,

@@ -16,7 +16,7 @@ import (
 
 const (
 	certManagerControllerStaticResourcesControllerName = operatorName + "-controller-static-resources-"
-	certManagerControllerDeploymentControllerName      = operatorName + "-controller-deployment-"
+	certManagerControllerDeploymentControllerName      = operatorName + "-controller-deployment"
 	certManagerControllerDeploymentFile                = "cert-manager-deployment/controller/cert-manager-deployment.yaml"
 )
 
@@ -66,10 +66,7 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=operator.openshift.io.openshift.io,resources=certmanagers/finalizers,verbs=update
-func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClient,
+func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
