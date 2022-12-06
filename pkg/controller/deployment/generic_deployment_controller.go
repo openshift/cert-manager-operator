@@ -8,7 +8,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	v1 "github.com/openshift/api/operator/v1"
-	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/deploymentcontroller"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -24,7 +23,6 @@ func newGenericDeploymentController(
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 ) factory.Controller {
