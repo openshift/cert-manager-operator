@@ -4,7 +4,7 @@ metadata:
   labels:
     "operatorframework.io/arch.amd64": supported
   annotations:
-    operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift Container Platform", "OpenShift Platform Plus"]'
+    operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift Platform Plus"]'
     capabilities: Seamless Upgrades
     categories: Security
     containerImage: registry-proxy.engineering.redhat.com/rh-osbs/cert-manager-cert-manager-operator-rhel8:latest
