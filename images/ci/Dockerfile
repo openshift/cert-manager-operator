@@ -8,4 +8,5 @@ COPY --from=builder /go/src/github.com/openshift/cert-manager-operator/cert-mana
 
 USER 65532:65532
 
-ENTRYPOINT ["/usr/bin/cert-manager-oper
+ENTRYPOINT ["/usr/bin/cert-manager-operator"]
+
