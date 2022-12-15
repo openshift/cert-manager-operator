@@ -6,6 +6,7 @@ require (
 	github.com/cert-manager/cert-manager v1.9.1
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/golangci/golangci-lint v1.50.1
+	github.com/google/go-cmp v0.5.9
 	github.com/google/go-jsonnet v0.17.0
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
 	github.com/openshift/api v0.0.0-20220525145417-ee5b62754c68
@@ -106,7 +107,6 @@ require (
 	github.com/golangci/revgrep v0.0.0-20220804021717-745bb2f7c2e6 // indirect
 	github.com/golangci/unconvert v0.0.0-20180507085042-28b1c447d1f4 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.3.0 // indirect
