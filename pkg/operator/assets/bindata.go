@@ -191,7 +191,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager-cainjector
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentCainjectorCertManagerCainjectorCrbYamlBytes() ([]byte, error) {
@@ -219,7 +219,7 @@ metadata:
     app.kubernetes.io/name: cainjector
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-cainjector
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 spec:
   replicas: 1
   selector:
@@ -292,7 +292,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager-cainjector
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentCainjectorCertManagerCainjectorLeaderelectionRbYamlBytes() ([]byte, error) {
@@ -367,7 +367,7 @@ metadata:
     app.kubernetes.io/name: cainjector
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-cainjector
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 `)
 
 func certManagerDeploymentCainjectorCertManagerCainjectorSaYamlBytes() ([]byte, error) {
@@ -439,7 +439,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentCertManagerCertManagerControllerApproveCertManagerIoCrbYamlBytes() ([]byte, error) {
@@ -533,7 +533,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentCertManagerCertManagerControllerCertificatesigningrequestsCrbYamlBytes() ([]byte, error) {
@@ -556,7 +556,7 @@ kind: Namespace
 metadata:
   annotations:
     openshift.io/cluster-monitoring: "true"
-  name: openshift-cert-manager
+  name: cert-manager
 `)
 
 func certManagerDeploymentCertManagerNamespaceYamlBytes() ([]byte, error) {
@@ -676,7 +676,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerCertificatesCrbYamlBytes() ([]byte, error) {
@@ -832,7 +832,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerChallengesCrbYamlBytes() ([]byte, error) {
@@ -929,7 +929,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerClusterissuersCrbYamlBytes() ([]byte, error) {
@@ -1049,7 +1049,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerIngressShimCrbYamlBytes() ([]byte, error) {
@@ -1146,7 +1146,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerIssuersCrbYamlBytes() ([]byte, error) {
@@ -1263,7 +1263,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerControllerOrdersCrbYamlBytes() ([]byte, error) {
@@ -1291,7 +1291,7 @@ metadata:
     app.kubernetes.io/name: cert-manager
     app.kubernetes.io/version: v1.9.1
   name: cert-manager
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 spec:
   replicas: 1
   selector:
@@ -1433,7 +1433,7 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerLeaderelectionRbYamlBytes() ([]byte, error) {
@@ -1507,7 +1507,7 @@ metadata:
     app.kubernetes.io/name: cert-manager
     app.kubernetes.io/version: v1.9.1
   name: cert-manager
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 `)
 
 func certManagerDeploymentControllerCertManagerSaYamlBytes() ([]byte, error) {
@@ -1535,7 +1535,7 @@ metadata:
     app.kubernetes.io/name: cert-manager
     app.kubernetes.io/version: v1.9.1
   name: cert-manager
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 spec:
   ports:
     - name: tcp-prometheus-servicemonitor
@@ -1624,7 +1624,7 @@ metadata:
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: webhook
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 `)
 
 func certManagerDeploymentWebhookCertManagerWebhookConfigmapYamlBytes() ([]byte, error) {
@@ -1652,7 +1652,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 spec:
   replicas: 1
   selector:
@@ -1675,7 +1675,7 @@ spec:
             - --secure-port=10250
             - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
             - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
-            - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.openshift-cert-manager,cert-manager-webhook.openshift-cert-manager.svc
+            - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc
           command:
             - /app/cmd/webhook/webhook
           env:
@@ -1744,7 +1744,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook:dynamic-serving
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -1753,7 +1753,7 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager-webhook
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentWebhookCertManagerWebhookDynamicServingRbYamlBytes() ([]byte, error) {
@@ -1781,7 +1781,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook:dynamic-serving
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 rules:
   - apiGroups:
       - ""
@@ -1821,7 +1821,7 @@ var _certManagerDeploymentWebhookCertManagerWebhookMutatingwebhookconfigurationY
 kind: MutatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from-secret: openshift-cert-manager/cert-manager-webhook-ca
+    cert-manager.io/inject-ca-from-secret: cert-manager/cert-manager-webhook-ca
   labels:
     app: webhook
     app.kubernetes.io/component: webhook
@@ -1835,7 +1835,7 @@ webhooks:
     clientConfig:
       service:
         name: cert-manager-webhook
-        namespace: openshift-cert-manager
+        namespace: cert-manager
         path: /mutate
     failurePolicy: Fail
     matchPolicy: Equivalent
@@ -1881,7 +1881,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 `)
 
 func certManagerDeploymentWebhookCertManagerWebhookSaYamlBytes() ([]byte, error) {
@@ -1951,7 +1951,7 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager-webhook
-    namespace: openshift-cert-manager
+    namespace: cert-manager
 `)
 
 func certManagerDeploymentWebhookCertManagerWebhookSubjectaccessreviewsCrbYamlBytes() ([]byte, error) {
@@ -1979,7 +1979,7 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager
 spec:
   ports:
     - name: https
@@ -2012,7 +2012,7 @@ var _certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfiguratio
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from-secret: openshift-cert-manager/cert-manager-webhook-ca
+    cert-manager.io/inject-ca-from-secret: cert-manager/cert-manager-webhook-ca
   labels:
     app: webhook
     app.kubernetes.io/component: webhook
@@ -2026,7 +2026,7 @@ webhooks:
     clientConfig:
       service:
         name: cert-manager-webhook
-        namespace: openshift-cert-manager
+        namespace: cert-manager
         path: /validate
     failurePolicy: Fail
     matchPolicy: Equivalent

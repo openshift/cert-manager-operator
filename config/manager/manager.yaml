@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/name: namespace
+    app.kubernetes.io/instance: system
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+  labels:
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      name: cert-manager-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: cert-manager-operator
+      labels:
+        name: cert-manager-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+          - /usr/bin/cert-manager-operator
+        args:
+          - start
+        env:
+          - name: WATCH_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['olm.targetNamespaces']
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: OPERATOR_NAME
+            value: cert-manager-operator
+          - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
+            value: quay.io/jetstack/cert-manager-webhook:v1.9.1
+          - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
+            value: quay.io/jetstack/cert-manager-cainjector:v1.9.1
+          - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
+            value: quay.io/jetstack/cert-manager-controller:v1.9.1
+          - name: OPERAND_IMAGE_VERSION
+            value: 1.9.1
+          - name: OPERATOR_IMAGE_VERSION
+            value: 1.9.1
+        image: controller:latest
+        imagePullPolicy: Always
+        name: cert-manager-operator
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - "ALL"
+          privileged: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: "RuntimeDefault"
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

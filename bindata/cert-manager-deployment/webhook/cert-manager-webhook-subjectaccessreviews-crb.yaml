@@ -16,4 +16,4 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: cert-manager-webhook
-    namespace: openshift-cert-manager
+    namespace: cert-manager

@@ -1,0 +1,511 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    olm.skipRange: <0.0.1
+    operatorframework.io/suggested-namespace: cert-manager-operator
+    operators.operatorframework.io/builder: operator-sdk-v1.25.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    repository: https://github.com/openshift/cert-manager-operator
+    support: Red Hat, Inc.
+  name: cert-manager-operator.v0.0.1
+  namespace: cert-manager-operator
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: CertificateRequest
+      name: certificaterequests.cert-manager.io
+      version: v1
+    - kind: Certificate
+      name: certificates.cert-manager.io
+      version: v1
+    - description: CertManager is the Schema for the certmanagers API
+      displayName: Cert Manager
+      kind: CertManager
+      name: certmanagers.operator.openshift.io
+      version: v1alpha1
+    - kind: Challenge
+      name: challenges.acme.cert-manager.io
+      version: v1
+    - kind: ClusterIssuer
+      name: clusterissuers.cert-manager.io
+      version: v1
+    - kind: Issuer
+      name: issuers.cert-manager.io
+      version: v1
+    - kind: Order
+      name: orders.acme.cert-manager.io
+      version: v1
+  description: cert-manager-operator
+  displayName: cert-manager-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - events
+          - namespaces
+          - serviceaccounts
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - secrets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - acme.cert-manager.io
+          resources:
+          - challenges
+          - challenges/finalizers
+          - challenges/status
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - acme.cert-manager.io
+          resources:
+          - challenges
+          - challenges/finalizers
+          - challenges/status
+          - orders
+          - orders/finalizers
+          - orders/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - admissionregistration.k8s.io
+          resources:
+          - mutatingwebhookconfigurations
+          - validatingwebhookconfigurations
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apiextensions.k8s.io
+          resources:
+          - customresourcedefinitions
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apiregistration.k8s.io
+          resources:
+          - apiservices
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          - replicasets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - certificaterequests
+          - certificaterequests/finalizers
+          - certificaterequests/status
+          - certificates
+          - certificates/finalizers
+          - certificates/status
+          - clusterissuers
+          - clusterissuers/status
+          - issuers
+          - issuers/status
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - cert-manager.io
+          resourceNames:
+          - clusterissuers.cert-manager.io/*
+          - issuers.cert-manager.io/*
+          resources:
+          - signers
+          verbs:
+          - approve
+        - apiGroups:
+          - certificates.k8s.io
+          resources:
+          - certificatesigningrequests
+          - certificatesigningrequests/status
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - certificates.k8s.io
+          resources:
+          - signers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - sign
+          - update
+          - watch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - certmanagers
+          - clusteroperators
+          - clusteroperators/status
+          - infrastructures
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gateways
+          - gateways/finalizers
+          - httproutes
+          - httproutes/finalizers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - ingresses
+          - ingresses/finalizers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - certmanagers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - certmanagers/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - certmanagers/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - clusterrolebindings
+          - clusterroles
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routes
+          - routes/custom-host
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: cert-manager-operator-controller-manager
+      deployments:
+      - label:
+          app.kubernetes.io/component: manager
+          app.kubernetes.io/created-by: cert-manager-operator
+          app.kubernetes.io/instance: controller-manager
+          app.kubernetes.io/managed-by: kustomize
+          app.kubernetes.io/name: deployment
+          app.kubernetes.io/part-of: cert-manager-operator
+        name: cert-manager-operator-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: cert-manager-operator
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: cert-manager-operator
+              labels:
+                name: cert-manager-operator
+            spec:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/arch
+                        operator: In
+                        values:
+                        - amd64
+                        - arm64
+                        - ppc64le
+                        - s390x
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                        - linux
+              containers:
+              - args:
+                - --secure-listen-address=0.0.0.0:9443
+                - --upstream=http://127.0.0.1:8080/
+                - --logtostderr=true
+                - --v=0
+                image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.0
+                name: kube-rbac-proxy
+                ports:
+                - containerPort: 9443
+                  name: https
+                  protocol: TCP
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 5m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+                  privileged: false
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+              - args:
+                - start
+                command:
+                - /usr/bin/cert-manager-operator
+                env:
+                - name: WATCH_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.annotations['olm.targetNamespaces']
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
+                  value: cert-manager-operator
+                - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
+                  value: quay.io/jetstack/cert-manager-webhook:v1.9.1
+                - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.9.1
+                - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
+                  value: quay.io/jetstack/cert-manager-controller:v1.9.1
+                - name: OPERAND_IMAGE_VERSION
+                  value: 1.9.1
+                - name: OPERATOR_IMAGE_VERSION
+                  value: 1.9.1
+                image: openshift.io/cert-manager-operator:latest
+                imagePullPolicy: Always
+                name: cert-manager-operator
+                resources: {}
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+                  privileged: false
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: cert-manager-operator-controller-manager
+              terminationGracePeriodSeconds: 10
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: cert-manager-operator-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: false
+    type: AllNamespaces
+  keywords:
+  - cert-manager
+  - cert manager
+  - cert-manager-operator
+  - cert
+  links:
+  - name: Documentation
+    url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
+  maturity: alpha
+  provider:
+    name: Red Hat
+  relatedImages:
+  - image: quay.io/jetstack/cert-manager-webhook:v1.9.1
+    name: cert-manager-webhook
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.9.1
+    name: cert-manager-ca-injector
+  - image: quay.io/jetstack/cert-manager-controller:v1.9.1
+    name: cert-manager-controller
+  version: 0.0.1

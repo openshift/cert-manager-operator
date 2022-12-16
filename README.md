@@ -1,10 +1,10 @@
 # Cert Manager Operator for OpenShift
 
-This repository contains Cert Manager Operator designed for OpenShift. The operator runs in `openshift-cert-manager-operator` namespace, whereas its operand in `cert-manager`. Both those namespaces are hardcoded.
+This repository contains Cert Manager Operator designed for OpenShift. The operator runs in `cert-manager-operator` namespace, whereas its operand in `cert-manager`. Both those namespaces are hardcoded.
 
 ## The operator architecture and design assumptions
 
-The Operator uses the [upstream deployment manifests](https://github.com/jetstack/cert-manager/releases/download/v1.4.0/cert-manager.yaml). It divides them into separate files and deploys using 3 controllers:
+The Operator uses the [upstream deployment manifests](https://github.com/jetstack/cert-manager/releases/download/v1.9.1/cert-manager.yaml). It divides them into separate files and deploys using 3 controllers:
 - [cert_manager_cainjector_deployment.go](pkg/controller/deployment/cert_manager_cainjector_deployment.go)
 - [cert_manager_controller_deployment.go](pkg/controller/deployment/cert_manager_controller_deployment.go)
 - [cert_manager_webhook_deployment.go](pkg/controller/deployment/cert_manager_webhook_deployment.go)
@@ -14,7 +14,7 @@ The Operator automatically deploys a cluster-scoped `CertManager` object named `
 ### Directory structure
 
 ```
-+- apis - The API types
++- api - The API type
 +- bindata
   +- cert-manager-crds - CRDs for Cert Manager
   +- cert-manager-deployment - Deployment Manifests for Cert Manager
@@ -27,8 +27,9 @@ The Operator automatically deploys a cluster-scoped `CertManager` object named `
 +- hack - All sorts of scripts
 +- images
   +- ci - Dockerfile
-+- manifests - Manifests required for deploying this operator
++- config - Template for generating OLM bundle
 +- pkg
++- tools
 +- vendor
 ```
 
@@ -42,22 +43,46 @@ This command will install all the necessary Operator manifests as well as all ne
 
 ## Running the operator in the cluster
 
-Connect to your OpenShift cluster and run the following command:
+### Preparing the environment
+Prepare your environment for the installation commands.
 
-    make operator-clean operator-push-bundle operator-run-bundle IMAGE_REGISTRY=<registry>/<org>
+- Select the container runtime you want to build the images with (`podman` or `docker`):
+    ```sh
+    export CONTAINER_ENGINE=podman
+    ```
+- Select the name settings of the image:
+    ```sh
+    export REGISTRY=quay.io
+    export REPOSITORY=myuser
+    export IMAGE_VERSION=1.0.0
+    ```
+- Login to the image registry:
+    ```sh
+    ${CONTAINER_ENGINE} login ${REGISTRY} -u ${REPOSITORY}
+    ```
 
-This command will:
-- remove any existing operator that might be in your cluster
-- build and push the bundle into `<registry>/<org>/cert-manager-operator-bundle:latest`
-- download Operator SDK if necessary
-- install the bundle into your cluster
+### Installing the Cert Manager Operator by building and pushing the Operator image to a registry
+1. Build and push the Operator image to a registry:
+   ```sh
+   export IMG=${REGISTRY}/${REPOSITORY}/cert-manager-operator:${IMAGE_VERSION}
+   make image-build image-push
+   ```
 
-!!! WARNING !!!
+2. _Optional_: you may need to link the registry secret to `cert-manager-operator` service account if the image is not public ([Doc link](https://docs.openshift.com/container-platform/4.10/openshift_images/managing_images/using-image-pull-secrets.html#images-allow-pods-to-reference-images-from-secure-registries_using-image-pull-secrets)):
 
-As for the time-being, the bundle uses a hardcoded image in `slaskawi`'s repo. This will change when we start building
-the Operator images on each commit.
+    a. Create a secret with authentication details of your image registry:
+    ```sh
+    oc -n cert-manager-operator create secret generic certmanager-pull-secret  --type=kubernetes.io/dockercfg  --from-file=.dockercfg=${XDG_RUNTIME_DIR}/containers/auth.json
+    ```
+    b. Link the secret to `cert-manager-operator` service account:
+    ```sh
+    oc -n cert-manager-operator secrets link cert-manager-operator certmanager-pull-secret --for=pull
+    ````
 
-!!! WARNING !!!
+3. Run the following command to deploy the Cert Manager Operator:
+    ```sh
+    make deploy
+    ```
 
 ## Updating resources
 
@@ -102,21 +127,18 @@ Check the changes in the `bindata/` folder and assert any inconsistencies or err
 
 ## Running e2e tests locally
 
-The testsuite assumes, that Cert Manager Operator has been successfully deployed in the cluster and 
-it also successfully deployed Cert Manager (the operand). This is exactly what Prow is doing in cooperation with 
+The testsuite assumes, that Cert Manager Operator has been successfully deployed 
+in the cluster and it also successfully deployed Cert Manager (the operand). This
+is exactly what Prow is doing in cooperation with 
+
 `make test-e2e-wait-for-stable-state`.
 
-If you'd like to run all the tests locally, you need to ensure the same requirements are met. The easiest way to do it
-is to:
-
-    make local-deploy-manifests local-run
+If you'd like to run all the tests locally, you need to ensure the same requirements
+are met. The easiest way to do it follow steps from above.
 
 Then, let it run for a few minutes. Once the operands are deployed, just invoke:
 
-    make test-e2e -o test-e2e-wait-for-stable-state
-
-The `-o test-e2e-wait-for-stable-state` skips checking if the operator is deployed. Depending on how do you're testing it,
-you may or may not want to invoke it.
+    make test-e2e
 
 ## Using unsupported config overrides options
 

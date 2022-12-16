@@ -5,7 +5,7 @@ package v1alpha1
 import (
 	"net/http"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )

@@ -3,7 +3,7 @@ package deployment
 import (
 	appsv1 "k8s.io/api/apps/v1"
 
-	"github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
 func UnsupportedConfigOverrides(deployment *appsv1.Deployment, unsupportedConfigOverrides *v1alpha1.UnsupportedConfigOverrides) *appsv1.Deployment {

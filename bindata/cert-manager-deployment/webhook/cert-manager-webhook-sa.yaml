@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/name: webhook
     app.kubernetes.io/version: v1.9.1
   name: cert-manager-webhook
-  namespace: openshift-cert-manager
+  namespace: cert-manager

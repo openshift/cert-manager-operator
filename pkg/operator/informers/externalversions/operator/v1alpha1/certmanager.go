@@ -6,7 +6,7 @@ import (
 	"context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"

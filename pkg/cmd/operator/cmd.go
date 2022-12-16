@@ -12,7 +12,7 @@ import (
 
 func NewOperator() *cobra.Command {
 	cmd := controllercmd.NewControllerCommandConfig(
-		"openshift-cert-manager-operator",
+		"cert-manager-operator",
 		version.Get(),
 		operator.RunOperator,
 	).NewCommandWithContext(context.TODO())

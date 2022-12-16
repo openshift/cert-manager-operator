@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   annotations:
     openshift.io/cluster-monitoring: "true"
-  name: openshift-cert-manager
+  name: cert-manager

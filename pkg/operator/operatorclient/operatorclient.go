@@ -9,7 +9,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"github.com/openshift/cert-manager-operator/apis/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorconfigclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	operatorclientinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 

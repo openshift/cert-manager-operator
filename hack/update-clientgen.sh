@@ -23,7 +23,7 @@ go install ./${CODEGEN_PKG}/cmd/{defaulter-gen,client-gen,lister-gen,informer-ge
 for group in ${API_GROUP_VERSIONS}; do
   bash ${CODEGEN_PKG}/generate-groups.sh "client,lister,informer" \
     github.com/openshift/cert-manager-operator/pkg/"${group%\/*}" \
-    github.com/openshift/cert-manager-operator/apis \
+    github.com/openshift/cert-manager-operator/api \
     "${group/\//:}" \
     --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
     --plural-exceptions=DNS:DNSes,DNSList:DNSList,Endpoints:Endpoints,Features:Features,FeaturesList:FeaturesList,SecurityContextConstraints:SecurityContextConstraints \
