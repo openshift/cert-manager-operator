@@ -22,6 +22,13 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
+// TODO: This is just a temporary placeholder.
+// This will be removed once a different genericDeploymentController
+// is implemented in CFE-668
+type dummyClusterConfigClient struct {
+	configv1.ClusterOperatorInterface
+}
+
 type genericDeploymentController struct {
 	kubeClient     kubernetes.Interface
 	operatorClient v1helpers.OperatorClient
@@ -34,7 +41,6 @@ func newGenericDeploymentController(
 	operatorClient v1helpers.OperatorClient,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	openshiftClusterConfigClient configv1.ClusterOperatorInterface,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 ) factory.Controller {
@@ -64,7 +70,7 @@ func newGenericDeploymentController(
 			kubeInformersForTargetNamespace.Core().V1().Namespaces().Informer(),
 		},
 		controller,
-		openshiftClusterConfigClient,
+		&dummyClusterConfigClient{},
 		eventsRecorder,
 		versionRecorder,
 	)
