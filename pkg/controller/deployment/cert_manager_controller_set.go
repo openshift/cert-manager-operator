@@ -23,7 +23,6 @@ type CertManagerControllerSet struct {
 func NewCertManagerControllerSet(
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
-	// configClient configv1client.ConfigV1Interface,
 	informersFactory informers.SharedInformerFactory,
 	operatorClient v1helpers.OperatorClient,
 	kubeClientContainer *resourceapply.ClientHolder,
