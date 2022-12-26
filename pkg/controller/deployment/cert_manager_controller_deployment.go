@@ -16,7 +16,7 @@ import (
 
 const (
 	certManagerControllerStaticResourcesControllerName = operatorName + "-controller-static-resources-"
-	certManagerControllerDeploymentControllerName      = operatorName + "-controller-deployment-"
+	certManagerControllerDeploymentControllerName      = operatorName + "-controller-deployment"
 	certManagerControllerDeploymentFile                = "cert-manager-deployment/controller/cert-manager-deployment.yaml"
 )
 
@@ -66,7 +66,7 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClient,
+func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {

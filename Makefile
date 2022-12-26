@@ -161,6 +161,10 @@ verify-scripts:
 .PHONY: verify
 verify: verify-scripts
 
+.PHONY: verify-with-container
+verify-with-container:
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make verify
+
 .PHONY: verify-deps
 verify-deps:
 	hack/verify-deps.sh
@@ -278,80 +282,3 @@ $(OPERATOR_SDK_BIN):
 clean:
 	$(GO) clean
 	rm -f $(BIN)
-
-# GO_REQUIRED_MIN_VERSION = 1.17
-# GO_TEST_FLAGS=-v
-# RUNTIME?=docker
-#
-# APP_NAME?=cert-manager-operator
-# IMAGE_REGISTRY?=registry.svc.ci.openshift.org
-# IMAGE_ORG?=openshift-cert-manager
-# IMAGE_TAG?=latest
-# IMAGE_OPERATOR?=$(IMAGE_REGISTRY)/$(IMAGE_ORG)/cert-manager-operator:$(IMAGE_TAG)
-# IMAGE_OPERATOR_BUNDLE?=$(IMAGE_REGISTRY)/$(IMAGE_ORG)/cert-manager-operator-bundle:$(IMAGE_TAG)
-#
-# TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
-#
-# MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
-#
-# OPERATOR_SDK_VERSION?=v1.12.0
-# OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
-# OPERATOR_SDK_DIR=$(dir $(OPERATOR_SDK))
-
-# Include the library makefiles
-#
-#
-# # $1 - target name
-# # $2 - apis
-# # $3 - manifests
-# # $4 - output
-# $(call add-crd-gen,operator-alpha,./apis/operator/v1alpha1,./bundle/manifests,./bundle/manifests)
-# $(call add-crd-gen,config-alpha,./apis/config/v1alpha1,./bundle/manifests,./bundle/manifests)
-#
-#
-# # generate image targets
-# $(call build-image,cert-manager-operator,$(IMAGE_OPERATOR),./images/ci/Dockerfile,.)
-# $(call build-image,cert-manager-operator-bundle,$(IMAGE_OPERATOR_BUNDLE),./bundle/bundle.Dockerfile,./bundle)
-#
-
-#
-# update-manifests:
-# 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
-# .PHONY: update-manifests
-#
-#
-# local-deploy-manifests:
-# 	- kubectl create namespace openshift-cert-manager-operator
-# 	kubectl apply $$(ls ./bundle/manifests/*crd.yaml | awk ' { print " -f " $$1 } ')
-# .PHONY: local-deploy-manifests
-#
-#
-# local-clean:
-# 	- oc delete namespace cert-manager
-# 	- oc delete -f ./bundle/manifests/
-# .PHONY: local-clean
-#
-# operator-push-bundle: images
-# 	$(RUNTIME) push $(IMAGE_OPERATOR)
-# 	$(RUNTIME) push $(IMAGE_OPERATOR_BUNDLE)
-# .PHONY: operator-push-bundle
-#
-# ensure-operator-sdk:
-# ifeq "" "$(wildcard $(OPERATOR_SDK))"
-# 	$(info Installing Operator SDK into '$(OPERATOR_SDK)')
-# 	mkdir -p '$(OPERATOR_SDK_DIR)'
-# 	curl -L https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$(shell go env GOOS)_$(shell go env GOHOSTARCH) -o $(OPERATOR_SDK)
-# 	chmod +x $(OPERATOR_SDK)
-# else
-# 	$(info Using existing Operator SDK from "$(OPERATOR_SDK)")
-# endif
-# .PHONY: ensure-operator-sdk
-#
-# operator-run-bundle: ensure-operator-sdk operator-push-bundle
-# 	- kubectl create namespace $(TEST_OPERATOR_NAMESPACE)
-# 	$(OPERATOR_SDK) run bundle $(IMAGE_OPERATOR_BUNDLE) --namespace $(TEST_OPERATOR_NAMESPACE)
-# .PHONY: operator-run-bundle
-#
-# operator-clean:
-# 	- kubectl delete namespace $(TEST_OPERATOR_NAMESPACE)
-# .PHONY: operator-clean

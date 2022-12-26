@@ -1,20 +1,16 @@
 package deployment
 
 import (
-	"context"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 
-	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	v1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
-	"github.com/openshift/library-go/pkg/operator/apiserver/controller/workload"
+	"github.com/openshift/library-go/pkg/operator/deploymentcontroller"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
-	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
@@ -22,87 +18,34 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
-// TODO: This is just a temporary placeholder.
-// This will be removed once a different genericDeploymentController
-// is implemented in CFE-668
-type dummyClusterConfigClient struct {
-	configv1.ClusterOperatorInterface
-}
-
-type genericDeploymentController struct {
-	kubeClient     kubernetes.Interface
-	operatorClient v1helpers.OperatorClient
-
-	deploymentFile string
-}
-
 func newGenericDeploymentController(
 	controllerName, targetVersion, deploymentFile string,
-	operatorClient v1helpers.OperatorClient,
+	operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 ) factory.Controller {
-	controller := &genericDeploymentController{
-		kubeClient:     kubeClient,
-		operatorClient: operatorClient,
-
-		deploymentFile: deploymentFile,
-	}
-
-	return workload.NewController(
+	return deploymentcontroller.NewDeploymentController(
 		controllerName,
-		operatorclient.TargetNamespace,
-		operatorclient.TargetNamespace,
-		targetVersion,
-		operandNamePrefix,
-		conditionsPrefix,
+		assets.MustAsset(deploymentFile),
+		eventsRecorder,
 		operatorClient,
 		kubeClient,
-		kubeInformersForTargetNamespace.Core().V1().Pods().Lister(),
-		[]factory.Informer{
-			operatorClient.Informer(),
+		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
+		[]factory.Informer{},
+		[]deploymentcontroller.ManifestHookFunc{},
+		func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+			for index := range deployment.Spec.Template.Spec.Containers {
+				deployment.Spec.Template.Spec.Containers[index].Image = certManagerImage(deployment.Spec.Template.Spec.Containers[index].Image)
+			}
+
+			unsupportedExtensions, err := operatorclient.GetUnsupportedConfigOverrides(operatorSpec)
+			if err != nil {
+				return fmt.Errorf("failed to get unsupportedConfigOverrides due to: %w", err)
+			}
+			deployment = UnsupportedConfigOverrides(deployment, unsupportedExtensions)
+			return nil
 		},
-		[]factory.Informer{
-			kubeInformersForTargetNamespace.Apps().V1().Deployments().Informer(),
-			kubeInformersForTargetNamespace.Core().V1().Pods().Informer(),
-			kubeInformersForTargetNamespace.Core().V1().Namespaces().Informer(),
-		},
-		controller,
-		&dummyClusterConfigClient{},
-		eventsRecorder,
-		versionRecorder,
 	)
-}
-
-func (c *genericDeploymentController) Sync(ctx context.Context, syncContext factory.SyncContext) (*appsv1.Deployment, bool, []error) {
-	var errors []error
-	var err error
-	var appliedDeployment *appsv1.Deployment
-
-	assert, _ := assets.Asset(c.deploymentFile)
-	deployment := resourceread.ReadDeploymentV1OrDie(assert)
-	for index := range deployment.Spec.Template.Spec.Containers {
-		deployment.Spec.Template.Spec.Containers[index].Image = certManagerImage(deployment.Spec.Template.Spec.Containers[index].Image)
-	}
-	operatorSpec, opStatus, _, _ := c.operatorClient.GetOperatorState()
-	unsupportedExtensions, err := operatorclient.GetUnsupportedConfigOverrides(operatorSpec)
-	if err != nil {
-		return nil, false, append(errors, fmt.Errorf("Getting unsupportedConfigOverrides failed: %w", err))
-	}
-
-	deployment = UnsupportedConfigOverrides(deployment, unsupportedExtensions)
-
-	appliedDeployment, _, err = resourceapply.ApplyDeployment(ctx, c.kubeClient.AppsV1(), syncContext.Recorder(), deployment, resourcemerge.ExpectedDeploymentGeneration(deployment, opStatus.Generations))
-
-	if err != nil {
-		return nil, false, append(errors, fmt.Errorf("applying deployment %v failed: %w", deployment.Name, err))
-	}
-
-	return appliedDeployment, len(errors) == 0, errors
-}
-
-func (c *genericDeploymentController) PreconditionFulfilled(ctx context.Context) (bool, error) {
-	return true, nil
 }

@@ -16,7 +16,7 @@ import (
 
 const (
 	certManagerWebhookStaticResourcesControllerName = operatorName + "-webhook-static-resources-"
-	certManagerWebhookDeploymentControllerName      = operatorName + "-webhook-deployment-"
+	certManagerWebhookDeploymentControllerName      = operatorName + "-webhook-deployment"
 	certManagerWebhookDeploymentFile                = "cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml"
 )
 
@@ -48,7 +48,7 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 	).AddKubeInformers(kubeInformersForTargetNamespace)
 }
 
-func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClient,
+func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	kubeclient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
