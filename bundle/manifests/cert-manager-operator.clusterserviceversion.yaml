@@ -7,7 +7,8 @@ metadata:
     categories: Security
     olm.skipRange: <0.0.1
     operatorframework.io/suggested-namespace: cert-manager-operator
-    operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift Platform Plus"]'
+    operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
+      Platform Plus"]'
     operators.operatorframework.io/builder: operator-sdk-v1.25.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/cert-manager-operator
