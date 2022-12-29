@@ -1,0 +1,28 @@
+apiVersion: acme.cert-manager.io/v1
+kind: Challenge
+metadata:
+  name: tls-cert-sample
+  namespace: sample-namespace
+spec:
+  authorizationURL: https://acme-staging-v02.api.letsencrypt.org/acme/authz-v3/XXXXX
+  dnsName: sample.dns.name
+  issuerRef:
+    kind: Issuer
+    name: letsencrypt-staging
+  key: XXX
+  solver:
+    dns01:
+      route53:
+        accessKeyID: XXX
+        hostedZoneID: XXX
+        region: us-east-1
+        secretAccessKeySecretRef:
+          key: awsSecretAccessKey
+          name: aws-secret
+    selector:
+      dnsNames:
+      - sample.dns.name
+  token: XXX
+  type: DNS-01
+  url: https://acme-staging-v02.api.letsencrypt.org/acme/chall-v3/XXXXXX/XXXXX
+  wildcard: false

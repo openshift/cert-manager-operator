@@ -1,12 +1,7 @@
-apiVersion: operator.openshift.io.openshift.io/v1alpha1
+apiVersion: operator.openshift.io/v1alpha1
 kind: CertManager
 metadata:
-  labels:
-    app.kubernetes.io/name: certmanager
-    app.kubernetes.io/instance: certmanager-sample
-    app.kubernetes.io/part-of: cert-manager-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: cert-manager-operator
-  name: certmanager-sample
+  name: cluster
 spec:
-  # TODO(user): Add fields here
+  logLevel: Normal
+  managementState: Managed

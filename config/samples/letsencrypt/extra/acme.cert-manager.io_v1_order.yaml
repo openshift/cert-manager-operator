@@ -1,0 +1,17 @@
+apiVersion: acme.cert-manager.io/v1
+kind: Order
+metadata:
+  annotations:
+    cert-manager.io/certificate-name: tls-cert
+    cert-manager.io/certificate-revision: "1"
+    cert-manager.io/private-key-secret-name: tls-cert-sample
+  name: tls-cert-sample
+  namespace: sample-namespace
+spec:
+  commonName: sample.dns.name
+  dnsNames:
+  - sample.dns.name
+  issuerRef:
+    kind: Issuer
+    name: letsencrypt-staging
+  request: XXX
