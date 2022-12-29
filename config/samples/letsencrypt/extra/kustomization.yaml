@@ -1,0 +1,4 @@
+resources:
+- acme.cert-manager.io_v1_challenge.yaml
+- acme.cert-manager.io_v1_order.yaml
+- cert-manager.io_v1_certificaterequest.yaml

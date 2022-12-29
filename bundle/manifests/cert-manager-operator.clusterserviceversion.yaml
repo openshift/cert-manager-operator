@@ -2,7 +2,211 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[]'
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "acme.cert-manager.io/v1",
+          "kind": "Challenge",
+          "metadata": {
+            "name": "tls-cert-sample",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "authorizationURL": "https://acme-staging-v02.api.letsencrypt.org/acme/authz-v3/XXXXX",
+            "dnsName": "sample.dns.name",
+            "issuerRef": {
+              "kind": "Issuer",
+              "name": "letsencrypt-staging"
+            },
+            "key": "XXX",
+            "solver": {
+              "dns01": {
+                "route53": {
+                  "accessKeyID": "XXX",
+                  "hostedZoneID": "XXX",
+                  "region": "us-east-1",
+                  "secretAccessKeySecretRef": {
+                    "key": "awsSecretAccessKey",
+                    "name": "aws-secret"
+                  }
+                }
+              },
+              "selector": {
+                "dnsNames": [
+                  "sample.dns.name"
+                ]
+              }
+            },
+            "token": "XXX",
+            "type": "DNS-01",
+            "url": "https://acme-staging-v02.api.letsencrypt.org/acme/chall-v3/XXXXXX/XXXXX",
+            "wildcard": false
+          }
+        },
+        {
+          "apiVersion": "acme.cert-manager.io/v1",
+          "kind": "Order",
+          "metadata": {
+            "annotations": {
+              "cert-manager.io/certificate-name": "tls-cert",
+              "cert-manager.io/certificate-revision": "1",
+              "cert-manager.io/private-key-secret-name": "tls-cert-sample"
+            },
+            "name": "tls-cert-sample",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "commonName": "sample.dns.name",
+            "dnsNames": [
+              "sample.dns.name"
+            ],
+            "issuerRef": {
+              "kind": "Issuer",
+              "name": "letsencrypt-staging"
+            },
+            "request": "XXX"
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "Certificate",
+          "metadata": {
+            "name": "selfsigned-ca",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "commonName": "selfsigned-ca.dns.name",
+            "isCA": true,
+            "issuerRef": {
+              "group": "cert-manager.io",
+              "kind": "ClusterIssuer",
+              "name": "selfsigned-issuer"
+            },
+            "privateKey": {
+              "algorithm": "ECDSA",
+              "size": 256
+            },
+            "secretName": "ca-root-secret"
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "Certificate",
+          "metadata": {
+            "name": "tls-cert",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "commonName": "sample.dns.name",
+            "dnsNames": [
+              "sample.dns.name"
+            ],
+            "isCA": false,
+            "issuerRef": {
+              "kind": "Issuer",
+              "name": "letsencrypt-staging"
+            },
+            "secretName": "tls-cert"
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "CertificateRequest",
+          "metadata": {
+            "annotations": {
+              "cert-manager.io/certificate-name": "tls-cert",
+              "cert-manager.io/certificate-revision": "1",
+              "cert-manager.io/private-key-secret-name": "tls-cert-sample"
+            },
+            "name": "tls-cert-sample",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "groups": [
+              "system:serviceaccounts",
+              "system:serviceaccounts:cert-manager",
+              "system:authenticated"
+            ],
+            "issuerRef": {
+              "kind": "Issuer",
+              "name": "letsencrypt-staging"
+            },
+            "request": "XXX",
+            "username": "system:serviceaccount:cert-manager:cert-manager"
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "ClusterIssuer",
+          "metadata": {
+            "name": "selfsigned-issuer"
+          },
+          "spec": {
+            "selfSigned": {}
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "Issuer",
+          "metadata": {
+            "name": "ca-issuer",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "ca": {
+              "secretName": "ca-root-secret"
+            }
+          }
+        },
+        {
+          "apiVersion": "cert-manager.io/v1",
+          "kind": "Issuer",
+          "metadata": {
+            "name": "letsencrypt-staging",
+            "namespace": "sample-namespace"
+          },
+          "spec": {
+            "acme": {
+              "email": "aos-ci-cd@redhat.com",
+              "privateKeySecretRef": {
+                "name": "letsencrypt-staging"
+              },
+              "server": "https://acme-staging-v02.api.letsencrypt.org/directory",
+              "solvers": [
+                {
+                  "dns01": {
+                    "route53": {
+                      "accessKeyID": "\u003cACCESS_KEY_ID\u003e",
+                      "hostedZoneID": "\u003cHOSTED_ZONE_ID\u003e",
+                      "region": "\u003cAWS_REGION\u003e",
+                      "secretAccessKeySecretRef": {
+                        "key": "access-key",
+                        "name": "sample-aws-secret"
+                      }
+                    }
+                  },
+                  "selector": {
+                    "dnsNames": [
+                      "sample.dns.name"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "apiVersion": "operator.openshift.io/v1alpha1",
+          "kind": "CertManager",
+          "metadata": {
+            "name": "cluster"
+          },
+          "spec": {
+            "logLevel": "Normal",
+            "managementState": "Managed"
+          }
+        }
+      ]
     capabilities: Basic Install
     categories: Security
     olm.skipRange: <0.0.1

@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tls-cert
+  namespace: sample-namespace
+spec:
+  isCA: false
+  commonName: "sample.dns.name" #❗Replace this with your own DNS name
+  secretName: tls-cert
+  dnsNames:
+  - "sample.dns.name" #❗Replace this with your own DNS name
+  issuerRef:
+    name: letsencrypt-staging
+    kind: Issuer

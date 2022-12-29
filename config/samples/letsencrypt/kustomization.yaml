@@ -1,0 +1,4 @@
+resources:
+- extra
+- cert-manager.io_v1_certificate.yaml
+- cert-manager.io_v1_issuer.yaml

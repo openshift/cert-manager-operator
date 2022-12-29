@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: CertificateRequest
+metadata:
+  annotations:
+    cert-manager.io/certificate-name: tls-cert
+    cert-manager.io/certificate-revision: "1"
+    cert-manager.io/private-key-secret-name: tls-cert-sample
+  name: tls-cert-sample
+  namespace: sample-namespace
+spec:
+  groups:
+  - system:serviceaccounts
+  - system:serviceaccounts:cert-manager
+  - system:authenticated
+  issuerRef:
+    kind: Issuer
+    name: letsencrypt-staging
+  request: XXX
+  username: system:serviceaccount:cert-manager:cert-manager
