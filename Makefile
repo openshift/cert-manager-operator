@@ -170,7 +170,7 @@ verify-deps:
 	hack/verify-deps.sh
 
 local-run: build
-	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=openshift-cert-manager-operator
+	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=cert-manager-operator
 .PHONY: local-run
 
 ##@ Build

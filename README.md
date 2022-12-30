@@ -102,7 +102,7 @@ Update the version of cert-manager in the `Makefile`:
   +++ b/Makefile
   @@ -13,7 +13,7 @@ BUNDLE_IMAGE_TAG?=latest
   
-  TEST_OPERATOR_NAMESPACE?=openshift-cert-manager-operator
+  TEST_OPERATOR_NAMESPACE?=cert-manager-operator
   
   -MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
   +MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
