@@ -2,7 +2,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: selfsigned-ca
-  namespace: sample-namespace
+  namespace: default
 spec:
   isCA: true
   commonName: selfsigned-ca.dns.name

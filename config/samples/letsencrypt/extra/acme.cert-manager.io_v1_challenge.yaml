@@ -2,7 +2,7 @@ apiVersion: acme.cert-manager.io/v1
 kind: Challenge
 metadata:
   name: tls-cert-sample
-  namespace: sample-namespace
+  namespace: default
 spec:
   authorizationURL: https://acme-staging-v02.api.letsencrypt.org/acme/authz-v3/XXXXX
   dnsName: sample.dns.name

@@ -2,7 +2,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: tls-cert
-  namespace: sample-namespace
+  namespace: default
 spec:
   isCA: false
   commonName: "sample.dns.name" #❗Replace this with your own DNS name
