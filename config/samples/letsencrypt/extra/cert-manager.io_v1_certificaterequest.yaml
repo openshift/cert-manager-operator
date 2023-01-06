@@ -6,7 +6,7 @@ metadata:
     cert-manager.io/certificate-revision: "1"
     cert-manager.io/private-key-secret-name: tls-cert-sample
   name: tls-cert-sample
-  namespace: sample-namespace
+  namespace: default
 spec:
   groups:
   - system:serviceaccounts

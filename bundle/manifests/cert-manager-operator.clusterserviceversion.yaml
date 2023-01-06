@@ -9,7 +9,7 @@ metadata:
           "kind": "Challenge",
           "metadata": {
             "name": "tls-cert-sample",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "authorizationURL": "https://acme-staging-v02.api.letsencrypt.org/acme/authz-v3/XXXXX",
@@ -53,7 +53,7 @@ metadata:
               "cert-manager.io/private-key-secret-name": "tls-cert-sample"
             },
             "name": "tls-cert-sample",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "commonName": "sample.dns.name",
@@ -72,7 +72,7 @@ metadata:
           "kind": "Certificate",
           "metadata": {
             "name": "selfsigned-ca",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "commonName": "selfsigned-ca.dns.name",
@@ -94,7 +94,7 @@ metadata:
           "kind": "Certificate",
           "metadata": {
             "name": "tls-cert",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "commonName": "sample.dns.name",
@@ -119,7 +119,7 @@ metadata:
               "cert-manager.io/private-key-secret-name": "tls-cert-sample"
             },
             "name": "tls-cert-sample",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "groups": [
@@ -150,7 +150,7 @@ metadata:
           "kind": "Issuer",
           "metadata": {
             "name": "ca-issuer",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "ca": {
@@ -163,7 +163,7 @@ metadata:
           "kind": "Issuer",
           "metadata": {
             "name": "letsencrypt-staging",
-            "namespace": "sample-namespace"
+            "namespace": "default"
           },
           "spec": {
             "acme": {
