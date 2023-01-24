@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
@@ -60,7 +61,28 @@ func mergeContainerArgs(sourceArgs []string, overrideArgs []string) []string {
 		}
 		i++
 	}
-	return destArgs
+	return sort.StringSlice(destArgs)
+}
+
+// mergeContainerEnvs merges source container env variables with those
+// provided as override env variables.
+func mergeContainerEnvs(sourceEnvs []corev1.EnvVar, overrideEnvs []corev1.EnvVar) []corev1.EnvVar {
+	destEnvsMap := map[string]corev1.EnvVar{}
+	parseEnvMap(destEnvsMap, sourceEnvs)
+	parseEnvMap(destEnvsMap, overrideEnvs)
+
+	destEnvs := make([]corev1.EnvVar, 0)
+	for _, v := range destEnvsMap {
+		destEnvs = append(destEnvs, v)
+	}
+
+	return destEnvs
+}
+
+func parseEnvMap(envMap map[string]corev1.EnvVar, envs []corev1.EnvVar) {
+	for _, env := range envs {
+		envMap[env.Name] = env
+	}
 }
 
 // parseArgMap adds new entries to the map using keys

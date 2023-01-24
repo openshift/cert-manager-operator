@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
+	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 )
 
 const (
@@ -46,6 +47,7 @@ func NewCertManagerCAInjectorStaticResourcesController(operatorClient v1helpers.
 }
 
 func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
+	certManagerClient alpha1.OperatorV1alpha1Interface,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter,
@@ -55,6 +57,7 @@ func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.Opera
 		targetVersion,
 		certManagerCAInjectorDeploymentFile,
 		operatorClient,
+		certManagerClient,
 		kubeClient,
 		kubeInformersForTargetNamespace,
 		eventsRecorder,
