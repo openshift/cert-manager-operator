@@ -12,6 +12,8 @@ import (
 	"time"
 
 	_ "embed"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
@@ -27,13 +29,73 @@ import (
 )
 
 const (
-	PollInterval = time.Second
-	TestTimeout  = 10 * time.Minute
+	PollInterval      = time.Second
+	TestTimeout       = 10 * time.Minute
+	operandNamespace  = "cert-manager"
+	operatorNamespace = "cert-manager-operator"
+)
+
+var (
+	kubeClient client.Client
 )
 
 //go:embed testdata/*
 var testassets embed.FS
 
+func initKubeClient() error {
+	kubeConfig, err := config.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get kube config: %w", err)
+	}
+
+	kubeClient, err = client.New(kubeConfig, client.Options{})
+	if err != nil {
+		return fmt.Errorf("failed to create kube client: %w", err)
+	}
+	return nil
+}
+
+func TestMain(m *testing.M) {
+	var (
+		err error
+	)
+	if err = initKubeClient(); err != nil {
+		fmt.Printf("Failed to init kube client: %v\n", err)
+		os.Exit(1)
+	}
+}
+func TestOperatorAvailable(t *testing.T) {
+	expected := []appsv1.DeploymentCondition{
+		{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+	}
+	if err := waitForDeploymentStatusCondition("cert-manager-operator-controller-manager", operatorNamespace, t, kubeClient, expected...); err != nil {
+		t.Errorf("Did not get expected available condition: %v", err)
+	}
+}
+func TestCertManagerControllerAvailable(t *testing.T) {
+	expected := []appsv1.DeploymentCondition{
+		{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+	}
+	if err := waitForDeploymentStatusCondition("cert-manager", operandNamespace, t, kubeClient, expected...); err != nil {
+		t.Errorf("Did not get expected available condition: %v", err)
+	}
+}
+func TestCertManagerWebhookAvailable(t *testing.T) {
+	expected := []appsv1.DeploymentCondition{
+		{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+	}
+	if err := waitForDeploymentStatusCondition("cert-manager-webhook", operandNamespace, t, kubeClient, expected...); err != nil {
+		t.Errorf("Did not get expected available condition: %v", err)
+	}
+}
+func TestCertManagerCainjectorAvailable(t *testing.T) {
+	expected := []appsv1.DeploymentCondition{
+		{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue},
+	}
+	if err := waitForDeploymentStatusCondition("cert-manager-cainjector", operandNamespace, t, kubeClient, expected...); err != nil {
+		t.Errorf("Did not get expected available condition: %v", err)
+	}
+}
 func TestSelfSignedCerts(t *testing.T) {
 	ctx := context.Background()
 	loader := library.NewDynamicResourceLoader(ctx, t)
