@@ -91,7 +91,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: deploymentDefaultArgs["cert-manager"],
+			wantArgs: []string{
+				"--v=2", "--cluster-resource-namespace=$(POD_NAMESPACE)", "--leader-election-namespace=kube-system",
+			},
 		},
 
 		// unsupported config overrides as a mechanism of appending new args
@@ -102,7 +104,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: append(deploymentDefaultArgs["cert-manager"], testArgsToAppend...),
+			wantArgs: []string{
+				"--cluster-resource-namespace=$(POD_NAMESPACE)", "--featureX=enable", "--leader-election-namespace=kube-system", "--test-arg", "--v=2",
+			},
 		},
 		"CAInjector overrides should append newer overriden values": {
 			deploymentName: "cert-manager-cainjector",
@@ -111,7 +115,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: append(deploymentDefaultArgs["cert-manager-cainjector"], testArgsToAppend...),
+			wantArgs: []string{
+				"--featureX=enable", "--leader-election-namespace=kube-system", "--test-arg", "--v=2",
+			},
 		},
 		"Webhook overrides should append newer overriden values": {
 			deploymentName: "cert-manager-webhook",
@@ -120,7 +126,15 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: append(deploymentDefaultArgs["cert-manager-webhook"], testArgsToAppend...),
+			wantArgs: []string{
+				"--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
+				"--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc",
+				"--featureX=enable",
+				"--secure-port=10250",
+				"--test-arg",
+				"--v=2",
+			},
 		},
 
 		// unsupported config overrides as a mechanism of replacing existing values
@@ -132,10 +146,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToOverrideReplace,
 				},
 			},
-			wantArgs: append(
-				removeFromSlice(deploymentDefaultArgs["cert-manager"], "--v="),
-				testArgsToOverrideReplace...,
-			),
+			wantArgs: []string{
+				"--cluster-resource-namespace=$(POD_NAMESPACE)", "--featureY=disable", "--leader-election-namespace=kube-system", "--v=5",
+			},
 		},
 		"CAInjector overrides existing values for --v": {
 			deploymentName: "cert-manager-cainjector",
@@ -144,10 +157,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToOverrideReplace,
 				},
 			},
-			wantArgs: append(
-				removeFromSlice(deploymentDefaultArgs["cert-manager-cainjector"], "--v="),
-				testArgsToOverrideReplace...,
-			),
+			wantArgs: []string{
+				"--featureY=disable", "--leader-election-namespace=kube-system", "--v=5",
+			},
 		},
 		"Webhook overrides existing values for --v": {
 			deploymentName: "cert-manager-webhook",
@@ -156,10 +168,14 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToOverrideReplace,
 				},
 			},
-			wantArgs: append(
-				removeFromSlice(deploymentDefaultArgs["cert-manager-webhook"], "--v="),
-				testArgsToOverrideReplace...,
-			),
+			wantArgs: []string{
+				"--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
+				"--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc",
+				"--featureY=disable",
+				"--secure-port=10250",
+				"--v=5",
+			},
 		},
 	}
 
@@ -169,7 +185,8 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
 			newDeployment := UnsupportedConfigOverrides(deployments[tcData.deploymentName].DeepCopy(), tcData.overrides)
-			require.ElementsMatch(t, tcData.wantArgs, newDeployment.Spec.Template.Spec.Containers[0].Args)
+			require.Equal(t, tcData.wantArgs, newDeployment.Spec.Template.Spec.Containers[0].Args)
+
 		})
 	}
 }

@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -20,16 +21,23 @@ func UnsupportedConfigOverrides(deployment *appsv1.Deployment, unsupportedConfig
 		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.Webhook.Args)
+
+		sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
 	}
 	if len(unsupportedConfigOverrides.CAInjector.Args) > 0 && deployment.Name == "cert-manager-cainjector" {
 		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.CAInjector.Args)
+
+		sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
+
 	}
 	if len(unsupportedConfigOverrides.Controller.Args) > 0 && deployment.Name == "cert-manager" {
 		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.Controller.Args)
+
+		sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
 	}
 	return deployment
 }
@@ -37,12 +45,12 @@ func UnsupportedConfigOverrides(deployment *appsv1.Deployment, unsupportedConfig
 // mergeContainerArgs merges the source args with override values
 // using a map that tracks unique keys for each arg containing a
 // key value pair of form `key[=value]`
-func mergeContainerArgs(sourceArgs []string, overrideArgs []string) (destArgs []string) {
+func mergeContainerArgs(sourceArgs []string, overrideArgs []string) []string {
 	destArgMap := map[string]string{}
 	parseArgMap(destArgMap, sourceArgs)
 	parseArgMap(destArgMap, overrideArgs)
 
-	destArgs = make([]string, len(destArgMap))
+	destArgs := make([]string, len(destArgMap))
 	i := 0
 	for key, val := range destArgMap {
 		if len(val) > 0 {
