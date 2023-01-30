@@ -160,10 +160,6 @@ spec:
                       - name
                       type: object
                     type: array
-                  labels:
-                    additionalProperties:
-                      type: string
-                    type: object
                 type: object
               controllerConfig:
                 description: "ControllerConfig specifies further customization options
@@ -294,10 +290,6 @@ spec:
                       - name
                       type: object
                     type: array
-                  labels:
-                    additionalProperties:
-                      type: string
-                    type: object
                 type: object
               logLevel:
                 default: Normal
@@ -478,10 +470,6 @@ spec:
                       - name
                       type: object
                     type: array
-                  labels:
-                    additionalProperties:
-                      type: string
-                    type: object
                 type: object
             type: object
           status:

@@ -6,24 +6,28 @@ package e2e
 import (
 	"context"
 	"embed"
+	_ "embed"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	_ "embed"
-
-	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
-
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	"github.com/openshift/cert-manager-operator/test/library"
-	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	"github.com/stretchr/testify/require"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	opv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
+	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+
+	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -269,4 +273,55 @@ func TestCertRenew(t *testing.T) {
 		return is_host_correct && is_not_expired && is_cert_renewed, nil
 	})
 	require.NoError(t, err)
+}
+
+func TestContainerOverrideArgs(t *testing.T) {
+	ctx := context.Background()
+	config, err := library.GetConfigForTest(t)
+	require.NoError(t, err)
+
+	certmanageroperatorclient, err := certmanoperatorclient.NewForConfig(config)
+	require.NoError(t, err)
+
+	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	verifyValidOperatorStatus(t, operator)
+	updatedOperator := operator.DeepCopy()
+
+	addValidControlleOverrideArgs(updatedOperator)
+	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	verifyValidOperatorStatus(t, operator)
+}
+
+func verifyValidOperatorStatus(t *testing.T, operator *v1alpha1.CertManager) {
+
+	for _, cond := range operator.Status.Conditions {
+		if cond.Type == opv1.OperatorStatusTypeAvailable {
+			require.Equal(t, cond.Status, opv1.ConditionTrue)
+		}
+
+		if cond.Type == opv1.OperatorStatusTypeDegraded {
+			require.Equal(t, cond.Status, opv1.ConditionFalse)
+		}
+
+		if cond.Type == opv1.OperatorStatusTypeProgressing {
+			require.Equal(t, cond.Status, opv1.ConditionFalse)
+		}
+	}
+
+}
+
+func addValidControlleOverrideArgs(operator *v1alpha1.CertManager) {
+	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+		OverrideArgs: []string{"--dns01-recursive-nameservers", "--dns01-recursive-nameservers-only"},
+	}
+}
+
+func addInvalidControlleOverrideArgs(operator *v1alpha1.CertManager) {
+	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+		OverrideArgs: []string{"--invalid-args=foo"},
+	}
 }
