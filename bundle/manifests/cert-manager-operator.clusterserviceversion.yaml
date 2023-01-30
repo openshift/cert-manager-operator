@@ -629,15 +629,15 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.9.1
+                  value: quay.io/jetstack/cert-manager-webhook:v1.10.2
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.9.1
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.10.2
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.9.1
+                  value: quay.io/jetstack/cert-manager-controller:v1.10.2
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.9.1
+                  value: 1.10.2
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.9.1
+                  value: 1.10.2
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: Always
                 name: cert-manager-operator
@@ -711,10 +711,10 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.9.1
+  - image: quay.io/jetstack/cert-manager-webhook:v1.10.2
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.9.1
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.10.2
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.9.1
+  - image: quay.io/jetstack/cert-manager-controller:v1.10.2
     name: cert-manager-controller
   version: 0.0.1
