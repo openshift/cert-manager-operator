@@ -12,13 +12,13 @@ import (
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
-	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 )
 
 func newGenericDeploymentController(
 	controllerName, targetVersion, deploymentFile string,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
-	certManagerClient alpha1.OperatorV1alpha1Interface,
+	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
@@ -35,10 +35,10 @@ func newGenericDeploymentController(
 		[]factory.Informer{},
 		[]deploymentcontroller.ManifestHookFunc{},
 		withOperandImageOverrideHook,
-		withContainerArgsOverrideHook(certManagerClient, deployment.Name, getOverrideArgsFor),
-		withContainerArgsValidateHook(certManagerClient, deployment.Name),
-		withContainerEnvOverrideHook(certManagerClient, deployment.Name, getOverrideEnvFor),
-        withContainerEnvValidateHook(certManagerClient, deployment.Name),
-		withUnsupportedArgsOverrideHook(certManagerClient, deployment.Name),
+		withContainerArgsOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideArgsFor),
+		withContainerArgsValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
+		withContainerEnvOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideEnvFor),
+		withContainerEnvValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
+		withUnsupportedArgsOverrideHook,
 	)
 }

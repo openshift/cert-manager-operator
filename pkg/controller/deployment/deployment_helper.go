@@ -1,15 +1,13 @@
 package deployment
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
 const argKeyValSeparator = "="
@@ -80,22 +78,22 @@ func parseArgMap(argMap map[string]string, args []string) {
 
 // getOverrideArgsFor is a helper function that returns the overrideArgs provided
 // in the operator spec based on the deployment name.
-func getOverrideArgsFor(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string) ([]string, error) {
-	certmanager, err := certManagerClient.CertManagers().Get(context.Background(), "cluster", metav1.GetOptions{})
+func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) ([]string, error) {
+	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
 	}
 
 	switch deploymentName {
-	case "cert-manager":
+	case certmanagerControllerDeployment:
 		if certmanager.Spec.ControllerConfig != nil {
 			return certmanager.Spec.ControllerConfig.OverrideArgs, nil
 		}
-	case "cert-manager-webhook":
+	case certmanagerWebhookDeployment:
 		if certmanager.Spec.WebhookConfig != nil {
 			return certmanager.Spec.WebhookConfig.OverrideArgs, nil
 		}
-	case "cert-manager-cainjector":
+	case certmanagerCAinjectorDeployment:
 		if certmanager.Spec.CAInjectorConfig != nil {
 			return certmanager.Spec.CAInjectorConfig.OverrideArgs, nil
 		}
@@ -107,22 +105,22 @@ func getOverrideArgsFor(certManagerClient alpha1.OperatorV1alpha1Interface, depl
 
 // getOverrideEnvFor() is a helper function that returns the OverrideEnv provided
 // in the operator spec based on the deployment name.
-func getOverrideEnvFor(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string) ([]corev1.EnvVar, error) {
-	certmanager, err := certManagerClient.CertManagers().Get(context.Background(), "cluster", metav1.GetOptions{})
+func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) ([]corev1.EnvVar, error) {
+	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
 	}
 
 	switch deploymentName {
-	case "cert-manager":
+	case certmanagerControllerDeployment:
 		if certmanager.Spec.ControllerConfig != nil {
 			return certmanager.Spec.ControllerConfig.OverrideEnv, nil
 		}
-	case "cert-manager-webhook":
+	case certmanagerWebhookDeployment:
 		if certmanager.Spec.WebhookConfig != nil {
 			return certmanager.Spec.WebhookConfig.OverrideEnv, nil
 		}
-	case "cert-manager-cainjector":
+	case certmanagerCAinjectorDeployment:
 		if certmanager.Spec.CAInjectorConfig != nil {
 			return certmanager.Spec.CAInjectorConfig.OverrideEnv, nil
 		}

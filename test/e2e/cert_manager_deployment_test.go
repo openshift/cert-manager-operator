@@ -12,17 +12,18 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	opv1 "github.com/openshift/api/operator/v1"
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -275,7 +276,7 @@ func TestCertRenew(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestContainerOverrideArgs(t *testing.T) {
+func TestValidContainerOverrides(t *testing.T) {
 	ctx := context.Background()
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
@@ -285,38 +286,102 @@ func TestContainerOverrideArgs(t *testing.T) {
 
 	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)
+	defer func() {
+		err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
 
-	verifyValidOperatorStatus(t, operator)
+	verifyValidControllerOperatorStatus(t, certmanageroperatorclient)
 	updatedOperator := operator.DeepCopy()
 
-	addValidControlleOverrideArgs(updatedOperator)
+	addValidControlleDeploymentConfig(updatedOperator)
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	verifyValidOperatorStatus(t, operator)
+	verifyValidControllerOperatorStatus(t, certmanageroperatorclient)
 }
 
-func verifyValidOperatorStatus(t *testing.T, operator *v1alpha1.CertManager) {
+func TestInvalidContainerOverrides(t *testing.T) {
+	ctx := context.Background()
+	config, err := library.GetConfigForTest(t)
+	require.NoError(t, err)
 
-	for _, cond := range operator.Status.Conditions {
-		if cond.Type == opv1.OperatorStatusTypeAvailable {
-			require.Equal(t, cond.Status, opv1.ConditionTrue)
-		}
+	certmanageroperatorclient, err := certmanoperatorclient.NewForConfig(config)
+	require.NoError(t, err)
 
-		if cond.Type == opv1.OperatorStatusTypeDegraded {
-			require.Equal(t, cond.Status, opv1.ConditionFalse)
-		}
+	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	require.NoError(t, err)
+	defer func() {
+		err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
 
-		if cond.Type == opv1.OperatorStatusTypeProgressing {
-			require.Equal(t, cond.Status, opv1.ConditionFalse)
-		}
-	}
+	verifyValidControllerOperatorStatus(t, certmanageroperatorclient)
+	updatedOperator := operator.DeepCopy()
+
+	addInvalidControlleOverrideArgs(updatedOperator)
+	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	verifyInvalidControllerOperatorStatus(t, certmanageroperatorclient)
+
+	updatedOperator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	addInvalidControlleOverrideEnv(updatedOperator)
+	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	verifyInvalidControllerOperatorStatus(t, certmanageroperatorclient)
+
+	// reset operator spec
+	updatedOperator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	updatedOperator = updatedOperator.DeepCopy()
+	updatedOperator.Spec.ControllerConfig = nil
+	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
+	require.NoError(t, err)
 
 }
 
-func addValidControlleOverrideArgs(operator *v1alpha1.CertManager) {
+func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
+	wait.PollImmediate(time.Second*5, time.Minute*1, func() (done bool, err error) {
+
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		flag := false
+		for _, cond := range operator.Status.Conditions {
+			if cond.Type != "cert-manager-controller-deploymentAvailable" {
+				flag = cond.Status == opv1.ConditionTrue
+			}
+
+			if cond.Type == "cert-manager-controller-deploymentDegraded" {
+				flag = cond.Status == opv1.ConditionFalse
+			}
+
+			if cond.Type == "cert-manager-controller-deploymentProgressing" {
+				flag = cond.Status == opv1.ConditionFalse
+			}
+		}
+
+		return flag, nil
+	})
+
+}
+
+func addValidControlleDeploymentConfig(operator *v1alpha1.CertManager) {
 	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-		OverrideArgs: []string{"--dns01-recursive-nameservers", "--dns01-recursive-nameservers-only"},
+        OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only"},
+		OverrideEnv: []corev1.EnvVar{
+			{
+				Name:  "HTTP_PROXY",
+				Value: "172.0.0.10:8080",
+			},
+		},
 	}
 }
 
@@ -324,4 +389,43 @@ func addInvalidControlleOverrideArgs(operator *v1alpha1.CertManager) {
 	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
 		OverrideArgs: []string{"--invalid-args=foo"},
 	}
+}
+
+func addInvalidControlleOverrideEnv(operator *v1alpha1.CertManager) {
+	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+		OverrideEnv: []corev1.EnvVar{
+			{
+				Name:  "FOO",
+				Value: "BAR",
+			},
+		},
+	}
+}
+
+func verifyInvalidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
+	wait.PollImmediate(time.Second*5, time.Minute*1, func() (done bool, err error) {
+
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		flag := false
+		for _, cond := range operator.Status.Conditions {
+			if cond.Type != "cert-manager-controller-deploymentAvailable" {
+				flag = cond.Status == opv1.ConditionFalse
+			}
+
+			if cond.Type == "cert-manager-controller-deploymentDegraded" {
+				flag = cond.Status == opv1.ConditionTrue
+			}
+
+			if cond.Type == "cert-manager-controller-deploymentProgressing" {
+				flag = cond.Status == opv1.ConditionTrue
+			}
+		}
+
+		return flag, nil
+	})
+
 }

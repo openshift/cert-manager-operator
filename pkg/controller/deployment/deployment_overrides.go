@@ -8,18 +8,18 @@ import (
 
 	v1 "github.com/openshift/api/operator/v1"
 
-	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
 // overrideArgsFunc defines a function signature that is accepted by
 // withContainerArgsOverrideHook(). This function returns the
 // override args provided to the cert-manager-operator operator spec.
-type overrideArgsFunc func(alpha1.OperatorV1alpha1Interface, string) ([]string, error)
+type overrideArgsFunc func(certmanagerinformer.CertManagerInformer, string) ([]string, error)
 
 // overrideArgsFunc defines a function signature that is accepted by
 // withContainerEnvOverrideHook(). This function returns the
 // override env provided to the cert-manager-operator operator spec.
-type overrideEnvFunc func(alpha1.OperatorV1alpha1Interface, string) ([]corev1.EnvVar, error)
+type overrideEnvFunc func(certmanagerinformer.CertManagerInformer, string) ([]corev1.EnvVar, error)
 
 // withOperandImageOverrideHook overrides the deployment image with
 // the operand images provided to the operator.
@@ -32,9 +32,9 @@ func withOperandImageOverrideHook(operatorSpec *v1.OperatorSpec, deployment *app
 
 // withContainerArgsOverrideHook overrides the container args with those provided by
 // the overrideArgsFunc function.
-func withContainerArgsOverrideHook(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string, fn overrideArgsFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideArgsFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
 	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
-		overrideArgs, err := fn(certManagerClient, deploymentName)
+		overrideArgs, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
 			return err
 		}
@@ -50,9 +50,9 @@ func withContainerArgsOverrideHook(certManagerClient alpha1.OperatorV1alpha1Inte
 
 // withContainerEnvOverrideHook verrides the container env with those provided by
 // the overrideEnvFunc function.
-func withContainerEnvOverrideHook(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string, fn overrideEnvFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideEnvFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
 	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
-		overrideEnv, err := fn(certManagerClient, deploymentName)
+		overrideEnv, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
 			return err
 		}

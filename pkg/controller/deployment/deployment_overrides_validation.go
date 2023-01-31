@@ -1,22 +1,20 @@
 package deployment
 
 import (
-	"context"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/strings/slices"
 
 	v1 "github.com/openshift/api/operator/v1"
 
-	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
 // withContainerArgsValidateHook validates the container args with those that
 // are supported by the operator.
-func withContainerArgsValidateHook(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerArgs := []string{
 		// A list of comma separated dns server endpoints used for ACME HTTP01 check requests.
@@ -54,24 +52,24 @@ func withContainerArgsValidateHook(certManagerClient alpha1.OperatorV1alpha1Inte
 	}
 
 	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
-		certmanager, err := certManagerClient.CertManagers().Get(context.Background(), "cluster", metav1.GetOptions{})
+		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
 		}
 
 		argMap := make(map[string]string, 0)
 		switch deploymentName {
-		case "cert-manager":
+		case certmanagerControllerDeployment:
 			if certmanager.Spec.ControllerConfig != nil {
 				parseArgMap(argMap, certmanager.Spec.ControllerConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManagerArgs)
 			}
-		case "cert-manager-webhook":
+		case certmanagerWebhookDeployment:
 			if certmanager.Spec.WebhookConfig != nil {
 				parseArgMap(argMap, certmanager.Spec.WebhookConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManagerWebhookArgs)
 			}
-		case "cert-manager-cainjector":
+		case certmanagerCAinjectorDeployment:
 			if certmanager.Spec.CAInjectorConfig != nil {
 				parseArgMap(argMap, certmanager.Spec.CAInjectorConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManageCainjectorArgs)
@@ -86,7 +84,7 @@ func withContainerArgsValidateHook(certManagerClient alpha1.OperatorV1alpha1Inte
 
 // withContainerEnvValidateHook validates the container env with those that
 // are supported by the operator.
-func withContainerEnvValidateHook(certManagerClient alpha1.OperatorV1alpha1Interface, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerEnv := []string{
 		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
@@ -104,24 +102,24 @@ func withContainerEnvValidateHook(certManagerClient alpha1.OperatorV1alpha1Inter
 	}
 
 	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
-		certmanager, err := certManagerClient.CertManagers().Get(context.Background(), "cluster", metav1.GetOptions{})
+		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
 		}
 
 		envMap := make(map[string]corev1.EnvVar, 0)
 		switch deploymentName {
-		case "cert-manager":
+		case certmanagerControllerDeployment:
 			if certmanager.Spec.ControllerConfig != nil {
 				parseEnvMap(envMap, certmanager.Spec.ControllerConfig.OverrideEnv)
 				return validateEnv(envMap, supportedCertManagerEnv)
 			}
-		case "cert-manager-webhook":
+		case certmanagerWebhookDeployment:
 			if certmanager.Spec.WebhookConfig != nil {
 				parseEnvMap(envMap, certmanager.Spec.WebhookConfig.OverrideEnv)
 				return validateEnv(envMap, supportedCertManagerWebhookEnv)
 			}
-		case "cert-manager-cainjector":
+		case certmanagerCAinjectorDeployment:
 			if certmanager.Spec.CAInjectorConfig != nil {
 				parseEnvMap(envMap, certmanager.Spec.CAInjectorConfig.OverrideEnv)
 				return validateEnv(envMap, supportedCertManageCainjectorEnv)
