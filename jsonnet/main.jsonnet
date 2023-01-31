@@ -34,7 +34,8 @@ local processManifests(manifest) =
             container {
               // this path is unified with the upstream making the operator easier for ad-hoc testing (e.g. running operator against the upstream images).
               local cmd = '/app/cmd/' + manifest.metadata.labels['app.kubernetes.io/component'] + '/' + manifest.metadata.labels['app.kubernetes.io/component'],
-              [if container.name == 'cert-manager' then 'command']: [cmd],
+              [if container.name == 'cert-manager-controller' || container.name == 'cert-manager-webhook' || container.name == 'cert-manager-cainjector'
+               then 'command']: [cmd],
               // concats all arg values of dynamic-serving-dns-name into a single arg key value pair
               local dsdnArgKey = "--dynamic-serving-dns-names=",
               local dsdnArgVal = std.join(",", [

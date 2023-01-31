@@ -32,6 +32,8 @@ spec:
             - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
             - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
             - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.$(POD_NAMESPACE),cert-manager-webhook.$(POD_NAMESPACE).svc
+          command:
+            - /app/cmd/webhook/webhook
           env:
             - name: POD_NAMESPACE
               valueFrom:
