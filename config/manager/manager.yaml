@@ -36,6 +36,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - command:
           - /usr/bin/cert-manager-operator
