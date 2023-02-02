@@ -34,13 +34,20 @@ local processManifests(manifest) =
             container {
               // this path is unified with the upstream making the operator easier for ad-hoc testing (e.g. running operator against the upstream images).
               local cmd = '/app/cmd/' + manifest.metadata.labels['app.kubernetes.io/component'] + '/' + manifest.metadata.labels['app.kubernetes.io/component'],
-              [if container.name == 'cert-manager' then 'command']: [cmd],
-              args: [
-                if std.startsWith(arg, "--dynamic-serving-dns-names")
-                then "--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook." + targetOperandNamespace +",cert-manager-webhook." + targetOperandNamespace + ".svc"
-                else arg
-                for arg in super.args
-              ],
+              [if container.name == 'cert-manager-controller' || container.name == 'cert-manager-webhook' || container.name == 'cert-manager-cainjector'
+               then 'command']: [cmd],
+              // concats all arg values of dynamic-serving-dns-name into a single arg key value pair
+              local dsdnArgKey = "--dynamic-serving-dns-names=",
+              local dsdnArgVal = std.join(",", [
+                std.strReplace(arg, dsdnArgKey, "")
+                for arg in super.args if std.startsWith(arg, dsdnArgKey)
+              ]),
+              args: std.prune([
+                arg for arg in super.args
+                if std.startsWith(arg, dsdnArgKey) == false
+              ] + [
+                if std.length(dsdnArgVal) > 0 then (dsdnArgKey + dsdnArgVal)
+              ]),
             }
             for container in super.containers
           ],

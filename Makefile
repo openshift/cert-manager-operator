@@ -84,7 +84,7 @@ SHELL = /usr/bin/env bash -o pipefail
 CONTAINER_ENGINE ?= docker
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
-CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/openshift/release:rhel-8-release-golang-1.17-openshift-4.10
+CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.19-openshift-4.13
 
 BUNDLE_DIR := bundle
 BUNDLE_MANIFEST_DIR := $(BUNDLE_DIR)/manifests
@@ -102,7 +102,7 @@ GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCO
 
 E2E_TIMEOUT ?= 1h
 
-MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.10.2/cert-manager.yaml
 
 
 ##@ Development

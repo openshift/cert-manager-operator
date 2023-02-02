@@ -129,7 +129,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			wantArgs: []string{
 				"--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
 				"--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
-				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc",
+				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.$(POD_NAMESPACE),cert-manager-webhook.$(POD_NAMESPACE).svc",
 				"--featureX=enable",
 				"--secure-port=10250",
 				"--test-arg",
@@ -171,7 +171,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			wantArgs: []string{
 				"--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
 				"--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
-				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc",
+				"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.$(POD_NAMESPACE),cert-manager-webhook.$(POD_NAMESPACE).svc",
 				"--featureY=disable",
 				"--secure-port=10250",
 				"--v=5",
