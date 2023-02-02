@@ -708,6 +708,7 @@ spec:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
   maturity: alpha
+  minKubeVersion: 1.25.0
   provider:
     name: Red Hat
   relatedImages:
