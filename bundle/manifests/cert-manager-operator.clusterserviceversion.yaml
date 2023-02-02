@@ -209,7 +209,7 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Security
-    olm.skipRange: <0.0.1
+    olm.skipRange: <1.10
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
       Platform Plus"]'
@@ -217,7 +217,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/cert-manager-operator
     support: Red Hat, Inc.
-  name: cert-manager-operator.v0.0.1
+  name: cert-manager-operator.v1.10.2
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -718,4 +718,4 @@ spec:
     name: cert-manager-ca-injector
   - image: quay.io/jetstack/cert-manager-controller:v1.10.2
     name: cert-manager-controller
-  version: 0.0.1
+  version: 1.10.2
