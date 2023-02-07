@@ -3,7 +3,7 @@ kind: ClusterServiceVersion
 metadata:
   annotations:
     alm-examples: '[]'
-    capabilities: Basic Install
+    capabilities: Seamless Upgrades
     categories: Security
     olm.skipRange: <1.10
     operatorframework.io/suggested-namespace: cert-manager-operator
@@ -74,7 +74,7 @@ spec:
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
-  maturity: alpha
+  maturity: stable
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
