@@ -209,7 +209,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Security
-    olm.skipRange: <1.10.2
+    operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
       Platform Plus"]'
@@ -217,6 +217,9 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/cert-manager-operator
     support: Red Hat, Inc.
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/os.linux: supported
   name: cert-manager-operator.v1.10.2
   namespace: cert-manager-operator
 spec:
@@ -701,12 +704,17 @@ spec:
     type: AllNamespaces
   keywords:
   - cert-manager
-  - cert manager
   - cert-manager-operator
   - cert
+  - certificates
+  - security
+  - TLS
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
+  maintainers:
+  - email: support@redhat.com
+    name: Red Hat Support
   maturity: stable
   minKubeVersion: 1.25.0
   provider:
