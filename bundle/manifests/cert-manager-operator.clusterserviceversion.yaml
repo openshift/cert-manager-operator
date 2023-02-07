@@ -653,6 +653,8 @@ spec:
                     type: RuntimeDefault
               securityContext:
                 runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               serviceAccountName: cert-manager-operator-controller-manager
               terminationGracePeriodSeconds: 10
       permissions:
