@@ -209,7 +209,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Security
-    olm.skipRange: <1.10
+    olm.skipRange: <1.10.2
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
       Platform Plus"]'
