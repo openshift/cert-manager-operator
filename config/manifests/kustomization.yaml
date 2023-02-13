@@ -25,3 +25,17 @@ resources:
 #    # Update the indices in this path if adding or removing volumes in the manager's Deployment.
 #    - op: remove
 #      path: /spec/template/spec/volumes/0
+
+replacements:
+  - source:
+      group: apps
+      kind: Deployment
+      name: cert-manager-operator-controller-manager
+      fieldPath: spec.template.spec.containers.1.image
+    targets:
+      - select:
+          group: operators.coreos.com
+          version: v1alpha1
+          kind: ClusterServiceVersion
+        fieldPaths:
+          - "metadata.annotations.containerImage"

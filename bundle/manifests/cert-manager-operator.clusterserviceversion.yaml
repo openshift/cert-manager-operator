@@ -207,9 +207,11 @@ metadata:
           }
         }
       ]
-    capabilities: Basic Install
+    capabilities: Seamless Upgrades
     categories: Security
-    olm.skipRange: <0.0.1
+    containerImage: openshift.io/cert-manager-operator:latest
+    createdAt: 2023-03-03T00:00:00
+    operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
       Platform Plus"]'
@@ -217,7 +219,10 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/cert-manager-operator
     support: Red Hat, Inc.
-  name: cert-manager-operator.v0.0.1
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/os.linux: supported
+  name: cert-manager-operator.v1.10.2
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -703,13 +708,19 @@ spec:
     type: AllNamespaces
   keywords:
   - cert-manager
-  - cert manager
   - cert-manager-operator
   - cert
+  - certificates
+  - security
+  - TLS
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
-  maturity: alpha
+  maintainers:
+  - email: support@redhat.com
+    name: Red Hat Support
+  maturity: stable
+  minKubeVersion: 1.25.0
   provider:
     name: Red Hat
   relatedImages:
@@ -719,4 +730,4 @@ spec:
     name: cert-manager-ca-injector
   - image: quay.io/jetstack/cert-manager-controller:v1.10.2
     name: cert-manager-controller
-  version: 0.0.1
+  version: 1.10.2
