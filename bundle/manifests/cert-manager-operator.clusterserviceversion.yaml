@@ -213,6 +213,7 @@ metadata:
     createdAt: 2023-03-03T00:00:00
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
+    operators.openshift.io/infrastructure-features: '["proxy-aware"]'
     operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
       Platform Plus"]'
     operators.operatorframework.io/builder: operator-sdk-v1.25.1
@@ -620,6 +621,7 @@ spec:
                     type: RuntimeDefault
               - args:
                 - start
+                - --trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)
                 command:
                 - /usr/bin/cert-manager-operator
                 env:
@@ -643,6 +645,7 @@ spec:
                   value: 1.10.2
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.10.2
+                - name: TRUSTED_CA_CONFIGMAP_NAME
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: Always
                 name: cert-manager-operator

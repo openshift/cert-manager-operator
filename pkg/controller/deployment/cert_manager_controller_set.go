@@ -24,22 +24,23 @@ type CertManagerControllerSet struct {
 
 func NewCertManagerControllerSet(
 	kubeClient kubernetes.Interface,
-	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
-	informersFactory informers.SharedInformerFactory,
+	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
+	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClientContainer *resourceapply.ClientHolder,
 	eventRecorder events.Recorder,
 	targetVersion string,
 	versionRecorder status.VersionGetter,
+	trustedCAConfigmapName string,
 ) *CertManagerControllerSet {
 	return &CertManagerControllerSet{
-		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
-		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
-		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
+		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName),
+		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName),
+		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName),
 	}
 }
 

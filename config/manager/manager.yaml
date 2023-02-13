@@ -43,6 +43,7 @@ spec:
           - /usr/bin/cert-manager-operator
         args:
           - start
+          - "--trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)"
         env:
           - name: WATCH_NAMESPACE
             valueFrom:
@@ -64,6 +65,7 @@ spec:
             value: 1.10.2
           - name: OPERATOR_IMAGE_VERSION
             value: 1.10.2
+          - name: TRUSTED_CA_CONFIGMAP_NAME
         image: controller:latest
         imagePullPolicy: Always
         name: cert-manager-operator

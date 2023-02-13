@@ -715,6 +715,9 @@ github.com/openshift/library-go/pkg/operator/staticresourcecontroller
 github.com/openshift/library-go/pkg/operator/status
 github.com/openshift/library-go/pkg/operator/v1helpers
 github.com/openshift/library-go/pkg/serviceability
+# github.com/operator-framework/operator-lib v0.11.0
+## explicit; go 1.17
+github.com/operator-framework/operator-lib/proxy
 # github.com/pelletier/go-toml v1.9.5
 ## explicit; go 1.12
 github.com/pelletier/go-toml
