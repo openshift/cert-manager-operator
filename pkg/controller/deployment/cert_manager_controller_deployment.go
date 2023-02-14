@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 )
 
 const (
@@ -67,6 +68,7 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 }
 
 func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
+	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
@@ -75,6 +77,7 @@ func NewCertManagerControllerDeploymentController(operatorClient v1helpers.Opera
 		targetVersion,
 		certManagerControllerDeploymentFile,
 		operatorClient,
+		certManagerOperatorInformers,
 		kubeClient,
 		kubeInformersForTargetNamespace,
 		eventsRecorder,

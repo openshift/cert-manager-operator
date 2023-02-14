@@ -2,19 +2,20 @@ package deployment
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
 func TestUnsupportedConfigOverrides(t *testing.T) {
+
 	deploymentAssetPaths := map[string]string{
 		"cert-manager":            "cert-manager-deployment/controller/cert-manager-deployment.yaml",
 		"cert-manager-cainjector": "cert-manager-deployment/cainjector/cert-manager-cainjector-deployment.yaml",
@@ -184,10 +185,161 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 		tcData := tcData
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
-			newDeployment := UnsupportedConfigOverrides(deployments[tcData.deploymentName].DeepCopy(), tcData.overrides)
+			newDeployment := unsupportedConfigOverrides(deployments[tcData.deploymentName].DeepCopy(), tcData.overrides)
 			require.Equal(t, tcData.wantArgs, newDeployment.Spec.Template.Spec.Containers[0].Args)
 
 		})
+	}
+}
+
+func TestParseEnvMap(t *testing.T) {
+	env := mergeContainerEnvs([]corev1.EnvVar{
+		{
+			Name:  "A",
+			Value: "asd",
+		},
+		{
+			Name:  "B",
+			Value: "32r23",
+		},
+	}, []corev1.EnvVar{
+		{
+			Name:  "A",
+			Value: "23234",
+		},
+		{
+			Name:  "C",
+			Value: "a12sd",
+		},
+	})
+	for _, e := range env {
+		t.Logf("N: %s\t V:%s\n", e.Name, e.Value)
+	}
+
+	args := mergeContainerArgs([]string{"--a=12"}, []string{
+		"A", "B", "--a=vc",
+	})
+
+	for _, s := range args {
+		t.Logf("A:%q\n", s)
+	}
+}
+
+func TestMergeContainerEnv(t *testing.T) {
+	tests := []struct {
+		name        string
+		sourceEnv   []corev1.EnvVar
+		overrideEnv []corev1.EnvVar
+		expected    []corev1.EnvVar
+	}{
+		{
+			name: "after merge, env values are sorted by key",
+			sourceEnv: []corev1.EnvVar{
+				{
+					Name:  "XYZ",
+					Value: "VALUE2",
+				},
+				{
+					Name:  "ABC",
+					Value: "VALUE1",
+				},
+			},
+			overrideEnv: []corev1.EnvVar{
+				{
+
+					Name:  "DEF",
+					Value: "VALUE1",
+				},
+			},
+			expected: []corev1.EnvVar{
+				{
+
+					Name:  "ABC",
+					Value: "VALUE1",
+				},
+				{
+					Name:  "DEF",
+					Value: "VALUE1",
+				},
+				{
+					Name:  "XYZ",
+					Value: "VALUE2",
+				},
+			},
+		},
+		{
+			name: "override env replaces source env values",
+			sourceEnv: []corev1.EnvVar{
+				{
+					Name:  "KEY2",
+					Value: "VALUE2",
+				},
+				{
+					Name:  "KEY1",
+					Value: "VALUE1",
+				},
+			},
+			overrideEnv: []corev1.EnvVar{
+				{
+
+					Name:  "KEY1",
+					Value: "VALUE1",
+				},
+				{
+					Name:  "KEY2",
+					Value: "NEW_VALUE",
+				},
+			},
+			expected: []corev1.EnvVar{
+				{
+
+					Name:  "KEY1",
+					Value: "VALUE1",
+				},
+				{
+					Name:  "KEY2",
+					Value: "NEW_VALUE",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		actualEnv := mergeContainerEnvs(tc.sourceEnv, tc.overrideEnv)
+		require.Equal(t, tc.expected, actualEnv)
+	}
+}
+
+func TestMergeContainerArgs(t *testing.T) {
+	tests := []struct {
+		name         string
+		sourceArgs   []string
+		overrideArgs []string
+		expected     []string
+	}{
+		{
+			name:         "overrideargs replaces source arg values",
+			sourceArgs:   []string{"--key1=value1", "--key2=value2"},
+			overrideArgs: []string{"--key1=value1", "--key2=value5"},
+			expected:     []string{"--key1=value1", "--key2=value5"},
+		},
+		{
+			name:         "after merge, args are sorted in increasing order",
+			sourceArgs:   []string{"--xxx1=value1", "--xyz=value2"},
+			overrideArgs: []string{"--def=value1", "--abc=value5"},
+			expected:     []string{"--abc=value5", "--def=value1", "--xxx1=value1", "--xyz=value2"},
+		},
+		{
+			name:         "after merge, duplicates are removed",
+			sourceArgs:   []string{"--abc=value1", "", "--xyz=value2"},
+			overrideArgs: []string{"--xyz=value1", "--abc=value1"},
+			expected:     []string{"--abc=value1", "--xyz=value1"},
+		},
+	}
+
+	for _, tc := range tests {
+		actualArgs := mergeContainerArgs(tc.sourceArgs, tc.overrideArgs)
+		require.Equal(t, tc.expected, actualArgs)
 	}
 }
 
@@ -213,15 +365,4 @@ func TestParseArgMap(t *testing.T) {
 	if !reflect.DeepEqual(argMap, wantMap) {
 		t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(wantMap, argMap))
 	}
-}
-
-// removeFromSlice constructs a new slice by removing string(s) with prefix
-func removeFromSlice(args []string, removalPrefix string) []string {
-	targetArgs := []string{}
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, removalPrefix) {
-			targetArgs = append(targetArgs, arg)
-		}
-	}
-	return targetArgs
 }

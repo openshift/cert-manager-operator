@@ -1,0 +1,22 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: CertManager
+metadata:
+  name: cluster
+spec:
+  managementState: 'Managed'
+  controllerConfig:
+    overrideArgs:
+      - '--acme-http01-solver-nameservers=8.8.8.8:53,1.1.1.1:53'
+      - '--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53'
+      - '--dns01-recursive-nameservers-only'
+      - '--v=6'
+      - 'metrics-listen-address=0.0.0.0:8888'
+    overrideEnv:
+      - name: HTTP_PROXY
+        value: http://admin:admin@exampleproxy.com:8080
+  webhookConfig:
+    overrideArgs:
+      - '--v=6'
+  cainjectorConfig:
+    overrideArgs:
+      - '--v=6'

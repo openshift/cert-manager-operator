@@ -9,6 +9,8 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
+
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 )
 
 type CertManagerControllerSet struct {
@@ -25,6 +27,7 @@ func NewCertManagerControllerSet(
 	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
 	informersFactory informers.SharedInformerFactory,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
+	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClientContainer *resourceapply.ClientHolder,
 	eventRecorder events.Recorder,
 	targetVersion string,
@@ -32,11 +35,11 @@ func NewCertManagerControllerSet(
 ) *CertManagerControllerSet {
 	return &CertManagerControllerSet{
 		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
+		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
 		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
+		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
 		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForTargetNamespace, eventRecorder),
-		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
+		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, kubeClient, informersFactory, eventRecorder, targetVersion, versionRecorder),
 	}
 }
 
