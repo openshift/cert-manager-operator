@@ -276,7 +276,7 @@ func TestCertRenew(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidContainerOverrides(t *testing.T) {
+func TestContainerOverrides(t *testing.T) {
 	ctx := context.Background()
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
@@ -299,35 +299,26 @@ func TestValidContainerOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	verifyValidControllerOperatorStatus(t, certmanageroperatorclient)
-}
 
-func TestInvalidContainerOverrides(t *testing.T) {
-	ctx := context.Background()
-	config, err := library.GetConfigForTest(t)
+	err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
 	require.NoError(t, err)
-
-	certmanageroperatorclient, err := certmanoperatorclient.NewForConfig(config)
-	require.NoError(t, err)
-
-	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-	require.NoError(t, err)
-	defer func() {
-		err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
-		require.NoError(t, err)
-	}()
 
 	verifyValidControllerOperatorStatus(t, certmanageroperatorclient)
-	updatedOperator := operator.DeepCopy()
 
+	operator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	updatedOperator = operator.DeepCopy()
 	addInvalidControlleOverrideArgs(updatedOperator)
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	verifyInvalidControllerOperatorStatus(t, certmanageroperatorclient)
 
-	updatedOperator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	operator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)
 
+	updatedOperator = operator.DeepCopy()
 	addInvalidControlleOverrideEnv(updatedOperator)
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -335,27 +326,31 @@ func TestInvalidContainerOverrides(t *testing.T) {
 	verifyInvalidControllerOperatorStatus(t, certmanageroperatorclient)
 
 	// reset operator spec
-	updatedOperator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	operator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	updatedOperator = updatedOperator.DeepCopy()
+	updatedOperator = operator.DeepCopy()
 	updatedOperator.Spec.ControllerConfig = nil
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
-
 }
 
 func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
-	wait.PollImmediate(time.Second*5, time.Minute*1, func() (done bool, err error) {
 
+	t.Log("verifying valid controller operator status")
+	err := wait.PollImmediate(time.Second*5, time.Minute*5, func() (done bool, err error) {
 		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 
+		if operator.DeletionTimestamp != nil {
+			return false, nil
+		}
+
 		flag := false
 		for _, cond := range operator.Status.Conditions {
-			if cond.Type != "cert-manager-controller-deploymentAvailable" {
+			if cond.Type == "cert-manager-controller-deploymentAvailable" {
 				flag = cond.Status == opv1.ConditionTrue
 			}
 
@@ -368,14 +363,15 @@ func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorcl
 			}
 		}
 
+		t.Logf("Current poll status: %v", flag)
 		return flag, nil
 	})
-
+	require.NoError(t, err)
 }
 
 func addValidControlleDeploymentConfig(operator *v1alpha1.CertManager) {
 	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-        OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only"},
+		OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only"},
 		OverrideEnv: []corev1.EnvVar{
 			{
 				Name:  "HTTP_PROXY",
@@ -403,29 +399,28 @@ func addInvalidControlleOverrideEnv(operator *v1alpha1.CertManager) {
 }
 
 func verifyInvalidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
-	wait.PollImmediate(time.Second*5, time.Minute*1, func() (done bool, err error) {
+	t.Log("verifying invalid controller operator status")
+	err := wait.PollImmediate(time.Second*5, time.Minute*5, func() (done bool, err error) {
 
 		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 
+		if operator.DeletionTimestamp != nil {
+			return false, nil
+		}
+
 		flag := false
 		for _, cond := range operator.Status.Conditions {
-			if cond.Type != "cert-manager-controller-deploymentAvailable" {
-				flag = cond.Status == opv1.ConditionFalse
-			}
-
 			if cond.Type == "cert-manager-controller-deploymentDegraded" {
-				flag = cond.Status == opv1.ConditionTrue
-			}
-
-			if cond.Type == "cert-manager-controller-deploymentProgressing" {
 				flag = cond.Status == opv1.ConditionTrue
 			}
 		}
 
+		t.Logf("Current poll status: %v", flag)
 		return flag, nil
 	})
+	require.NoError(t, err)
 
 }
