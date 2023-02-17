@@ -88,6 +88,7 @@ type CertManagerStatus struct {
 //+kubebuilder:resource:scope=Cluster
 
 // CertManager is the Schema for the certmanagers API
+// +operator-sdk:csv:customresourcedefinitions:displayName="CertManager"
 type CertManager struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
