@@ -22,6 +22,10 @@ const (
 	resyncInterval = 10 * time.Minute
 )
 
+// TrustedCAConfigMapName is the trusted ca configmap name
+// provided as a runtime arg.
+var TrustedCAConfigMapName string
+
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
 	if err != nil {
@@ -51,23 +55,23 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	versionRecorder := status.NewVersionGetter()
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
-	kubeInformersForTargetNamespace := v1helpers.NewKubeInformersForNamespaces(kubeClient,
+	kubeInformersForNamespaces := v1helpers.NewKubeInformersForNamespaces(kubeClient,
 		"",
 		"kube-system",
 		"cert-manager",
 		operatorclient.TargetNamespace,
 	)
-
 	certManagerControllerSet := deployment.NewCertManagerControllerSet(
 		kubeClient,
-		kubeInformersForTargetNamespace,
-		kubeInformersForTargetNamespace.InformersFor(operatorclient.TargetNamespace),
+		kubeInformersForNamespaces,
+		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
 		operatorClient,
 		certManagerInformers,
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
 		cc.EventRecorder,
 		status.VersionForOperandFromEnv(),
 		versionRecorder,
+		TrustedCAConfigMapName,
 	)
 	controllersToStart := certManagerControllerSet.ToArray()
 
@@ -81,7 +85,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		certManagerInformers,
-		kubeInformersForTargetNamespace,
+		kubeInformersForNamespaces,
 	} {
 		informer.Start(ctx.Done())
 	}

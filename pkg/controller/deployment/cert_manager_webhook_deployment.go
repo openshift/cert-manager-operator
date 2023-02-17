@@ -37,7 +37,7 @@ var (
 
 func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.OperatorClient,
 	kubeClientContainer *resourceapply.ClientHolder,
-	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
+	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	eventsRecorder events.Recorder) factory.Controller {
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerWebhookStaticResourcesControllerName,
@@ -46,14 +46,14 @@ func NewCertManagerWebhookStaticResourcesController(operatorClient v1helpers.Ope
 		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
-	).AddKubeInformers(kubeInformersForTargetNamespace)
+	).AddKubeInformers(kubeInformersForNamespaces)
 }
 
 func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeclient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
+	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter, trustedCAConfigmapName string) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerWebhookDeploymentControllerName,
 		targetVersion,
@@ -63,5 +63,7 @@ func NewCertManagerWebhookDeploymentController(operatorClient v1helpers.Operator
 		kubeclient,
 		kubeInformersForTargetNamespace,
 		eventsRecorder,
-		versionRecorder)
+		versionRecorder,
+		trustedCAConfigmapName,
+	)
 }

@@ -23,6 +23,7 @@ func newGenericDeploymentController(
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
+	trustedCAConfigmapName string,
 ) factory.Controller {
 	deployment := resourceread.ReadDeploymentV1OrDie(assets.MustAsset(deploymentFile))
 	return deploymentcontroller.NewDeploymentController(
@@ -32,7 +33,9 @@ func newGenericDeploymentController(
 		operatorClient,
 		kubeClient,
 		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
-		[]factory.Informer{},
+		[]factory.Informer{
+			kubeInformersForTargetNamespace.Core().V1().ConfigMaps().Informer(),
+		},
 		[]deploymentcontroller.ManifestHookFunc{},
 		withOperandImageOverrideHook,
 		withContainerArgsOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideArgsFor),
@@ -40,5 +43,7 @@ func newGenericDeploymentController(
 		withContainerEnvOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideEnvFor),
 		withContainerEnvValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withUnsupportedArgsOverrideHook,
+		withProxyEnv,
+		withCAConfigMap(kubeInformersForTargetNamespace.Core().V1().ConfigMaps(), deployment, trustedCAConfigmapName),
 	)
 }

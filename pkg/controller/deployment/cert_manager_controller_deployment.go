@@ -55,7 +55,7 @@ var (
 
 func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.OperatorClient,
 	kubeClientContainer *resourceapply.ClientHolder,
-	kubeInformersForTargetNamespace v1helpers.KubeInformersForNamespaces,
+	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	eventsRecorder events.Recorder) factory.Controller {
 	return staticresourcecontroller.NewStaticResourceController(
 		certManagerControllerStaticResourcesControllerName,
@@ -64,14 +64,14 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 		kubeClientContainer,
 		operatorClient,
 		eventsRecorder,
-	).AddKubeInformers(kubeInformersForTargetNamespace)
+	).AddKubeInformers(kubeInformersForNamespaces)
 }
 
 func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter) factory.Controller {
+	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter, trustedCAConfigmapName string) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerControllerDeploymentControllerName,
 		targetVersion,
@@ -81,5 +81,7 @@ func NewCertManagerControllerDeploymentController(operatorClient v1helpers.Opera
 		kubeClient,
 		kubeInformersForTargetNamespace,
 		eventsRecorder,
-		versionRecorder)
+		versionRecorder,
+		trustedCAConfigmapName,
+	)
 }
