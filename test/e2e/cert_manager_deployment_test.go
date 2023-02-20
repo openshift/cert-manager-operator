@@ -330,7 +330,11 @@ func TestContainerOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	updatedOperator = operator.DeepCopy()
-	updatedOperator.Spec.ControllerConfig = nil
+	updatedOperator.Spec = v1alpha1.CertManagerSpec{
+		OperatorSpec: opv1.OperatorSpec{
+			ManagementState: opv1.Managed,
+		},
+	}
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
 }
