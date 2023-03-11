@@ -33,7 +33,8 @@ Cluster administrators can enable monitoring for user-defined projects by settin
 
 2. Add `enableUserWorkload: true` under data/config.yaml:
 
-```apiVersion: v1
+```
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cluster-monitoring-config
@@ -63,7 +64,8 @@ For more details, Please look at the detailed documentation to [enable the monit
 4. Apply the Service Monitor in your openshift cluster.
 
 `service-monitor.yaml`
-```apiVersion: monitoring.coreos.com/v1
+```
+apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
@@ -96,5 +98,4 @@ As a cluster administrator or as a user with view permissions for all projects, 
 
 `$ oc describe service cert-manager -n cert-manager`
 
-To query cert-manager controller metrics, select `Observe → Metrics` and filter the metrics of the cert-manager controller with `{instance="<Endpoints>"}` or
-`{endpoint="tcp-prometheus-servicemonitor"}`.
+To query cert-manager controller metrics, select `Observe → Metrics` and filter the metrics of the cert-manager controller with `{instance="<Endpoints>"}` or `{endpoint="tcp-prometheus-servicemonitor"}`.
