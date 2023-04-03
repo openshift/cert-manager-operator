@@ -129,3 +129,31 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 	}
 	return nil, nil
 }
+
+// getOverridePodLabelsFor() is a helper function that returns the OverridePodLabels provided
+// in the operator spec based on the deployment name.
+func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (map[string]string, error) {
+	certmanager, err := certmanagerinformer.Lister().Get("cluster")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+	}
+
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return certmanager.Spec.ControllerConfig.OverrideLabels, nil
+		}
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return certmanager.Spec.WebhookConfig.OverrideLabels, nil
+		}
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
+		}
+	default:
+		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+	}
+	return nil, nil
+
+}

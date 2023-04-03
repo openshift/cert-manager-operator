@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	coreinformersv1 "k8s.io/client-go/informers/core/v1"
 
 	v1 "github.com/openshift/api/operator/v1"
@@ -36,6 +37,11 @@ type overrideArgsFunc func(certmanagerinformer.CertManagerInformer, string) ([]s
 // withContainerEnvOverrideHook(). This function returns the
 // override env provided to the cert-manager-operator operator spec.
 type overrideEnvFunc func(certmanagerinformer.CertManagerInformer, string) ([]corev1.EnvVar, error)
+
+// overrideLabelsFunc defines a function signature that is accepted by
+// withPodLabels(). This function returns the override labels provided
+// to cert-manager-operator spec.
+type overrideLabelsFunc func(certmanagerinformer.CertManagerInformer, string) (map[string]string, error)
 
 // withOperandImageOverrideHook overrides the deployment image with
 // the operand images provided to the operator.
@@ -124,6 +130,22 @@ func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deploy
 			})
 		}
 
+		return nil
+	}
+}
+
+// withPodLabels patches the operand deployment to include custom pod labels
+func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideLabelsFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		overrideLabels, err := fn(certmanagerinformer, deploymentName)
+		if err != nil {
+			return err
+		}
+
+		if overrideLabels != nil && len(overrideLabels) > 0 && deployment.Name == deploymentName {
+			mergedLabels := labels.Merge(deployment.Spec.Template.GetLabels(), overrideLabels)
+			deployment.Spec.Template.SetLabels(mergedLabels)
+		}
 		return nil
 	}
 }
