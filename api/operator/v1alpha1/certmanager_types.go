@@ -73,6 +73,10 @@ type DeploymentConfig struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	OverrideEnv []corev1.EnvVar `json:"overrideEnv,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +optional
+	OverrideLabels map[string]string `json:"overrideLabels,omitempty"`
 }
 
 // CertManagerStatus defines the observed state of CertManager
