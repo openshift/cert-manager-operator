@@ -92,9 +92,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: []string{
-				"--v=2", "--cluster-resource-namespace=$(POD_NAMESPACE)", "--leader-election-namespace=kube-system",
-			},
+			wantArgs: deploymentDefaultArgs["cert-manager"],
 		},
 
 		// unsupported config overrides as a mechanism of appending new args
@@ -106,7 +104,13 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--cluster-resource-namespace=$(POD_NAMESPACE)", "--featureX=enable", "--leader-election-namespace=kube-system", "--test-arg", "--v=2",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.0",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+				"--featureX=enable",
+				"--leader-election-namespace=kube-system",
+				"--max-concurrent-challenges=60",
+				"--test-arg",
+				"--v=2",
 			},
 		},
 		"CAInjector overrides should append newer overriden values": {
@@ -117,7 +121,10 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--featureX=enable", "--leader-election-namespace=kube-system", "--test-arg", "--v=2",
+				"--featureX=enable",
+				"--leader-election-namespace=kube-system",
+				"--test-arg",
+				"--v=2",
 			},
 		},
 		"Webhook overrides should append newer overriden values": {
@@ -148,7 +155,12 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--cluster-resource-namespace=$(POD_NAMESPACE)", "--featureY=disable", "--leader-election-namespace=kube-system", "--v=5",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.0",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+				"--featureY=disable",
+				"--leader-election-namespace=kube-system",
+				"--max-concurrent-challenges=60",
+				"--v=5",
 			},
 		},
 		"CAInjector overrides existing values for --v": {
@@ -159,7 +171,9 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--featureY=disable", "--leader-election-namespace=kube-system", "--v=5",
+				"--featureY=disable",
+				"--leader-election-namespace=kube-system",
+				"--v=5",
 			},
 		},
 		"Webhook overrides existing values for --v": {
