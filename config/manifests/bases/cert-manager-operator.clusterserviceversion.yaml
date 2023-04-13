@@ -18,7 +18,7 @@ metadata:
   labels:
     operatorframework.io/arch.amd64: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.10.2
+  name: cert-manager-operator.v1.11.0
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -84,4 +84,4 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 1.10.2
+  version: 1.11.0
