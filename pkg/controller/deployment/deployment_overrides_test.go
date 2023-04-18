@@ -28,9 +28,25 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 		deployments[deploymentName] = resourceread.ReadDeploymentV1OrDie(manifestFile)
 	}
 
-	deploymentDefaultArgs := make(map[string][]string)
-	for deploymentName := range deployments {
-		deploymentDefaultArgs[deploymentName] = deployments[deploymentName].Spec.Template.Spec.Containers[0].Args
+	defaultDeploymentArgs := map[string][]string{
+		"cert-manager": {
+			"--v=2",
+			"--cluster-resource-namespace=$(POD_NAMESPACE)",
+			"--leader-election-namespace=kube-system",
+			"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.0",
+			"--max-concurrent-challenges=60",
+		},
+		"cert-manager-cainjector": {
+			"--v=2",
+			"--leader-election-namespace=kube-system",
+		},
+		"cert-manager-webhook": {
+			"--v=2",
+			"--secure-port=10250",
+			"--dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+			"--dynamic-serving-ca-secret-name=cert-manager-webhook-ca",
+			"--dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.$(POD_NAMESPACE),cert-manager-webhook.$(POD_NAMESPACE).svc",
+		},
 	}
 
 	testArgsToAppend := []string{
@@ -50,34 +66,34 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 		"nil config overrides should not touch the controller deployment": {
 			deploymentName: "cert-manager",
 			overrides:      nil,
-			wantArgs:       deploymentDefaultArgs["cert-manager"],
+			wantArgs:       defaultDeploymentArgs["cert-manager"],
 		},
 		"nil config overrides should not touch the cainjector deployment": {
 			deploymentName: "cert-manager-cainjector",
 			overrides:      nil,
-			wantArgs:       deploymentDefaultArgs["cert-manager-cainjector"],
+			wantArgs:       defaultDeploymentArgs["cert-manager-cainjector"],
 		},
 		"nil config overrides should not touch the webhook deployment": {
 			deploymentName: "cert-manager-webhook",
 			overrides:      nil,
-			wantArgs:       deploymentDefaultArgs["cert-manager-webhook"],
+			wantArgs:       defaultDeploymentArgs["cert-manager-webhook"],
 		},
 
 		// unsupported config overrides as empty
 		"Empty config overrides should not touch the controller deployment": {
 			deploymentName: "cert-manager",
 			overrides:      &v1alpha1.UnsupportedConfigOverrides{},
-			wantArgs:       deploymentDefaultArgs["cert-manager"],
+			wantArgs:       defaultDeploymentArgs["cert-manager"],
 		},
 		"Empty config overrides should not touch the cainjector deployment": {
 			deploymentName: "cert-manager-cainjector",
 			overrides:      &v1alpha1.UnsupportedConfigOverrides{},
-			wantArgs:       deploymentDefaultArgs["cert-manager-cainjector"],
+			wantArgs:       defaultDeploymentArgs["cert-manager-cainjector"],
 		},
 		"Empty config overrides should not touch the webhook deployment": {
 			deploymentName: "cert-manager-webhook",
 			overrides:      &v1alpha1.UnsupportedConfigOverrides{},
-			wantArgs:       deploymentDefaultArgs["cert-manager-webhook"],
+			wantArgs:       defaultDeploymentArgs["cert-manager-webhook"],
 		},
 
 		// unsupported config overrides for webhook, cainjector should not
@@ -92,7 +108,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 					Args: testArgsToAppend,
 				},
 			},
-			wantArgs: deploymentDefaultArgs["cert-manager"],
+			wantArgs: defaultDeploymentArgs["cert-manager"],
 		},
 
 		// unsupported config overrides as a mechanism of appending new args
