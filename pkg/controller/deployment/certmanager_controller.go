@@ -18,14 +18,25 @@ package deployment
 
 import (
 	"context"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatoropenshiftiov1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	"github.com/openshift/library-go/pkg/controller/factory"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
+
+var controllerContext context.Context
+var stopControllers context.CancelFunc
 
 // TODO: This is just a placeholder controller to contain all the required rbac
 // in a single place. Needs to be deleted later.
@@ -34,6 +45,18 @@ import (
 type CertManagerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	OperatorClient    v1helpers.OperatorClientWithFinalizers
+	ControllerFactory *factory.Factory
+	Recorder          events.Recorder
+	CertManagerClient alpha1.OperatorV1alpha1Interface
+
+	ControllerSet              *CertManagerControllerSet
+	KubeInformersForNamespaces v1helpers.KubeInformersForNamespaces
+	CertManagerInformers       certmanoperatorinformers.SharedInformerFactory
+
+	stopInformers   chan struct{}
+	stopControllers context.CancelFunc
 }
 
 //+kubebuilder:rbac:groups=operator.openshift.io,resources=certmanagers,verbs=get;list;watch;create;update;patch;delete
@@ -71,9 +94,59 @@ type CertManagerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *CertManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	logger.Info("started reconcile loop for", "certmanager", req.Name)
+	var certmanager v1alpha1.CertManager
+	err := r.Get(ctx, req.NamespacedName, &certmanager)
+	if apierrors.IsNotFound(err) {
+		return ctrl.Result{}, nil
+	}
+
+	if certmanager.GetDeletionTimestamp() != nil {
+
+
+        // TODO need to shut down other controllers
+		fmt.Println("cancelling controller context")
+		logger.Info("cancelling controller context")
+		// stop all informers
+		r.stopControllers()
+
+		fmt.Println("cancelled controller context")
+		logger.Info("cancelled controller context")
+
+		err = r.OperatorClient.RemoveFinalizer(ctx, "cert-manager-operator-managed")
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if len(certmanager.GetFinalizers()) == 0 {
+
+		controllerContext, r.stopControllers = context.WithCancel(ctx)
+		r.stopInformers = make(chan struct{})
+
+		controllersToStart := r.ControllerSet.ToArray()
+
+		for _, informer := range []interface{ Start(<-chan struct{}) }{
+			r.CertManagerInformers,
+			r.KubeInformersForNamespaces,
+		} {
+			informer.Start(r.stopInformers)
+		}
+
+		go func(ctx context.Context) {
+			for _, controller := range controllersToStart {
+				go controller.Run(ctx, 1)
+			}
+		}(controllerContext)
+	}
+
+	err = r.OperatorClient.EnsureFinalizer(ctx, "cert-manager-operator-managed")
+	if err != nil {
+		logger.Info("could not set finalizer due to", "error", err)
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }

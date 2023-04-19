@@ -4,4 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: openshift.io/cert-manager-operator
+  newName: quay.io/thejasn/cert-manager-operator
+  newTag: ctrl-runtime

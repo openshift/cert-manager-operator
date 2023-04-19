@@ -6,6 +6,7 @@
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
 BUNDLE_VERSION ?= 1.10.2
 
+OPERATOR_NAME ?= cert-manager-operator 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -172,6 +173,7 @@ verify-deps:
 
 local-run: build
 	./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=cert-manager-operator
+	# ./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=cert-manager-operator
 .PHONY: local-run
 
 ##@ Build

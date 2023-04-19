@@ -209,7 +209,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Security
-    containerImage: openshift.io/cert-manager-operator:latest
+    containerImage: quay.io/thejasn/cert-manager-operator:ctrl-runtime
     createdAt: 2023-03-03T00:00:00
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
@@ -223,7 +223,7 @@ metadata:
   labels:
     operatorframework.io/arch.amd64: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.10.2
+  name: cert-manager-operator.v0.0.2
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -646,7 +646,7 @@ spec:
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.10.2
                 - name: TRUSTED_CA_CONFIGMAP_NAME
-                image: openshift.io/cert-manager-operator:latest
+                image: quay.io/thejasn/cert-manager-operator:ctrl-runtime
                 imagePullPolicy: Always
                 name: cert-manager-operator
                 resources: {}
@@ -733,4 +733,4 @@ spec:
     name: cert-manager-ca-injector
   - image: quay.io/jetstack/cert-manager-controller:v1.10.2
     name: cert-manager-controller
-  version: 1.10.2
+  version: 0.0.2
