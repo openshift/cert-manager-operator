@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha2
+package v1beta1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories=gateway-api,shortName=refgrant
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // ReferenceGrant identifies kinds of resources in other namespaces that are
@@ -35,8 +34,13 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // All cross-namespace references in Gateway API (with the exception of cross-namespace
 // Gateway-route attachment) require a ReferenceGrant.
 //
-// Support: Core
+// ReferenceGrant is a form of runtime verification allowing users to assert
+// which cross-namespace object references are permitted. Implementations that
+// support ReferenceGrant MUST NOT permit cross-namespace references which have
+// no grant, and MUST respond to the removal of a grant by revoking the access
+// that the grant allowed.
 //
+// Support: Core
 type ReferenceGrant struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -61,9 +65,9 @@ type ReferenceGrantList struct {
 // for Gateway API.
 type ReferenceGrantSpec struct {
 	// From describes the trusted namespaces and kinds that can reference the
-	// resources described in "To". Each entry in this list must be considered
+	// resources described in "To". Each entry in this list MUST be considered
 	// to be an additional place that references can be valid from, or to put
-	// this another way, entries must be combined using OR.
+	// this another way, entries MUST be combined using OR.
 	//
 	// Support: Core
 	//
@@ -72,9 +76,9 @@ type ReferenceGrantSpec struct {
 	From []ReferenceGrantFrom `json:"from"`
 
 	// To describes the resources that may be referenced by the resources
-	// described in "From". Each entry in this list must be considered to be an
+	// described in "From". Each entry in this list MUST be considered to be an
 	// additional place that references can be valid to, or to put this another
-	// way, entries must be combined using OR.
+	// way, entries MUST be combined using OR.
 	//
 	// Support: Core
 	//
@@ -101,6 +105,7 @@ type ReferenceGrantFrom struct {
 	//
 	// When used to permit a BackendObjectReference:
 	//
+	// * GRPCRoute
 	// * HTTPRoute
 	// * TCPRoute
 	// * TLSRoute
