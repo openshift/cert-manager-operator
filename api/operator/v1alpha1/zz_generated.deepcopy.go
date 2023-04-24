@@ -135,6 +135,13 @@ func (in *DeploymentConfig) DeepCopyInto(out *DeploymentConfig) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.OverrideLabels != nil {
+		in, out := &in.OverrideLabels, &out.OverrideLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

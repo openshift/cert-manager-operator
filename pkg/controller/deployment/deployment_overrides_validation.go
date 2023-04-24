@@ -131,3 +131,49 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 		return nil
 	}
 }
+
+// withPodLabelsValidateHook validates the pod labels from specific deployment config
+// with those that are supported by the operator.
+func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+
+	supportedCertManagerLabelKeys := []string{
+		"azure.workload.identity/use",
+	}
+	supportedCertManagerWebhookLabelKeys := []string{}
+	supportedCertManagerCainjectorLabelKeys := []string{}
+
+	validateLabels := func(labels map[string]string, supportedLabelKeys []string) error {
+		for k, v := range labels {
+			if !slices.Contains(supportedLabelKeys, k) {
+				return fmt.Errorf("validation failed due to unsupported label %q=%q", k, v)
+			}
+		}
+		return nil
+	}
+
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		certmanager, err := certmanagerinformer.Lister().Get("cluster")
+		if err != nil {
+			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		}
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			if certmanager.Spec.ControllerConfig != nil {
+				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerLabelKeys)
+			}
+		case certmanagerWebhookDeployment:
+			if certmanager.Spec.WebhookConfig != nil {
+				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerWebhookLabelKeys)
+			}
+		case certmanagerCAinjectorDeployment:
+			if certmanager.Spec.CAInjectorConfig != nil {
+				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		}
+
+		return nil
+	}
+}
