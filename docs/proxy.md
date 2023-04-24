@@ -18,9 +18,9 @@ Follow the instructions below to let Cert Manager Operator trust a custom Certif
 
 2.  Consume the created configmap in Cert Manager Operator's deployment by updating its subscription:
 
-        ```bash
-        oc -n cert-manager-operator patch subscription cert-manager-operator --type='merge' -p '{"spec":{"config":{"env":[{"name":"TRUSTED_CA_CONFIGMAP_NAME","value":"trusted-ca"}]}}}'
-        ```
+    ```bash
+    oc -n cert-manager-operator patch subscription <subscription_name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"TRUSTED_CA_CONFIGMAP_NAME","value":"trusted-ca"}]}}}'
+    ```
 
     _Note_: Alternatively, you can also patch the `cert-manager-operator-controller-manager` deployment in the `cert-manager-operator` namespace.
     `bash
