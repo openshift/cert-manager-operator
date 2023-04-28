@@ -9,6 +9,7 @@ var imageEnvMap = map[string]string{
 	"quay.io/jetstack/cert-manager-controller": "RELATED_IMAGE_CERT_MANAGER_CONTROLLER",
 	"quay.io/jetstack/cert-manager-webhook":    "RELATED_IMAGE_CERT_MANAGER_WEBHOOK",
 	"quay.io/jetstack/cert-manager-cainjector": "RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR",
+	"quay.io/jetstack/cert-manager-acmesolver": "RELATED_IMAGE_CERT_MANAGER_ACMESOLVER",
 }
 
 // Overrides provided image when envCertManagerControllerRelatedImage environment variable is specified.
