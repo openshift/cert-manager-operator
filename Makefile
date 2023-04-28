@@ -157,6 +157,7 @@ update-with-container:
 verify-scripts:
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
+	hack/verify-bundle.sh
 .PHONY: verify-scripts
 
 .PHONY: verify
