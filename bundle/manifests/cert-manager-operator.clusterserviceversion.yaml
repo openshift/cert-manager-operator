@@ -209,6 +209,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Security
+    console.openshift.io/disable-operand-delete: "true"
     containerImage: openshift.io/cert-manager-operator:latest
     createdAt: 2023-03-03T00:00:00
     olm.skipRange: <1.11.1
