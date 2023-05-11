@@ -9,6 +9,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	coreinformersv1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/pointer"
 
 	v1 "github.com/openshift/api/operator/v1"
 	"github.com/operator-framework/operator-lib/proxy"
@@ -26,6 +27,14 @@ const (
 	trustedCAPath = "/etc/pki/tls/certs/cert-manager-tls-ca-bundle.crt"
 	// defaultCABundleKey is the default name for the data key of the configmap injected with the trusted CA.
 	defaultCABundleKey = "ca-bundle.crt"
+
+	// boundSA is the openshift service account
+	// containing bound token
+	boundSATokenVolumeName = "bound-sa-token"
+	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount"
+	boundSAAudience        = "openshift"
+	boundSAPath            = "token"
+	boundSAExpirySec       = 3600
 )
 
 // overrideArgsFunc defines a function signature that is accepted by
@@ -155,4 +164,38 @@ func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManag
 		}
 		return nil
 	}
+}
+
+func withSABoundToken(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	volume := corev1.Volume{
+		Name: boundSATokenVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				DefaultMode: pointer.Int32(420),
+				Sources: []corev1.VolumeProjection{{
+					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+						Audience:          boundSAAudience,
+						ExpirationSeconds: pointer.Int64(boundSAExpirySec),
+						Path:              boundSAPath,
+					}},
+				},
+			},
+		},
+	}
+	volumeMount := corev1.VolumeMount{
+		Name:      boundSATokenVolumeName,
+		MountPath: boundSATokenDir,
+		ReadOnly:  true,
+	}
+
+	deployment.Spec.Template.Spec.Volumes = append(
+		deployment.Spec.Template.Spec.Volumes,
+		volume,
+	)
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+		volumeMount,
+	)
+
+	return nil
 }

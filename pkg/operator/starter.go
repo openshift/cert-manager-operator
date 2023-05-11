@@ -7,6 +7,8 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"
@@ -25,6 +27,10 @@ const (
 // TrustedCAConfigMapName is the trusted ca configmap name
 // provided as a runtime arg.
 var TrustedCAConfigMapName string
+
+// CloudSecretName is the name of the cloud secret to be
+// used in ambient credentials mode, and is provided as a runtime arg
+var CloudCredentialSecret string
 
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
@@ -58,13 +64,20 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	kubeInformersForNamespaces := v1helpers.NewKubeInformersForNamespaces(kubeClient,
 		"",
 		"kube-system",
-		"cert-manager",
 		operatorclient.TargetNamespace,
 	)
+
+	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+	infraInformers := configinformers.NewSharedInformerFactory(configClient, resyncInterval)
+
 	certManagerControllerSet := deployment.NewCertManagerControllerSet(
 		kubeClient,
 		kubeInformersForNamespaces,
 		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
+		infraInformers,
 		operatorClient,
 		certManagerInformers,
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
@@ -72,6 +85,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		status.VersionForOperandFromEnv(),
 		versionRecorder,
 		TrustedCAConfigMapName,
+		CloudCredentialSecret,
 	)
 	controllersToStart := certManagerControllerSet.ToArray()
 
@@ -86,6 +100,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		certManagerInformers,
 		kubeInformersForNamespaces,
+		infraInformers,
 	} {
 		informer.Start(ctx.Done())
 	}

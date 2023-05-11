@@ -4,6 +4,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/deploymentcontroller"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -19,11 +20,13 @@ func newGenericDeploymentController(
 	controllerName, targetVersion, deploymentFile string,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
+	infraInformers configinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 	trustedCAConfigmapName string,
+	cloucloudCredentialsSecretName string,
 ) factory.Controller {
 	deployment := resourceread.ReadDeploymentV1OrDie(assets.MustAsset(deploymentFile))
 	return deploymentcontroller.NewDeploymentController(
@@ -35,6 +38,8 @@ func newGenericDeploymentController(
 		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
 		[]factory.Informer{
 			kubeInformersForTargetNamespace.Core().V1().ConfigMaps().Informer(),
+			kubeInformersForTargetNamespace.Core().V1().Secrets().Informer(),
+			infraInformers.Config().V1().Infrastructures().Informer(),
 		},
 		[]deploymentcontroller.ManifestHookFunc{},
 		withOperandImageOverrideHook,
@@ -48,5 +53,7 @@ func newGenericDeploymentController(
 		withUnsupportedArgsOverrideHook,
 		withProxyEnv,
 		withCAConfigMap(kubeInformersForTargetNamespace.Core().V1().ConfigMaps(), deployment, trustedCAConfigmapName),
+		withSABoundToken,
+		withCloudCredentials(kubeInformersForTargetNamespace.Core().V1().Secrets(), infraInformers.Config().V1().Infrastructures(), deployment.Name, cloucloudCredentialsSecretName),
 	)
 }

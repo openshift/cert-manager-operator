@@ -4,6 +4,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -48,10 +49,11 @@ func NewCertManagerCAInjectorStaticResourcesController(operatorClient v1helpers.
 
 func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
+	infraInformers configinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter,
-	trustedCAConfigmapName string,
+	trustedCAConfigmapName, cloudCredentialsSecretName string,
 ) factory.Controller {
 	return newGenericDeploymentController(
 		certManagerCAInjectorDeploymentControllerName,
@@ -59,10 +61,12 @@ func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.Opera
 		certManagerCAInjectorDeploymentFile,
 		operatorClient,
 		certManagerOperatorInformers,
+		infraInformers,
 		kubeClient,
 		kubeInformersForTargetNamespace,
 		eventsRecorder,
 		versionRecorder,
 		trustedCAConfigmapName,
+		cloudCredentialsSecretName,
 	)
 }
