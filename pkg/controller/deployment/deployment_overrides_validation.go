@@ -32,6 +32,17 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		"--v", "-V",
 		// The host and port that the metrics endpoint should listen on. (default "0.0.0.0:9402")
 		"--metrics-listen-address",
+		// Whether an issuer may make use of ambient credentials.
+		// 'Ambient Credentials' are credentials drawn from the environment, metadata services,
+		// or local files which are not explicitly configured in the Issuer API object.
+		// When this flag is enabled, the following sources for credentials are also used:
+		// AWS - All sources the Go SDK defaults to,
+		// notably including any EC2 IAM roles available via instance metadata.
+		// GCP - All sources for google.auth default authentication
+		// i.e. following the same precedence and sources as that of
+		// Application Default Credentials (ADC) per
+		// https://cloud.google.com/docs/authentication/application-default-credentials#search_order
+		"--issuer-ambient-credentials",
 	}
 	supportedCertManagerWebhookArgs := []string{
 		// Log Level
