@@ -9,6 +9,12 @@ metadata:
     containerImage: ""
     createdAt: 2023-03-03T00:00:00
     olm.skipRange: <1.11.1
+    operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
+      OpenShift will be removed from cert-manager-operator namespace. If your Operator
+      configured any off-cluster resources, these will continue to run and require
+      manual cleanup. All operands created by the operator will need to be manually
+      cleaned up. Please refer to https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/cert-manager-operator-uninstall.html
+      for additional steps.
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/infrastructure-features: '["proxy-aware"]'
