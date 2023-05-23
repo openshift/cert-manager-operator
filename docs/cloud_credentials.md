@@ -42,7 +42,7 @@ spec:
 2. Create a new directory `<cred-reqs-dir>` and place the `<yaml-file>` in that directory.
 3. If using STS and or credentials mode as Manual on the cluster, use [`ccoctl`](https://github.com/openshift/cloud-credential-operator/blob/master/docs/ccoctl.md) to generate the secrets and apply it on the cluster.
 
-If not using Manual credentials mode, skip steps 3, 4, 5 and directly proceed to 6.
+If not using Manual credentials mode, skip steps 3, 4, 5, 6 and directly proceed to 7.
 
 ```sh
 ccoctl aws create-iam-roles --credentials-requests-dir <cred-reqs-dir> --identity-provider-arn <cluster-oidc-provider-arn>  --name <cluster-oidc-name>  --output-dir <output-dir> --region <cluster-aws-region>
@@ -70,11 +70,22 @@ oc -n cert-manager annotate serviceaccount cert-manager eks.amazonaws.com/token-
 ```sh
 ls <output-dir>/manifests/*-credentials.yaml | xargs -I{} oc apply -f {}
 ```
-6. Patch the subscription object on the cluster to inject the secret name in the operator deployment.
+
+6. After the annotations and secrets have been applied, we need to delete the pods in the `cert-manager` namespace for the pod identity webhook to mutate the pods with the correct AWS cloud roles.
 ```sh
-oc -n cert-manager-operator patch subscription cert-manager-operator --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"aws-creds"}]}}}'
+oc delete pods --all -n cert-manager
 ```
 
+Wait for the pods to come up in running state.
+
+```sh
+oc get pods -n cert-manager -w
+```
+
+7. Patch the subscription object on the cluster to inject the secret name in the operator deployment.
+```sh
+oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"aws-creds"}]}}}'
+```
 
 ## GCP
 
@@ -110,10 +121,11 @@ ccoctl gcp create-service-accounts --credentials-requests-dir <cred-reqs-dir> --
 If not using Manual credentials mode, skip steps 3, 4 and directly proceed to 5.
 
 4. Apply the generated secrets on the cluster 
-```
+```sh
 ls manifests/*-credentials.yaml | xargs -I{} oc apply -f {}
 ```
+
 5. Patch the subscription object on the cluster to inject the secret name in the operator deployment.
-```
-oc -n cert-manager-operator patch subscription cert-manager-operator --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"gcp-credentials"}]}}}'
+```sh
+oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"gcp-credentials"}]}}}'
 ```
