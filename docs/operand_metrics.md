@@ -73,7 +73,6 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.11.1
   name: cert-manager
   namespace: cert-manager
 spec:
