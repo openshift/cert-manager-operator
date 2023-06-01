@@ -175,11 +175,11 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 			}
 		case certmanagerWebhookDeployment:
 			if certmanager.Spec.WebhookConfig != nil {
-				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerWebhookLabelKeys)
+				return validateLabels(certmanager.Spec.WebhookConfig.OverrideLabels, supportedCertManagerWebhookLabelKeys)
 			}
 		case certmanagerCAinjectorDeployment:
 			if certmanager.Spec.CAInjectorConfig != nil {
-				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
+				return validateLabels(certmanager.Spec.CAInjectorConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
 			}
 		default:
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
