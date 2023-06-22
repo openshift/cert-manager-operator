@@ -57,6 +57,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 
 		var volume *corev1.Volume
 		var volumeMount *corev1.VolumeMount
+		var envVar *corev1.EnvVar
 
 		switch infra.Status.PlatformStatus.Type {
 		// supported cloud platform for mounting secrets
@@ -72,6 +73,13 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			volumeMount = &corev1.VolumeMount{
 				Name:      cloudCredentialsVolumeName,
 				MountPath: awsCredentialsDir,
+			}
+
+			// this is required as without this env var, aws sdk
+			// doesn't properly bind role_arn from credentials file
+			envVar = &corev1.EnvVar{
+				Name:  "AWS_SDK_LOAD_CONFIG",
+				Value: "1",
 			}
 
 		case configv1.GCPPlatformType:
@@ -104,6 +112,13 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
 			*volumeMount,
 		)
+
+		if envVar != nil {
+			deployment.Spec.Template.Spec.Containers[0].Env = append(
+				deployment.Spec.Template.Spec.Containers[0].Env,
+				*envVar,
+			)
+		}
 
 		return nil
 	}
