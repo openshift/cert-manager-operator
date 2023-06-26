@@ -3,7 +3,7 @@ module github.com/openshift/cert-manager-operator
 go 1.19
 
 require (
-	github.com/cert-manager/cert-manager v1.11.1
+	github.com/cert-manager/cert-manager v1.11.4
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/golangci/golangci-lint v1.50.1
 	github.com/google/go-cmp v0.5.9
@@ -18,12 +18,12 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/tools v0.6.0
-	k8s.io/api v0.26.1
-	k8s.io/apiextensions-apiserver v0.26.1
-	k8s.io/apimachinery v0.26.1
-	k8s.io/client-go v0.26.1
-	k8s.io/code-generator v0.26.1
-	k8s.io/component-base v0.26.1
+	k8s.io/api v0.26.4
+	k8s.io/apiextensions-apiserver v0.26.4
+	k8s.io/apimachinery v0.26.4
+	k8s.io/client-go v0.26.4
+	k8s.io/code-generator v0.26.4
+	k8s.io/component-base v0.26.4
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221109083014-8da9760581ed
@@ -262,17 +262,17 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.3 // indirect
-	k8s.io/apiserver v0.26.1 // indirect
+	k8s.io/apiserver v0.26.4 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
-	k8s.io/kms v0.26.1 // indirect
-	k8s.io/kube-aggregator v0.26.1 // indirect
+	k8s.io/kms v0.26.4 // indirect
+	k8s.io/kube-aggregator v0.26.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20221207184640-f3cff1453715 // indirect
 	mvdan.cc/gofumpt v0.4.0 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
 	mvdan.cc/unparam v0.0.0-20220706161116-678bad134442 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.35 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36 // indirect
 	sigs.k8s.io/gateway-api v0.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
