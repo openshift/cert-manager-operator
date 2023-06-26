@@ -212,7 +212,7 @@ metadata:
     console.openshift.io/disable-operand-delete: "true"
     containerImage: openshift.io/cert-manager-operator:latest
     createdAt: 2023-03-03T00:00:00
-    olm.skipRange: <1.11.1
+    olm.skipRange: <1.11.4
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -646,17 +646,17 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.11.1
+                  value: quay.io/jetstack/cert-manager-webhook:v1.11.4
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.11.1
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.11.4
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.11.1
+                  value: quay.io/jetstack/cert-manager-controller:v1.11.4
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.11.1
+                  value: quay.io/jetstack/cert-manager-acmesolver:v1.11.4
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.11.1
+                  value: 1.11.4
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.11.1
+                  value: 1.11.4
                 - name: OPERATOR_LOG_LEVEL
                   value: "2"
                 - name: TRUSTED_CA_CONFIGMAP_NAME
@@ -742,12 +742,12 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.11.1
+  - image: quay.io/jetstack/cert-manager-webhook:v1.11.4
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.11.1
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.11.4
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.11.1
+  - image: quay.io/jetstack/cert-manager-controller:v1.11.4
     name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.11.1
+  - image: quay.io/jetstack/cert-manager-acmesolver:v1.11.4
     name: cert-manager-acmesolver
   version: 1.11.4
