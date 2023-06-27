@@ -282,3 +282,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.11.4
