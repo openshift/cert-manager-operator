@@ -28,14 +28,6 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-const Doc = `check for unused results of calls to some functions
-
-Some functions like fmt.Errorf return a result and have no side effects,
-so it is always a mistake to discard the result. This analyzer reports
-calls to certain functions in which the result of the call is ignored.
-
-The set of functions may be controlled using flags.`
-
 //go:embed doc.go
 var doc string
 
@@ -63,15 +55,9 @@ func init() {
 	//    ignoringTheErrorWouldBeVeryBad() // oops
 	//
 
-	// Also, it is tempting to make this analysis modular: one
-	// could export a "mustUseResult" fact for each function that
-	// tail-calls one of the functions that we check, and check
-	// those functions too.
-	//
-	// However, just because you must use the result of
-	// fmt.Sprintf doesn't mean you need to use the result of
-	// every function that returns a formatted string:
-	// it may have other results and effects.
+	// List standard library functions here.
+	// The context.With{Cancel,Deadline,Timeout} entries are
+	// effectively redundant wrt the lostcancel analyzer.
 	funcs.Set("errors.New,fmt.Errorf,fmt.Sprintf,fmt.Sprint,sort.Reverse,context.WithValue,context.WithCancel,context.WithDeadline,context.WithTimeout")
 	Analyzer.Flags.Var(&funcs, "funcs",
 		"comma-separated list of functions whose results must be used")
