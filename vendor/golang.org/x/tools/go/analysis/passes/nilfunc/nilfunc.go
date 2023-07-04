@@ -22,6 +22,9 @@ import (
 //go:embed doc.go
 var doc string
 
+//go:embed doc.go
+var doc string
+
 var Analyzer = &analysis.Analyzer{
 	Name:     "nilfunc",
 	Doc:      analysisutil.MustExtractDoc(doc, "nilfunc"),

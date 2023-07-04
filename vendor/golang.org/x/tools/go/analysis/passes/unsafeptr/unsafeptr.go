@@ -21,6 +21,9 @@ import (
 //go:embed doc.go
 var doc string
 
+//go:embed doc.go
+var doc string
+
 var Analyzer = &analysis.Analyzer{
 	Name:     "unsafeptr",
 	Doc:      analysisutil.MustExtractDoc(doc, "unsafeptr"),

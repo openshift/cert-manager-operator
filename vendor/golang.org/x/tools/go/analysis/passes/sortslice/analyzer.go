@@ -34,10 +34,7 @@ var Analyzer = &analysis.Analyzer{
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	if !analysisutil.Imports(pass.Pkg, "sort") {
-		return nil, nil // doesn't directly import sort
-	}
-
+	// TODO(adonovan): opt: first check for import "sort".
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{
