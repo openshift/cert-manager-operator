@@ -4,7 +4,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.11.1
+BUNDLE_VERSION ?= 1.11.4
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -103,7 +103,7 @@ GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCO
 
 E2E_TIMEOUT ?= 1h
 
-MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.11.1/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.11.4/cert-manager.yaml
 
 
 ##@ Development
