@@ -7,6 +7,7 @@ metadata:
     categories: Security
     containerImage: ""
     createdAt: 2023-03-03T00:00:00
+    olm.skipRange: <1.10.3
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/infrastructure-features: '["proxy-aware"]'
@@ -18,7 +19,7 @@ metadata:
   labels:
     operatorframework.io/arch.amd64: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.10.2
+  name: cert-manager-operator.v1.10.3
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -84,4 +85,4 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 1.10.2
+  version: 1.10.3
