@@ -375,7 +375,7 @@ func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorcl
 
 func addValidControlleDeploymentConfig(operator *v1alpha1.CertManager) {
 	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-		OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only"},
+		OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"},
 		OverrideEnv: []corev1.EnvVar{
 			{
 				Name:  "HTTP_PROXY",
