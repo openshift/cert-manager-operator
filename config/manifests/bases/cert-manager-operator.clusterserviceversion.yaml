@@ -92,4 +92,8 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
+  skips:
+  - cert-manager-operator.v1.11.1
+  - cert-manager-operator.v1.10.3
+  - cert-manager-operator.v1.10.2
   version: 1.11.4
