@@ -43,6 +43,10 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		// Application Default Credentials (ADC) per
 		// https://cloud.google.com/docs/authentication/application-default-credentials#search_order
 		"--issuer-ambient-credentials",
+		// Whether to set the certificate resource as an owner of secret where the tls certificate
+		// is stored. When this flag is enabled, the secret will be automatically removed when the
+		// certificate resource is deleted.
+		"--enable-certificate-owner-ref",
 	}
 	supportedCertManagerWebhookArgs := []string{
 		// Log Level
