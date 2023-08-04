@@ -77,6 +77,25 @@ type DeploymentConfig struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	OverrideLabels map[string]string `json:"overrideLabels,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +optional
+	OverrideResources CertManagerResourceRequirements `json:"overrideResources,omitempty"`
+}
+
+// CertManagerResourceRequirements describes the compute resource requirements for the cert-manager operands,
+// namely the controller, webhook and cainjector.
+type CertManagerResourceRequirements struct {
+	// Limits describes the maximum amount of compute resources allowed.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	// +optional
+	Limits corev1.ResourceList `json:"limits,omitempty" protobuf:"bytes,1,rep,name=limits,casttype=ResourceList,castkey=ResourceName"`
+	// Requests describes the minimum amount of compute resources required.
+	// If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+	// otherwise to an implementation-defined value.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	// +optional
+	Requests corev1.ResourceList `json:"requests,omitempty" protobuf:"bytes,2,rep,name=requests,casttype=ResourceList,castkey=ResourceName"`
 }
 
 // CertManagerStatus defines the observed state of CertManager
