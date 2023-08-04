@@ -14,6 +14,7 @@ import (
 	v1 "github.com/openshift/api/operator/v1"
 	"github.com/operator-framework/operator-lib/proxy"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
@@ -55,6 +56,11 @@ type overrideEnvFunc func(certmanagerinformer.CertManagerInformer, string) ([]co
 // withPodLabels(). This function returns the override labels provided
 // to cert-manager-operator spec.
 type overrideLabelsFunc func(certmanagerinformer.CertManagerInformer, string) (map[string]string, error)
+
+// overrideResourcesFunc defines a function signature that is accepted by
+// withContainerResourcesOverrideHook(). This function returns the override
+// resources provided to cert-manager-operator spec.
+type overrideResourcesFunc func(certmanagerinformer.CertManagerInformer, string) (v1alpha1.CertManagerResourceRequirements, error)
 
 // withOperandImageOverrideHook overrides the deployment image with
 // the operand images provided to the operator.
@@ -103,6 +109,24 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
 				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv)
 
+		}
+		return nil
+	}
+}
+
+// withContainerResourcesOverrideHook overrides the container resources with those provided by
+// the overrideResourcesFunc function.
+func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideResourcesFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		overrideResources, err := fn(certmanagerinformer, deploymentName)
+		if err != nil {
+			return err
+		}
+
+		if len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
+			deployment.Spec.Template.Spec.Containers[0].Resources = mergeContainerResources(
+				deployment.Spec.Template.Spec.Containers[0].Resources,
+				overrideResources)
 		}
 		return nil
 	}

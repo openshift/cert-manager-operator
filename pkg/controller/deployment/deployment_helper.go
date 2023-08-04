@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
@@ -74,6 +75,36 @@ func parseArgMap(argMap map[string]string, args []string) {
 			argMap[key] = value
 		}
 	}
+}
+
+// mergeContainerResources merges source container resources with that
+// provided as override resources.
+func mergeContainerResources(sourceResources corev1.ResourceRequirements, overrideResources v1alpha1.CertManagerResourceRequirements) corev1.ResourceRequirements {
+	sourceResources.Limits = mergeContainerResourceList(sourceResources.Limits, overrideResources.Limits)
+	sourceResources.Requests = mergeContainerResourceList(sourceResources.Requests, overrideResources.Requests)
+
+	return sourceResources
+}
+
+// mergeContainerResourceList merges source resource list with that
+// provided as override resource list. Only cpu and memory resource
+// values are overridden.
+func mergeContainerResourceList(sourceResourceList corev1.ResourceList, overrideResourceList corev1.ResourceList) corev1.ResourceList {
+	if overrideResourceList == nil {
+		return sourceResourceList
+	}
+
+	if sourceResourceList == nil {
+		sourceResourceList = corev1.ResourceList{}
+	}
+
+	for _, resource := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		if quantity, exists := overrideResourceList[resource]; exists && !quantity.IsZero() {
+			sourceResourceList[resource] = quantity.DeepCopy()
+		}
+	}
+
+	return sourceResourceList
 }
 
 // getOverrideArgsFor is a helper function that returns the overrideArgs provided
@@ -156,4 +187,31 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 	}
 	return nil, nil
 
+}
+
+// getOverrideResourcesFor is a helper function that returns the OverrideResources provided
+// in the operator spec based on the deployment name.
+func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (v1alpha1.CertManagerResourceRequirements, error) {
+	certmanager, err := certmanagerinformer.Lister().Get("cluster")
+	if err != nil {
+		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+	}
+
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return certmanager.Spec.ControllerConfig.OverrideResources, nil
+		}
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return certmanager.Spec.WebhookConfig.OverrideResources, nil
+		}
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return certmanager.Spec.CAInjectorConfig.OverrideResources, nil
+		}
+	default:
+		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+	}
+	return v1alpha1.CertManagerResourceRequirements{}, nil
 }
