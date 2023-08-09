@@ -13,7 +13,6 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
-	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -27,6 +26,8 @@ const (
 	certmanagerControllerDeployment = "cert-manager"
 	certmanagerWebhookDeployment    = "cert-manager-webhook"
 	certmanagerCAinjectorDeployment = "cert-manager-cainjector"
+
+	operandNamespace = "cert-manager"
 )
 
 // waitForValidOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
@@ -187,7 +188,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 func waitForDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
 	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operatorclient.TargetNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
