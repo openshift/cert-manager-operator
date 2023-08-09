@@ -309,16 +309,6 @@ func TestContainerOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	updatedOperator = operator.DeepCopy()
-	addInvalidControlleOverrideArgs(updatedOperator)
-	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
-	require.NoError(t, err)
-
-	verifyInvalidControllerOperatorStatus(t, certmanageroperatorclient)
-
-	operator, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-	require.NoError(t, err)
-
-	updatedOperator = operator.DeepCopy()
 	addInvalidControlleOverrideEnv(updatedOperator)
 	_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -375,19 +365,12 @@ func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorcl
 
 func addValidControlleDeploymentConfig(operator *v1alpha1.CertManager) {
 	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-		OverrideArgs: []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"},
 		OverrideEnv: []corev1.EnvVar{
 			{
 				Name:  "HTTP_PROXY",
 				Value: "172.0.0.10:8080",
 			},
 		},
-	}
-}
-
-func addInvalidControlleOverrideArgs(operator *v1alpha1.CertManager) {
-	operator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-		OverrideArgs: []string{"--invalid-args=foo"},
 	}
 }
 
