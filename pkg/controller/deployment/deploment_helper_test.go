@@ -174,7 +174,7 @@ func TestMergeContainerResources(t *testing.T) {
 			},
 		},
 		{
-			name: "override resources limits and requests merges with source resource limits and requests respectively",
+			name: "override resources limits and requests merge with source resource limits and requests respectively",
 			sourceResources: corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
@@ -195,6 +195,32 @@ func TestMergeContainerResources(t *testing.T) {
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    k8sresource.MustParse("400m"),
 					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("10m"),
+					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+			},
+		},
+		{
+			name: "override resources limits replaces nil source resource limits, override resource requests merges with source resource requests",
+			sourceResources: corev1.ResourceRequirements{
+				Limits: nil,
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU: k8sresource.MustParse("10m"),
+				},
+			},
+			overrideResources: v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: k8sresource.MustParse("400m"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+			},
+			expected: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: k8sresource.MustParse("400m"),
 				},
 				Requests: corev1.ResourceList{
 					corev1.ResourceCPU:    k8sresource.MustParse("10m"),

@@ -6,16 +6,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8sresource "k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
-	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
 func TestUnsupportedConfigOverrides(t *testing.T) {
@@ -398,147 +394,5 @@ func TestParseArgMap(t *testing.T) {
 	parseArgMap(argMap, testArgs)
 	if !reflect.DeepEqual(argMap, wantMap) {
 		t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(wantMap, argMap))
-	}
-}
-
-func TestWithContainerResourcesOverrideHook(t *testing.T) {
-	tests := []struct {
-		name             string
-		sourceDeployment appsv1.Deployment
-		overrideFn       overrideResourcesFunc
-		expected         appsv1.Deployment
-	}{
-		{
-			name: "override resources replaces empty container resouces",
-			sourceDeployment: appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-namespace",
-				},
-				Spec: appsv1.DeploymentSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name: "test-container",
-								},
-							},
-						},
-					},
-				},
-			},
-			overrideFn: func(_ certmanagerinformer.CertManagerInformer, _ string) (v1alpha1.CertManagerResourceRequirements, error) {
-				return v1alpha1.CertManagerResourceRequirements{
-					Limits: corev1.ResourceList{
-						corev1.ResourceCPU:    k8sresource.MustParse("500m"),
-						corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
-					},
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:    k8sresource.MustParse("10m"),
-						corev1.ResourceMemory: k8sresource.MustParse("32Mi"),
-					},
-				}, nil
-			},
-			expected: appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-namespace",
-				},
-				Spec: appsv1.DeploymentSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name: "test-container",
-									Resources: corev1.ResourceRequirements{
-										Limits: corev1.ResourceList{
-											corev1.ResourceCPU:    k8sresource.MustParse("500m"),
-											corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
-										},
-										Requests: corev1.ResourceList{
-											corev1.ResourceCPU:    k8sresource.MustParse("10m"),
-											corev1.ResourceMemory: k8sresource.MustParse("32Mi"),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "override resources replaces source resource requests and limits",
-			sourceDeployment: appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-namespace",
-				},
-				Spec: appsv1.DeploymentSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name: "test-container",
-									Resources: corev1.ResourceRequirements{
-										Requests: corev1.ResourceList{
-											corev1.ResourceCPU:    k8sresource.MustParse("5m"),
-											corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			overrideFn: func(_ certmanagerinformer.CertManagerInformer, _ string) (v1alpha1.CertManagerResourceRequirements, error) {
-				return v1alpha1.CertManagerResourceRequirements{
-					Limits: corev1.ResourceList{
-						corev1.ResourceCPU:    k8sresource.MustParse("500m"),
-						corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
-					},
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:    k8sresource.MustParse("10m"),
-						corev1.ResourceMemory: k8sresource.MustParse("32Mi"),
-					},
-				}, nil
-			},
-			expected: appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test-namespace",
-				},
-				Spec: appsv1.DeploymentSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name: "test-container",
-									Resources: corev1.ResourceRequirements{
-										Limits: corev1.ResourceList{
-											corev1.ResourceCPU:    k8sresource.MustParse("500m"),
-											corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
-										},
-										Requests: corev1.ResourceList{
-											corev1.ResourceCPU:    k8sresource.MustParse("10m"),
-											corev1.ResourceMemory: k8sresource.MustParse("32Mi"),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := withContainerResourcesOverrideHook(nil, tc.sourceDeployment.Name, tc.overrideFn)(nil, &tc.sourceDeployment)
-			assert.NoError(t, err)
-			require.Equal(t, tc.expected, tc.sourceDeployment)
-		})
 	}
 }

@@ -205,21 +205,6 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
 	}
 
-	validateResources := func(resources v1alpha1.CertManagerResourceRequirements, supportedResourceNames []string) error {
-		errs := []error{}
-		for k, v := range resources.Limits {
-			if !slices.Contains(supportedResourceNames, string(k)) {
-				errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
-			}
-		}
-		for k, v := range resources.Requests {
-			if !slices.Contains(supportedResourceNames, string(k)) {
-				errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
-			}
-		}
-		return utilerrors.NewAggregate(errs)
-	}
-
 	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
@@ -245,4 +230,20 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 
 		return nil
 	}
+}
+
+// validateResources validates the resources with those that are in supportedResourceNames.
+func validateResources(resources v1alpha1.CertManagerResourceRequirements, supportedResourceNames []string) error {
+	errs := []error{}
+	for k, v := range resources.Limits {
+		if !slices.Contains(supportedResourceNames, string(k)) {
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
+		}
+	}
+	for k, v := range resources.Requests {
+		if !slices.Contains(supportedResourceNames, string(k)) {
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
+		}
+	}
+	return utilerrors.NewAggregate(errs)
 }
