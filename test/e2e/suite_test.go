@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	opv1 "github.com/openshift/api/operator/v1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 
 	"k8s.io/client-go/kubernetes"
@@ -24,6 +25,12 @@ const (
 	certManagerControllerDeploymentControllerName = operatorName + "-controller-deployment"
 	certManagerWebhookDeploymentControllerName    = operatorName + "-webhook-deployment"
 	certManagerCAInjectorDeploymentControllerName = operatorName + "-cainjector-deployment"
+
+	certmanagerControllerDeployment = "cert-manager"
+	certmanagerWebhookDeployment    = "cert-manager-webhook"
+	certmanagerCAinjectorDeployment = "cert-manager-cainjector"
+
+	operandNamespace = "cert-manager"
 )
 
 var (
@@ -31,6 +38,16 @@ var (
 	k8sClientSet *kubernetes.Clientset
 
 	certmanageroperatorclient *certmanoperatorclient.Clientset
+
+	validOperatorStatusConditions = map[string]opv1.ConditionStatus{
+		"Available":   opv1.ConditionTrue,
+		"Degraded":    opv1.ConditionFalse,
+		"Progressing": opv1.ConditionFalse,
+	}
+
+	invalidOperatorStatusConditions = map[string]opv1.ConditionStatus{
+		"Degraded": opv1.ConditionTrue,
+	}
 )
 
 func getTestDir() string {
@@ -68,9 +85,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(certmanageroperatorclient).NotTo(BeNil())
 
-	err = waitForValidOperatorStatusCondition(certmanageroperatorclient,
+	err = verifyOperatorStatusCondition(certmanageroperatorclient,
 		[]string{certManagerControllerDeploymentControllerName,
 			certManagerWebhookDeploymentControllerName,
-			certManagerCAInjectorDeploymentControllerName})
+			certManagerCAInjectorDeploymentControllerName},
+		validOperatorStatusConditions)
 	Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 })

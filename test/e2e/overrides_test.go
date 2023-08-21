@@ -16,10 +16,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = waitForValidOperatorStatusCondition(certmanageroperatorclient,
+		err = verifyOperatorStatusCondition(certmanageroperatorclient,
 			[]string{certManagerControllerDeploymentControllerName,
 				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName})
+				certManagerCAInjectorDeploymentControllerName},
+			validOperatorStatusConditions)
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 
@@ -33,11 +34,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = waitForValidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager controller deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, true)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -52,11 +53,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = waitForValidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager webhook deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, true)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -71,11 +72,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = waitForValidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager cainjector deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, true)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -90,11 +91,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = waitForInvalidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager controller deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, false)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -109,11 +110,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = waitForInvalidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager webhook deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, false)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -128,11 +129,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = waitForInvalidOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName})
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
 			Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
-			err = waitForDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
+			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -143,10 +144,11 @@ var _ = Describe("Overrides test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = waitForValidOperatorStatusCondition(certmanageroperatorclient,
+		err = verifyOperatorStatusCondition(certmanageroperatorclient,
 			[]string{certManagerControllerDeploymentControllerName,
 				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName})
+				certManagerCAInjectorDeploymentControllerName},
+			validOperatorStatusConditions)
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 })

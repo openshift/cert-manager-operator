@@ -6,6 +6,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,18 +23,10 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-const (
-	certmanagerControllerDeployment = "cert-manager"
-	certmanagerWebhookDeployment    = "cert-manager-webhook"
-	certmanagerCAinjectorDeployment = "cert-manager-cainjector"
-
-	operandNamespace = "cert-manager"
-)
-
-// waitForValidOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
+// verifyOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
 // has become available or not. It returns an error if a timeout (5 mins) occurs or an error was encountered
 // which polling the status. For each controller a the polling happens in separate go-routines.
-func waitForValidOperatorStatusCondition(client *certmanoperatorclient.Clientset, controllerNames []string) error {
+func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, controllerNames []string, expectedConditionMap map[string]opv1.ConditionStatus) error {
 
 	var wg sync.WaitGroup
 	errs := make([]error, len(controllerNames))
@@ -51,60 +44,15 @@ func waitForValidOperatorStatusCondition(client *certmanoperatorclient.Clientset
 					return false, nil
 				}
 
-				flag := false
 				for _, cond := range operator.Status.Conditions {
-					if cond.Type == controllerNames[index]+"Available" {
-						flag = cond.Status == opv1.ConditionTrue
-					}
-
-					if cond.Type == controllerNames[index]+"Degraded" {
-						flag = cond.Status == opv1.ConditionFalse
-					}
-
-					if cond.Type == controllerNames[index]+"Progressing" {
-						flag = cond.Status == opv1.ConditionFalse
+					if status, exists := expectedConditionMap[strings.TrimPrefix(cond.Type, controllerNames[index])]; exists {
+						if cond.Status != status {
+							return false, nil
+						}
 					}
 				}
 
-				return flag, nil
-			})
-			errs[index] = err
-		}(index)
-	}
-	wg.Wait()
-
-	return errors.NewAggregate(errs)
-}
-
-// waitForInvalidOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
-// has become degraded or not. It returns an error if a timeout (5 mins) occurs or an error was encountered
-// which polling the status. For each controller a the polling happens in separate go-routines.
-func waitForInvalidOperatorStatusCondition(client *certmanoperatorclient.Clientset, controllerNames []string) error {
-
-	var wg sync.WaitGroup
-	errs := make([]error, len(controllerNames))
-	for index := range controllerNames {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			err := wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
-				if err != nil {
-					return false, err
-				}
-
-				if operator.DeletionTimestamp != nil {
-					return false, nil
-				}
-
-				flag := false
-				for _, cond := range operator.Status.Conditions {
-					if cond.Type == controllerNames[index]+"Degraded" {
-						flag = cond.Status == opv1.ConditionTrue
-					}
-				}
-
-				return flag, nil
+				return true, nil
 			})
 			errs[index] = err
 		}(index)
@@ -182,10 +130,10 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 	})
 }
 
-// waitForDeploymentArgs polls every 1 second to check if the deployment args list is updated to contain the
+// verifyDeploymentArgs polls every 1 second to check if the deployment args list is updated to contain the
 // passed args. It returns an error if a timeout (5 mins) occurs or an error was encountered while polling
 // the deployment args list.
-func waitForDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
+func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
 	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
