@@ -1,6 +1,3 @@
-//go:build e2e
-// +build e2e
-
 package e2e
 
 import (
@@ -15,6 +12,7 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -24,8 +22,8 @@ import (
 )
 
 // verifyOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
-// has become available or not. It returns an error if a timeout (5 mins) occurs or an error was encountered
-// which polling the status. For each controller a the polling happens in separate go-routines.
+// match with the expected conditions. It returns an error if a timeout (5 mins) occurs or an error was
+// encountered which polling the status. For each controller a the polling happens in separate go-routines.
 func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, controllerNames []string, expectedConditionMap map[string]opv1.ConditionStatus) error {
 
 	var wg sync.WaitGroup
@@ -37,6 +35,9 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 			err := wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
 				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
 				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return false, nil
+					}
 					return false, err
 				}
 
@@ -138,6 +139,9 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 
