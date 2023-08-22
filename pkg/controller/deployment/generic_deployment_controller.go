@@ -50,6 +50,8 @@ func newGenericDeploymentController(
 		withContainerArgsValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withContainerEnvOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideEnvFor),
 		withContainerEnvValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
+		withContainerResourcesOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideResourcesFor),
+		withContainerResourcesValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withUnsupportedArgsOverrideHook,
 		withProxyEnv,
 		withCAConfigMap(kubeInformersForTargetNamespace.Core().V1().ConfigMaps(), deployment, trustedCAConfigmapName),

@@ -664,7 +664,10 @@ spec:
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: Always
                 name: cert-manager-operator
-                resources: {}
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
                 securityContext:
                   allowPrivilegeEscalation: false
                   capabilities:

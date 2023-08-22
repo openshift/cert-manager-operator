@@ -6,7 +6,6 @@ package e2e
 import (
 	"context"
 	"embed"
-	_ "embed"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -380,6 +380,16 @@ func addValidControlleDeploymentConfig(operator *v1alpha1.CertManager) {
 			{
 				Name:  "HTTP_PROXY",
 				Value: "172.0.0.10:8080",
+			},
+		},
+		OverrideResources: v1alpha1.CertManagerResourceRequirements{
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    k8sresource.MustParse("500m"),
+				corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
+			},
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    k8sresource.MustParse("10m"),
+				corev1.ResourceMemory: k8sresource.MustParse("32Mi"),
 			},
 		},
 	}

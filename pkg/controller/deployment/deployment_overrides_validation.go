@@ -5,10 +5,12 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/strings/slices"
 
 	v1 "github.com/openshift/api/operator/v1"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
@@ -191,4 +193,61 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 
 		return nil
 	}
+}
+
+// withContainerResourcesValidateHook validates the container resources with those that
+// are supported by the operator.
+func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+
+	supportedCertManagerResourceNames := []string{
+		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
+	}
+	supportedCertManagerWebhookResourceNames := []string{
+		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
+	}
+	supportedCertManagerCainjectorResourceNames := []string{
+		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
+	}
+
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		certmanager, err := certmanagerinformer.Lister().Get("cluster")
+		if err != nil {
+			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		}
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			if certmanager.Spec.ControllerConfig != nil {
+				return validateResources(certmanager.Spec.ControllerConfig.OverrideResources, supportedCertManagerResourceNames)
+			}
+		case certmanagerWebhookDeployment:
+			if certmanager.Spec.WebhookConfig != nil {
+				return validateResources(certmanager.Spec.WebhookConfig.OverrideResources, supportedCertManagerWebhookResourceNames)
+			}
+		case certmanagerCAinjectorDeployment:
+			if certmanager.Spec.CAInjectorConfig != nil {
+				return validateResources(certmanager.Spec.CAInjectorConfig.OverrideResources, supportedCertManagerCainjectorResourceNames)
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		}
+
+		return nil
+	}
+}
+
+// validateResources validates the resources with those that are in supportedResourceNames.
+func validateResources(resources v1alpha1.CertManagerResourceRequirements, supportedResourceNames []string) error {
+	errs := []error{}
+	for k, v := range resources.Limits {
+		if !slices.Contains(supportedResourceNames, string(k)) {
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
+		}
+	}
+	for k, v := range resources.Requests {
+		if !slices.Contains(supportedResourceNames, string(k)) {
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
+		}
+	}
+	return utilerrors.NewAggregate(errs)
 }

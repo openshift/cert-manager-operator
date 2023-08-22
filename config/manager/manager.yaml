@@ -85,5 +85,9 @@ spec:
             runAsNonRoot: true
             seccompProfile:
               type: 'RuntimeDefault'
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
