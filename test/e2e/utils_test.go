@@ -279,3 +279,39 @@ func verifyCertificate(ctx context.Context, secretName, namespace, hostname stri
 		return isVerified, nil
 	})
 }
+
+// verifyCertificateRenewed repeatedly loads the tls secret as a X509 certificate every pollDuration
+// and returns no error if certificate was renewed at least once
+func verifyCertificateRenewed(ctx context.Context, secretName, namespace string, pollDuration time.Duration) error {
+	var initExpiryTime *time.Time
+	return wait.PollImmediate(pollDuration, TestTimeout, func() (bool, error) {
+		secret, err := loader.KubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+
+		cert, err := library.GetX509Certificate(secret)
+		if err != nil {
+			return false, err
+		}
+
+		// cert expiry time is recorded upon initial run
+		if initExpiryTime == nil {
+			initExpiryTime = &cert.NotAfter
+		}
+
+		// checks if expiry time was updated
+		if *initExpiryTime == cert.NotAfter {
+			return false, nil
+		}
+
+		// iff expiry time was updated, check if new expiry is not ahead
+		// return an error, else certificate was renewed properly
+		if !cert.NotAfter.After(*initExpiryTime) {
+			return false, fmt.Errorf("previous expiry time of the certificate cannot be ahead of the current expiry time")
+		}
+
+		// certificate was renewed atleast once
+		return true, nil
+	})
+}
