@@ -44,7 +44,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		DeferCleanup(func() {
-			err = removeOverrides(certmanageroperatorclient)
+			By("resetting cert-manager state")
+			err = resetCertManagerState(ctx, certmanageroperatorclient, loader)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

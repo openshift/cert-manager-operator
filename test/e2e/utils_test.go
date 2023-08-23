@@ -31,17 +31,6 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-var defaultCertManagerState = v1alpha1.CertManager{
-	ObjectMeta: v1.ObjectMeta{
-		Name: "cluster",
-	},
-	Spec: v1alpha1.CertManagerSpec{
-		OperatorSpec: opv1.OperatorSpec{
-			ManagementState: opv1.Managed,
-		},
-	},
-}
-
 var subscriptionSchema = schema.GroupVersionResource{
 	Group:    "operators.coreos.com",
 	Version:  "v1alpha1",
@@ -90,39 +79,62 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 	return errors.NewAggregate(errs)
 }
 
-// removeOverrides removes all the overrides from all the cert-manager operands. The update process is retried if
-// a conflict error is encountered.
-func removeOverrides(client *certmanoperatorclient.Clientset) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+// resetCertManagerState is used to revert back to the default cert-manager operands' state
+func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Clientset, loader library.DynamicResourceLoader) error {
+	// update operator spec to empty *Config and set operatorSpec to default values
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var operatorState *v1alpha1.CertManager
+		err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", v1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+
+			operatorState = operator
+			return true, nil
+		})
 		if err != nil {
 			return err
 		}
 
-		updatedOperator := operator.DeepCopy()
+		updatedOperator := operatorState.DeepCopy()
 
-		hasOverride := false
-		if updatedOperator.Spec.ControllerConfig != nil {
-			updatedOperator.Spec.ControllerConfig = nil
-			hasOverride = true
-		}
-		if updatedOperator.Spec.WebhookConfig != nil {
-			updatedOperator.Spec.WebhookConfig = nil
-			hasOverride = true
-		}
-		if updatedOperator.Spec.CAInjectorConfig != nil {
-			updatedOperator.Spec.CAInjectorConfig = nil
-			hasOverride = true
-		}
-
-		if !hasOverride {
-			return nil
+		updatedOperator.Spec.CAInjectorConfig = nil
+		updatedOperator.Spec.ControllerConfig = nil
+		updatedOperator.Spec.WebhookConfig = nil
+		updatedOperator.Spec.OperatorSpec = opv1.OperatorSpec{
+			ManagementState: opv1.Managed,
 		}
 
 		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
 		return err
 	})
 
+	// remove any entries present in Subscription spec.config for
+	// user provided injected env vars, etc.
+	// it should put operator back to default deployment
+	subName, err := getCertManagerOperatorSubscription(ctx, loader)
+	if err != nil {
+		return err
+	}
+
+	// to get an empty spec.config
+	configPatch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"config": nil,
+		},
+	}
+	payload, err := json.Marshal(configPatch)
+	if err != nil {
+		return err
+	}
+
+	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
+	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, v1.PatchOptions{})
+	return err
 }
 
 // addOverrideArgs adds the override args to specific the cert-manager operand. The update process is retried if
