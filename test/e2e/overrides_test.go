@@ -130,7 +130,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
 			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
-			Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
 			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
