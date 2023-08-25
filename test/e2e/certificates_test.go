@@ -37,7 +37,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		appsDomain = "apps." + baseDomain
 
 		By("adding override args for dns-01 private zone passthrough")
-		err = addOverrideArgs(certmanageroperatorclient, operatorName, []string{
+		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
 			"--dns01-recursive-nameservers-only",
 			"--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53",
 		})
