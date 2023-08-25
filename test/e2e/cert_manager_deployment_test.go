@@ -291,7 +291,7 @@ func TestContainerOverrides(t *testing.T) {
 	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)
 	defer func() {
-		err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
+		err := resetCertManagerState(ctx, certmanageroperatorclient, library.NewDynamicResourceLoader(ctx, t))
 		require.NoError(t, err)
 	}()
 
