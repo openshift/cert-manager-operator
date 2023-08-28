@@ -1972,7 +1972,7 @@ const (
 	NFT_MSG_GETFLOWTABLE              = 0x17
 	NFT_MSG_DELFLOWTABLE              = 0x18
 	NFT_MSG_GETRULE_RESET             = 0x19
-	NFT_MSG_MAX                       = 0x1a
+	NFT_MSG_MAX                       = 0x21
 	NFTA_LIST_UNSPEC                  = 0x0
 	NFTA_LIST_ELEM                    = 0x1
 	NFTA_HOOK_UNSPEC                  = 0x0
@@ -3655,7 +3655,7 @@ const (
 	ETHTOOL_MSG_PSE_GET                       = 0x24
 	ETHTOOL_MSG_PSE_SET                       = 0x25
 	ETHTOOL_MSG_RSS_GET                       = 0x26
-	ETHTOOL_MSG_USER_MAX                      = 0x26
+	ETHTOOL_MSG_USER_MAX                      = 0x2b
 	ETHTOOL_MSG_KERNEL_NONE                   = 0x0
 	ETHTOOL_MSG_STRSET_GET_REPLY              = 0x1
 	ETHTOOL_MSG_LINKINFO_GET_REPLY            = 0x2
@@ -3695,7 +3695,7 @@ const (
 	ETHTOOL_MSG_MODULE_NTF                    = 0x24
 	ETHTOOL_MSG_PSE_GET_REPLY                 = 0x25
 	ETHTOOL_MSG_RSS_GET_REPLY                 = 0x26
-	ETHTOOL_MSG_KERNEL_MAX                    = 0x26
+	ETHTOOL_MSG_KERNEL_MAX                    = 0x2b
 	ETHTOOL_A_HEADER_UNSPEC                   = 0x0
 	ETHTOOL_A_HEADER_DEV_INDEX                = 0x1
 	ETHTOOL_A_HEADER_DEV_NAME                 = 0x2
@@ -4494,7 +4494,7 @@ const (
 	NL80211_ATTR_MAC_HINT                                   = 0xc8
 	NL80211_ATTR_MAC_MASK                                   = 0xd7
 	NL80211_ATTR_MAX_AP_ASSOC_STA                           = 0xca
-	NL80211_ATTR_MAX                                        = 0x141
+	NL80211_ATTR_MAX                                        = 0x145
 	NL80211_ATTR_MAX_CRIT_PROT_DURATION                     = 0xb4
 	NL80211_ATTR_MAX_CSA_COUNTERS                           = 0xce
 	NL80211_ATTR_MAX_MATCH_SETS                             = 0x85
@@ -5845,6 +5845,8 @@ const (
 	TUN_F_TSO6    = 0x4
 	TUN_F_TSO_ECN = 0x8
 	TUN_F_UFO     = 0x10
+	TUN_F_USO4    = 0x20
+	TUN_F_USO6    = 0x40
 )
 
 const (
@@ -5854,9 +5856,10 @@ const (
 )
 
 const (
-	VIRTIO_NET_HDR_GSO_NONE  = 0x0
-	VIRTIO_NET_HDR_GSO_TCPV4 = 0x1
-	VIRTIO_NET_HDR_GSO_UDP   = 0x3
-	VIRTIO_NET_HDR_GSO_TCPV6 = 0x4
-	VIRTIO_NET_HDR_GSO_ECN   = 0x80
+	VIRTIO_NET_HDR_GSO_NONE   = 0x0
+	VIRTIO_NET_HDR_GSO_TCPV4  = 0x1
+	VIRTIO_NET_HDR_GSO_UDP    = 0x3
+	VIRTIO_NET_HDR_GSO_TCPV6  = 0x4
+	VIRTIO_NET_HDR_GSO_UDP_L4 = 0x5
+	VIRTIO_NET_HDR_GSO_ECN    = 0x80
 )

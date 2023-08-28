@@ -127,29 +127,7 @@ type Encoder struct {
 	namedMethodsMemo map[*types.Named][]*types.Func // memoization of namedMethods()
 }
 
-||||||| parent of 8d00ef09 (Update cert-manager to v1.12.1)
-=======
-// For is equivalent to new(Encoder).For(obj).
-//
-// It may be more efficient to reuse a single Encoder across several calls.
-func For(obj types.Object) (Path, error) {
-	return new(Encoder).For(obj)
-}
-
-// An Encoder amortizes the cost of encoding the paths of multiple objects.
-// The zero value of an Encoder is ready to use.
-type Encoder struct {
-	scopeNamesMemo   map[*types.Scope][]string      // memoization of Scope.Names()
-	namedMethodsMemo map[*types.Named][]*types.Func // memoization of namedMethods()
-}
-
->>>>>>> 8d00ef09 (Update cert-manager to v1.12.1)
 // For returns the path to an object relative to its package,
-||||||| parent of e857794e (Update cert-manager to v1.12.0 and go to v1.20)
-// The For function returns the path to an object relative to its package,
-=======
-// For returns the path to an object relative to its package,
->>>>>>> e857794e (Update cert-manager to v1.12.0 and go to v1.20)
 // or an error if the object is not accessible from the package's Scope.
 //
 // The For function guarantees to return a path only for the following objects:
