@@ -7,7 +7,6 @@ import (
 	"context"
 	"embed"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	opv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
@@ -43,18 +42,19 @@ func TestSelfSignedCerts(t *testing.T) {
 	ctx := context.Background()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 
-	loader.CreateTestingNS("hello")
-	defer loader.DeleteTestingNS("hello")
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"))
-	defer loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"))
+	ns, err := loader.CreateTestingNS("e2e-self-signed-cert")
+	require.NoError(t, err)
+	defer loader.DeleteTestingNS(ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+	defer loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 
-	err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 		// TODO: The loader.KubeClient might be worth splitting out. Let's see once we have more tests.
-		secret, err := loader.KubeClient.CoreV1().Secrets("hello").Get(ctx, "root-secret", metav1.GetOptions{})
+		secret, err := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, "root-secret", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			t.Logf("Unable to retrieve the root secret: %v", err)
 			return false, nil
@@ -73,21 +73,23 @@ func TestACMECertsIngress(t *testing.T) {
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
 
-	loader.CreateTestingNS("hello")
-	defer loader.DeleteTestingNS("hello")
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
-
-	routeV1Client, err := routev1.NewForConfig(config)
+	ns, err := loader.CreateTestingNS("e2e-acme-ingress-cert")
 	require.NoError(t, err)
-	route, err := routeV1Client.Routes("openshift-console").Get(ctx, "console", metav1.GetOptions{})
-	require.NoError(t, err)
+	defer loader.DeleteTestingNS(ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
-	ingress_host := "hey." + strings.Join(strings.Split(route.Spec.Host, ".")[1:], ".")
+	configClient, err := configv1.NewForConfig(config)
+	require.NoError(t, err)
+	baseDomain, err := library.GetClusterBaseDomain(ctx, configClient)
+	require.NoError(t, err)
+	appsDomain := "apps." + baseDomain
+
+	ingress_host := "eaic." + appsDomain
 	path_type := networkingv1.PathTypePrefix
 	ingress := &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
@@ -96,7 +98,7 @@ func TestACMECertsIngress(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "ingress-le-prod",
-			Namespace: "hello",
+			Namespace: ns.Name,
 			Annotations: map[string]string{
 				"cert-manager.io/cluster-issuer":            "letsencrypt-prod",
 				"acme.cert-manager.io/http01-ingress-class": "openshift-default",
@@ -157,25 +159,27 @@ func TestCertRenew(t *testing.T) {
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
 
-	loader.CreateTestingNS("hello")
-	defer loader.DeleteTestingNS("hello")
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"))
-	defer loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"))
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
-	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"))
-
-	routeV1Client, err := routev1.NewForConfig(config)
+	ns, err := loader.CreateTestingNS("e2e-cert-renew")
 	require.NoError(t, err)
-	route, err := routeV1Client.Routes("openshift-console").Get(ctx, "console", metav1.GetOptions{})
-	require.NoError(t, err)
+	defer loader.DeleteTestingNS(ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+	defer loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
+	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
-	ingress_host := "hello-test." + strings.Join(strings.Split(route.Spec.Host, ".")[1:], ".")
+	configClient, err := configv1.NewForConfig(config)
+	require.NoError(t, err)
+	baseDomain, err := library.GetClusterBaseDomain(ctx, configClient)
+	require.NoError(t, err)
+	appsDomain := "apps." + baseDomain
+
+	ingress_host := "ecr." + appsDomain
 	path_type := networkingv1.PathTypePrefix
 	ingress := &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
@@ -184,7 +188,7 @@ func TestCertRenew(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "frontend",
-			Namespace: "hello",
+			Namespace: ns.Name,
 		},
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
@@ -216,7 +220,7 @@ func TestCertRenew(t *testing.T) {
 	crt := &certmanagerv1.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "selfsigned-server-cert",
-			Namespace: "hello",
+			Namespace: ns.Name,
 		},
 		Spec: certmanagerv1.CertificateSpec{
 			DNSNames:    []string{ingress_host, "server"},
@@ -238,7 +242,7 @@ func TestCertRenew(t *testing.T) {
 	defer certmanagerv1Client.CertmanagerV1().Certificates(crt.ObjectMeta.Namespace).Delete(ctx, crt.ObjectMeta.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-		secret, _ := loader.KubeClient.CoreV1().Secrets("hello").Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
+		secret, _ := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
 		tlsConfig, isValid := library.GetTLSConfig(secret)
 		if !isValid {
 			return false, nil
@@ -260,7 +264,7 @@ func TestCertRenew(t *testing.T) {
 			return false, nil
 		}
 		time.Sleep(time.Minute + time.Second*5)
-		secret, _ = loader.KubeClient.CoreV1().Secrets("hello").Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
+		secret, _ = loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
 		tlsConfig, isValid = library.GetTLSConfig(secret)
 		if !isValid {
 			return false, nil
@@ -287,7 +291,7 @@ func TestContainerOverrides(t *testing.T) {
 	operator, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)
 	defer func() {
-		err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Delete(ctx, "cluster", metav1.DeleteOptions{})
+		err := resetCertManagerState(ctx, certmanageroperatorclient, library.NewDynamicResourceLoader(ctx, t))
 		require.NoError(t, err)
 	}()
 

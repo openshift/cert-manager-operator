@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-ca-issued-cert
+  namespace: hello
+spec:
+  isCA: false
+  commonName: sample-ca-issued-cert
+  secretName: my-ca-issued-cert
+  issuerRef:
+    name: my-ca-issuer
+    kind: Issuer
+    group: cert-manager.io

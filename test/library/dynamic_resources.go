@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 package library
 
 import (
@@ -50,7 +53,7 @@ func (d DynamicResourceLoader) noErrorSkipNotExisting(err error) {
 	}
 }
 
-func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte, error), filename string) {
+func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	b, err := assetFunc(filename)
 	require.NoError(d.t, err)
 
@@ -60,6 +63,8 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 	require.NoError(d.t, err)
 
 	obj, gvk, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
+	require.NoError(d.t, err)
+
 	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	require.NoError(d.t, err)
 
@@ -75,6 +80,10 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 	var dri dynamic.ResourceInterface
 	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
 		require.NotEmpty(d.t, unstructuredObj.GetNamespace(), "Namespace can not be empty!")
+
+		if overrideNamespace != "" {
+			unstructuredObj.SetNamespace(overrideNamespace)
+		}
 		dri = d.DynamicClient.Resource(mapping.Resource).Namespace(unstructuredObj.GetNamespace())
 	} else {
 		dri = d.DynamicClient.Resource(mapping.Resource)
@@ -83,24 +92,24 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 	do(d.t, unstructuredObj, dri)
 }
 
-func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string) {
+func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Deleting resource %v\n", filename)
 	deleteFunc := func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
 		err := dynamicResourceInterface.Delete(context.TODO(), unstructured.GetName(), metav1.DeleteOptions{})
 		d.noErrorSkipNotExisting(err)
 	}
 
-	d.do(deleteFunc, assetFunc, filename)
+	d.do(deleteFunc, assetFunc, filename, overrideNamespace)
 	d.t.Logf("Resource %v deleted\n", filename)
 }
 
-func (d DynamicResourceLoader) CreateFromFile(assetFunc func(name string) ([]byte, error), filename string) {
+func (d DynamicResourceLoader) CreateFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Creating resource %v\n", filename)
 	createFunc := func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
 		_, err := dynamicResourceInterface.Create(context.TODO(), unstructured, metav1.CreateOptions{})
 		d.noErrorSkipExists(err)
 	}
 
-	d.do(createFunc, assetFunc, filename)
+	d.do(createFunc, assetFunc, filename, overrideNamespace)
 	d.t.Logf("Resource %v created\n", filename)
 }

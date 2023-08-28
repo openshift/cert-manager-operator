@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 package library
 
 import (
@@ -10,23 +13,26 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
-func (d DynamicResourceLoader) CreateTestingNS(baseName string) (*v1.Namespace, error) {
-	name := fmt.Sprintf("%v", baseName)
+func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string) (*v1.Namespace, error) {
 	t := testing.T{}
-	namespaceObj := &v1.Namespace{
+	namespace := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "",
+			GenerateName: fmt.Sprintf("%v-", namespacePrefix),
+			Labels: map[string]string{
+				"e2e-test": "true",
+				"operator": "openshift-cert-manager-operator",
+			},
 		},
-		Status: v1.NamespaceStatus{},
 	}
 
 	var got *v1.Namespace
 	if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
 		var err error
-		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespaceObj, metav1.CreateOptions{})
+		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespace, metav1.CreateOptions{})
 		if err != nil {
 			t.Logf("Error creating namespace: %v", err)
 			return false, nil
@@ -39,8 +45,7 @@ func (d DynamicResourceLoader) CreateTestingNS(baseName string) (*v1.Namespace, 
 	return got, nil
 }
 
-func (d DynamicResourceLoader) DeleteTestingNS(baseName string) (bool, error) {
-	name := fmt.Sprintf("%v", baseName)
+func (d DynamicResourceLoader) DeleteTestingNS(name string) (bool, error) {
 	t := testing.T{}
 	ctx := context.Background()
 
@@ -67,4 +72,12 @@ func (d DynamicResourceLoader) DeleteTestingNS(baseName string) (bool, error) {
 		return true, err
 	}
 	return false, nil
+}
+
+func GetClusterBaseDomain(ctx context.Context, configClient configv1.ConfigV1Interface) (string, error) {
+	dns, err := configClient.DNSes().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return dns.Spec.BaseDomain, nil
 }

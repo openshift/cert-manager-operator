@@ -1,13 +1,28 @@
+//go:build e2e
+// +build e2e
+
 package library
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 )
+
+func GetX509Certificate(secret *v1.Secret) (*x509.Certificate, error) {
+	tlsCrtBytes, ok := secret.Data["tls.crt"]
+	if !ok {
+		return nil, fmt.Errorf("tls.crt key not found in provided secret %v in %v namespace", secret.Name, secret.Namespace)
+	}
+
+	block, _ := pem.Decode(tlsCrtBytes)
+	return x509.ParseCertificate(block.Bytes)
+}
 
 func GetTLSConfig(secret *v1.Secret) (tls.Config, bool) {
 	roots := x509.NewCertPool()
@@ -66,7 +81,7 @@ func GetCertIssuer(hostname string) (pkix.Name, error) {
 }
 
 func VerifySecretNotNull(secret *v1.Secret) (bool, error) {
-	return len(secret.Data["ca.crt"]) != 0 && len(secret.Data["tls.crt"]) != 0 && len(secret.Data["tls.key"]) != 0, nil
+	return len(secret.Data["tls.crt"]) != 0 && len(secret.Data["tls.key"]) != 0, nil
 }
 
 func VerifyHostx509Cert(secret *v1.Secret, hostname string) (bool, error) {
@@ -81,4 +96,34 @@ func VerifyHostx509Cert(secret *v1.Secret, hostname string) (bool, error) {
 		return false, err
 	}
 	return true, err
+}
+
+func VerifyCertificate(secret *v1.Secret, commonName string) (bool, error) {
+	// check certificate is not null
+	isNotNull, err := VerifySecretNotNull(secret)
+	if !isNotNull {
+		return false, err
+	}
+
+	_, ok := GetTLSConfig(secret)
+	if !ok {
+		return false, fmt.Errorf("failed to read certifcate from secret %v in %v namespace", secret.Name, secret.Namespace)
+	}
+
+	cert, err := GetX509Certificate(secret)
+
+	// check certificate expiry
+	if err != nil {
+		return false, err
+	}
+	if !cert.NotAfter.After(time.Now()) {
+		return false, fmt.Errorf("certificate has expired at %v", cert.NotAfter)
+	}
+
+	// check certificate subject CN
+	if cert.Subject.CommonName != commonName {
+		return false, fmt.Errorf("incorrect subject CN: %v found in issued certificate", cert.Subject.CommonName)
+	}
+
+	return true, nil
 }

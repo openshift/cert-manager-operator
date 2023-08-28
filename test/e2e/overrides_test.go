@@ -4,6 +4,8 @@
 package e2e
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -11,8 +13,8 @@ import (
 var _ = Describe("Overrides test", Ordered, func() {
 
 	BeforeEach(func() {
-		By("Removing any existing overrides")
-		err := removeOverrides(certmanageroperatorclient)
+		By("Reset cert-manager state")
+		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
@@ -130,7 +132,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
 			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
-			Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
 			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
@@ -139,8 +141,8 @@ var _ = Describe("Overrides test", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		By("Removing any existing overrides")
-		err := removeOverrides(certmanageroperatorclient)
+		By("Reset cert-manager state")
+		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
