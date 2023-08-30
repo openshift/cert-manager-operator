@@ -33,7 +33,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			"--v=2",
 			"--cluster-resource-namespace=$(POD_NAMESPACE)",
 			"--leader-election-namespace=kube-system",
-			"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.1",
+			"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.12.3",
 			"--max-concurrent-challenges=60",
 		},
 		"cert-manager-cainjector": {
@@ -120,7 +120,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.1",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.12.3",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
 				"--featureX=enable",
 				"--leader-election-namespace=kube-system",
@@ -171,7 +171,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.11.1",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.12.3",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
 				"--featureY=disable",
 				"--leader-election-namespace=kube-system",

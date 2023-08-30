@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/component: cainjector
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cainjector
-    app.kubernetes.io/version: v1.11.1
+    app.kubernetes.io/version: v1.12.3
   name: cert-manager-cainjector
 rules:
   - apiGroups:
@@ -44,6 +44,7 @@ rules:
       - list
       - watch
       - update
+      - patch
   - apiGroups:
       - apiregistration.k8s.io
     resources:
@@ -53,6 +54,7 @@ rules:
       - list
       - watch
       - update
+      - patch
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -62,3 +64,4 @@ rules:
       - list
       - watch
       - update
+      - patch

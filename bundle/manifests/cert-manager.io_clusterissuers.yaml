@@ -8,7 +8,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.11.1
+    app.kubernetes.io/version: v1.12.3
   name: clusterissuers.cert-manager.io
 spec:
   group: cert-manager.io
@@ -786,10 +786,19 @@ spec:
                                 cert-manager for each Challenge to be completed.
                               properties:
                                 class:
-                                  description: The ingress class to use when creating
-                                    Ingress resources to solve ACME challenges that
-                                    use this challenge solver. Only one of 'class'
-                                    or 'name' may be specified.
+                                  description: This field configures the annotation
+                                    `kubernetes.io/ingress.class` when creating Ingress
+                                    resources to solve ACME challenges that use this
+                                    challenge solver. Only one of `class`, `name`
+                                    or `ingressClassName` may be specified.
+                                  type: string
+                                ingressClassName:
+                                  description: This field configures the field `ingressClassName`
+                                    on the created Ingress resources used to solve
+                                    ACME challenges that use this challenge solver.
+                                    This is the recommended way of configuring the
+                                    ingress class. Only one of `class`, `name` or
+                                    `ingressClassName` may be specified.
                                   type: string
                                 ingressTemplate:
                                   description: Optional ingress template used to configure
@@ -826,7 +835,8 @@ spec:
                                     is typically used in conjunction with ingress
                                     controllers like ingress-gce, which maintains
                                     a 1:1 mapping between external IPs and ingress
-                                    resources.
+                                    resources. Only one of `class`, `name` or `ingressClassName`
+                                    may be specified.
                                   type: string
                                 podTemplate:
                                   description: Optional pod template used to configure
@@ -857,10 +867,9 @@ spec:
                                       type: object
                                     spec:
                                       description: PodSpec defines overrides for the
-                                        HTTP01 challenge solver pod. Only the 'priorityClassName',
-                                        'nodeSelector', 'affinity', 'serviceAccountName'
-                                        and 'tolerations' fields are supported currently.
-                                        All other fields will be ignored.
+                                        HTTP01 challenge solver pod. Check ACMEChallengeSolverHTTP01IngressPodSpec
+                                        to find out currently supported fields. All
+                                        other fields will be ignored.
                                       properties:
                                         affinity:
                                           description: If specified, the pod's scheduling
@@ -2182,6 +2191,23 @@ spec:
                                                   type: array
                                               type: object
                                           type: object
+                                        imagePullSecrets:
+                                          description: If specified, the pod's imagePullSecrets
+                                          items:
+                                            description: LocalObjectReference contains
+                                              enough information to let you locate
+                                              the referenced object inside the same
+                                              namespace.
+                                            properties:
+                                              name:
+                                                description: 'Name of the referent.
+                                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                                  TODO: Add other useful fields. apiVersion,
+                                                  kind, uid?'
+                                                type: string
+                                            type: object
+                                            x-kubernetes-map-type: atomic
+                                          type: array
                                         nodeSelector:
                                           additionalProperties:
                                             type: string
@@ -2431,9 +2457,23 @@ spec:
                             required:
                             - name
                             type: object
+                          serviceAccountRef:
+                            description: A reference to a service account that will
+                              be used to request a bound token (also known as "projected
+                              token"). Compared to using "secretRef", using this field
+                              means that you don't rely on statically bound tokens.
+                              To use this field, you must configure an RBAC rule to
+                              let cert-manager request a token.
+                            properties:
+                              name:
+                                description: Name of the ServiceAccount used to request
+                                  a token.
+                                type: string
+                            required:
+                            - name
+                            type: object
                         required:
                         - role
-                        - secretRef
                         type: object
                       tokenSecretRef:
                         description: TokenSecretRef authenticates with Vault by presenting
@@ -2582,6 +2622,11 @@ spec:
                   be set if the Issuer is configured to use an ACME server to issue
                   certificates.
                 properties:
+                  lastPrivateKeyHash:
+                    description: LastPrivateKeyHash is a hash of the private key associated
+                      with the latest registered ACME account, in order to track changes
+                      made to registered account associated with the Issuer
+                    type: string
                   lastRegisteredEmail:
                     description: LastRegisteredEmail is the email associated with
                       the latest registered ACME account, in order to track changes

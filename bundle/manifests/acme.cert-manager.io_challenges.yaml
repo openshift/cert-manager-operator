@@ -8,7 +8,7 @@ metadata:
     app: cert-manager
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.11.1
+    app.kubernetes.io/version: v1.12.3
   name: challenges.acme.cert-manager.io
 spec:
   group: acme.cert-manager.io
@@ -657,9 +657,18 @@ spec:
                           for each Challenge to be completed.
                         properties:
                           class:
-                            description: The ingress class to use when creating Ingress
-                              resources to solve ACME challenges that use this challenge
-                              solver. Only one of 'class' or 'name' may be specified.
+                            description: This field configures the annotation `kubernetes.io/ingress.class`
+                              when creating Ingress resources to solve ACME challenges
+                              that use this challenge solver. Only one of `class`,
+                              `name` or `ingressClassName` may be specified.
+                            type: string
+                          ingressClassName:
+                            description: This field configures the field `ingressClassName`
+                              on the created Ingress resources used to solve ACME
+                              challenges that use this challenge solver. This is the
+                              recommended way of configuring the ingress class. Only
+                              one of `class`, `name` or `ingressClassName` may be
+                              specified.
                             type: string
                           ingressTemplate:
                             description: Optional ingress template used to configure
@@ -692,7 +701,8 @@ spec:
                               in order to solve HTTP01 challenges. This is typically
                               used in conjunction with ingress controllers like ingress-gce,
                               which maintains a 1:1 mapping between external IPs and
-                              ingress resources.
+                              ingress resources. Only one of `class`, `name` or `ingressClassName`
+                              may be specified.
                             type: string
                           podTemplate:
                             description: Optional pod template used to configure the
@@ -720,10 +730,9 @@ spec:
                                 type: object
                               spec:
                                 description: PodSpec defines overrides for the HTTP01
-                                  challenge solver pod. Only the 'priorityClassName',
-                                  'nodeSelector', 'affinity', 'serviceAccountName'
-                                  and 'tolerations' fields are supported currently.
-                                  All other fields will be ignored.
+                                  challenge solver pod. Check ACMEChallengeSolverHTTP01IngressPodSpec
+                                  to find out currently supported fields. All other
+                                  fields will be ignored.
                                 properties:
                                   affinity:
                                     description: If specified, the pod's scheduling
@@ -1851,6 +1860,22 @@ spec:
                                             type: array
                                         type: object
                                     type: object
+                                  imagePullSecrets:
+                                    description: If specified, the pod's imagePullSecrets
+                                    items:
+                                      description: LocalObjectReference contains enough
+                                        information to let you locate the referenced
+                                        object inside the same namespace.
+                                      properties:
+                                        name:
+                                          description: 'Name of the referent. More
+                                            info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                            TODO: Add other useful fields. apiVersion,
+                                            kind, uid?'
+                                          type: string
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    type: array
                                   nodeSelector:
                                     additionalProperties:
                                       type: string

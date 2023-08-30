@@ -4,7 +4,7 @@ This repository contains Cert Manager Operator designed for OpenShift. The opera
 
 ## The operator architecture and design assumptions
 
-The Operator uses the [upstream deployment manifests](https://github.com/jetstack/cert-manager/releases/download/v1.11.1/cert-manager.yaml). It divides them into separate files and deploys using 3 controllers:
+The Operator uses the [upstream deployment manifests](https://github.com/jetstack/cert-manager/releases/download/v1.12.3/cert-manager.yaml). It divides them into separate files and deploys using 3 controllers:
 - [cert_manager_cainjector_deployment.go](pkg/controller/deployment/cert_manager_cainjector_deployment.go)
 - [cert_manager_controller_deployment.go](pkg/controller/deployment/cert_manager_controller_deployment.go)
 - [cert_manager_webhook_deployment.go](pkg/controller/deployment/cert_manager_webhook_deployment.go)

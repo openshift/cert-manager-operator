@@ -8,7 +8,7 @@ metadata:
     console.openshift.io/disable-operand-delete: "true"
     containerImage: ""
     createdAt: 2023-03-03T00:00:00
-    olm.skipRange: <1.11.1
+    olm.skipRange: '>=1.11.4 <1.12.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -26,7 +26,7 @@ metadata:
   labels:
     operatorframework.io/arch.amd64: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.11.1
+  name: cert-manager-operator.v1.12.0
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -92,4 +92,5 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 1.11.1
+  replaces: cert-manager-operator.v1.11.4
+  version: 1.12.0
