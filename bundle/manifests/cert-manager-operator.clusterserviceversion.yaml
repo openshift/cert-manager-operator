@@ -212,7 +212,7 @@ metadata:
     console.openshift.io/disable-operand-delete: "true"
     containerImage: openshift.io/cert-manager-operator:latest
     createdAt: 2023-03-03T00:00:00
-    olm.skipRange: <1.11.4
+    olm.skipRange: '>=1.11.4 <1.11.5'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -750,8 +750,5 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.11.4
     name: cert-manager-acmesolver
-  skips:
-  - cert-manager-operator.v1.11.1
-  - cert-manager-operator.v1.10.3
-  - cert-manager-operator.v1.10.2
+  replaces: cert-manager-operator.v1.11.4
   version: 1.11.5
