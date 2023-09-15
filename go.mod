@@ -27,8 +27,8 @@ require (
 	k8s.io/code-generator v0.28.1
 	k8s.io/component-base v0.28.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
-	sigs.k8s.io/controller-runtime v0.16.1
-	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221109083014-8da9760581ed
+	sigs.k8s.io/controller-runtime v0.16.2
+	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433
 	sigs.k8s.io/controller-tools v0.13.0
 	sigs.k8s.io/kustomize/kustomize/v4 v4.5.7
 )
