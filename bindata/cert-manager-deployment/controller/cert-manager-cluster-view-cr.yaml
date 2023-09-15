@@ -7,27 +7,13 @@ metadata:
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
     app.kubernetes.io/version: v1.13.0
-    rbac.authorization.k8s.io/aggregate-to-admin: "true"
     rbac.authorization.k8s.io/aggregate-to-cluster-reader: "true"
-    rbac.authorization.k8s.io/aggregate-to-edit: "true"
-    rbac.authorization.k8s.io/aggregate-to-view: "true"
-  name: cert-manager-view
+  name: cert-manager-cluster-view
 rules:
   - apiGroups:
       - cert-manager.io
     resources:
-      - certificates
-      - certificaterequests
-      - issuers
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - acme.cert-manager.io
-    resources:
-      - challenges
-      - orders
+      - clusterissuers
     verbs:
       - get
       - list
