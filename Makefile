@@ -103,7 +103,7 @@ GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCO
 
 E2E_TIMEOUT ?= 1h
 
-MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.12.3/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.12.4/cert-manager.yaml
 
 
 ##@ Development
