@@ -56,7 +56,7 @@ spec:
       name: certmanagers.operator.openshift.io
       version: v1alpha1
   description: |
-    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.13.0](https://github.com/cert-manager/cert-manager/tree/v1.13.0), which automates certificate management.
+    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.13.1](https://github.com/cert-manager/cert-manager/tree/v1.13.1), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
   displayName: cert-manager Operator for Red Hat OpenShift
   icon:
