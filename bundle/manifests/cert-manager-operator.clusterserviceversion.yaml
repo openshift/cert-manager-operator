@@ -231,7 +231,7 @@ metadata:
   labels:
     operatorframework.io/arch.amd64: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.12.0
+  name: cert-manager-operator.v1.12.1
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -751,4 +751,4 @@ spec:
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.12.4
     name: cert-manager-acmesolver
   replaces: cert-manager-operator.v1.11.4
-  version: 1.12.0
+  version: 1.12.1
