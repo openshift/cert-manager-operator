@@ -68,7 +68,7 @@ CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
 SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v4
+KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v5
 
 K8S_ENVTEST_VERSION := 1.21.4
 
