@@ -151,7 +151,7 @@ update-scripts:
 update: update-scripts update-manifests update-bindata
 
 .PHONY: update-with-container
-update-with-container:
+update-with-container: fmt vet generate
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
 verify-scripts:
