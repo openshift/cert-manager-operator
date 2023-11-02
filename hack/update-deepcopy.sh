@@ -8,7 +8,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-ge
 verify="${VERIFY:-}"
 
 for group in ${API_GROUP_VERSIONS}; do
-  GOFLAGS="" bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
+  GOFLAGS="" bash ${CODEGEN_PKG}/kube_codegen.sh "deepcopy" \
     github.com/openshift/cert-manager-operator/api \
     github.com/openshift/cert-manager-operator/api \
     "${group/\//:}" \
