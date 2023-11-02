@@ -11,17 +11,17 @@ verify="${VERIFY:-}"
 
 set -x
 # Because go mod sux, we have to fake the vendor for generator in order to be able to build it...
-mv ${CODEGEN_PKG}/generate-groups.sh ${CODEGEN_PKG}/generate-groups.sh.orig
-sed 's/  GO111MODULE=on go install/  #GO111MODULE=on go install/g' ${CODEGEN_PKG}/generate-groups.sh.orig > ${CODEGEN_PKG}/generate-groups.sh
+mv ${CODEGEN_PKG}/kube_codegen.sh ${CODEGEN_PKG}/kube_codegen.sh.orig
+sed 's/  GO111MODULE=on go install/  #GO111MODULE=on go install/g' ${CODEGEN_PKG}/kube_codegen.sh.orig > ${CODEGEN_PKG}/kube_codegen.sh
 function cleanup {
-  mv ${CODEGEN_PKG}/generate-groups.sh.orig ${CODEGEN_PKG}/generate-groups.sh
+  mv ${CODEGEN_PKG}/kube_codegen.sh.orig ${CODEGEN_PKG}/kube_codegen.sh
 }
 trap cleanup EXIT
 
 go install ./${CODEGEN_PKG}/cmd/{defaulter-gen,client-gen,lister-gen,informer-gen,deepcopy-gen}
 
 for group in ${API_GROUP_VERSIONS}; do
-  bash ${CODEGEN_PKG}/generate-groups.sh "client,lister,informer" \
+  bash ${CODEGEN_PKG}/kube_codegen.sh "client,lister,informer" \
     github.com/openshift/cert-manager-operator/pkg/"${group%\/*}" \
     github.com/openshift/cert-manager-operator/api \
     "${group/\//:}" \
