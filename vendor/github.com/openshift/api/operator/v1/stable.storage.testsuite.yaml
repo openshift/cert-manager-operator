@@ -14,28 +14,6 @@ tests:
       spec:
         logLevel: Normal
         operatorLogLevel: Normal
-  onCreate:
-  - name: Should allow creating Storage with vsphere migration enabled
-    initial: |
-      apiVersion: operator.openshift.io/v1
-      kind: Storage
-      spec:
-        vsphereStorageDriver: CSIWithMigrationDriver
-    expected: |
-      apiVersion: operator.openshift.io/v1
-      kind: Storage
-      spec:
-        vsphereStorageDriver: CSIWithMigrationDriver
-        logLevel: Normal
-        operatorLogLevel: Normal
-  onCreate:
-  - name: Should not allow creating Storage with vsphere migration disabled
-    initial: |
-      apiVersion: operator.openshift.io/v1
-      kind: Storage
-      spec:
-        vsphereStorageDriver: LegacyDeprecatedInTreeDriver
-    expectedError: "VSphereStorageDriver can not be set to LegacyDeprecatedInTreeDriver"
   onUpdate:
   - name: Should allow enabling CSI migration for vSphere
     initial: |
@@ -54,7 +32,7 @@ tests:
         vsphereStorageDriver: CSIWithMigrationDriver
         logLevel: Normal
         operatorLogLevel: Normal
-  - name: Should not allow disabling CSI migration for vSphere
+  - name: Should allow disabling CSI migration for vSphere
     initial: |
       apiVersion: operator.openshift.io/v1
       kind: Storage
@@ -64,7 +42,31 @@ tests:
       kind: Storage
       spec:
         vsphereStorageDriver: LegacyDeprecatedInTreeDriver
-    expectedError: "VSphereStorageDriver can not be set to LegacyDeprecatedInTreeDriver"
+    expected: |
+      apiVersion: operator.openshift.io/v1
+      kind: Storage
+      spec:
+        vsphereStorageDriver: LegacyDeprecatedInTreeDriver
+        logLevel: Normal
+        operatorLogLevel: Normal
+  - name: Should allow changing LegacyDeprecatedInTreeDriver to CSIWithMigrationDriver
+    initial: |
+      apiVersion: operator.openshift.io/v1
+      kind: Storage
+      spec:
+        vsphereStorageDriver: LegacyDeprecatedInTreeDriver
+    updated: |
+      apiVersion: operator.openshift.io/v1
+      kind: Storage
+      spec:
+        vsphereStorageDriver: CSIWithMigrationDriver
+    expected: |
+      apiVersion: operator.openshift.io/v1
+      kind: Storage
+      spec:
+        vsphereStorageDriver: CSIWithMigrationDriver
+        logLevel: Normal
+        operatorLogLevel: Normal
   - name: Should not allow changing CSIWithMigrationDriver to LegacyDeprecatedInTreeDriver
     initial: |
       apiVersion: operator.openshift.io/v1
@@ -76,8 +78,8 @@ tests:
       kind: Storage
       spec:
         vsphereStorageDriver: LegacyDeprecatedInTreeDriver
-    expectedError: "VSphereStorageDriver can not be set to LegacyDeprecatedInTreeDriver"
-  - name: Should allow changing CSIWithMigrationDriver to empty string
+    expectedError: "VSphereStorageDriver can not be changed once it is set to CSIWithMigrationDriver"
+  - name: Should not allow changing CSIWithMigrationDriver to empty string
     initial: |
       apiVersion: operator.openshift.io/v1
       kind: Storage
@@ -88,14 +90,8 @@ tests:
       kind: Storage
       spec:
         vsphereStorageDriver: ""
-    expected: |
-      apiVersion: operator.openshift.io/v1
-      kind: Storage
-      spec:
-        vsphereStorageDriver: ""
-        logLevel: Normal
-        operatorLogLevel: Normal
-  - name: Should allow unsetting VSphereStorageDriver once it is set
+    expectedError: "VSphereStorageDriver can not be changed once it is set to CSIWithMigrationDriver"
+  - name: Should not allow unsetting VSphereStorageDriver once it is set
     initial: |
       apiVersion: operator.openshift.io/v1
       kind: Storage
@@ -105,9 +101,4 @@ tests:
       apiVersion: operator.openshift.io/v1
       kind: Storage
       spec: {}
-    expected: |
-      apiVersion: operator.openshift.io/v1
-      kind: Storage
-      spec:
-        logLevel: Normal
-        operatorLogLevel: Normal
+    expectedError: "VSphereStorageDriver is required once set"
