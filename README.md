@@ -68,6 +68,8 @@ Prepare your environment for the installation commands.
    make image-build image-push
    ```
 
+   Note: If you're on a non-x86 arch like arm64, you may need to use commands like `docker buildx build --platform linux/amd64` or `podman build --platform linux/amd64` to specific the target platforms in the Makefile. (Docs link: [Docker](https://docs.docker.com/engine/reference/commandline/buildx_build/#platform), [Podman](https://docs.podman.io/en/stable/markdown/podman-build.1.html#platform-os-arch-variant))
+
 2. _Optional_: you may need to link the registry secret to `cert-manager-operator` service account if the image is not public ([Doc link](https://docs.openshift.com/container-platform/4.10/openshift_images/managing_images/using-image-pull-secrets.html#images-allow-pods-to-reference-images-from-secure-registries_using-image-pull-secrets)):
 
     a. Create a secret with authentication details of your image registry:
