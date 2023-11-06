@@ -12,20 +12,20 @@ require (
 	github.com/openshift/api v0.0.0-20230330150608-05635858d40f
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
 	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084
-	github.com/openshift/library-go v0.0.0-20230405224819-c1e9763926fb
+	github.com/openshift/library-go v0.0.0-20231103161457-114eb65eb2d3
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/tools v0.6.0
-	k8s.io/api v0.26.4
-	k8s.io/apiextensions-apiserver v0.26.4
-	k8s.io/apimachinery v0.26.4
-	k8s.io/client-go v0.26.4
-	k8s.io/code-generator v0.26.4
-	k8s.io/component-base v0.26.4
+	k8s.io/api v0.26.10
+	k8s.io/apiextensions-apiserver v0.26.10
+	k8s.io/apimachinery v0.26.10
+	k8s.io/client-go v0.26.10
+	k8s.io/code-generator v0.26.10
+	k8s.io/component-base v0.26.10
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	sigs.k8s.io/controller-runtime v0.14.6
+	sigs.k8s.io/controller-runtime v0.14.7
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20221109083014-8da9760581ed
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/kustomize/kustomize/v4 v4.5.7
@@ -110,7 +110,7 @@ require (
 	github.com/golangci/misspell v0.3.5 // indirect
 	github.com/golangci/revgrep v0.0.0-20220804021717-745bb2f7c2e6 // indirect
 	github.com/golangci/unconvert v0.0.0-20180507085042-28b1c447d1f4 // indirect
-	github.com/google/cel-go v0.12.6 // indirect
+	github.com/google/cel-go v0.12.7 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -226,7 +226,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.5 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.35.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.35.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.35.1 // indirect
 	go.opentelemetry.io/otel v1.10.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.10.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.10.0 // indirect
@@ -242,7 +242,7 @@ require (
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220827204233-334a2380cb91 // indirect
-	golang.org/x/mod v0.8.0 // indirect
+	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
@@ -262,17 +262,17 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.3 // indirect
-	k8s.io/apiserver v0.26.4 // indirect
+	k8s.io/apiserver v0.26.10 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
-	k8s.io/kms v0.26.4 // indirect
+	k8s.io/kms v0.26.10 // indirect
 	k8s.io/kube-aggregator v0.26.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20221207184640-f3cff1453715 // indirect
 	mvdan.cc/gofumpt v0.4.0 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
 	mvdan.cc/unparam v0.0.0-20220706161116-678bad134442 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.37 // indirect
 	sigs.k8s.io/gateway-api v0.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
