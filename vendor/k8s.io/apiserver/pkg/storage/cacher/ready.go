@@ -39,8 +39,7 @@ const (
 //	└---------------------------┘
 type ready struct {
 	state       status        // represent the state of the variable
-	generation  int           // represent the number of times we have transtioned to ready
-	lock        sync.RWMutex  // protect the state and generation variables
+	lock        sync.RWMutex  // protect the state variable
 	restartLock sync.Mutex    // protect the transition from ready to pending where the channel is recreated
 	waitCh      chan struct{} // blocks until is ready or stopped
 }
@@ -61,18 +60,11 @@ func (r *ready) done() chan struct{} {
 
 // wait blocks until it is Ready or Stopped, it returns an error if is Stopped.
 func (r *ready) wait(ctx context.Context) error {
-	_, err := r.waitAndReadGeneration(ctx)
-	return err
-}
-
-// waitAndReadGenration blocks until it is Ready or Stopped and returns number
-// of times we entered ready state if Ready and error otherwise.
-func (r *ready) waitAndReadGeneration(ctx context.Context) (int, error) {
 	for {
 		// r.done() only blocks if state is Pending
 		select {
 		case <-ctx.Done():
-			return 0, ctx.Err()
+			return ctx.Err()
 		case <-r.done():
 		}
 
@@ -87,30 +79,23 @@ func (r *ready) waitAndReadGeneration(ctx context.Context) (int, error) {
 			// waiting despite the state moved back to Pending.
 			r.lock.RUnlock()
 		case Ready:
-			generation := r.generation
 			r.lock.RUnlock()
-			return generation, nil
+			return nil
 		case Stopped:
 			r.lock.RUnlock()
-			return 0, fmt.Errorf("apiserver cacher is stopped")
+			return fmt.Errorf("apiserver cacher is stopped")
 		default:
 			r.lock.RUnlock()
-			return 0, fmt.Errorf("unexpected apiserver cache state: %v", r.state)
+			return fmt.Errorf("unexpected apiserver cache state: %v", r.state)
 		}
 	}
 }
 
 // check returns true only if it is Ready.
 func (r *ready) check() bool {
-	_, ok := r.checkAndReadGeneration()
-	return ok
-}
-
-// checkAndReadGeneration returns the current generation and whether it is Ready.
-func (r *ready) checkAndReadGeneration() (int, bool) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
-	return r.generation, r.state == Ready
+	return r.state == Ready
 }
 
 // set the state to Pending (false) or Ready (true), it does not have effect if the state is Stopped.
@@ -122,7 +107,6 @@ func (r *ready) set(ok bool) {
 	}
 	if ok && r.state == Pending {
 		r.state = Ready
-		r.generation++
 		select {
 		case <-r.waitCh:
 		default:

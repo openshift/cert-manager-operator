@@ -68,7 +68,7 @@ CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
 SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v5
+KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v4
 
 K8S_ENVTEST_VERSION := 1.21.4
 
@@ -151,7 +151,7 @@ update-scripts:
 update: update-scripts update-manifests update-bindata
 
 .PHONY: update-with-container
-update-with-container:
+update-with-container: fmt vet generate
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
 verify-scripts:
