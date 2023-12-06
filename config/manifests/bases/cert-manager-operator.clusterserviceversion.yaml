@@ -96,5 +96,5 @@ spec:
   provider:
     name: Red Hat
   skips:
-    - cert-manager-operator.v1.12.1
+  - cert-manager-operator.v1.12.1
   version: 1.13.0
