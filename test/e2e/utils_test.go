@@ -205,7 +205,7 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 	})
 }
 
-// addOverrideResources adds the override resources to specific the cert-manager operand. The update process
+// addOverrideResources adds the override resources to the specific cert-manager operand. The update process
 // is retried if a conflict error is encountered.
 func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -238,12 +238,12 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 	})
 }
 
-// verifyDeploymentResources polls every 1 second to check if the deployment resources is updated to contain
+// verifyDeploymentResources polls every 10 seconds to check if the deployment resources is updated to contain
 // the passed resources. It returns an error if a timeout (5 mins) occurs or an error was encountered while
 // polling the deployment resources.
 func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
-	return wait.PollImmediate(time.Second*5, time.Minute*5, func() (done bool, err error) {
+	return wait.PollImmediate(time.Second*10, time.Minute*5, func() (done bool, err error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {

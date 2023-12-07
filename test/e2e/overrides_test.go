@@ -147,7 +147,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should add the resources to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override resources to the cert-managaer operator object")
+			By("Adding cert-manager controller override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
@@ -175,7 +175,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should add the resources to the cert-manager webhook deployment", func() {
 
-			By("Adding cert-manager webhook override resources to the cert-managaer operator object")
+			By("Adding cert-manager webhook override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
@@ -203,7 +203,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should add the resources to the cert-manager cainjector deployment", func() {
 
-			By("Adding cert-manager cainjector override resources to the cert-managaer operator object")
+			By("Adding cert-manager cainjector override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
@@ -231,7 +231,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should not add the resources to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override resources to the cert-managaer operator object")
+			By("Adding cert-manager controller override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
@@ -257,7 +257,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should not add the resources to the cert-manager webhook deployment", func() {
 
-			By("Adding cert-manager webhook override resources to the cert-managaer operator object")
+			By("Adding cert-manager webhook override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
@@ -283,7 +283,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 		It("should not add the resources to the cert-manager cainjector deployment", func() {
 
-			By("Adding cert-manager cainjector override resources to the cert-managaer operator object")
+			By("Adding cert-manager cainjector override resources to the certmanagaer.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
