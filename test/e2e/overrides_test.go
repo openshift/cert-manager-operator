@@ -8,6 +8,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	
+	corev1 "k8s.io/api/core/v1"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 var _ = Describe("Overrides test", Ordered, func() {
@@ -136,6 +141,168 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
 			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager controller override resources", func() {
+
+		It("should add the resources to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
+					corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("20m"),
+					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the resources to be added to the cert-manager controller deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerControllerDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager webhook override resources", func() {
+
+		It("should add the resources to the cert-manager webhook deployment", func() {
+
+			By("Adding cert-manager webhook override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
+					corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("20m"),
+					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the resources to be added to the cert-manager webhook deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerWebhookDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager cainjector override resources", func() {
+
+		It("should add the resources to the cert-manager cainjector deployment", func() {
+
+			By("Adding cert-manager cainjector override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("500m"),
+					corev1.ResourceMemory: k8sresource.MustParse("128Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("20m"),
+					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the resources to be added to the cert-manager cainjector deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerCAinjectorDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager controller override resources", func() {
+
+		It("should not add the resources to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the resources are not added to the cert-manager controller deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerControllerDeployment, res, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager webhook override resources", func() {
+
+		It("should not add the resources to the cert-manager webhook deployment", func() {
+
+			By("Adding cert-manager webhook override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the resources are not added to the cert-manager webhook deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerWebhookDeployment, res, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager cainjector override resources", func() {
+
+		It("should not add the resources to the cert-manager cainjector deployment", func() {
+
+			By("Adding cert-manager cainjector override resources to the certmanager.operator object")
+			res := v1alpha1.CertManagerResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("2Gi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
+				},
+			}
+			err := addOverrideResources(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the resources are not added to the cert-manager cainjector deployment")
+			err = verifyDeploymentResources(k8sClientSet, certmanagerCAinjectorDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

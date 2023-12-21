@@ -19,6 +19,7 @@ import (
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	"github.com/openshift/cert-manager-operator/test/library"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -196,6 +197,77 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 			}
 		} else {
 			if containerArgsSet.HasAll(args...) {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+}
+
+// addOverrideResources adds the override resources to the specific cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+				OverrideResources: res,
+			}
+		case certmanagerWebhookDeployment:
+			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
+				OverrideResources: res,
+			}
+		case certmanagerCAinjectorDeployment:
+			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
+				OverrideResources: res,
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyDeploymentResources polls every 10 seconds to check if the deployment resources is updated to contain
+// the passed resources. It returns an error if a timeout (5 mins) occurs or an error was encountered while
+// polling the deployment resources.
+func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
+
+	return wait.PollImmediate(time.Second*10, time.Minute*5, func() (done bool, err error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if len(controllerDeployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("%s deployment spec does not have container information", deploymentName)
+		}
+
+		containerResourcesLimits := controllerDeployment.Spec.Template.Spec.Containers[0].Resources.Limits
+		equalityLimits := equality.Semantic.DeepEqual(containerResourcesLimits, res.Limits)
+
+		containerResourcesRequests := controllerDeployment.Spec.Template.Spec.Containers[0].Resources.Requests
+		equalityRequests := equality.Semantic.DeepEqual(containerResourcesRequests, res.Requests)
+
+		if added {
+			if !equalityLimits || !equalityRequests {
+				return false, nil
+			}
+		} else {
+			if equalityLimits && equalityRequests {
 				return false, nil
 			}
 		}
