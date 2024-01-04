@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: acme-dns01-clouddns-ambient
+spec:
+  acme:
+    preferredChain: ""
+    privateKeySecretRef:
+      name: issuer-acme-letsencrypt
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    solvers:
+    - dns01:
+        cloudDNS:
+          # The ID of the GCP project
+          project: PROJECT_ID
