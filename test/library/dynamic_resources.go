@@ -79,11 +79,10 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 
 	var dri dynamic.ResourceInterface
 	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-		require.NotEmpty(d.t, unstructuredObj.GetNamespace(), "Namespace can not be empty!")
-
 		if overrideNamespace != "" {
 			unstructuredObj.SetNamespace(overrideNamespace)
 		}
+		require.NotEmpty(d.t, unstructuredObj.GetNamespace(), "Namespace can not be empty!")
 		dri = d.DynamicClient.Resource(mapping.Resource).Namespace(unstructuredObj.GetNamespace())
 	} else {
 		dri = d.DynamicClient.Resource(mapping.Resource)

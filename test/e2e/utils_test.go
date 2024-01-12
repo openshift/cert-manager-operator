@@ -4,9 +4,11 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -299,7 +301,7 @@ func getCertManagerOperatorSubscription(ctx context.Context, loader library.Dyna
 // patchSubscriptionWithCloudCredential uses the k8s dynamic client to patche the only Subscription object
 // in the cert-manager-operator namespace to inject CLOUD_CREDENTIALS_SECRET_NAME="aws-creds" env
 // into its spec.config.env
-func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.DynamicResourceLoader) error {
+func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.DynamicResourceLoader, credentialSecret string) error {
 	subName, err := getCertManagerOperatorSubscription(ctx, loader)
 	if err != nil {
 		return err
@@ -311,7 +313,7 @@ func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.Dy
 				"env": []interface{}{
 					map[string]interface{}{
 						"name":  "CLOUD_CREDENTIALS_SECRET_NAME",
-						"value": "aws-creds",
+						"value": credentialSecret,
 					},
 				},
 			},
@@ -398,4 +400,28 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 		// certificate was renewed atleast once
 		return true, nil
 	})
+}
+
+// create randomized string
+func randomStr(size int) string {
+	char := "abcdefghijklmnopqrstuvwxyz0123456789"
+	rand.NewSource(time.Now().UnixNano())
+	var s bytes.Buffer
+	for i := 0; i < size; i++ {
+		s.WriteByte(char[rand.Int63()%int64(len(char))])
+	}
+	return s.String()
+}
+
+// replace string in bytes of ReadFile
+func replaceStrInFile(replaceStrMap map[string]string, fileName string) ([]byte, error) {
+	bytes, err := testassets.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	fileContentsStr := string(bytes)
+	for k, v := range replaceStrMap {
+		fileContentsStr = strings.ReplaceAll(fileContentsStr, k, v)
+	}
+	return []byte(fileContentsStr), nil
 }
