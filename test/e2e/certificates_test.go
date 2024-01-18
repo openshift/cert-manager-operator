@@ -5,6 +5,8 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -18,9 +20,18 @@ import (
 	v1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+)
+
+const (
+	// TARGET_PLATFORM is the environment variable for IBM Cloud CIS test.
+	targetPlatformEnvironmentVar = "TARGET_PLATFORM"
+
+	// CIS_CRN is the required environment variable for IBM Cloud platform.
+	cisCRNEnvironmentVar = "CIS_CRN"
 )
 
 var _ = Describe("ACME Certificate", Ordered, func() {
@@ -62,6 +73,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	Context("dns-01 challenge using explicit credentials", func() {
 		It("should obtain a valid LetsEncrypt certificate", func() {
+			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
+				Skip("skipping, using ibmcloud cis webhook")
+			}
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
@@ -173,6 +187,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	Context("dns-01 challenge using ambient credentials", func() {
 		It("should obtain a valid LetsEncrypt certificate", func() {
+			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
+				Skip("skipping, using ibmcloud cis webhook")
+			}
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
@@ -351,6 +368,202 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 				return isHostCorrect && isNotExpired, nil
 			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("dns-01 challenge using explicit credentials on ibm cloud CIS", func() {
+		It("should obtain a valid LetsEncrypt certificate", func() {
+			cisCRN, isCisCRN := os.LookupEnv(cisCRNEnvironmentVar)
+			if targetPlatform, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok && targetPlatform == "ibmcloud" {
+				if !isCisCRN || cisCRN == "" {
+					Fail("cisCRN is required for IBM Cloud platform")
+				}
+			} else {
+				Skip("skipping as the cluster does not use IBM Cloud CIS")
+			}
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
+			clusterIssuerName := "letsencrypt-dns01-explicit"
+			By("delete existing ClusterIssuer with the same name if it exists")
+			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			clusterIssuer := &certmanagerv1.ClusterIssuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      clusterIssuerName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.IssuerSpec{
+					IssuerConfig: certmanagerv1.IssuerConfig{
+						ACME: &v1.ACMEIssuer{
+							Server: "https://acme-v02.api.letsencrypt.org/directory",
+							PrivateKey: certmanagermetav1.SecretKeySelector{
+								LocalObjectReference: certmanagermetav1.LocalObjectReference{
+									Name: "letsencrypt-dns01-issuer",
+								},
+							},
+							Solvers: []v1.ACMEChallengeSolver{
+								{
+									DNS01: &v1.ACMEChallengeSolverDNS01{
+										Webhook: &v1.ACMEIssuerDNS01ProviderWebhook{
+											GroupName:  "acme.borup.work",
+											SolverName: "ibmcis",
+											Config: &apiextensionsv1.JSON{
+												Raw: []byte(fmt.Sprintf(`{
+													"api-key-secret-ref": {
+														"local-object-reference": {
+															"name": "ibmcis-credentials"
+														},
+														"key": "api-token"
+													},
+													"cisCRN": ["%s"]
+												}`, cisCRN)),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			certDomain := "adwe." + appsDomain // acronym for "ACME dns-01 Webhook Explicit", short naming to pass dns name validation
+			certName := "letsencrypt-cert"
+			cert := &certmanagerv1.Certificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      certName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.CertificateSpec{
+					IsCA:       false,
+					CommonName: certDomain,
+					SecretName: certName,
+					DNSNames:   []string{certDomain},
+					IssuerRef: certmanagermetav1.ObjectReference{
+						Name: clusterIssuerName,
+						Kind: "ClusterIssuer",
+					},
+				},
+			}
+
+			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("dns-01 challenge using ambient credentials on ibm cloud CIS", func() {
+		It("should obtain a valid LetsEncrypt certificate", func() {
+			cisCRN, isCisCRN := os.LookupEnv(cisCRNEnvironmentVar)
+			if targetPlatform, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok && targetPlatform == "ibmcloud" {
+				if !isCisCRN || cisCRN == "" {
+					Fail("cisCRN is required for IBM Cloud platform")
+				}
+			} else {
+				Skip("skipping as the cluster does not use IBM Cloud CIS")
+			}
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
+			clusterIssuerName := "letsencrypt-dns01-ambient"
+			By("delete existing ClusterIssuer with the same name if it exists")
+			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			clusterIssuer := &certmanagerv1.ClusterIssuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      clusterIssuerName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.IssuerSpec{
+					IssuerConfig: certmanagerv1.IssuerConfig{
+						ACME: &v1.ACMEIssuer{
+							Server: "https://acme-v02.api.letsencrypt.org/directory",
+							PrivateKey: certmanagermetav1.SecretKeySelector{
+								LocalObjectReference: certmanagermetav1.LocalObjectReference{
+									Name: "letsencrypt-dns01-issuer",
+								},
+							},
+							Solvers: []v1.ACMEChallengeSolver{
+								{
+									DNS01: &v1.ACMEChallengeSolverDNS01{
+										Webhook: &v1.ACMEIssuerDNS01ProviderWebhook{
+											GroupName:  "acme.borup.work",
+											SolverName: "ibmcis",
+											Config: &apiextensionsv1.JSON{
+												Raw: []byte(fmt.Sprintf(`{
+													"api-key-secret-ref": {
+														"local-object-reference": {
+															"name": "ibmcis-credentials"
+														},
+														"key": "api-token"
+													},
+													"cisCRN": ["%s"]
+												}`, cisCRN)),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			certDomain := "adwa." + appsDomain // acronym for "ACME dns-01 Webhook Ambient", short naming to pass dns name validation
+			certName := "letsencrypt-cert"
+			cert := &certmanagerv1.Certificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      certName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.CertificateSpec{
+					IsCA:       false,
+					CommonName: certDomain,
+					SecretName: certName,
+					DNSNames:   []string{certDomain},
+					IssuerRef: certmanagermetav1.ObjectReference{
+						Name: clusterIssuerName,
+						Kind: "ClusterIssuer",
+					},
+				},
+			}
+
+			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
