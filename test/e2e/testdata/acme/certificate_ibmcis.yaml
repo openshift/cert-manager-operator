@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-cert-ic
+spec:
+  dnsNames:
+    - RANDOM_STR.DNS_NAME
+    - '*.RANDOM_STR.DNS_NAME'
+  issuerRef:
+    name: letsencrypt-dns01-explicit-ic
+    kind: ClusterIssuer
+  secretName: letsencrypt-cert-ic
+  
