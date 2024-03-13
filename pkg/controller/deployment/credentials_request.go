@@ -24,6 +24,12 @@ const (
 	gcpCredentialsFileName  = "application_default_credentials.json"
 	gcpCredentialsSecretKey = "service_account.json"
 
+	// credentials for Azure
+	azureClientIDKey     = "azure_client_id"
+	azureClientSecretKey = "azure_client_secret"
+	azureTenantIDKey     = "azure_tenant_id"
+	azureRegionKey       = "azure_region"
+
 	// cloudCredentialsVolumeName is the volume name for mounting
 	// service account (gcp) or credentials (aws) file
 	cloudCredentialsVolumeName = "cloud-credentials"
@@ -43,7 +49,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return nil
 		}
 
-		_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
+		credentialSecret, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
 		if err != nil && apierrors.IsNotFound(err) {
 			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %v", secretName, err)
 		} else if err != nil {
@@ -57,7 +63,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 
 		var volume *corev1.Volume
 		var volumeMount *corev1.VolumeMount
-		var envVar *corev1.EnvVar
+		var envVars []corev1.EnvVar
 
 		switch infra.Status.PlatformStatus.Type {
 		// supported cloud platform for mounting secrets
@@ -77,9 +83,11 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 
 			// this is required as without this env var, aws sdk
 			// doesn't properly bind role_arn from credentials file
-			envVar = &corev1.EnvVar{
-				Name:  "AWS_SDK_LOAD_CONFIG",
-				Value: "1",
+			envVars = []corev1.EnvVar{
+				{
+					Name:  "AWS_SDK_LOAD_CONFIG",
+					Value: "1",
+				},
 			}
 
 		case configv1.GCPPlatformType:
@@ -100,23 +108,58 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 				MountPath: gcpCredentialsDir,
 			}
 
+		case configv1.AzurePlatformType:
+			requiredKeys := []string{azureClientIDKey, azureClientSecretKey, azureTenantIDKey}
+
+			for _, key := range requiredKeys {
+				_, exists := credentialSecret.Data[key]
+				if !exists {
+					return fmt.Errorf("required key %q not found in %q secret from %q namespace", key, credentialSecret.Name, credentialSecret.Namespace)
+				}
+			}
+
+			envVars = []corev1.EnvVar{
+				{
+					Name:  "AZURE_CLIENT_ID",
+					Value: string(credentialSecret.Data[azureClientIDKey]),
+				},
+				{
+					Name:  "AZURE_TENANT_ID",
+					Value: string(credentialSecret.Data[azureTenantIDKey]),
+				},
+				{
+					Name:  "AZURE_CLIENT_SECRET",
+					Value: string(credentialSecret.Data[azureClientSecretKey]),
+				},
+			}
+
+			// azure_region is optional for authentication
+			if azRegion, exists := credentialSecret.Data[azureRegionKey]; exists {
+				envVars = append(envVars, corev1.EnvVar{
+					Name:  "AZURE_REGIONAL_AUTHORITY_NAME",
+					Value: string(azRegion),
+				})
+			}
+
 		default:
 			return fmt.Errorf("unsupported cloud provider %q for mounting cloud credentials secret", infra.Status.PlatformStatus.Type)
 		}
 
-		deployment.Spec.Template.Spec.Volumes = append(
-			deployment.Spec.Template.Spec.Volumes,
-			*volume,
-		)
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			*volumeMount,
-		)
+		if volume != nil && volumeMount != nil {
+			deployment.Spec.Template.Spec.Volumes = append(
+				deployment.Spec.Template.Spec.Volumes,
+				*volume,
+			)
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+				deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+				*volumeMount,
+			)
+		}
 
-		if envVar != nil {
+		if envVars != nil {
 			deployment.Spec.Template.Spec.Containers[0].Env = append(
 				deployment.Spec.Template.Spec.Containers[0].Env,
-				*envVar,
+				envVars...,
 			)
 		}
 
