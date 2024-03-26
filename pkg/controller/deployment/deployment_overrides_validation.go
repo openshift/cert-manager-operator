@@ -49,14 +49,23 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		// is stored. When this flag is enabled, the secret will be automatically removed when the
 		// certificate resource is deleted.
 		"--enable-certificate-owner-ref",
+		//  A set of key=value pairs that describe feature gates for alpha/experimental features. Options are
+		// listed in https://cert-manager.io/docs/cli/controller.
+		"--feature-gates",
 	}
 	supportedCertManagerWebhookArgs := []string{
 		// Log Level
 		"--v", "-V",
+		//  A set of key=value pairs that describe feature gates for alpha/experimental features. Options are
+		// listed in https://cert-manager.io/docs/cli/webhook.
+		"--feature-gates",
 	}
 	supportedCertManageCainjectorArgs := []string{
 		// Log Level
 		"--v", "-V",
+		//  A set of key=value pairs that describe feature gates for alpha/experimental features. Options are
+		// listed in https://cert-manager.io/docs/cli/cainjector.
+		"--feature-gates",
 	}
 
 	validateArgs := func(argMap map[string]string, supportedArgs []string) error {
