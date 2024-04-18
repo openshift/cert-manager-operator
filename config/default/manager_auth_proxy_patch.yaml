@@ -37,6 +37,7 @@ spec:
             type: "RuntimeDefault"
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
         args:
+        - "--http2-disable"
         - "--secure-listen-address=0.0.0.0:9443"
         - "--upstream=http://127.0.0.1:8080/"
         - "--logtostderr=true"
