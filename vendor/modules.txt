@@ -634,7 +634,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20231010075512-1ccc6058c62d
+# github.com/openshift/api v0.0.0-20231129134630-a782d1c1541c
 ## explicit; go 1.20
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -672,6 +672,7 @@ github.com/openshift/api/monitoring
 github.com/openshift/api/monitoring/v1alpha1
 github.com/openshift/api/network
 github.com/openshift/api/network/v1
+github.com/openshift/api/network/v1alpha1
 github.com/openshift/api/networkoperator
 github.com/openshift/api/networkoperator/v1
 github.com/openshift/api/oauth
@@ -730,7 +731,7 @@ github.com/openshift/client-go/config/informers/externalversions/config/v1alpha1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/listers/config/v1alpha1
-# github.com/openshift/library-go v0.0.0-20231128084459-0dbbc2c74004
+# github.com/openshift/library-go v0.0.0-20240409080036-0ebfe3e52a95
 ## explicit; go 1.20
 github.com/openshift/library-go/pkg/authorization/hardcodedauthorizer
 github.com/openshift/library-go/pkg/config/client

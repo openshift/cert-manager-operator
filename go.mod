@@ -11,10 +11,10 @@ require (
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
-	github.com/openshift/api v0.0.0-20231010075512-1ccc6058c62d
+	github.com/openshift/api v0.0.0-20231129134630-a782d1c1541c
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
 	github.com/openshift/client-go v0.0.0-20230926161409-848405da69e1
-	github.com/openshift/library-go v0.0.0-20231128084459-0dbbc2c74004
+	github.com/openshift/library-go v0.0.0-20240409080036-0ebfe3e52a95
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
