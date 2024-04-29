@@ -36,8 +36,19 @@ func (c OperatorClient) Informer() cache.SharedIndexInformer {
 	return c.Informers.Operator().V1alpha1().CertManagers().Informer()
 }
 
+// GetOperatorState uses a lister from shared informers
 func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
+}
+
+// GetOperatorStateWithQuorum performs direct server read
+func (c OperatorClient) GetOperatorStateWithQuorum(ctx context.Context) (spec *operatorv1.OperatorSpec, status *operatorv1.OperatorStatus, resourceVersion string, err error) {
+	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, "", err
 	}
