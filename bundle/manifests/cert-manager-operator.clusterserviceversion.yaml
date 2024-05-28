@@ -672,7 +672,7 @@ spec:
                 - name: TRUSTED_CA_CONFIGMAP_NAME
                 - name: CLOUD_CREDENTIALS_SECRET_NAME
                 image: openshift.io/cert-manager-operator:latest
-                imagePullPolicy: Always
+                imagePullPolicy: IfNotPresent
                 name: cert-manager-operator
                 resources:
                   requests:
