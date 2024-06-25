@@ -26,11 +26,11 @@ spec:
               protocol: TCP
             - containerPort: 8888
               protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            privileged: false
+            capabilities:
+              drop: [All]
       dnsPolicy: ClusterFirst
       restartPolicy: Always
-      securityContext:
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        privileged: false
-        capabilities:
-          drop: All

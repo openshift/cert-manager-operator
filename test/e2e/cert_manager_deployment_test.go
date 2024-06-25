@@ -157,10 +157,10 @@ func TestCertRenew(t *testing.T) {
 	ctx := context.Background()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 	config, err := library.GetConfigForTest(t)
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "failed to fetch host configuration: %v", err)
 
 	ns, err := loader.CreateTestingNS("e2e-cert-renew")
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "failed to create namespace: %v", err)
 	defer loader.DeleteTestingNS(ns.Name)
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
 	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
@@ -174,13 +174,13 @@ func TestCertRenew(t *testing.T) {
 	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
 	configClient, err := configv1.NewForConfig(config)
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "failed to create config client: %v", err)
 	baseDomain, err := library.GetClusterBaseDomain(ctx, configClient)
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "failed to fetch cluster base domain: %v", err)
 	appsDomain := "apps." + baseDomain
 
-	ingress_host := "ecr." + appsDomain
-	path_type := networkingv1.PathTypePrefix
+	ingressHost := "ecr." + appsDomain
+	pathType := networkingv1.PathTypePrefix
 	ingress := &networkingv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.k8s.io/v1",
@@ -193,13 +193,13 @@ func TestCertRenew(t *testing.T) {
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: ingress_host,
+					Host: ingressHost,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
 									Path:     "/",
-									PathType: &path_type,
+									PathType: &pathType,
 									Backend:  networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{Name: "hello-openshift", Port: networkingv1.ServiceBackendPort{Number: 8080}}},
 								},
 							},
@@ -208,26 +208,30 @@ func TestCertRenew(t *testing.T) {
 				},
 			},
 			TLS: []networkingv1.IngressTLS{{
-				Hosts:      []string{ingress_host},
+				Hosts:      []string{ingressHost},
 				SecretName: "selfsigned-server-cert-tls",
 			}},
 		},
 	}
 	ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "failed to create Ingress: %v", err)
 	defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
+	var (
+		certDuration        = time.Hour
+		renewBeforeDuration = time.Minute * 59
+	)
 	crt := &certmanagerv1.Certificate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "selfsigned-server-cert",
 			Namespace: ns.Name,
 		},
 		Spec: certmanagerv1.CertificateSpec{
-			DNSNames:    []string{ingress_host, "server"},
+			DNSNames:    []string{ingressHost, "server"},
 			SecretName:  "selfsigned-server-cert-tls",
 			IsCA:        false,
-			Duration:    &metav1.Duration{Duration: time.Hour},
-			RenewBefore: &metav1.Duration{Duration: time.Minute * 59},
+			Duration:    &metav1.Duration{Duration: certDuration},
+			RenewBefore: &metav1.Duration{Duration: renewBeforeDuration},
 			Usages:      []certmanagerv1.KeyUsage{certmanagerv1.UsageServerAuth},
 			IssuerRef: certmanagermetav1.ObjectReference{
 				Name:  "my-ca-issuer",
@@ -236,48 +240,70 @@ func TestCertRenew(t *testing.T) {
 			},
 		},
 	}
-	certmanagerv1Client, err := certmanagerclientset.NewForConfig(config)
-	require.NoError(t, err)
-	crt, err = certmanagerv1Client.CertmanagerV1().Certificates(crt.ObjectMeta.Namespace).Create(ctx, crt, metav1.CreateOptions{})
-	defer certmanagerv1Client.CertmanagerV1().Certificates(crt.ObjectMeta.Namespace).Delete(ctx, crt.ObjectMeta.Name, metav1.DeleteOptions{})
-	require.NoError(t, err)
-	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-		secret, _ := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
-		tlsConfig, isValid := library.GetTLSConfig(secret)
-		if !isValid {
-			return false, nil
-		}
 
-		is_host_correct, err := library.VerifyHostname(ingress_host, tlsConfig.Clone())
-		if err != nil {
-			t.Errorf("Host %v", err)
-			return false, nil
-		}
-		is_not_expired, err := library.VerifyExpiry(ingress_host+":443", tlsConfig.Clone())
-		if err != nil {
-			t.Errorf("Expiry %v", err)
-			return false, nil
-		}
-		expiryTime, err := library.GetCertExpiry(ingress_host+":443", tlsConfig.Clone())
-		t.Logf("Expiry Before %v", expiryTime)
-		if err != nil {
-			return false, nil
-		}
-		time.Sleep(time.Minute + time.Second*5)
+	certmanagerv1Client, err := certmanagerclientset.NewForConfig(config)
+	require.NoErrorf(t, err, "failed to create cert manager client: %v", err)
+	_, err = certmanagerv1Client.CertmanagerV1().Certificates(crt.Namespace).Create(ctx, crt, metav1.CreateOptions{})
+	require.NoError(t, err, "failed to create certificate: %v", err)
+	defer certmanagerv1Client.CertmanagerV1().Certificates(crt.Namespace).Delete(ctx, crt.Name, metav1.DeleteOptions{})
+
+	err = waitForCertificateReadinessWithClient(ctx, certmanagerv1Client, crt.Name, crt.Namespace)
+	require.NoError(t, err, "failed while waiting for certificate to be ready: %v", err)
+	err = waitForIngressReadiness(ctx, loader.KubeClient, *ingress, appsDomain)
+	require.NoErrorf(t, err, "failed while waiting for ingress to be ready: %v", err)
+
+	secret, err := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
+	require.NoError(t, err, "failed to fetch secret containing the certificate: %v", err)
+	tlsConfig, isValid := library.GetTLSConfig(secret)
+	require.Truef(t, isValid, "failed to validate certificate stored in the secret")
+
+	expiryTime, err := library.GetCertExpiry(ingressHost+":443", tlsConfig.Clone())
+	require.NoError(t, err, "failed to establish a test connection: %v", err)
+	t.Logf("newly created Certificate's NotAfter: %v", expiryTime)
+
+	err = wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 		secret, _ = loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
 		tlsConfig, isValid = library.GetTLSConfig(secret)
 		if !isValid {
 			return false, nil
 		}
-		expiryTimeNew, err := library.GetCertExpiry(ingress_host+":443", tlsConfig.Clone())
-		t.Logf("Expiry After %v", expiryTimeNew)
+
+		isHostCorrect, err := library.VerifyHostname(ingressHost, tlsConfig.Clone())
+		if err != nil {
+			t.Errorf("Host %v", err)
+			return false, nil
+		}
+
+		isNotExpired, err := library.VerifyExpiry(ingressHost+":443", tlsConfig.Clone())
+		if err != nil {
+			t.Errorf("Expiry %v", err)
+			return false, nil
+		}
+
+		// include grace time for certificate rotation and for secret change propagation to
+		// the pod, to the sleep time.
+		timeUntil := (time.Until(expiryTime) - renewBeforeDuration) + time.Second*30
+		time.Sleep(timeUntil)
+
+		secret, _ = loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, crt.Spec.SecretName, metav1.GetOptions{})
+		tlsConfig, isValid = library.GetTLSConfig(secret)
+		if !isValid {
+			return false, nil
+		}
+
+		expiryTimeNew, err := library.GetCertExpiry(ingressHost+":443", tlsConfig.Clone())
+		t.Logf("expected to be renewed Certificate's NotAfter: %v", expiryTimeNew)
 		if err != nil {
 			return false, nil
 		}
-		is_cert_renewed := expiryTimeNew.After(expiryTime)
-		return is_host_correct && is_not_expired && is_cert_renewed, nil
+
+		isCertRenewed := expiryTimeNew.After(expiryTime)
+		if !isCertRenewed {
+			t.Logf("certificate's NotAfter unchanged, old: %v, new: %v", expiryTime, expiryTimeNew)
+		}
+		return isHostCorrect && isNotExpired && isCertRenewed, nil
 	})
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "TestCertRenew failed with err: %v", err)
 }
 
 func TestContainerOverrides(t *testing.T) {
