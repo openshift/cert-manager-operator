@@ -20,6 +20,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -94,8 +95,10 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 					return err
 				}
 
-				// Update the secret data
-				fg.Spec.CustomNoUpgrade.Enabled = append(fg.Spec.CustomNoUpgrade.Enabled, configv1.FeatureGateName("RouteExternalCertificate"))
+				fg.Spec.FeatureSet = configv1.CustomNoUpgrade
+				fg.Spec.CustomNoUpgrade = &configv1.CustomFeatureGates{
+					Enabled: []configv1.FeatureGateName{"RouteExternalCertificate"},
+				}
 
 				// Apply the updated secret
 				_, updateErr := fgClient.Update(ctx, fg, metav1.UpdateOptions{})
@@ -113,38 +116,36 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 		It("should obtain a valid LetsEncrypt certificate", func() {
 
 			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
+			ns, err := loader.CreateTestingNS("e2e-route-ref-le")
 			Expect(err).NotTo(HaveOccurred())
 			defer loader.DeleteTestingNS(ns.Name)
 
-			By("obtaining AWS credentials from kube-system namespace")
-			awsCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "aws-creds", metav1.GetOptions{})
+			By("obtaining GCP credentials from kube-system namespace")
+			gcpCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "gcp-credentials", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			awsAccessKeyID := awsCredsSecret.Data["aws_access_key_id"]
-			awsSecretAccessKey := awsCredsSecret.Data["aws_secret_access_key"]
+			secretKey := "service_account.json"
+			svcAcct := gcpCredsSecret.Data[secretKey]
 
-			By("copying AWS secret access key to test namespace")
-			secretName := "aws-secret"
-			secretKey := "aws_secret_access_key"
-			awsSecret := &corev1.Secret{
+			By("copying GCP service account to test namespace")
+			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      secretName,
+					Name:      "gcp-credentials",
 					Namespace: ns.Name,
 				},
 				Data: map[string][]byte{
-					secretKey: awsSecretAccessKey,
+					secretKey: svcAcct,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, awsSecret, metav1.CreateOptions{})
+			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting AWS zone from Infrastructure object")
+			By("getting GCP project from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			awsRegion := infra.Status.PlatformStatus.AWS.Region
-			Expect(awsRegion).NotTo(Equal(""))
+			gcpProject := infra.Status.PlatformStatus.GCP.ProjectID
+			Expect(gcpProject).NotTo(Equal(""))
 
 			By("creating new certificate Issuer")
 			issuerName := "letsencrypt-dns01"
@@ -165,15 +166,14 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 							Solvers: []v1.ACMEChallengeSolver{
 								{
 									DNS01: &v1.ACMEChallengeSolverDNS01{
-										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
-											AccessKeyID: string(awsAccessKeyID),
-											SecretAccessKey: certmanagermetav1.SecretKeySelector{
+										CloudDNS: &v1.ACMEIssuerDNS01ProviderCloudDNS{
+											ServiceAccount: &certmanagermetav1.SecretKeySelector{
 												LocalObjectReference: certmanagermetav1.LocalObjectReference{
-													Name: secretName,
+													Name: secret.Name,
 												},
 												Key: secretKey,
 											},
-											Region: awsRegion,
+											Project: gcpProject,
 										},
 									},
 								},
@@ -187,7 +187,7 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			defer certmanagerClient.CertmanagerV1().Issuers(ns.Name).Delete(ctx, issuerName, metav1.DeleteOptions{})
 
 			By("creating new certificate")
-			certDomain := "app01." + appsDomain
+			certDomain := "hello." + appsDomain
 			certName := "letsencrypt-cert"
 			cert := &certmanagerv1.Certificate{
 				ObjectMeta: metav1.ObjectMeta{
@@ -209,6 +209,12 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("creating the rbac for ingress to read the certificate secret")
+			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "role.yaml"), ns.Name)
+			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "role.yaml"), ns.Name)
+			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "rolebinding.yaml"), ns.Name)
+			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "rolebinding.yaml"), ns.Name)
 
 			By("waiting for certificate to get ready")
 			err = waitForCertificateReadiness(ctx, certName, ns.Name)
@@ -237,6 +243,9 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 						Kind: "Service",
 						Name: "hello-openshift",
 					},
+					Port: &routev1.RoutePort{
+						TargetPort: intstr.FromString("8080-tcp"),
+					},
 					TLS: &routev1.TLSConfig{
 						Termination: routev1.TLSTerminationEdge,
 						ExternalCertificate: &routev1.LocalObjectReference{
@@ -248,8 +257,8 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			_, err = routeClient.Routes(ns.Name).Create(ctx, route, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("sleeping 30 seconds")
-			time.Sleep(30 * time.Second)
+			By("sleeping for some time")
+			time.Sleep(10 * time.Second)
 
 			By("performing HTTPS GET request on exposed route")
 			err = httpsGetCall(fmt.Sprintf("https://%s/", certDomain))
