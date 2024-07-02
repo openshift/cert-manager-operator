@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ACME Certificate", Ordered, func() {
+var _ = Describe("ACME Certificate", Ordered, Label("Default"), func() {
 	var ctx context.Context
 	var appsDomain string
 	var baseDomain string
@@ -329,7 +329,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			randomString := randomStr(3)
 			replaceStrMap = map[string]string{
 				"RANDOM_STR": randomString,
-				"DNS_NAME": baseDomain,
+				"DNS_NAME":   baseDomain,
 			}
 			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
 				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
@@ -437,7 +437,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 })
 
-var _ = Describe("Self-signed Certificate", Ordered, func() {
+var _ = Describe("Self-signed Certificate", Ordered, Label("Default"), func() {
 	var ctx context.Context
 	var ns *corev1.Namespace
 
