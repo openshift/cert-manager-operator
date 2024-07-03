@@ -932,10 +932,7 @@ func (b *builder) receiver(fn *Function, e ast.Expr, wantAddr, escaping bool, se
 	last := len(sel.index) - 1
 	// The position of implicit selection is the position of the inducing receiver expression.
 	v = emitImplicitSelections(fn, v, sel.index[:last], e.Pos())
-	if types.IsInterface(v.Type()) {
-		// When v is an interface, sel.Kind()==MethodValue and v.f is invoked.
-		// So v is not loaded, even if v has a pointer core type.
-	} else if _, vptr := deref(v.Type()); !wantAddr && vptr {
+	if _, vptr := deref(v.Type()); !wantAddr && vptr {
 		v = emitLoad(fn, v)
 	}
 	return v

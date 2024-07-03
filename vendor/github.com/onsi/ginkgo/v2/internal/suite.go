@@ -858,7 +858,7 @@ func (suite *Suite) runNode(node Node, specDeadline time.Time, text string) (typ
 	}
 
 	sc := NewSpecContext(suite)
-	defer sc.cancel(fmt.Errorf("spec has finished"))
+	defer sc.cancel()
 
 	suite.selectiveLock.Lock()
 	suite.currentSpecContext = sc
@@ -958,7 +958,7 @@ func (suite *Suite) runNode(node Node, specDeadline time.Time, text string) (typ
 
 			// tell the spec to stop.  it's important we generate the progress report first to make sure we capture where
 			// the spec is actually stuck
-			sc.cancel(fmt.Errorf("%s timeout occurred", timeoutInPlay))
+			sc.cancel()
 			//and now we wait for the grace period
 			gracePeriodChannel = time.After(gracePeriod)
 		case <-interruptStatus.Channel:
@@ -985,7 +985,7 @@ func (suite *Suite) runNode(node Node, specDeadline time.Time, text string) (typ
 			}
 
 			progressReport = progressReport.WithoutOtherGoroutines()
-			sc.cancel(fmt.Errorf(interruptStatus.Message()))
+			sc.cancel()
 
 			if interruptStatus.Level == interrupt_handler.InterruptLevelBailOut {
 				if interruptStatus.ShouldIncludeProgressReport() {

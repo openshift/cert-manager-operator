@@ -15,7 +15,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
 )
 
@@ -195,15 +194,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func structuralTypes(t types.Type) ([]types.Type, error) {
 	var structuralTypes []types.Type
-	if tp, ok := aliases.Unalias(t).(*types.TypeParam); ok {
-		terms, err := typeparams.StructuralTerms(tp)
+	switch t := t.(type) {
+	case *types.TypeParam:
+		terms, err := typeparams.StructuralTerms(t)
 		if err != nil {
 			return nil, err
 		}
 		for _, term := range terms {
 			structuralTypes = append(structuralTypes, term.Type())
 		}
-	} else {
+	default:
 		structuralTypes = append(structuralTypes, t)
 	}
 	return structuralTypes, nil

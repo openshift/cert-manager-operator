@@ -40,25 +40,20 @@ func (b *BasicBlock) Dominates(c *BasicBlock) bool {
 	return b.dom.pre <= c.dom.pre && c.dom.post <= b.dom.post
 }
 
-// DomPreorder returns a new slice containing the blocks of f
-// in a preorder traversal of the dominator tree.
-func (f *Function) DomPreorder() []*BasicBlock {
-	slice := append([]*BasicBlock(nil), f.Blocks...)
-	sort.Slice(slice, func(i, j int) bool {
-		return slice[i].dom.pre < slice[j].dom.pre
-	})
-	return slice
-}
+type byDomPreorder []*BasicBlock
 
-// DomPostorder returns a new slice containing the blocks of f
-// in a postorder traversal of the dominator tree.
-// (This is not the same as a postdominance order.)
-func (f *Function) DomPostorder() []*BasicBlock {
-	slice := append([]*BasicBlock(nil), f.Blocks...)
-	sort.Slice(slice, func(i, j int) bool {
-		return slice[i].dom.post < slice[j].dom.post
-	})
-	return slice
+func (a byDomPreorder) Len() int           { return len(a) }
+func (a byDomPreorder) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byDomPreorder) Less(i, j int) bool { return a[i].dom.pre < a[j].dom.pre }
+
+// DomPreorder returns a new slice containing the blocks of f in
+// dominator tree preorder.
+func (f *Function) DomPreorder() []*BasicBlock {
+	n := len(f.Blocks)
+	order := make(byDomPreorder, n)
+	copy(order, f.Blocks)
+	sort.Sort(order)
+	return order
 }
 
 // domInfo contains a BasicBlock's dominance information.

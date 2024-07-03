@@ -132,11 +132,6 @@ func (s *sanity) checkInstr(idx int, instr Instruction) {
 
 	case *BinOp:
 	case *Call:
-		if common := instr.Call; common.IsInvoke() {
-			if !types.IsInterface(common.Value.Type()) {
-				s.errorf("invoke on %s (%s) which is not an interface type (or type param)", common.Value, common.Value.Type())
-			}
-		}
 	case *ChangeInterface:
 	case *ChangeType:
 	case *SliceToArrayPointer:

@@ -4,22 +4,17 @@
 
 package buildutil
 
-// This duplicated logic must be kept in sync with that from go build:
-//   $GOROOT/src/cmd/go/internal/work/build.go (tagsFlag.Set)
-//   $GOROOT/src/cmd/go/internal/base/flag.go (StringsFlag.Set)
-//   $GOROOT/src/cmd/internal/quoted/quoted.go (isSpaceByte, Split)
+// This logic was copied from stringsFlag from $GOROOT/src/cmd/go/build.go.
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
 const TagsFlagDoc = "a list of `build tags` to consider satisfied during the build. " +
 	"For more information about build tags, see the description of " +
 	"build constraints in the documentation for the go/build package"
 
 // TagsFlag is an implementation of the flag.Value and flag.Getter interfaces that parses
-// a flag value the same as go build's -tags flag and populates a []string slice.
+// a flag value in the same manner as go build's -tags flag and
+// populates a []string slice.
 //
 // See $GOROOT/src/go/build/doc.go for description of build tags.
 // See $GOROOT/src/cmd/go/doc.go for description of 'go build -tags' flag.
@@ -30,32 +25,19 @@ const TagsFlagDoc = "a list of `build tags` to consider satisfied during the bui
 type TagsFlag []string
 
 func (v *TagsFlag) Set(s string) error {
-	// See $GOROOT/src/cmd/go/internal/work/build.go (tagsFlag.Set)
-	// For compatibility with Go 1.12 and earlier, allow "-tags='a b c'" or even just "-tags='a'".
-	if strings.Contains(s, " ") || strings.Contains(s, "'") {
-		var err error
-		*v, err = splitQuotedFields(s)
-		if *v == nil {
-			*v = []string{}
-		}
-		return err
+	var err error
+	*v, err = splitQuotedFields(s)
+	if *v == nil {
+		*v = []string{}
 	}
-
-	// Starting in Go 1.13, the -tags flag is a comma-separated list of build tags.
-	*v = []string{}
-	for _, s := range strings.Split(s, ",") {
-		if s != "" {
-			*v = append(*v, s)
-		}
-	}
-	return nil
+	return err
 }
 
 func (v *TagsFlag) Get() interface{} { return *v }
 
 func splitQuotedFields(s string) ([]string, error) {
-	// See $GOROOT/src/cmd/internal/quoted/quoted.go (Split)
-	// This must remain in sync with that logic.
+	// Split fields allowing '' or "" around elements.
+	// Quotes further inside the string do not count.
 	var f []string
 	for len(s) > 0 {
 		for len(s) > 0 && isSpaceByte(s[0]) {
@@ -94,7 +76,5 @@ func (v *TagsFlag) String() string {
 }
 
 func isSpaceByte(c byte) bool {
-	// See $GOROOT/src/cmd/internal/quoted/quoted.go (isSpaceByte, Split)
-	// This list must remain in sync with that.
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
