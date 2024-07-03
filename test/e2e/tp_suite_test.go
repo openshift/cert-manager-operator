@@ -40,7 +40,7 @@ func TestTechPreviewSuite(t *testing.T) {
 	reportConfig.NoColor = true
 	reportConfig.VeryVerbose = true
 
-	RunSpecs(t, "OpenShift TechPreview Suite", suiteConfig, reportConfig)
+	RunSpecs(t, "OpenShift TechPreview Cert Manager Suite", suiteConfig, reportConfig)
 }
 
 var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), func() {
@@ -190,7 +190,7 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			defer certmanagerClient.CertmanagerV1().Issuers(ns.Name).Delete(ctx, issuerName, metav1.DeleteOptions{})
 
 			By("creating new certificate")
-			certDomain := "hello." + appsDomain
+			certDomain := "o." + appsDomain // "hello." + appsDomain: exceeds 64 bytes on CI
 			certName := "letsencrypt-cert"
 			cert := &certmanagerv1.Certificate{
 				ObjectMeta: metav1.ObjectMeta{
@@ -219,14 +219,6 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "rolebinding.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "route", "rolebinding.yaml"), ns.Name)
 
-			By("waiting for certificate to get ready")
-			err = waitForCertificateReadiness(ctx, certName, ns.Name)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("checking for certificate validity from secret contents")
-			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("creating a sample app deployment")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
@@ -234,6 +226,14 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 			By("creating the service exposing the deployment")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a route that exposes the service externally")
 			route := &routev1.Route{

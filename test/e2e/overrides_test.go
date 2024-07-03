@@ -10,12 +10,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	
+
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 )
 
-var _ = Describe("Overrides test", Ordered, func() {
+var _ = Describe("Overrides test", Ordered, Label("Default"), func() {
 
 	BeforeEach(func() {
 		By("Reset cert-manager state")

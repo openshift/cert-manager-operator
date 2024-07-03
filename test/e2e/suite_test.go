@@ -69,7 +69,7 @@ func getTestDir() string {
 	return "/tmp"
 }
 
-func TestAll(t *testing.T) {
+func TestDefaultSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	suiteConfig, reportConfig := GinkgoConfiguration()

@@ -245,7 +245,15 @@ test-e2e: test-e2e-wait-for-stable-state
 	-v \
 	-p 1 \
 	-tags e2e \
-	-run "$(TEST)" \
+	-run "^TestDefaultSuite\$" \
+	./test/e2e && \
+	go test \
+	-timeout $(E2E_TIMEOUT) \
+	-count 1 \
+	-v \
+	-p 1 \
+	-tags e2e \
+	-run "^TestTechPreviewSuite\$" \
 	./test/e2e
 
 test-e2e-wait-for-stable-state:
