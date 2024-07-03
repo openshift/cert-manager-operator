@@ -112,40 +112,42 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 		}
 	})
 
-	Context("dns-01 challenge using explicit credentials", func() {
-		It("should obtain a valid LetsEncrypt certificate", func() {
+	Context("dns-01 challenge for LetsEncrypt", func() {
+		It("should expose a route with a valid certificate secret reference", func() {
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-route-ref-le")
 			Expect(err).NotTo(HaveOccurred())
 			defer loader.DeleteTestingNS(ns.Name)
 
-			By("obtaining GCP credentials from kube-system namespace")
-			gcpCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "gcp-credentials", metav1.GetOptions{})
+			By("obtaining AWS credentials from kube-system namespace")
+			awsCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "aws-creds", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			secretKey := "service_account.json"
-			svcAcct := gcpCredsSecret.Data[secretKey]
+			awsAccessKeyID := awsCredsSecret.Data["aws_access_key_id"]
+			awsSecretAccessKey := awsCredsSecret.Data["aws_secret_access_key"]
 
-			By("copying GCP service account to test namespace")
-			secret := &corev1.Secret{
+			By("copying AWS secret access key to test namespace")
+			secretName := "aws-secret"
+			secretKey := "aws_secret_access_key"
+			awsSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "gcp-credentials",
+					Name:      secretName,
 					Namespace: ns.Name,
 				},
 				Data: map[string][]byte{
-					secretKey: svcAcct,
+					secretKey: awsSecretAccessKey,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
+			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, awsSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting GCP project from Infrastructure object")
+			By("getting AWS zone from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			gcpProject := infra.Status.PlatformStatus.GCP.ProjectID
-			Expect(gcpProject).NotTo(Equal(""))
+			awsRegion := infra.Status.PlatformStatus.AWS.Region
+			Expect(awsRegion).NotTo(Equal(""))
 
 			By("creating new certificate Issuer")
 			issuerName := "letsencrypt-dns01"
@@ -166,14 +168,15 @@ var _ = Describe("Route ExternalCertificateRef", Ordered, Label("TechPreview"), 
 							Solvers: []v1.ACMEChallengeSolver{
 								{
 									DNS01: &v1.ACMEChallengeSolverDNS01{
-										CloudDNS: &v1.ACMEIssuerDNS01ProviderCloudDNS{
-											ServiceAccount: &certmanagermetav1.SecretKeySelector{
+										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
+											AccessKeyID: string(awsAccessKeyID),
+											SecretAccessKey: certmanagermetav1.SecretKeySelector{
 												LocalObjectReference: certmanagermetav1.LocalObjectReference{
-													Name: secret.Name,
+													Name: secretName,
 												},
 												Key: secretKey,
 											},
-											Project: gcpProject,
+											Region: awsRegion,
 										},
 									},
 								},
