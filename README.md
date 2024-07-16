@@ -163,4 +163,4 @@ spec:
 ```
 ## Metrics and Monitoring
 
-The guide to [enable the cert-manager metrics and monitoring](https://github.com/openshift/cert-manager-operator/tree/master/docs/OPERAND_METRICS.md) will help you get started.
+The guide to [enable the cert-manager metrics and monitoring](https://github.com/openshift/cert-manager-operator/tree/master/docs/operand_metrics.md) will help you get started.
