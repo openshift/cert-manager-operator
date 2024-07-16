@@ -637,7 +637,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20240424142232-29a704bf5aa2
+# github.com/openshift/api v0.0.0-20240509165319-a8a5b79cc248
 ## explicit; go 1.21
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -718,7 +718,7 @@ github.com/openshift/build-machinery-go/make/targets/golang
 github.com/openshift/build-machinery-go/make/targets/openshift
 github.com/openshift/build-machinery-go/make/targets/openshift/operator
 github.com/openshift/build-machinery-go/scripts
-# github.com/openshift/client-go v0.0.0-20240405120947-c67c8325cdd8
+# github.com/openshift/client-go v0.0.0-20240510131258-f646d5f29250
 ## explicit; go 1.21
 github.com/openshift/client-go/config/applyconfigurations/config/v1
 github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1
@@ -734,6 +734,10 @@ github.com/openshift/client-go/config/informers/externalversions/config/v1alpha1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/listers/config/v1alpha1
+github.com/openshift/client-go/route/applyconfigurations/internal
+github.com/openshift/client-go/route/applyconfigurations/route/v1
+github.com/openshift/client-go/route/clientset/versioned/scheme
+github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
 # github.com/openshift/library-go v0.0.0-20240514150154-31e6891ab51e
 ## explicit; go 1.21
 github.com/openshift/library-go/pkg/authorization/hardcodedauthorizer
