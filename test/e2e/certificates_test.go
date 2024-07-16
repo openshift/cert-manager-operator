@@ -38,10 +38,13 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(baseDomain).NotTo(BeEmpty())
 		appsDomain = "apps." + baseDomain
 
-		By("adding override args for dns-01 private zone passthrough")
+		By("adding override args to cert-manager controller")
 		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
+			// for dns-01 private zone passthrough
 			"--dns01-recursive-nameservers-only",
 			"--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53",
+			// for Issuer to use ambient credentials
+			"--issuer-ambient-credentials",
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -174,7 +177,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 
 	Context("dns-01 challenge using ambient credentials", func() {
-		It("should obtain a valid LetsEncrypt certificate in AWS mint/passthrough cluster", func() {
+		It("should obtain a valid LetsEncrypt certificate using ClusterIssuer on AWS mint/passthrough cluster", func() {
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
@@ -188,9 +191,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
-					return true, nil
+					return false, nil
 				}
-				return false, nil
+				return true, nil
 			})
 			Expect(err).NotTo(HaveOccurred())
 
@@ -271,7 +274,106 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should obtain a valid LetsEncrypt certificate in GCP mint/passthrough clusters-65035", func() {
+		It("should obtain a valid LetsEncrypt certificate using Issuer on AWS mint/passthrough cluster", func() {
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-issuer-ambient-dns01-aws")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("creating CredentialsRequest object")
+			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
+
+			By("waiting for cloud secret to be available")
+			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
+				if err != nil {
+					return false, nil
+				}
+				return true, nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("setting cloud credential secret name in subscription object")
+			credentialSecret := "aws-creds"
+			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting AWS zone from Infrastructure object")
+			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			awsRegion := infra.Status.PlatformStatus.AWS.Region
+			Expect(awsRegion).NotTo(Equal(""))
+
+			By("creating new certificate Issuer")
+			issuerName := "letsencrypt-dns01-ambient"
+			issuer := &certmanagerv1.Issuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      issuerName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.IssuerSpec{
+					IssuerConfig: certmanagerv1.IssuerConfig{
+						ACME: &v1.ACMEIssuer{
+							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
+							PrivateKey: certmanagermetav1.SecretKeySelector{
+								LocalObjectReference: certmanagermetav1.LocalObjectReference{
+									Name: "letsencrypt-dns01-issuer",
+								},
+							},
+							Solvers: []v1.ACMEChallengeSolver{
+								{
+									DNS01: &v1.ACMEChallengeSolverDNS01{
+										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
+											Region: awsRegion,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, issuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Issuers(ns.Name).Delete(ctx, issuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			randomString := randomStr(3)
+			certDomain := randomString + "." + appsDomain
+			certName := "letsencrypt-cert"
+			cert := &certmanagerv1.Certificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      certName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.CertificateSpec{
+					IsCA:       false,
+					CommonName: certDomain,
+					SecretName: certName,
+					DNSNames:   []string{certDomain},
+					IssuerRef: certmanagermetav1.ObjectReference{
+						Name: issuerName,
+						Kind: "Issuer",
+					},
+				},
+			}
+
+			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should obtain a valid LetsEncrypt certificate using ClusterIssuer on GCP mint/passthrough cluster", func() {
 
 			By("Getting Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
