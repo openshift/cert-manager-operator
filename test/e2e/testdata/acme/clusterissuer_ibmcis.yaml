@@ -1,0 +1,21 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-dns01-explicit-ic
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-dns01-issuer
+    solvers:
+    - dns01:
+        webhook:
+          groupName: acme.borup.work
+          solverName: ibmcis
+          config:
+            apiKeySecretRef:
+              name: ibmcis-credentials
+              key: api-token
+            cisCRN: 
+              - "CIS_CRN"
+              

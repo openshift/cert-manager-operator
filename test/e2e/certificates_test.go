@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -22,6 +23,14 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+)
+
+const (
+	// TARGET_PLATFORM is the environment variable for IBM Cloud CIS test.
+	targetPlatformEnvironmentVar = "TARGET_PLATFORM"
+
+	// CIS_CRN is the required environment variable for IBM Cloud platform.
+	cisCRNEnvironmentVar = "CIS_CRN"
 )
 
 var _ = Describe("ACME Certificate", Ordered, func() {
@@ -67,6 +76,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	Context("dns-01 challenge using explicit credentials", func() {
 		It("should obtain a valid LetsEncrypt certificate", func() {
+			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
+				Skip("skipping, using ibmcloud cis webhook")
+			}
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
@@ -174,10 +186,67 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		// This test uses IBM Cloud Internet Services (CIS) for the DNS-01 test cases.
+		// These tests work with both UPI / IPI installations by passing in the CRN of your CIS instance on IBM Cloud.
+		It("should obtain a valid LetsEncrypt certificate on ibm cloud CIS", func() {
+			cisCRN, isCisCRN := os.LookupEnv(cisCRNEnvironmentVar)
+			if targetPlatform, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok && targetPlatform == "ibmcloud-upi" {
+				if !isCisCRN || cisCRN == "" {
+					Fail("cisCRN is required for IBM Cloud platform")
+				}
+			} else {
+				Skip("skipping as the cluster does not use IBM Cloud CIS")
+			}
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01-ibmcloud")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
+			randomString := randomStr(3)
+			clusterIssuerName := "letsencrypt-dns01-explicit-ic"
+			replaceStrMap := map[string]string{
+				"CIS_CRN": cisCRN,
+			}
+			loadFileAndReplaceStr := func(fileName string) ([]byte, error) {
+				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
+				return []byte(fileContentsStr), err
+			}
+			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_ibmcis.yaml"), "")
+			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			// The name is defined by the testdata YAML file certificate_ibmcis.yaml
+			certDomain := "adwie." + appsDomain // acronym for "ACME dns-01 ibmcloud Webhook Explicit", short naming to pass dns name validation
+			certName := "letsencrypt-cert-ic"
+			replaceStrMap = map[string]string{
+				"RANDOM_STR": randomString,
+				"DNS_NAME":   certDomain,
+			}
+			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
+				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
+				return []byte(fileContentsStr), err
+			}
+			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
+
+			By("Waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, randomString+"."+certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 	})
 
 	Context("dns-01 challenge using ambient credentials", func() {
 		It("should obtain a valid LetsEncrypt certificate using ClusterIssuer on AWS mint/passthrough cluster", func() {
+			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
+				Skip("skipping, using ibmcloud cis webhook")
+			}
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
@@ -431,7 +500,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			randomString := randomStr(3)
 			replaceStrMap = map[string]string{
 				"RANDOM_STR": randomString,
-				"DNS_NAME": baseDomain,
+				"DNS_NAME":   baseDomain,
 			}
 			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
 				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
