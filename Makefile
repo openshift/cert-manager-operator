@@ -102,6 +102,9 @@ SHORTCOMMIT ?= $(shell git rev-parse --short HEAD)
 GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCOMMIT) -X $(PACKAGE)/pkg/version.COMMIT=$(COMMIT)"
 
 E2E_TIMEOUT ?= 1h
+# E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests. See
+# https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
+E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
 
@@ -153,7 +156,7 @@ update: update-scripts update-manifests update-bindata
 .PHONY: update-with-container
 update-with-container:
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
-	 
+
 verify-scripts:
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
@@ -196,7 +199,7 @@ image-push: ## Push container image with the operator.
 
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f - 
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
@@ -246,7 +249,8 @@ test-e2e: test-e2e-wait-for-stable-state
 	-p 1 \
 	-tags e2e \
 	-run "$(TEST)" \
-	./test/e2e
+	./test/e2e \
+	-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
 test-e2e-wait-for-stable-state:
 	@echo "---- Waiting for stable state ----"
@@ -268,10 +272,10 @@ test-e2e-debug-cluster:
 	- oc logs deployment/cert-manager-operator -n cert-manager-operator
 	@echo "---- /Debugging the current state ----"
 .PHONY: test-e2e-debug-cluster
- 
+
 .PHONY: lint
-lint: 
-	$(GOLANGCI_LINT) run --config .golangci.yaml	
+lint:
+	$(GOLANGCI_LINT) run --config .golangci.yaml
 
 $(GOLANGCI_LINT_BIN):
 	mkdir -p $(BIN_DIR)
