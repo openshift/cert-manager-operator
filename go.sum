@@ -96,8 +96,6 @@ github.com/butuzov/ireturn v0.1.1/go.mod h1:Wh6Zl3IMtTpaIKbmwzqi6olnM9ptYQxxVacM
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
-github.com/cert-manager/cert-manager v1.15.2 h1:Mjbvc+FjYeg2928xy7bcS+c+ARxyqBcXM9QypOg1/Uo=
-github.com/cert-manager/cert-manager v1.15.2/go.mod h1:stBge/DTvrhfQMB/93+Y62s+gQgZBsfL1o0C/4AL/mI=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
@@ -512,6 +510,8 @@ github.com/openshift/build-machinery-go v0.0.0-20240419090851-af9c868bcf52 h1:bq
 github.com/openshift/build-machinery-go v0.0.0-20240419090851-af9c868bcf52/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
 github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87 h1:JtLhaGpSEconE+1IKmIgCOof/Len5ceG6H1pk43yv5U=
 github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87/go.mod h1:3IPD4U0qyovZS4EFady2kqY32m8lGcbs/Wx+yprg9z8=
+github.com/openshift/jetstack-cert-manager v1.15.2-0.20240724133510-48216fb20316 h1:VTmXO4o+IqUg6By2E9q+AprpogP0ogRSDWify1X+OOI=
+github.com/openshift/jetstack-cert-manager v1.15.2-0.20240724133510-48216fb20316/go.mod h1:stBge/DTvrhfQMB/93+Y62s+gQgZBsfL1o0C/4AL/mI=
 github.com/openshift/library-go v0.0.0-20240812114344-c18b2bea42de h1:fQRMpj56y3k2KXY0ZwlJXwMQjgid3o7vsjy0g/teES4=
 github.com/openshift/library-go v0.0.0-20240812114344-c18b2bea42de/go.mod h1:PdASVamWinll2BPxiUpXajTwZxV8A1pQbWEsCN1od7I=
 github.com/operator-framework/operator-lib v0.11.0 h1:eYzqpiOfq9WBI4Trddisiq/X9BwCisZd3rIzmHRC9Z8=

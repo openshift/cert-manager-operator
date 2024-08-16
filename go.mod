@@ -284,4 +284,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-//replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.14.5-0.20240425093532-6a0915206f61
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.15.2-0.20240724133510-48216fb20316
