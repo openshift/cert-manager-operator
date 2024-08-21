@@ -19,7 +19,6 @@ import (
 	v1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	configv1 "github.com/openshift/api/config/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -74,11 +73,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 
-	Context("dns-01 challenge using explicit credentials", func() {
-		It("should obtain a valid LetsEncrypt certificate", func() {
-			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
-				Skip("skipping, using ibmcloud cis webhook")
-			}
+	Context("dns-01 challenge with AWS Route53", Label("Platform:AWS"), func() {
+		It("should obtain a valid LetsEncrypt certificate using explicit credentials", func() {
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
@@ -187,66 +183,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		// This test uses IBM Cloud Internet Services (CIS) for the DNS-01 test cases.
-		// These tests work with both UPI / IPI installations by passing in the CRN of your CIS instance on IBM Cloud.
-		It("should obtain a valid LetsEncrypt certificate on ibm cloud CIS", func() {
-			cisCRN, isCisCRN := os.LookupEnv(cisCRNEnvironmentVar)
-			if targetPlatform, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok && targetPlatform == "ibmcloud-upi" {
-				if !isCisCRN || cisCRN == "" {
-					Fail("cisCRN is required for IBM Cloud platform")
-				}
-			} else {
-				Skip("skipping as the cluster does not use IBM Cloud CIS")
-			}
-
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01-ibmcloud")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
-
-			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
-			randomString := randomStr(3)
-			clusterIssuerName := "letsencrypt-dns01-explicit-ic"
-			replaceStrMap := map[string]string{
-				"CIS_CRN": cisCRN,
-			}
-			loadFileAndReplaceStr := func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_ibmcis.yaml"), "")
-			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
-
-			By("creating new certificate")
-			// The name is defined by the testdata YAML file certificate_ibmcis.yaml
-			certDomain := "adwie." + appsDomain // acronym for "ACME dns-01 ibmcloud Webhook Explicit", short naming to pass dns name validation
-			certName := "letsencrypt-cert-ic"
-			replaceStrMap = map[string]string{
-				"RANDOM_STR": randomString,
-				"DNS_NAME":   certDomain,
-			}
-			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
-
-			By("Waiting for certificate to get ready")
-			err = waitForCertificateReadiness(ctx, certName, ns.Name)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("checking for certificate validity from secret contents")
-			err = verifyCertificate(ctx, certName, ns.Name, randomString+"."+certDomain)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-	})
-
-	Context("dns-01 challenge using ambient credentials", func() {
-		It("should obtain a valid LetsEncrypt certificate using ClusterIssuer on AWS mint/passthrough cluster", func() {
-			if _, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok {
-				Skip("skipping, using ibmcloud cis webhook")
-			}
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
@@ -343,7 +280,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should obtain a valid LetsEncrypt certificate using Issuer on AWS mint/passthrough cluster", func() {
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with Issuer", func() {
 
 			By("creating a test namespace")
 			ns, err := loader.CreateTestingNS("e2e-acme-issuer-ambient-dns01-aws")
@@ -441,21 +378,15 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
 			Expect(err).NotTo(HaveOccurred())
 		})
+	})
 
-		It("should obtain a valid LetsEncrypt certificate using ClusterIssuer on GCP mint/passthrough cluster", func() {
+	Context("dns-01 challenge with Google CloudDNS", Label("Platform:GCP"), func() {
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
-			By("Getting Infrastructure object")
-			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			By("Creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
 			Expect(err).NotTo(HaveOccurred())
-			if infra.Status.PlatformStatus.Type != configv1.GCPPlatformType {
-				Skip("Skip this case for current plaform, it's not gcp.")
-			}
-
-			By("Check cloud credential in cluster")
-			_, err = loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "gcp-credentials", metav1.GetOptions{})
-			if err != nil {
-				Skip("Skipping for the cluster without credential in cluster")
-			}
+			defer loader.DeleteTestingNS(ns.Name)
 
 			By("Creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
@@ -476,11 +407,16 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("Getting GCP project ID from Infrastructure object")
+			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			gcpProjectId := infra.Status.PlatformStatus.GCP.ProjectID
+			Expect(gcpProjectId).NotTo(Equal(""))
+
 			By("Creating new certificate ClusterIssuer")
 			// The name is defined by the testdata YAML file clusterissuer_gcp.yaml
 			clusterIssuerName := "acme-dns01-clouddns-ambient"
-			gcpProjectId := infra.Status.PlatformStatus.GCP.ProjectID
-			Expect(gcpProjectId).NotTo(Equal(""))
 			replaceStrMap := map[string]string{
 				"PROJECT_ID": gcpProjectId,
 			}
@@ -490,11 +426,6 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			}
 			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_gcp.yaml"), "")
 			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
-
-			By("Creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01-65035")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
 
 			By("Creating new certificate")
 			randomString := randomStr(3)
@@ -517,6 +448,61 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("checking for certificate validity from secret contents")
 			certDomain := randomString + "." + baseDomain
 			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("dns-01 challenge with IBM Cloud Internet Service Webhook", Label("Platform:IBM"), func() {
+		// This test uses IBM Cloud Internet Services (CIS) for the DNS-01 challenge.
+		// It works with both UPI / IPI installations by passing in the CRN of your CIS instance on IBM Cloud.
+		It("should obtain a valid LetsEncrypt certificate using explicit credentials", func() {
+			cisCRN, isCisCRN := os.LookupEnv(cisCRNEnvironmentVar)
+			if targetPlatform, ok := os.LookupEnv(targetPlatformEnvironmentVar); ok && targetPlatform == "ibmcloud-upi" {
+				if !isCisCRN || cisCRN == "" {
+					Fail("cisCRN is required for IBM Cloud platform")
+				}
+			} else {
+				Skip("skipping as the cluster does not use IBM Cloud CIS")
+			}
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01-ibmcloud")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
+			randomString := randomStr(3)
+			clusterIssuerName := "letsencrypt-dns01-explicit-ic"
+			replaceStrMap := map[string]string{
+				"CIS_CRN": cisCRN,
+			}
+			loadFileAndReplaceStr := func(fileName string) ([]byte, error) {
+				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
+				return []byte(fileContentsStr), err
+			}
+			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_ibmcis.yaml"), "")
+			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			// The name is defined by the testdata YAML file certificate_ibmcis.yaml
+			certDomain := "adwie." + appsDomain // acronym for "ACME dns-01 ibmcloud Webhook Explicit", short naming to pass dns name validation
+			certName := "letsencrypt-cert-ic"
+			replaceStrMap = map[string]string{
+				"RANDOM_STR": randomString,
+				"DNS_NAME":   certDomain,
+			}
+			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
+				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
+				return []byte(fileContentsStr), err
+			}
+			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, randomString+"."+certDomain)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
