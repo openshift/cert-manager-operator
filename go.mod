@@ -13,7 +13,7 @@ require (
 	github.com/google/go-jsonnet v0.17.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.8.1
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
-	github.com/onsi/ginkgo/v2 v2.17.2
+	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/openshift/api v0.0.0-20240912201240-0a8800162826
 	github.com/openshift/build-machinery-go v0.0.0-20240419090851-af9c868bcf52
