@@ -599,7 +599,7 @@ github.com/nishanths/predeclared/passes/predeclared
 # github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
-# github.com/onsi/ginkgo/v2 v2.17.2
+# github.com/onsi/ginkgo/v2 v2.19.0
 ## explicit; go 1.20
 github.com/onsi/ginkgo/v2
 github.com/onsi/ginkgo/v2/config
