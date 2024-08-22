@@ -1,18 +1,9 @@
 reviewers:
-  - stlaz
-  - s-urbaniak
-  - sttts
   - deads2k
-  - slaskawi
-  - thejasn
-  - TrilokGeer
   - swghosh
+  - TrilokGeer
 approvers:
-  - stlaz
-  - sttts
   - deads2k
-  - s-urbaniak
-  - slaskawi
-  - thejasn
+  - swghosh
   - TrilokGeer
 components: cert-manager-operator
