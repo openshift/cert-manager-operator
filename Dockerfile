@@ -3,7 +3,7 @@ WORKDIR /go/src/github.com/openshift/cert-manager-operator
 COPY . .
 RUN make build --warn-undefined-variables
 
-FROM registry.access.redhat.com/ubi9-minimal:9.2
+FROM registry.access.redhat.com/ubi9-minimal:9.4-1227.1725849298
 COPY --from=builder /go/src/github.com/openshift/cert-manager-operator/cert-manager-operator /usr/bin/
 
 USER 65532:65532
