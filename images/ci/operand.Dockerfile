@@ -33,7 +33,7 @@ RUN go mod vendor
 RUN go build -mod=vendor -tags $GO_BUILD_TAGS -o /app/_output/webhook main.go
 
 
-FROM registry.access.redhat.com/ubi9-minimal:9.4
+FROM registry.access.redhat.com/ubi9-minimal:9.4-1227.1726694542
 
 COPY --from=builder /app/_output/acmesolver /app/cmd/acmesolver/acmesolver
 COPY --from=builder /app/_output/cainjector /app/cmd/cainjector/cainjector
