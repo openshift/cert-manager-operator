@@ -81,6 +81,10 @@ type DeploymentConfig struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	OverrideResources CertManagerResourceRequirements `json:"overrideResources,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +optional
+	OverrideScheduling CertManagerScheduling `json:"overrideScheduling,omitempty"`
 }
 
 // CertManagerResourceRequirements describes the compute resource requirements for the cert-manager operands,
@@ -96,6 +100,24 @@ type CertManagerResourceRequirements struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 	// +optional
 	Requests corev1.ResourceList `json:"requests,omitempty" protobuf:"bytes,2,rep,name=requests,casttype=ResourceList,castkey=ResourceName"`
+}
+
+// CertManagerScheduling describes the scheduling configurations for the cert-manager operands,
+// namely the controller, webhook and cainjector.
+type CertManagerScheduling struct {
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	// +mapType=atomic
+	NodeSelector map[string]string `json:"nodeSelector,omitempty" protobuf:"bytes,7,rep,name=nodeSelector"`
+
+	// Tolerations are attached to the pod to tolerate any taint that matches the
+	// taint's key, value and effect using the toleration's matching operator.
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+	// +optional
+	// +listType=atomic
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty" protobuf:"bytes,22,opt,name=tolerations"`
 }
 
 // CertManagerStatus defines the observed state of CertManager
