@@ -62,6 +62,11 @@ type overrideLabelsFunc func(certmanagerinformer.CertManagerInformer, string) (m
 // resources provided to cert-manager-operator spec.
 type overrideResourcesFunc func(certmanagerinformer.CertManagerInformer, string) (v1alpha1.CertManagerResourceRequirements, error)
 
+// overrideSchedulingFunc defines a function signature that is accepted by
+// withPodSchedulingOverrideHook(). This function returns the override
+// scheduling provided to cert-manager-operator spec.
+type overrideSchedulingFunc func(certmanagerinformer.CertManagerInformer, string) (v1alpha1.CertManagerScheduling, error)
+
 // withOperandImageOverrideHook overrides the deployment image with
 // the operand images provided to the operator.
 func withOperandImageOverrideHook(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
@@ -127,6 +132,27 @@ func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.
 			deployment.Spec.Template.Spec.Containers[0].Resources = mergeContainerResources(
 				deployment.Spec.Template.Spec.Containers[0].Resources,
 				overrideResources)
+		}
+		return nil
+	}
+}
+
+// withPodSchedulingOverrideHook overrides the pod scheduling with those provided by
+// the overrideSchedulingFunc function.
+func withPodSchedulingOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideSchedulingFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		overrideScheduling, err := fn(certmanagerinformer, deploymentName)
+		if err != nil {
+			return err
+		}
+
+		if deployment.Name == deploymentName {
+			mergedScheduling := mergePodScheduling(v1alpha1.CertManagerScheduling{
+				NodeSelector: deployment.Spec.Template.Spec.NodeSelector,
+				Tolerations:  deployment.Spec.Template.Spec.Tolerations,
+			}, overrideScheduling)
+			deployment.Spec.Template.Spec.NodeSelector = mergedScheduling.NodeSelector
+			deployment.Spec.Template.Spec.Tolerations = mergedScheduling.Tolerations
 		}
 		return nil
 	}
