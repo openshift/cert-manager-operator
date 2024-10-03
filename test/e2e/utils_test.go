@@ -17,12 +17,15 @@ import (
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	"github.com/openshift/cert-manager-operator/test/library"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -273,6 +276,97 @@ func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName s
 			}
 		} else {
 			if equalityLimits && equalityRequests {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+}
+
+// addOverrideScheduling adds the override scheduling to the specific cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+				OverrideScheduling: res,
+			}
+		case certmanagerWebhookDeployment:
+			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
+				OverrideScheduling: res,
+			}
+		case certmanagerCAinjectorDeployment:
+			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
+				OverrideScheduling: res,
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyDeploymentScheduling polls every 10 seconds to check if the deployment scheduling is updated to contain
+// the passed scheduling. It returns an error if a timeout (5 mins) occurs or an error was encountered while
+// polling the deployment scheduling.
+func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
+
+	return wait.PollUntilContextTimeout(context.Background(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		podNodeSelector := controllerDeployment.Spec.Template.Spec.NodeSelector
+		cmpOptsNodeSelector := cmp.Options{
+			// Ignore the node labels which are not part of res.NodeSelector
+			// when checking for equality with podNodeSelector.
+			cmpopts.IgnoreMapEntries(func(k, v string) bool {
+				if actualValue, exists := res.NodeSelector[k]; exists && v == actualValue {
+					return false
+				}
+				return true
+			}),
+		}
+		equalityNodeSelector := cmp.Equal(podNodeSelector, res.NodeSelector, cmpOptsNodeSelector)
+
+		podTolerations := controllerDeployment.Spec.Template.Spec.Tolerations
+		tolerationsMap := make(map[corev1.Toleration]bool)
+		for _, toleration := range res.Tolerations {
+			tolerationsMap[toleration] = true
+		}
+		cmpOptsTolerations := cmp.Options{
+			// Ignore the tolerations which are not part of res.Tolerations
+			// when checking for equality with podTolerations.
+			cmpopts.IgnoreSliceElements(func(toleration corev1.Toleration) bool {
+				if exists := tolerationsMap[toleration]; exists {
+					return false
+				}
+				return true
+			}),
+		}
+		equalityTolerations := cmp.Equal(podTolerations, res.Tolerations, cmpOptsTolerations)
+
+		if added {
+			if !equalityNodeSelector || !equalityTolerations {
+				return false, nil
+			}
+		} else {
+			if equalityNodeSelector && equalityTolerations {
 				return false, nil
 			}
 		}
