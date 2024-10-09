@@ -2,6 +2,8 @@ module github.com/openshift/cert-manager-operator
 
 go 1.21
 
+toolchain go1.21.11
+
 require (
 	github.com/cert-manager/cert-manager v1.14.5
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
