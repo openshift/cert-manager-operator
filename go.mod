@@ -11,23 +11,23 @@ require (
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
-	github.com/openshift/api v0.0.0-20240424142232-29a704bf5aa2
+	github.com/openshift/api v0.0.0-20240830023148-b7d0481c9094
 	github.com/openshift/build-machinery-go v0.0.0-20231128094528-1e9b1b0595c8
 	github.com/openshift/client-go v0.0.0-20240405120947-c67c8325cdd8
-	github.com/openshift/library-go v0.0.0-20240514150154-31e6891ab51e
+	github.com/openshift/library-go v0.0.0-20240711192904-190fec8c3f09
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/tools v0.16.1
-	k8s.io/api v0.29.4
-	k8s.io/apiextensions-apiserver v0.29.4
-	k8s.io/apimachinery v0.29.4
-	k8s.io/client-go v0.29.4
-	k8s.io/code-generator v0.29.4
-	k8s.io/component-base v0.29.4
+	k8s.io/api v0.29.9
+	k8s.io/apiextensions-apiserver v0.29.9
+	k8s.io/apimachinery v0.29.9
+	k8s.io/client-go v0.29.9
+	k8s.io/code-generator v0.29.9
+	k8s.io/component-base v0.29.9
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
-	sigs.k8s.io/controller-runtime v0.17.5
+	sigs.k8s.io/controller-runtime v0.17.6
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433
 	sigs.k8s.io/controller-tools v0.14.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.1.1
@@ -264,10 +264,10 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.3 // indirect
-	k8s.io/apiserver v0.29.4 // indirect
+	k8s.io/apiserver v0.29.9 // indirect
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
-	k8s.io/kms v0.29.4 // indirect
+	k8s.io/kms v0.29.9 // indirect
 	k8s.io/kube-aggregator v0.29.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20240103051144-eec4567ac022 // indirect
 	mvdan.cc/gofumpt v0.4.0 // indirect
