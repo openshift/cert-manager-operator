@@ -8,6 +8,9 @@ metadata:
     console.openshift.io/disable-operand-delete: "true"
     containerImage: ""
     createdAt: 2023-03-03T00:00:00
+    features.operators.openshift.io/cnf: "false"
+    features.operators.openshift.io/cni: "false"
+    features.operators.openshift.io/csi: "false"
     features.operators.openshift.io/disconnected: "false"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "true"
