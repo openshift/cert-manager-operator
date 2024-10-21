@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	
+
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 )
@@ -303,6 +303,189 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 			By("Checking if the resources are not added to the cert-manager cainjector deployment")
 			err = verifyDeploymentResources(k8sClientSet, certmanagerCAinjectorDeployment, res, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager controller override scheduling", func() {
+
+		It("should add the scheduling to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node-role.kubernetes.io/control-plane": "",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "node-role.kubernetes.io/master",
+						Operator: "Exists",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the scheduling to be added to the cert-manager controller deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerControllerDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager webhook override scheduling", func() {
+
+		It("should add the scheduling to the cert-manager webhook deployment", func() {
+
+			By("Adding cert-manager webhook override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node-role.kubernetes.io/control-plane": "",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "node-role.kubernetes.io/master",
+						Operator: "Exists",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the scheduling to be added to the cert-manager webhook deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerWebhookDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager cainjector override scheduling", func() {
+
+		It("should add the scheduling to the cert-manager cainjector deployment", func() {
+
+			By("Adding cert-manager cainjector override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node-role.kubernetes.io/control-plane": "",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "node-role.kubernetes.io/master",
+						Operator: "Exists",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the scheduling to be added to the cert-manager cainjector deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerCAinjectorDeployment, res, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager controller override scheduling", func() {
+
+		It("should not add the scheduling to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node/Label/1": "value",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "toleration",
+						Operator: "Exists",
+						Value:    "value",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the scheduling are not added to the cert-manager controller deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerControllerDeployment, res, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager webhook override scheduling", func() {
+
+		It("should not add the scheduling to the cert-manager webhook deployment", func() {
+
+			By("Adding cert-manager webhook override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node/Label/1": "value",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "toleration",
+						Operator: "Exists",
+						Value:    "value",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the scheduling are not added to the cert-manager webhook deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerWebhookDeployment, res, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager cainjector override scheduling", func() {
+
+		It("should not add the scheduling to the cert-manager cainjector deployment", func() {
+
+			By("Adding cert-manager cainjector override scheduling to the certmanager.operator object")
+			res := v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"node/Label/1": "value",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "toleration",
+						Operator: "Exists",
+						Value:    "value",
+						Effect:   "NoSchedule",
+					},
+				},
+			}
+			err := addOverrideScheduling(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the scheduling are not added to the cert-manager cainjector deployment")
+			err = verifyDeploymentScheduling(k8sClientSet, certmanagerCAinjectorDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
