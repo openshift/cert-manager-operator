@@ -222,7 +222,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
-    olm.skipRange: '>=1.14.0 <1.15.0'
+    olm.skipRange: '>=1.14.1 <1.15.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -767,5 +767,5 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.2
     name: cert-manager-acmesolver
-  replaces: cert-manager-operator.v1.14.0
+  replaces: cert-manager-operator.v1.14.1
   version: 1.15.0
