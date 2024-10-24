@@ -76,7 +76,7 @@ func TestAll(t *testing.T) {
 	reportConfig.JSONReport = filepath.Join(testDir, "report.json")
 	reportConfig.JUnitReport = filepath.Join(testDir, "junit.xml")
 	reportConfig.NoColor = true
-	reportConfig.VeryVerbose = true
+	reportConfig.Verbose = true
 
 	RunSpecs(t, "Cert Manager Suite", suiteConfig, reportConfig)
 }
