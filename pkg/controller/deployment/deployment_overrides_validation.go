@@ -2,10 +2,15 @@ package deployment
 
 import (
 	"fmt"
+	"unsafe"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/core"
+	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/utils/strings/slices"
 
 	v1 "github.com/openshift/api/operator/v1"
@@ -250,4 +255,49 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 		}
 	}
 	return utilerrors.NewAggregate(errs)
+}
+
+// withPodSchedulingValidateHook validates the overrides scheduling field for each operand.
+func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		certmanager, err := certmanagerinformer.Lister().Get("cluster")
+		if err != nil {
+			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		}
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			if certmanager.Spec.ControllerConfig != nil {
+				return validateScheduling(certmanager.Spec.ControllerConfig.OverrideScheduling,
+					field.NewPath("spec", "controllerConfig", "overrideScheduling"))
+			}
+		case certmanagerWebhookDeployment:
+			if certmanager.Spec.WebhookConfig != nil {
+				return validateScheduling(certmanager.Spec.WebhookConfig.OverrideScheduling,
+					field.NewPath("spec", "webhookConfig", "overrideScheduling"))
+			}
+		case certmanagerCAinjectorDeployment:
+			if certmanager.Spec.CAInjectorConfig != nil {
+				return validateScheduling(certmanager.Spec.CAInjectorConfig.OverrideScheduling,
+					field.NewPath("spec", "cainjectorConfig", "overrideScheduling"))
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		}
+
+		return nil
+	}
+}
+
+// validateScheduling validates the cert manager scheduling field.
+func validateScheduling(scheduling v1alpha1.CertManagerScheduling, fldPath *field.Path) error {
+	errs := metav1validation.ValidateLabels(scheduling.NodeSelector, fldPath.Child("nodeSelector"))
+
+	// Convert corev1.Tolerations to core.Tolerations.
+	tolerations := *(*[]core.Toleration)(unsafe.Pointer(&scheduling.Tolerations))
+
+	errs = append(errs, corevalidation.ValidateTolerations(tolerations, fldPath.Child("tolerations"))...)
+
+	return errs.ToAggregate()
 }

@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unsafe"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/util/tolerations"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
@@ -105,6 +109,27 @@ func mergeContainerResourceList(sourceResourceList corev1.ResourceList, override
 	}
 
 	return sourceResourceList
+}
+
+// mergePodScheduling merges source scheduling with that provided as override scheduling.
+func mergePodScheduling(sourceScheduling v1alpha1.CertManagerScheduling, overrideScheduling v1alpha1.CertManagerScheduling) v1alpha1.CertManagerScheduling {
+	// Merge the source and override NodeSelector.
+	mergedNodeSelector := labels.Merge(sourceScheduling.NodeSelector, overrideScheduling.NodeSelector)
+
+	// Convert corev1.Tolerations to core.Tolerations.
+	sourceTolerations := *(*[]core.Toleration)(unsafe.Pointer(&sourceScheduling.Tolerations))
+	overridingTolerations := *(*[]core.Toleration)(unsafe.Pointer(&overrideScheduling.Tolerations))
+
+	// Merge the source and override Tolerations.
+	mergedCoreTolerations := tolerations.MergeTolerations(sourceTolerations, overridingTolerations)
+
+	// Convert core.Tolerations to corev1.Tolerations.
+	mergedCorev1Tolerations := *(*[]corev1.Toleration)(unsafe.Pointer(&mergedCoreTolerations))
+
+	return v1alpha1.CertManagerScheduling{
+		NodeSelector: mergedNodeSelector,
+		Tolerations:  mergedCorev1Tolerations,
+	}
 }
 
 // getOverrideArgsFor is a helper function that returns the overrideArgs provided
@@ -214,4 +239,31 @@ func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManager
 		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return v1alpha1.CertManagerResourceRequirements{}, nil
+}
+
+// getOverrideSchedulingFor is a helper function that returns the OverrideScheduling provided
+// in the operator spec based on the deployment name.
+func getOverrideSchedulingFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (v1alpha1.CertManagerScheduling, error) {
+	certmanager, err := certmanagerinformer.Lister().Get("cluster")
+	if err != nil {
+		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+	}
+
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return certmanager.Spec.ControllerConfig.OverrideScheduling, nil
+		}
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return certmanager.Spec.WebhookConfig.OverrideScheduling, nil
+		}
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return certmanager.Spec.CAInjectorConfig.OverrideScheduling, nil
+		}
+	default:
+		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+	}
+	return v1alpha1.CertManagerScheduling{}, nil
 }
