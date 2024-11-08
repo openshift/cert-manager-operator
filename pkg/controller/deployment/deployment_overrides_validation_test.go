@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 func TestValidateResources(t *testing.T) {
@@ -112,6 +113,91 @@ func TestValidateResources(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateResources(tc.resources, tc.resourceNamesSupported)
+			if tc.errorExpected {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateScheduling(t *testing.T) {
+	tests := []struct {
+		name          string
+		scheduling    v1alpha1.CertManagerScheduling
+		errorExpected bool
+	}{
+		{
+			name: "valid node selector should be accepted",
+			scheduling: v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"nodeLabel1": "value1",
+					"nodeLabel2": "value2",
+				},
+			},
+			errorExpected: false,
+		},
+		{
+			name: "invalid node selector should not be accepted",
+			scheduling: v1alpha1.CertManagerScheduling{
+				NodeSelector: map[string]string{
+					"/nodeLabel1":  "value1",
+					"node/Label/2": "value2",
+					"":             "value3",
+				},
+			},
+			errorExpected: true,
+		},
+		{
+			name: "valid tolerations should be accepted",
+			scheduling: v1alpha1.CertManagerScheduling{
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "tolerationKey1",
+						Operator: "Exists",
+						Effect:   "NoSchedule",
+					},
+					{
+						Key:      "tolerationKey2",
+						Operator: "Equal",
+						Value:    "value2",
+						Effect:   "NoSchedule",
+					},
+					{
+						Key:      "tolerationKey3",
+						Operator: "Equal",
+						Effect:   "NoSchedule",
+					},
+				},
+			},
+			errorExpected: false,
+		},
+		{
+			name: "invalid tolerations should not be accepted",
+			scheduling: v1alpha1.CertManagerScheduling{
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "tolerationKey1",
+						Operator: "Exists",
+						Value:    "value1",
+						Effect:   "NoSchedule",
+					},
+					{
+						Key:      "",
+						Operator: "Equal",
+						Effect:   "NoSchedule",
+					},
+				},
+			},
+			errorExpected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+
+			err := validateScheduling(tc.scheduling, field.NewPath("overridesScheduling"))
 			if tc.errorExpected {
 				assert.Error(t, err)
 			} else {
