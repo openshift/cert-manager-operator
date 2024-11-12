@@ -381,6 +381,112 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 
 	Context("dns-01 challenge with Google CloudDNS", Label("Platform:GCP"), func() {
+		It("should obtain a valid LetsEncrypt certificate using explicit credentials with ClusterIssuer", func() {
+
+			By("creating a test namespace")
+			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01-gcp")
+			Expect(err).NotTo(HaveOccurred())
+			defer loader.DeleteTestingNS(ns.Name)
+
+			By("obtaining GCP credentials from kube-system namespace")
+			gcpCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "gcp-credentials", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			gcpServiceAccount := gcpCredsSecret.Data["service_account.json"]
+
+			By("copying GCP secret service account to test namespace")
+			secretName := "gcp-secret"
+			secretKey := "gcp_service_account_key.json"
+			gcpSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: ns.Name,
+				},
+				Data: map[string][]byte{
+					secretKey: gcpServiceAccount,
+				},
+			}
+			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, gcpSecret, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting GCP project ID from Infrastructure object")
+			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			gcpProjectID := infra.Status.PlatformStatus.GCP.ProjectID
+			Expect(gcpProjectID).NotTo(Equal(""))
+
+			By("creating new certificate Issuer")
+			issuerName := "letsencrypt-dns01"
+			issuer := &certmanagerv1.Issuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      issuerName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.IssuerSpec{
+					IssuerConfig: certmanagerv1.IssuerConfig{
+						ACME: &v1.ACMEIssuer{
+							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
+							PrivateKey: certmanagermetav1.SecretKeySelector{
+								LocalObjectReference: certmanagermetav1.LocalObjectReference{
+									Name: "letsencrypt-dns01-issuer",
+								},
+							},
+							Solvers: []v1.ACMEChallengeSolver{
+								{
+									DNS01: &v1.ACMEChallengeSolverDNS01{
+										CloudDNS: &v1.ACMEIssuerDNS01ProviderCloudDNS{
+											Project: string(gcpProjectID),
+											ServiceAccount: &certmanagermetav1.SecretKeySelector{
+												LocalObjectReference: certmanagermetav1.LocalObjectReference{
+													Name: secretName,
+												},
+												Key: secretKey,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, issuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Issuers(ns.Name).Delete(ctx, issuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			randomString := randomStr(3)
+			certDomain := randomString + "." + appsDomain
+			certName := "letsencrypt-cert"
+			cert := &certmanagerv1.Certificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      certName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.CertificateSpec{
+					IsCA:       false,
+					CommonName: certDomain,
+					SecretName: certName,
+					DNSNames:   []string{certDomain},
+					IssuerRef: certmanagermetav1.ObjectReference{
+						Name: issuerName,
+						Kind: "Issuer",
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
 			By("Creating a test namespace")
