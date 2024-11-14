@@ -176,9 +176,9 @@ metadata:
                 {
                   "dns01": {
                     "route53": {
-                      "accessKeyID": "\u003cACCESS_KEY_ID\u003e",
-                      "hostedZoneID": "\u003cHOSTED_ZONE_ID\u003e",
-                      "region": "\u003cAWS_REGION\u003e",
+                      "accessKeyID": "ACCESS_KEY_ID",
+                      "hostedZoneID": "HOSTED_ZONE_ID",
+                      "region": "AWS_REGION",
                       "secretAccessKeySecretRef": {
                         "key": "access-key",
                         "name": "sample-aws-secret"
