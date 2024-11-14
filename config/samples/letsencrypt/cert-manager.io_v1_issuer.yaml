@@ -13,9 +13,9 @@ spec:
     - dns01:
         route53:
           #❗Replace these with your own values
-          accessKeyID: "<ACCESS_KEY_ID>"
-          hostedZoneID: "<HOSTED_ZONE_ID>"
-          region: "<AWS_REGION>"
+          accessKeyID: "ACCESS_KEY_ID"
+          hostedZoneID: "HOSTED_ZONE_ID"
+          region: "AWS_REGION"
           secretAccessKeySecretRef:
             name: "sample-aws-secret"
             key: "access-key"
