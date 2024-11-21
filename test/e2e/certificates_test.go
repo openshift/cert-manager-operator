@@ -34,6 +34,7 @@ const (
 
 var _ = Describe("ACME Certificate", Ordered, func() {
 	var ctx context.Context
+	var ns *corev1.Namespace
 	var appsDomain string
 	var baseDomain string
 
@@ -71,15 +72,19 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				certManagerCAInjectorDeploymentControllerName},
 			validOperatorStatusConditions)
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+
+		By("creating a test namespace")
+		namespace, err := loader.CreateTestingNS("e2e-acme-certs")
+		Expect(err).NotTo(HaveOccurred())
+		ns = namespace
+
+		DeferCleanup(func() {
+			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		})
 	})
 
 	Context("dns-01 challenge with AWS Route53", Label("Platform:AWS"), func() {
 		It("should obtain a valid LetsEncrypt certificate using explicit credentials", func() {
-
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
 
 			By("obtaining AWS credentials from kube-system namespace")
 			awsCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "aws-creds", metav1.GetOptions{})
@@ -185,16 +190,11 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
-
 			By("creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -282,16 +282,11 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 		It("should obtain a valid LetsEncrypt certificate using ambient credentials with Issuer", func() {
 
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-issuer-ambient-dns01-aws")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
-
 			By("creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -381,12 +376,108 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 
 	Context("dns-01 challenge with Google CloudDNS", Label("Platform:GCP"), func() {
-		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
+		It("should obtain a valid LetsEncrypt certificate using explicit credentials with ClusterIssuer", func() {
 
-			By("Creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-ambient-dns01")
+			By("obtaining GCP credentials from kube-system namespace")
+			gcpCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "gcp-credentials", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
+			gcpServiceAccount := gcpCredsSecret.Data["service_account.json"]
+
+			By("copying GCP secret service account to test namespace")
+			secretName := "gcp-secret"
+			secretKey := "gcp_service_account_key.json"
+			gcpSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: ns.Name,
+				},
+				Data: map[string][]byte{
+					secretKey: gcpServiceAccount,
+				},
+			}
+			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, gcpSecret, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting GCP project ID from Infrastructure object")
+			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			gcpProjectID := infra.Status.PlatformStatus.GCP.ProjectID
+			Expect(gcpProjectID).NotTo(Equal(""))
+
+			By("creating new certificate Issuer")
+			issuerName := "letsencrypt-dns01"
+			issuer := &certmanagerv1.Issuer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      issuerName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.IssuerSpec{
+					IssuerConfig: certmanagerv1.IssuerConfig{
+						ACME: &v1.ACMEIssuer{
+							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
+							PrivateKey: certmanagermetav1.SecretKeySelector{
+								LocalObjectReference: certmanagermetav1.LocalObjectReference{
+									Name: "letsencrypt-dns01-issuer",
+								},
+							},
+							Solvers: []v1.ACMEChallengeSolver{
+								{
+									DNS01: &v1.ACMEChallengeSolverDNS01{
+										CloudDNS: &v1.ACMEIssuerDNS01ProviderCloudDNS{
+											Project: string(gcpProjectID),
+											ServiceAccount: &certmanagermetav1.SecretKeySelector{
+												LocalObjectReference: certmanagermetav1.LocalObjectReference{
+													Name: secretName,
+												},
+												Key: secretKey,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, issuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Issuers(ns.Name).Delete(ctx, issuerName, metav1.DeleteOptions{})
+
+			By("creating new certificate")
+			randomString := randomStr(3)
+			certDomain := randomString + "." + appsDomain
+			certName := "letsencrypt-cert"
+			cert := &certmanagerv1.Certificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      certName,
+					Namespace: ns.Name,
+				},
+				Spec: certmanagerv1.CertificateSpec{
+					IsCA:       false,
+					CommonName: certDomain,
+					SecretName: certName,
+					DNSNames:   []string{certDomain},
+					IssuerRef: certmanagermetav1.ObjectReference{
+						Name: issuerName,
+						Kind: "Issuer",
+					},
+				},
+			}
+			_, err = certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for certificate validity from secret contents")
+			err = verifyCertificate(ctx, certName, ns.Name, certDomain)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
 			By("Creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
@@ -394,7 +485,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("Waiting for cloud secret to be available")
 			// The name is defined cloud credential by the testdata YAML file.
 			credentialSecret := "gcp-credentials"
-			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, credentialSecret, metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -465,11 +556,6 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				Skip("skipping as the cluster does not use IBM Cloud CIS")
 			}
 
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01-ibmcloud")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
-
 			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
 			randomString := randomStr(3)
 			clusterIssuerName := "letsencrypt-dns01-explicit-ic"
@@ -498,7 +584,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
 
 			By("waiting for certificate to get ready")
-			err = waitForCertificateReadiness(ctx, certName, ns.Name)
+			err := waitForCertificateReadiness(ctx, certName, ns.Name)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("checking for certificate validity from secret contents")
@@ -509,11 +595,6 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	Context("http-01 challenge using ingress", func() {
 		It("should obtain a valid LetsEncrypt certificate", func() {
-
-			By("creating a test namespace")
-			ns, err := loader.CreateTestingNS("e2e-acme-explicit-dns01")
-			Expect(err).NotTo(HaveOccurred())
-			defer loader.DeleteTestingNS(ns.Name)
 
 			By("creating a cluster issuer")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
@@ -567,7 +648,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					}},
 				},
 			}
-			ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
+			ingress, err := loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
@@ -607,7 +688,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name)
+			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 	})
 
