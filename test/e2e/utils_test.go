@@ -20,6 +20,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	operatorv1client "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
@@ -563,4 +565,90 @@ func waitForIngressReadiness(ctx context.Context, client kubernetes.Interface, i
 		}
 		return false, nil
 	})
+}
+
+func isAWSSTSCluster(ctx context.Context, opClient operatorv1client.OperatorV1Interface, configClient configv1client.ConfigV1Interface) (bool, error) {
+	credConfig, err := opClient.CloudCredentials().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if credConfig.Spec.CredentialsMode != opv1.CloudCredentialsModeManual {
+		return false, nil
+	}
+
+	authConfig, err := configClient.Authentications().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if len(authConfig.Spec.ServiceAccountIssuer) == 0 || authConfig.Spec.ServiceAccountIssuer == "https://kubernetes.default.svc" {
+		return false, nil
+	}
+
+	// detected an AWS STS cluster
+	return true, nil
+}
+
+func annotateSAForSTSAndRestartCertManagerPod(ctx context.Context, loader library.DynamicResourceLoader) error {
+	// extract the aws role ARN from the aws-creds secret in the cert-manager ns
+	secretClient := loader.KubeClient.CoreV1().Secrets("cert-manager")
+	cloudCredSecret, err := secretClient.Get(ctx, "aws-creds", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	key := "credentials"
+	creds, exists := cloudCredSecret.Data[key]
+	if !exists {
+		return fmt.Errorf("secret %s/%s does not contain required key %v", cloudCredSecret.Namespace, cloudCredSecret.Name, key)
+	}
+
+	roleARNRegex := regexp.MustCompile(`role_arn\s*=\s*([^\s]+)`)
+	match := roleARNRegex.FindStringSubmatch(string(creds))
+	if len(match) < 1 {
+		return fmt.Errorf("could not extract role_arn from credentials secret %s/%s", cloudCredSecret.Namespace, cloudCredSecret.Name)
+	}
+
+	cmRoleArn := match[1]
+
+	// annotate the cert-manager service account for aws-pod-identity-webhook
+	saClient := loader.KubeClient.CoreV1().ServiceAccounts("cert-manager")
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		sa, err := saClient.Get(ctx, "cert-manager", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedSA := sa.DeepCopy()
+
+		updatedSA.Annotations["eks.amazonaws.com/role-arn"] = cmRoleArn
+		updatedSA.Annotations["eks.amazonaws.com/audience"] = "sts.amazonaws.com"
+		updatedSA.Annotations["eks.amazonaws.com/sts-regional-endpoints"] = "true"
+		updatedSA.Annotations["eks.amazonaws.com/token-expiration"] = "86400"
+
+		_, err = saClient.Update(ctx, updatedSA, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// delete cert-manager controller pod(s) so they'll be restarted
+	podClient := loader.KubeClient.CoreV1().Pods("cert-manager")
+	pods, err := podClient.List(ctx, metav1.ListOptions{
+		LabelSelector: "app=cert-manager",
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		err = podClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

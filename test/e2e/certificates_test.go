@@ -84,7 +84,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 
 	Context("dns-01 challenge with AWS Route53", Label("Platform:AWS"), func() {
-		It("should obtain a valid LetsEncrypt certificate using explicit credentials", func() {
+		It("should obtain a valid LetsEncrypt certificate using explicit credentials", Label("CredentialsMode:Mint"), func() {
 
 			By("obtaining AWS credentials from kube-system namespace")
 			awsCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "aws-creds", metav1.GetOptions{})
@@ -188,6 +188,23 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		// ambient credentials can work on any a cluster with any CredentialsMode
+		// 1. for a cluster with `credentialsMode: Mint`
+		//     - apply the CredentialsRequest from this test
+		//     - poll for the aws-creds secret to become available in the cert-manager namespace
+		//     - wait for cert-manager to become ready
+		//     - ...certificate
+		// 2. for a cluster with `credentialsMode: Manual` (assuming STS + aws-pod-identity webhook is available)
+		//     - ccoctl needs to generate the secret from the CredentialsRequest
+		//     - perform equivalent of the following
+		//         	oc -n cert-manager annotate serviceaccount cert-manager eks.amazonaws.com/role-arn="<aws-arn-id>"
+		// 			oc -n cert-manager annotate serviceaccount cert-manager eks.amazonaws.com/audience="sts.amazonaws.com"
+		// 			oc -n cert-manager annotate serviceaccount cert-manager eks.amazonaws.com/sts-regional-endpoints="true"
+		// 			oc -n cert-manager annotate serviceaccount cert-manager eks.amazonaws.com/token-expiration="86400"
+		//     - perform pod restarts for all pods in cert-manager namespace
+		//     - wait for cert-manager to become ready
+		//     - ...certificate
+
 		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
 
 			By("creating CredentialsRequest object")
@@ -203,10 +220,20 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("setting cloud credential secret name in subscription object")
-			credentialSecret := "aws-creds"
-			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			By("checking if it is an AWS STS cluster")
+			isSTS, err := isAWSSTSCluster(ctx, oseOperatorClient, configClient)
 			Expect(err).NotTo(HaveOccurred())
+
+			if isSTS {
+				By("annotating cert-manager service account and restarting controller pod")
+				err = annotateSAForSTSAndRestartCertManagerPod(ctx, loader)
+				Expect(err).NotTo(HaveOccurred())
+			} else {
+				By("setting cloud credential secret name in subscription object")
+				credentialSecret := "aws-creds"
+				err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("getting AWS zone from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
@@ -295,10 +322,20 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("setting cloud credential secret name in subscription object")
-			credentialSecret := "aws-creds"
-			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			By("checking if it is an AWS STS cluster")
+			isSTS, err := isAWSSTSCluster(ctx, oseOperatorClient, configClient)
 			Expect(err).NotTo(HaveOccurred())
+
+			if isSTS {
+				By("annotating cert-manager service account and restarting controller pod")
+				err = annotateSAForSTSAndRestartCertManagerPod(ctx, loader)
+				Expect(err).NotTo(HaveOccurred())
+			} else {
+				By("setting cloud credential secret name in subscription object")
+				credentialSecret := "aws-creds"
+				err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("getting AWS zone from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})

@@ -17,6 +17,7 @@ import (
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	"github.com/openshift/cert-manager-operator/test/library"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -44,6 +45,7 @@ var (
 	loader library.DynamicResourceLoader
 
 	configClient              *configv1.ConfigV1Client
+	oseOperatorClient         *operatorv1.OperatorV1Client
 	certmanageroperatorclient *certmanoperatorclient.Clientset
 	certmanagerClient         *certmanagerclientset.Clientset
 
@@ -106,11 +108,15 @@ var _ = BeforeSuite(func() {
 	By("creating dynamic resources client")
 	loader = library.NewDynamicResourceLoader(context.TODO(), &testing.T{})
 
-	By("creating openshift config client")
+	By("creating config.openshift.io/v1 client")
 	configClient, err = configv1.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
-	By("creating cert-manager client")
+	By("creating operator.openshift.io/v1 client")
+	oseOperatorClient, err = operatorv1.NewForConfig(cfg)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("creating cert-manager.io/v1 client")
 	certmanagerClient, err = certmanagerclientset.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 })
