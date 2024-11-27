@@ -101,6 +101,8 @@ COMMIT ?= $(shell git rev-parse HEAD)
 SHORTCOMMIT ?= $(shell git rev-parse --short HEAD)
 GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCOMMIT) -X $(PACKAGE)/pkg/version.COMMIT=$(COMMIT)"
 
+# test/e2e TestAll() is the entrypoint for the entire ginkgo test suite
+E2E_TEST ?= "^TestAll$$"
 E2E_TIMEOUT ?= 1h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests. See
 # https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
@@ -248,7 +250,7 @@ test-e2e: test-e2e-wait-for-stable-state
 	-v \
 	-p 1 \
 	-tags e2e \
-	-run "$(TEST)" \
+	-run "$(E2E_TEST)" \
 	./test/e2e \
 	-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
