@@ -34,6 +34,22 @@ spec:
       labels:
         name: cert-manager-operator
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: kubernetes.io/arch
+                  operator: In
+                  values:
+                    - amd64
+                    - arm64
+                    - ppc64le
+                    - s390x
+                - key: kubernetes.io/os
+                  operator: In
+                  values:
+                    - linux
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -85,6 +101,10 @@ spec:
             runAsNonRoot: true
             seccompProfile:
               type: 'RuntimeDefault'
+          ports:
+          - containerPort: 8443
+            name: https
+            protocol: TCP
           resources:
             requests:
               cpu: 10m
