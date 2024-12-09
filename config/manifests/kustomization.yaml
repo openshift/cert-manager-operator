@@ -31,7 +31,7 @@ replacements:
       group: apps
       kind: Deployment
       name: cert-manager-operator-controller-manager
-      fieldPath: spec.template.spec.containers.1.image
+      fieldPath: spec.template.spec.containers.0.image
     targets:
       - select:
           group: operators.coreos.com
