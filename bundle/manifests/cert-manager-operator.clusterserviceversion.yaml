@@ -614,34 +614,6 @@ spec:
                         - linux
               containers:
               - args:
-                - --http2-disable
-                - --secure-listen-address=0.0.0.0:9443
-                - --upstream=http://127.0.0.1:8080/
-                - --logtostderr=true
-                - --v=0
-                image: gcr.io/kubebuilder/kube-rbac-proxy:v0.16.0
-                name: kube-rbac-proxy
-                ports:
-                - containerPort: 9443
-                  name: https
-                  protocol: TCP
-                resources:
-                  limits:
-                    cpu: 500m
-                    memory: 128Mi
-                  requests:
-                    cpu: 5m
-                    memory: 64Mi
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                    drop:
-                    - ALL
-                  privileged: false
-                  runAsNonRoot: true
-                  seccompProfile:
-                    type: RuntimeDefault
-              - args:
                 - start
                 - --v=$(OPERATOR_LOG_LEVEL)
                 - --trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)
@@ -678,6 +650,10 @@ spec:
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: IfNotPresent
                 name: cert-manager-operator
+                ports:
+                - containerPort: 8443
+                  name: https
+                  protocol: TCP
                 resources:
                   requests:
                     cpu: 10m
