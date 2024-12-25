@@ -1,0 +1,27 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: basic #revision name of istio-csr
+spec:
+  addons:
+    grafana:
+      enabled: false
+    kiali:
+      enabled: false
+    prometheus:
+      enabled: false
+  proxy:
+    accessLogging:
+      file:
+        name: /dev/stdout
+  security:
+    certificateAuthority:
+      cert-manager:
+        address: cert-manager-istio-csr.istio-system.svc:443
+      type: cert-manager
+    dataPlane:
+      mtls: true
+    identity:
+      type: ThirdParty
+  tracing:
+    type: None

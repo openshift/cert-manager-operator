@@ -1,0 +1,16 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: IstioCSR
+metadata:
+  name: default
+  namespace: istio-csr
+spec:
+  istioCSRConfig:
+    certmanager:
+      issuerRef:
+        name: istio-csr-issuer
+        kind: Issuer
+        group: cert-manager.io
+    istiodTLSConfig:
+      trustDomain: cluster.local
+    istio:
+      namespace: istio-system
