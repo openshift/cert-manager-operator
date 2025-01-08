@@ -81,8 +81,12 @@ spec:
               value: quay.io/jetstack/cert-manager-controller:v1.15.2
             - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
               value: quay.io/jetstack/cert-manager-acmesolver:v1.15.2
+            - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
+              value: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
             - name: OPERAND_IMAGE_VERSION
               value: 1.15.2
+            - name: ISTIOCSR_OPERAND_IMAGE_VERSION
+              value: 0.12.0
             - name: OPERATOR_IMAGE_VERSION
               value: 1.15.0
             - name: OPERATOR_LOG_LEVEL
@@ -109,5 +113,19 @@ spec:
             requests:
               cpu: 10m
               memory: 32Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

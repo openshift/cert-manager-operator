@@ -1,0 +1,28 @@
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+rules:
+- apiGroups:
+  - "cert-manager.io"
+  resources:
+  - "certificaterequests"
+  verbs:
+  - "get"
+  - "list"
+  - "create"
+  - "update"
+  - "delete"
+  - "watch"
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]

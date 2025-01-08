@@ -270,6 +270,9 @@ spec:
     - kind: Issuer
       name: issuers.cert-manager.io
       version: v1
+    - kind: IstioCSR
+      name: istiocsrs.operator.openshift.io
+      version: v1alpha1
     - kind: Order
       name: orders.acme.cert-manager.io
       version: v1
@@ -386,6 +389,17 @@ spec:
           - apps
           resources:
           - deployments
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
           - replicasets
           verbs:
           - create
@@ -417,6 +431,24 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - certificates
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - clusterissuer
+          - issuer
+          verbs:
+          - get
+          - list
         - apiGroups:
           - cert-manager.io
           resourceNames:
@@ -480,6 +512,51 @@ spec:
           - update
           - watch
         - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        - apiGroups:
+          - ""
+          resources:
+          - namespaces
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - secrets
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - serviceaccounts
+          - services
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
           - gateway.networking.k8s.io
           resources:
           - gateways
@@ -534,6 +611,41 @@ spec:
           - patch
           - update
         - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs
+          verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - clusterrolebindings
+          - clusterroles
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
@@ -546,6 +658,17 @@ spec:
           - get
           - list
           - patch
+          - update
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - get
+          - list
           - update
           - watch
         - apiGroups:
@@ -639,8 +762,12 @@ spec:
                   value: quay.io/jetstack/cert-manager-controller:v1.15.2
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
                   value: quay.io/jetstack/cert-manager-acmesolver:v1.15.2
+                - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
+                  value: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.15.2
+                - name: ISTIOCSR_OPERAND_IMAGE_VERSION
+                  value: 0.12.0
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.15.0
                 - name: OPERATOR_LOG_LEVEL
@@ -649,11 +776,25 @@ spec:
                 - name: CLOUD_CREDENTIALS_SECRET_NAME
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: IfNotPresent
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
                 name: cert-manager-operator
                 ports:
                 - containerPort: 8443
                   name: https
                   protocol: TCP
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
                 resources:
                   requests:
                     cpu: 10m
@@ -743,5 +884,7 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.2
     name: cert-manager-acmesolver
+  - image: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
+    name: cert-manager-istiocsr
   replaces: cert-manager-operator.v1.14.1
   version: 1.15.0

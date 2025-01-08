@@ -185,6 +185,7 @@ github.com/go-errors/errors
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/logr/slogr
+github.com/go-logr/logr/testr
 # github.com/go-logr/stdr v1.2.2
 ## explicit; go 1.16
 github.com/go-logr/stdr
@@ -544,6 +545,12 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.13
 ## explicit; go 1.9
 github.com/mattn/go-runewidth
+# github.com/maxbrunsfeld/counterfeiter/v6 v6.8.1
+## explicit; go 1.20
+github.com/maxbrunsfeld/counterfeiter/v6
+github.com/maxbrunsfeld/counterfeiter/v6/arguments
+github.com/maxbrunsfeld/counterfeiter/v6/command
+github.com/maxbrunsfeld/counterfeiter/v6/generator
 # github.com/mbilski/exhaustivestruct v1.2.0
 ## explicit; go 1.15
 github.com/mbilski/exhaustivestruct/pkg/analyzer
@@ -761,8 +768,13 @@ github.com/openshift/library-go/pkg/operator/staticresourcecontroller
 github.com/openshift/library-go/pkg/operator/status
 github.com/openshift/library-go/pkg/operator/v1helpers
 github.com/openshift/library-go/pkg/serviceability
-# github.com/operator-framework/operator-lib v0.11.0
-## explicit; go 1.17
+# github.com/operator-framework/api v0.20.1-0.20240109180431-9ffba44ad7ed
+## explicit; go 1.20
+github.com/operator-framework/api/pkg/operators/v2
+# github.com/operator-framework/operator-lib v0.12.0
+## explicit; go 1.20
+github.com/operator-framework/operator-lib/conditions
+github.com/operator-framework/operator-lib/internal/utils
 github.com/operator-framework/operator-lib/proxy
 # github.com/pelletier/go-toml v1.9.5
 ## explicit; go 1.12

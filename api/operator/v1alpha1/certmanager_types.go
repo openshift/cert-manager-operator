@@ -59,6 +59,14 @@ type CertManagerSpec struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	CAInjectorConfig *DeploymentConfig `json:"cainjectorConfig,omitempty"`
+
+	// Features specify experimental (NOT Generally Available) features that the operator enables.
+	// Once this field is enabled, it CANNOT be disabled.
+	//
+	// +kubebuilder:validation:XValidation:rule="oldSelf != null && self != null",message="experimental features field cannot be unset once enabled."
+	// +kubebuilder:validation:Optional
+	// +optional
+	Features *Features `json:"features,omitempty"`
 }
 
 // DeploymentConfig defines the schema for
@@ -120,6 +128,30 @@ type CertManagerScheduling struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty" protobuf:"bytes,22,opt,name=tolerations"`
 }
 
+// Features contains experimental features.
+type Features struct {
+	// TechPreview is the list of features enabled under Technlogy Preview capabilities,
+	// is specific to the cert-manager Operator for Red Hat OpenShift and not in anyway
+	// related to the "TechPreviewNoUpgrade" feature set available in core OpenShift,
+	// although similar support and licensing terms may apply.
+	//
+	// Technology Preview features are not supported with Red Hat production service level agreements
+	// (SLAs) and might not be functionally complete. Red Hat does not recommend using them in production.
+	// These features provide early access to upcoming product features,
+	// enabling customers to test functionality and provide feedback during the development process.
+	//
+	// +kubebuilder:validation:XValidation:rule="oldSelf.size() != 0 ? oldSelf.all(e, self.exists(f, f == e)) : true",message="a tech preview feature once enabled, cannot be disabled."
+	// +kubebuilder:validation:XValidation:rule="self.all(e, self.filter(x, x == e).size() == 1)",message="tech preview features must not contain duplicate values."
+	// +kubebuilder:validation:Required
+	// +required
+	TechPreview TechPreview `json:"techPreview"`
+}
+
+// TechPreview contains the list of enabled experimental features.
+// +listType=atomic
+// +kubebuilder:validation:MaxItems=64
+type TechPreview []FeatureName
+
 // CertManagerStatus defines the observed state of CertManager
 type CertManagerStatus struct {
 	apiv1.OperatorStatus `json:",inline"`
@@ -138,6 +170,7 @@ type CertManager struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:XValidation:rule="has(oldSelf.features) && oldSelf.features != null ? has(self.features) && self.features != null : true",message="experimental features field cannot be unset once enabled."
 	// +kubebuilder:validation:Required
 	// +required
 	Spec CertManagerSpec `json:"spec,omitempty"`

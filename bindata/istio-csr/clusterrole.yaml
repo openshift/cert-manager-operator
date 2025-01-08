@@ -1,0 +1,29 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "configmaps"
+  verbs: ["get", "list", "create", "update", "watch"]
+- apiGroups:
+  - ""
+  resources:
+  - "namespaces"
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - "authentication.k8s.io"
+  resources:
+  - "tokenreviews"
+  verbs:
+  - "create"

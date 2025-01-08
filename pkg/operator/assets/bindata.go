@@ -40,6 +40,16 @@
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml
+// bindata/istio-csr/certificate.yaml
+// bindata/istio-csr/clusterrole.yaml
+// bindata/istio-csr/clusterrolebinding.yaml
+// bindata/istio-csr/deployment.yaml
+// bindata/istio-csr/role.yaml
+// bindata/istio-csr/role_leases.yaml
+// bindata/istio-csr/rolebinding.yaml
+// bindata/istio-csr/rolebinding_leases.yaml
+// bindata/istio-csr/service.yaml
+// bindata/istio-csr/serviceaccount.yaml
 package assets
 
 import (
@@ -2117,6 +2127,489 @@ func certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfiguratio
 	return a, nil
 }
 
+var _istioCsrCertificateYaml = []byte(`---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: istiod
+  namespace: istio-system
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  commonName: istiod.istio-system.svc
+  dnsNames:
+  - istiod.istio-system.svc
+  - istiod-basic.istio-system.svc
+  uris:
+  - spiffe://cluster.local/ns/istio-system/sa/istiod-service-account
+  secretName: istiod-tls
+  duration: 1h
+  renewBefore: 30m
+  privateKey:
+    rotationPolicy: Always
+    algorithm: RSA
+    size: 2048
+  revisionHistoryLimit: 1
+  issuerRef:
+    name: istio-ca
+    kind: issuer
+    group: cert-manager.io
+`)
+
+func istioCsrCertificateYamlBytes() ([]byte, error) {
+	return _istioCsrCertificateYaml, nil
+}
+
+func istioCsrCertificateYaml() (*asset, error) {
+	bytes, err := istioCsrCertificateYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/certificate.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrClusterroleYaml = []byte(`---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "configmaps"
+  verbs: ["get", "list", "create", "update", "watch"]
+- apiGroups:
+  - ""
+  resources:
+  - "namespaces"
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - "authentication.k8s.io"
+  resources:
+  - "tokenreviews"
+  verbs:
+  - "create"
+`)
+
+func istioCsrClusterroleYamlBytes() ([]byte, error) {
+	return _istioCsrClusterroleYaml, nil
+}
+
+func istioCsrClusterroleYaml() (*asset, error) {
+	bytes, err := istioCsrClusterroleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/clusterrole.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrClusterrolebindingYaml = []byte(`---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    cert-manager-istio-csr-namespace: cert-manager
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  generateName: cert-manager-istio-csr-
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-manager-istio-csr
+subjects:
+- kind: ServiceAccount
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+`)
+
+func istioCsrClusterrolebindingYamlBytes() ([]byte, error) {
+	return _istioCsrClusterrolebindingYaml, nil
+}
+
+func istioCsrClusterrolebindingYaml() (*asset, error) {
+	bytes, err := istioCsrClusterrolebindingYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/clusterrolebinding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrDeploymentYaml = []byte(`---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  template:
+    metadata:
+      labels:
+        app: cert-manager-istio-csr
+        app.kubernetes.io/name: cert-manager-istio-csr
+        app.kubernetes.io/instance: cert-manager-istio-csr
+        app.kubernetes.io/version: "v0.12.0"
+        app.kubernetes.io/managed-by: cert-manager-operator
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      serviceAccountName: cert-manager-istio-csr
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: cert-manager-istio-csr
+        image: "quay.io/jetstack/cert-manager-istio-csr:v0.12.0"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 6443
+        - containerPort: 9402
+        readinessProbe:
+          httpGet:
+            port: 6060
+            path: /readyz
+          initialDelaySeconds: 3
+          periodSeconds: 7
+        args:
+          - "--log-level=1"
+          - "--log-format=text"
+          - "--metrics-port=9402"
+          - "--readiness-probe-port=6060"
+          - "--readiness-probe-path=/readyz"
+
+          # cert-manager
+          - "--certificate-namespace=cert-manager"
+          - "--issuer-enabled=true"
+          - "--issuer-name=istio-csr-issuer"
+          - "--issuer-kind=Issuer"
+          - "--issuer-group=cert-manager.io"
+          - "--preserve-certificate-requests=false"
+
+          # tls
+          - "--root-ca-file=/var/run/secrets/istio-csr/ca.crt"
+          - "--serving-certificate-dns-names=cert-manager-istio-csr.cert-manager.svc"
+          - "--serving-certificate-duration=1h"
+          - "--trust-domain=cluster.local"
+
+          # server
+          - "--cluster-id=Kubernetes"
+          - "--max-client-certificate-duration=1h"
+          - "--serving-address=0.0.0.0:6443"
+          - "--serving-certificate-key-size=2048"
+          - "--serving-signature-algorithm=RSA"
+
+          # server authenticators
+          - "--enable-client-cert-authenticator=false"
+
+          # controller
+          - "--leader-election-namespace=cert-manager"
+          - "--disable-kubernetes-client-rate-limiter=false"
+
+          - "--runtime-issuance-config-map-name="
+          - "--runtime-issuance-config-map-namespace=cert-manager"
+
+          # dynamic istiod cert
+          - "--istiod-cert-enabled=false"
+          - "--istiod-cert-name=istiod"
+          - "--istiod-cert-namespace=istio-system"
+          - "--istiod-cert-duration=1h"
+          - "--istiod-cert-renew-before=30m"
+          - "--istiod-cert-key-algorithm=RSA"
+          - "--istiod-cert-key-size=2048"
+          - "--istiod-cert-additional-dns-names=istiod.istio-system.svc"
+          - "--istiod-cert-istio-revisions=default,basic"
+        securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+`)
+
+func istioCsrDeploymentYamlBytes() ([]byte, error) {
+	return _istioCsrDeploymentYaml, nil
+}
+
+func istioCsrDeploymentYaml() (*asset, error) {
+	bytes, err := istioCsrDeploymentYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/deployment.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrRoleYaml = []byte(`---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+rules:
+- apiGroups:
+  - "cert-manager.io"
+  resources:
+  - "certificaterequests"
+  verbs:
+  - "get"
+  - "list"
+  - "create"
+  - "update"
+  - "delete"
+  - "watch"
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+`)
+
+func istioCsrRoleYamlBytes() ([]byte, error) {
+	return _istioCsrRoleYaml, nil
+}
+
+func istioCsrRoleYaml() (*asset, error) {
+	bytes, err := istioCsrRoleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/role.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrRole_leasesYaml = []byte(`---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr-leases
+  namespace: cert-manager
+rules:
+- apiGroups:
+  - "coordination.k8s.io"
+  resources:
+  - "leases"
+  verbs:
+  - "get"
+  - "create"
+  - "update"
+  - "watch"
+  - "list"
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+`)
+
+func istioCsrRole_leasesYamlBytes() ([]byte, error) {
+	return _istioCsrRole_leasesYaml, nil
+}
+
+func istioCsrRole_leasesYaml() (*asset, error) {
+	bytes, err := istioCsrRole_leasesYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/role_leases.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrRolebindingYaml = []byte(`---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-istio-csr
+subjects:
+- kind: ServiceAccount
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+`)
+
+func istioCsrRolebindingYamlBytes() ([]byte, error) {
+	return _istioCsrRolebindingYaml, nil
+}
+
+func istioCsrRolebindingYaml() (*asset, error) {
+	bytes, err := istioCsrRolebindingYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/rolebinding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrRolebinding_leasesYaml = []byte(`---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-manager-istio-csr-leases
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-istio-csr-leases
+subjects:
+- kind: ServiceAccount
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+`)
+
+func istioCsrRolebinding_leasesYamlBytes() ([]byte, error) {
+	return _istioCsrRolebinding_leasesYaml, nil
+}
+
+func istioCsrRolebinding_leasesYaml() (*asset, error) {
+	bytes, err := istioCsrRolebinding_leasesYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/rolebinding_leases.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrServiceYaml = []byte(`---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: 6443
+      protocol: TCP
+      name: web
+  selector:
+    app: cert-manager-istio-csr
+`)
+
+func istioCsrServiceYamlBytes() ([]byte, error) {
+	return _istioCsrServiceYaml, nil
+}
+
+func istioCsrServiceYaml() (*asset, error) {
+	bytes, err := istioCsrServiceYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/service.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _istioCsrServiceaccountYaml = []byte(`---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+`)
+
+func istioCsrServiceaccountYamlBytes() ([]byte, error) {
+	return _istioCsrServiceaccountYaml, nil
+}
+
+func istioCsrServiceaccountYaml() (*asset, error) {
+	bytes, err := istioCsrServiceaccountYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/serviceaccount.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
 // could not be loaded.
@@ -2209,6 +2702,16 @@ var _bindata = map[string]func() (*asset, error){
 	"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml":               certManagerDeploymentWebhookCertManagerWebhookSubjectaccessreviewsCrbYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml":                                    certManagerDeploymentWebhookCertManagerWebhookSvcYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml":         certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml,
+	"istio-csr/certificate.yaml":        istioCsrCertificateYaml,
+	"istio-csr/clusterrole.yaml":        istioCsrClusterroleYaml,
+	"istio-csr/clusterrolebinding.yaml": istioCsrClusterrolebindingYaml,
+	"istio-csr/deployment.yaml":         istioCsrDeploymentYaml,
+	"istio-csr/role.yaml":               istioCsrRoleYaml,
+	"istio-csr/role_leases.yaml":        istioCsrRole_leasesYaml,
+	"istio-csr/rolebinding.yaml":        istioCsrRolebindingYaml,
+	"istio-csr/rolebinding_leases.yaml": istioCsrRolebinding_leasesYaml,
+	"istio-csr/service.yaml":            istioCsrServiceYaml,
+	"istio-csr/serviceaccount.yaml":     istioCsrServiceaccountYaml,
 }
 
 // AssetDir returns the file names below a certain
@@ -2303,6 +2806,18 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"cert-manager-webhook-svc.yaml":                            {certManagerDeploymentWebhookCertManagerWebhookSvcYaml, map[string]*bintree{}},
 			"cert-manager-webhook-validatingwebhookconfiguration.yaml": {certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml, map[string]*bintree{}},
 		}},
+	}},
+	"istio-csr": {nil, map[string]*bintree{
+		"certificate.yaml":        {istioCsrCertificateYaml, map[string]*bintree{}},
+		"clusterrole.yaml":        {istioCsrClusterroleYaml, map[string]*bintree{}},
+		"clusterrolebinding.yaml": {istioCsrClusterrolebindingYaml, map[string]*bintree{}},
+		"deployment.yaml":         {istioCsrDeploymentYaml, map[string]*bintree{}},
+		"role.yaml":               {istioCsrRoleYaml, map[string]*bintree{}},
+		"role_leases.yaml":        {istioCsrRole_leasesYaml, map[string]*bintree{}},
+		"rolebinding.yaml":        {istioCsrRolebindingYaml, map[string]*bintree{}},
+		"rolebinding_leases.yaml": {istioCsrRolebinding_leasesYaml, map[string]*bintree{}},
+		"service.yaml":            {istioCsrServiceYaml, map[string]*bintree{}},
+		"serviceaccount.yaml":     {istioCsrServiceaccountYaml, map[string]*bintree{}},
 	}},
 }}
 
