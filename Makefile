@@ -179,10 +179,10 @@ local-run: build
 .PHONY: local-run
 
 ##@ Build
-GO=GO111MODULE=on GOFLAGS="-mod=vendor -tags=strictfipsruntime,openssl" CGO_ENABLED=1 GOEXPERIMENT=strictfipsruntime go
+GO=GO111MODULE=on CGO_ENABLED=1 go
 
 build-operator: ## Build operator binary, no additional checks or code generation
-	$(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN)
+	@GOFLAGS="-mod=vendor" source hack/go-fips.sh && $(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN)
 
 build: generate fmt vet build-operator ## Build operator binary.
 
@@ -286,5 +286,5 @@ $(OPERATOR_SDK_BIN):
 	hack/operator-sdk.sh $(OPERATOR_SDK_BIN)
 
 clean:
-	$(GO) clean
+	go clean
 	rm -f $(BIN)
