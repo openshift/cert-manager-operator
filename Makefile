@@ -106,7 +106,7 @@ E2E_TIMEOUT ?= 1h
 # https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
 E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
-MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.2/cert-manager.yaml
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.4/cert-manager.yaml
 
 
 ##@ Development
