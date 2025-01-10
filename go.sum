@@ -514,8 +514,8 @@ github.com/openshift/build-machinery-go v0.0.0-20240419090851-af9c868bcf52 h1:bq
 github.com/openshift/build-machinery-go v0.0.0-20240419090851-af9c868bcf52/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
 github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87 h1:JtLhaGpSEconE+1IKmIgCOof/Len5ceG6H1pk43yv5U=
 github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87/go.mod h1:3IPD4U0qyovZS4EFady2kqY32m8lGcbs/Wx+yprg9z8=
-github.com/openshift/jetstack-cert-manager v1.15.2-0.20240724133510-48216fb20316 h1:VTmXO4o+IqUg6By2E9q+AprpogP0ogRSDWify1X+OOI=
-github.com/openshift/jetstack-cert-manager v1.15.2-0.20240724133510-48216fb20316/go.mod h1:stBge/DTvrhfQMB/93+Y62s+gQgZBsfL1o0C/4AL/mI=
+github.com/openshift/jetstack-cert-manager v1.15.4 h1:hkWvMqZ8nyx4Vz3gpVScXBdAQjqUGxaN1v/p1DXeXgw=
+github.com/openshift/jetstack-cert-manager v1.15.4/go.mod h1:stBge/DTvrhfQMB/93+Y62s+gQgZBsfL1o0C/4AL/mI=
 github.com/openshift/library-go v0.0.0-20241118144106-bfd968d8eef4 h1:PMSC7hk/jrgRPztEw5kBonLZ5O/0NvhY8elZlZ9kvnE=
 github.com/openshift/library-go v0.0.0-20241118144106-bfd968d8eef4/go.mod h1:PdASVamWinll2BPxiUpXajTwZxV8A1pQbWEsCN1od7I=
 github.com/operator-framework/operator-lib v0.11.0 h1:eYzqpiOfq9WBI4Trddisiq/X9BwCisZd3rIzmHRC9Z8=
