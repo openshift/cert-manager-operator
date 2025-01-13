@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -25,6 +26,8 @@ import (
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	"github.com/openshift/cert-manager-operator/test/library"
 
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -36,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
@@ -563,4 +567,131 @@ func waitForIngressReadiness(ctx context.Context, client kubernetes.Interface, i
 		}
 		return false, nil
 	})
+}
+
+// pollTillJobCompleted poll the job object and returns non-nil error
+// once the job is completed, otherwise should return a time-out error
+func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
+	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
+
+		if err != nil {
+			return false, err
+		}
+
+		for _, cond := range job.Status.Conditions {
+			if cond.Type == batchv1.JobComplete {
+				if cond.Status == corev1.ConditionTrue {
+					return true, nil
+				} else {
+					return false, nil
+				}
+			}
+		}
+
+		return false, nil
+	})
+	return err
+}
+
+// pollTillServiceAccountAvailable poll the service account object and returns non-nil error
+// once the service account is available, otherwise should return a time-out error
+func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace, serviceAccountName string) error {
+	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+		_, err := clientset.CoreV1().ServiceAccounts(namespace).Get(ctx, serviceAccountName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	})
+
+	return err
+}
+
+// pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istio-grpc-endpoint
+// once the istiocsr is available, otherwise should return a time-out error
+func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (string, error) {
+	var istioCSRGRPCEndpoint string
+	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+		gvr := schema.GroupVersionResource{
+			Group:    "operator.openshift.io",
+			Version:  "v1alpha1",
+			Resource: "istiocsrs",
+		}
+
+		customResource, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, istioCsrName, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+
+		status, found, err := unstructured.NestedMap(customResource.Object, "status")
+		if err != nil {
+			return false, nil
+		}
+
+		if !found {
+			return false, nil
+		}
+
+		conditions, found, err := unstructured.NestedSlice(customResource.Object, "status", "conditions")
+		if err != nil {
+			return false, nil
+		}
+
+		if !found {
+			return false, nil
+		}
+
+		for _, condition := range conditions {
+			condMap, ok := condition.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			condType, _ := condMap["type"].(string)
+			condStatus, _ := condMap["status"].(string)
+
+			if condType != "Ready" {
+				continue
+			}
+
+			if condStatus == string(metav1.ConditionTrue) {
+				break
+			} else {
+				return false, nil
+			}
+
+		}
+
+		if !library.IsEmptyString(status["istioCSRGRPCEndpoint"]) && !library.IsEmptyString(status["clusterRoleBinding"]) && !library.IsEmptyString(status["istioCSRImage"]) && !library.IsEmptyString(status["serviceAccount"]) {
+			istioCSRGRPCEndpoint = status["istioCSRGRPCEndpoint"].(string)
+			return true, nil
+		}
+		return false, nil
+	})
+
+	return istioCSRGRPCEndpoint, err
+}
+
+func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
+	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+
+		for _, cond := range deployment.Status.Conditions {
+			if cond.Type == appsv1.DeploymentAvailable {
+				return cond.Status == corev1.ConditionTrue, nil
+			}
+		}
+
+		return false, nil
+	})
+
+	return err
 }
