@@ -14,11 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/openshift/cert-manager-operator/test/library"
-
 	v1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -74,7 +73,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("e2e-acme-certs")
+		namespace, err := loader.CreateTestingNS("e2e-acme-certs", false)
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
@@ -683,7 +682,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 		ctx = context.Background()
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("e2e-self-signed-certs")
+		namespace, err := loader.CreateTestingNS("e2e-self-signed-certs", false)
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
