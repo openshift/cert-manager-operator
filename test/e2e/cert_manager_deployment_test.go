@@ -42,7 +42,7 @@ func TestSelfSignedCerts(t *testing.T) {
 	ctx := context.Background()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 
-	ns, err := loader.CreateTestingNS("e2e-self-signed-cert")
+	ns, err := loader.CreateTestingNS("e2e-self-signed-cert", false)
 	require.NoError(t, err)
 	defer loader.DeleteTestingNS(ns.Name, t.Failed)
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
@@ -73,7 +73,7 @@ func TestACMECertsIngress(t *testing.T) {
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
 
-	ns, err := loader.CreateTestingNS("e2e-acme-ingress-cert")
+	ns, err := loader.CreateTestingNS("e2e-acme-ingress-cert", false)
 	require.NoError(t, err)
 	defer loader.DeleteTestingNS(ns.Name, t.Failed)
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
@@ -159,7 +159,7 @@ func TestCertRenew(t *testing.T) {
 	config, err := library.GetConfigForTest(t)
 	require.NoErrorf(t, err, "failed to fetch host configuration: %v", err)
 
-	ns, err := loader.CreateTestingNS("e2e-cert-renew")
+	ns, err := loader.CreateTestingNS("e2e-cert-renew", false)
 	require.NoErrorf(t, err, "failed to create namespace: %v", err)
 	defer loader.DeleteTestingNS(ns.Name, t.Failed)
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
