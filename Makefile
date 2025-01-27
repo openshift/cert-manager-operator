@@ -1,3 +1,4 @@
+# No-op
 
 # BUNDLE_VERSION defines the project version for the bundle.
 # Update this value when you upgrade the version of your project.
