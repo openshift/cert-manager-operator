@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	v1 "github.com/openshift/api/operator/v1"
 	"github.com/operator-framework/operator-lib/proxy"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -56,6 +57,11 @@ type overrideEnvFunc func(certmanagerinformer.CertManagerInformer, string) ([]co
 // withPodLabels(). This function returns the override labels provided
 // to cert-manager-operator spec.
 type overrideLabelsFunc func(certmanagerinformer.CertManagerInformer, string) (map[string]string, error)
+
+// overrideReplicasFunc defines a function signature that is accepted by
+// withContainerReplicasOverrideHook(). This function returns the override
+// replicas provided to cert-manager-operator spec.
+type overrideReplicasFunc func(certmanagerinformer.CertManagerInformer, string) (int32, error)
 
 // overrideResourcesFunc defines a function signature that is accepted by
 // withContainerResourcesOverrideHook(). This function returns the override
@@ -132,6 +138,24 @@ func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.
 			deployment.Spec.Template.Spec.Containers[0].Resources = mergeContainerResources(
 				deployment.Spec.Template.Spec.Containers[0].Resources,
 				overrideResources)
+		}
+		return nil
+	}
+}
+
+// withContainerReplicasOverrideHook overrides the deployment replicas with those provided by
+// the overrideReplicasFunc function.
+func withContainerReplicasOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideReplicasFunc) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		overrideReplicas, err := fn(certmanagerinformer, deploymentName)
+		if err != nil {
+			return err
+		}
+
+		if overrideReplicas != 0 {
+			if deployment.Name == deploymentName {
+				deployment.Spec.Replicas = &overrideReplicas
+			}
 		}
 		return nil
 	}

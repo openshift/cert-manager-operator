@@ -13,6 +13,7 @@ type DeploymentConfigApplyConfiguration struct {
 	OverrideEnv        []v1.EnvVar                                        `json:"overrideEnv,omitempty"`
 	OverrideLabels     map[string]string                                  `json:"overrideLabels,omitempty"`
 	OverrideResources  *CertManagerResourceRequirementsApplyConfiguration `json:"overrideResources,omitempty"`
+	OverrideReplicas   *int32                                             `json:"overrideReplicas,omitempty"`
 	OverrideScheduling *CertManagerSchedulingApplyConfiguration           `json:"overrideScheduling,omitempty"`
 }
 
@@ -61,6 +62,14 @@ func (b *DeploymentConfigApplyConfiguration) WithOverrideLabels(entries map[stri
 // If called multiple times, the OverrideResources field is set to the value of the last call.
 func (b *DeploymentConfigApplyConfiguration) WithOverrideResources(value *CertManagerResourceRequirementsApplyConfiguration) *DeploymentConfigApplyConfiguration {
 	b.OverrideResources = value
+	return b
+}
+
+// WithOverrideReplicas sets the OverrideReplicas field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the OverrideReplicas field is set to the value of the last call.
+func (b *DeploymentConfigApplyConfiguration) WithOverrideReplicas(value int32) *DeploymentConfigApplyConfiguration {
+	b.OverrideReplicas = &value
 	return b
 }
 

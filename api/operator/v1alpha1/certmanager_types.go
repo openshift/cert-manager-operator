@@ -82,6 +82,11 @@ type DeploymentConfig struct {
 	// +optional
 	OverrideResources CertManagerResourceRequirements `json:"overrideResources,omitempty"`
 
+	// Replicas defines the number of replicas to run for an operand
+	// +kubebuilder:validation:Optional
+	// +optional
+	OverrideReplicas int32 `json:"overrideReplicas,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	// +optional
 	OverrideScheduling CertManagerScheduling `json:"overrideScheduling,omitempty"`

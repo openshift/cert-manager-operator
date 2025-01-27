@@ -177,6 +177,11 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  overrideReplicas:
+                    description: Replicas defines the number of replicas to run for
+                      an operand
+                    format: int32
+                    type: integer
                   overrideResources:
                     description: |-
                       CertManagerResourceRequirements describes the compute resource requirements for the cert-manager operands,
@@ -413,6 +418,11 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  overrideReplicas:
+                    description: Replicas defines the number of replicas to run for
+                      an operand
+                    format: int32
+                    type: integer
                   overrideResources:
                     description: |-
                       CertManagerResourceRequirements describes the compute resource requirements for the cert-manager operands,
@@ -694,6 +704,11 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  overrideReplicas:
+                    description: Replicas defines the number of replicas to run for
+                      an operand
+                    format: int32
+                    type: integer
                   overrideResources:
                     description: |-
                       CertManagerResourceRequirements describes the compute resource requirements for the cert-manager operands,
