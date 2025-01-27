@@ -244,7 +244,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.15.0
+  name: cert-manager-operator.v1.15.1
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -274,7 +274,7 @@ spec:
       name: orders.acme.cert-manager.io
       version: v1
   description: |
-    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.15.4](https://github.com/cert-manager/cert-manager/tree/v1.15.2), which automates certificate management.
+    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.15.5](https://github.com/cert-manager/cert-manager/tree/v1.15.5), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
   displayName: cert-manager Operator for Red Hat OpenShift
   icon:
@@ -632,17 +632,17 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.15.4
+                  value: quay.io/jetstack/cert-manager-webhook:v1.15.5
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.15.4
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.15.5
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.15.4
+                  value: quay.io/jetstack/cert-manager-controller:v1.15.5
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.15.4
+                  value: quay.io/jetstack/cert-manager-acmesolver:v1.15.5
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.15.4
+                  value: 1.15.5
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.15.0
+                  value: 1.15.1
                 - name: OPERATOR_LOG_LEVEL
                   value: "2"
                 - name: TRUSTED_CA_CONFIGMAP_NAME
@@ -735,13 +735,13 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.15.4
+  - image: quay.io/jetstack/cert-manager-webhook:v1.15.5
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.15.4
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.15.5
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.15.4
+  - image: quay.io/jetstack/cert-manager-controller:v1.15.5
     name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.4
+  - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.5
     name: cert-manager-acmesolver
   replaces: cert-manager-operator.v1.14.1
-  version: 1.15.0
+  version: 1.15.1
