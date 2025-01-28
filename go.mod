@@ -1,6 +1,8 @@
 module github.com/openshift/cert-manager-operator
 
-go 1.22.11
+go 1.22.0
+
+toolchain go1.22.11
 
 require (
 	github.com/cert-manager/cert-manager v1.15.5
@@ -289,4 +291,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-//replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.15.5
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.15.5
