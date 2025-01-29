@@ -2,10 +2,13 @@ package operator
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
@@ -107,6 +110,14 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	for _, controller := range controllersToStart {
 		go controller.Run(ctx, 1)
+	}
+
+	manager, err := NewControllerManager()
+	if err != nil {
+		return fmt.Errorf("failed to create controller manager: %w", err)
+	}
+	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+		return fmt.Errorf("failed to start istiocsr controller: %w", err)
 	}
 
 	<-ctx.Done()
