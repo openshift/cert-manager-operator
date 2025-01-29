@@ -27,6 +27,14 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		// A list of comma separated dns server endpoints used for ACME HTTP01 check requests.
 		// This should be a list containing host and port, for example 8.8.8.8:53,8.8.4.4:53
 		"--acme-http01-solver-nameservers",
+		// Defines the resource limits CPU size when spawning new ACME HTTP01 challenge solver pods. (default "100m")
+		"--acme-http01-solver-resource-limits-cpu",
+		// Defines the resource limits Memory size when spawning new ACME HTTP01 challenge solver pods. (default "64Mi")
+		"--acme-http01-solver-resource-limits-memory",
+		// Defines the resource request CPU size when spawning new ACME HTTP01 challenge solver pods. (default "10m")
+		"--acme-http01-solver-resource-request-cpu",
+		// Defines the resource request Memory size when spawning new ACME HTTP01 challenge solver pods. (default "64Mi")
+		"--acme-http01-solver-resource-request-memory",
 		// A list of comma separated dns server endpoints used for DNS01 check requests.
 		// This should be a list containing host and port, for example 8.8.8.8:53,8.8.4.4:53
 		"--dns01-recursive-nameservers",
