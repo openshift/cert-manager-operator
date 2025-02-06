@@ -39,7 +39,7 @@ const (
 var testassets embed.FS
 
 func TestSelfSignedCerts(t *testing.T) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 
 	ns, err := loader.CreateTestingNS("e2e-self-signed-cert")
@@ -68,7 +68,7 @@ func TestSelfSignedCerts(t *testing.T) {
 }
 
 func TestACMECertsIngress(t *testing.T) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestACMECertsIngress(t *testing.T) {
 }
 
 func TestCertRenew(t *testing.T) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	loader := library.NewDynamicResourceLoader(ctx, t)
 	config, err := library.GetConfigForTest(t)
 	require.NoErrorf(t, err, "failed to fetch host configuration: %v", err)
@@ -307,7 +307,7 @@ func TestCertRenew(t *testing.T) {
 }
 
 func TestContainerOverrides(t *testing.T) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	config, err := library.GetConfigForTest(t)
 	require.NoError(t, err)
 

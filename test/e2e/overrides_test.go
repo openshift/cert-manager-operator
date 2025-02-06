@@ -19,7 +19,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 	BeforeEach(func() {
 		By("Reset cert-manager state")
-		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
+		err := resetCertManagerState(context.TODO(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
@@ -492,7 +492,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 	AfterAll(func() {
 		By("Reset cert-manager state")
-		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
+		err := resetCertManagerState(context.TODO(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
