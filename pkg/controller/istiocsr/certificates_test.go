@@ -217,7 +217,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 			}
 			r.ctrlClient = mock
 			istiocsr := &v1alpha1.IstioCSR{}
-			if err := r.Get(context.Background(), types.NamespacedName{
+			if err := r.Get(context.TODO(), types.NamespacedName{
 				Namespace: testIstioCSR().Namespace,
 				Name:      testIstioCSR().Name,
 			}, istiocsr); err != nil {
