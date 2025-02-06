@@ -2,9 +2,7 @@ package main
 
 import (
 	goflag "flag"
-	"math/rand"
 	"os"
-	"time"
 
 	"k8s.io/component-base/cli"
 	utilflag "k8s.io/component-base/cli/flag"
@@ -16,8 +14,6 @@ import (
 )
 
 func main() {
-	rand.Seed(time.Now().UTC().UnixNano())
-
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 
