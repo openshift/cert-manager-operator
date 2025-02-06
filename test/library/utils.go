@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -17,8 +17,8 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
-func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string) (*v1.Namespace, error) {
-	namespace := &v1.Namespace{
+func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string) (*corev1.Namespace, error) {
+	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("%v-", namespacePrefix),
 			Labels: map[string]string{
@@ -28,7 +28,7 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string) (*v1.Name
 		},
 	}
 
-	var got *v1.Namespace
+	var got *corev1.Namespace
 	if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
 		var err error
 		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespace, metav1.CreateOptions{})

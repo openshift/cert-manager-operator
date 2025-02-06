@@ -16,7 +16,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/test/library"
 
-	v1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
+	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
@@ -124,17 +124,17 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				},
 				Spec: certmanagerv1.IssuerSpec{
 					IssuerConfig: certmanagerv1.IssuerConfig{
-						ACME: &v1.ACMEIssuer{
+						ACME: &acmev1.ACMEIssuer{
 							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
 							PrivateKey: certmanagermetav1.SecretKeySelector{
 								LocalObjectReference: certmanagermetav1.LocalObjectReference{
 									Name: "letsencrypt-dns01-issuer",
 								},
 							},
-							Solvers: []v1.ACMEChallengeSolver{
+							Solvers: []acmev1.ACMEChallengeSolver{
 								{
-									DNS01: &v1.ACMEChallengeSolverDNS01{
-										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
+									DNS01: &acmev1.ACMEChallengeSolverDNS01{
+										Route53: &acmev1.ACMEIssuerDNS01ProviderRoute53{
 											AccessKeyID: string(awsAccessKeyID),
 											SecretAccessKey: certmanagermetav1.SecretKeySelector{
 												LocalObjectReference: certmanagermetav1.LocalObjectReference{
@@ -223,17 +223,17 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				},
 				Spec: certmanagerv1.IssuerSpec{
 					IssuerConfig: certmanagerv1.IssuerConfig{
-						ACME: &v1.ACMEIssuer{
+						ACME: &acmev1.ACMEIssuer{
 							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
 							PrivateKey: certmanagermetav1.SecretKeySelector{
 								LocalObjectReference: certmanagermetav1.LocalObjectReference{
 									Name: "letsencrypt-dns01-issuer",
 								},
 							},
-							Solvers: []v1.ACMEChallengeSolver{
+							Solvers: []acmev1.ACMEChallengeSolver{
 								{
-									DNS01: &v1.ACMEChallengeSolverDNS01{
-										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
+									DNS01: &acmev1.ACMEChallengeSolverDNS01{
+										Route53: &acmev1.ACMEIssuerDNS01ProviderRoute53{
 											Region: awsRegion,
 										},
 									},
@@ -316,17 +316,17 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				},
 				Spec: certmanagerv1.IssuerSpec{
 					IssuerConfig: certmanagerv1.IssuerConfig{
-						ACME: &v1.ACMEIssuer{
+						ACME: &acmev1.ACMEIssuer{
 							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
 							PrivateKey: certmanagermetav1.SecretKeySelector{
 								LocalObjectReference: certmanagermetav1.LocalObjectReference{
 									Name: "letsencrypt-dns01-issuer",
 								},
 							},
-							Solvers: []v1.ACMEChallengeSolver{
+							Solvers: []acmev1.ACMEChallengeSolver{
 								{
-									DNS01: &v1.ACMEChallengeSolverDNS01{
-										Route53: &v1.ACMEIssuerDNS01ProviderRoute53{
+									DNS01: &acmev1.ACMEChallengeSolverDNS01{
+										Route53: &acmev1.ACMEIssuerDNS01ProviderRoute53{
 											Region: awsRegion,
 										},
 									},
@@ -414,17 +414,17 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 				},
 				Spec: certmanagerv1.IssuerSpec{
 					IssuerConfig: certmanagerv1.IssuerConfig{
-						ACME: &v1.ACMEIssuer{
+						ACME: &acmev1.ACMEIssuer{
 							Server: "https://acme-staging-v02.api.letsencrypt.org/directory",
 							PrivateKey: certmanagermetav1.SecretKeySelector{
 								LocalObjectReference: certmanagermetav1.LocalObjectReference{
 									Name: "letsencrypt-dns01-issuer",
 								},
 							},
-							Solvers: []v1.ACMEChallengeSolver{
+							Solvers: []acmev1.ACMEChallengeSolver{
 								{
-									DNS01: &v1.ACMEChallengeSolverDNS01{
-										CloudDNS: &v1.ACMEIssuerDNS01ProviderCloudDNS{
+									DNS01: &acmev1.ACMEChallengeSolverDNS01{
+										CloudDNS: &acmev1.ACMEIssuerDNS01ProviderCloudDNS{
 											Project: string(gcpProjectID),
 											ServiceAccount: &certmanagermetav1.SecretKeySelector{
 												LocalObjectReference: certmanagermetav1.LocalObjectReference{

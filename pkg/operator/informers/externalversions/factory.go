@@ -10,7 +10,7 @@ import (
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
 	operator "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -39,7 +39,7 @@ type sharedInformerFactory struct {
 }
 
 // WithCustomResyncConfig sets a custom resync period for the specified informer types.
-func WithCustomResyncConfig(resyncConfig map[v1.Object]time.Duration) SharedInformerOption {
+func WithCustomResyncConfig(resyncConfig map[metav1.Object]time.Duration) SharedInformerOption {
 	return func(factory *sharedInformerFactory) *sharedInformerFactory {
 		for k, v := range resyncConfig {
 			factory.customResync[reflect.TypeOf(k)] = v
@@ -81,7 +81,7 @@ func NewFilteredSharedInformerFactory(client versioned.Interface, defaultResync 
 func NewSharedInformerFactoryWithOptions(client versioned.Interface, defaultResync time.Duration, options ...SharedInformerOption) SharedInformerFactory {
 	factory := &sharedInformerFactory{
 		client:           client,
-		namespace:        v1.NamespaceAll,
+		namespace:        metav1.NamespaceAll,
 		defaultResync:    defaultResync,
 		informers:        make(map[reflect.Type]cache.SharedIndexInformer),
 		startedInformers: make(map[reflect.Type]bool),

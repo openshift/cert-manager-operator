@@ -13,7 +13,7 @@ import (
 	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/utils/strings/slices"
 
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
@@ -21,7 +21,7 @@ import (
 
 // withContainerArgsValidateHook validates the container args with those that
 // are supported by the operator.
-func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerArgs := []string{
 		// A list of comma separated dns server endpoints used for ACME HTTP01 check requests.
@@ -73,7 +73,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		return nil
 	}
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
@@ -106,7 +106,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 
 // withContainerEnvValidateHook validates the container env with those that
 // are supported by the operator.
-func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerEnv := []string{
 		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
@@ -123,7 +123,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 		return nil
 	}
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
@@ -156,7 +156,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 
 // withPodLabelsValidateHook validates the pod labels from specific deployment config
 // with those that are supported by the operator.
-func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerLabelKeys := []string{
 		"azure.workload.identity/use",
@@ -173,7 +173,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 		return nil
 	}
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
@@ -202,7 +202,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 
 // withContainerResourcesValidateHook validates the container resources with those that
 // are supported by the operator.
-func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 
 	supportedCertManagerResourceNames := []string{
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
@@ -214,7 +214,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
 	}
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
@@ -258,9 +258,9 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 }
 
 // withPodSchedulingValidateHook validates the overrides scheduling field for each operand.
-func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
