@@ -12,7 +12,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
 const (
@@ -29,16 +29,16 @@ const (
 	cloudCredentialsVolumeName = "cloud-credentials"
 )
 
-func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, deploymentName, secretName string) func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, deploymentName, secretName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	// cloud credentials is only required for the controller deployment,
 	// other deployments should be left untouched
 	if deploymentName != certmanagerControllerDeployment {
-		return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+		return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 			return nil
 		}
 	}
 
-	return func(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		if len(secretName) == 0 {
 			return nil
 		}

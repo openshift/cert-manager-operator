@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -58,7 +57,7 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 		go func(index int) {
 			defer wg.Done()
 			err := wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return false, nil
@@ -94,7 +93,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
 		err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", v1.GetOptions{})
+			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
@@ -118,7 +117,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 			ManagementState: opv1.Managed,
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 
@@ -142,7 +141,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	}
 
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, v1.PatchOptions{})
+	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
 	return err
 }
 
@@ -150,7 +149,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 // a conflict error is encountered.
 func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName string, args []string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -174,7 +173,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -185,7 +184,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
 	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -217,7 +216,7 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 // is retried if a conflict error is encountered.
 func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -241,7 +240,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -252,7 +251,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
 	return wait.PollImmediate(time.Second*10, time.Minute*5, func() (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -288,7 +287,7 @@ func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName s
 // is retried if a conflict error is encountered.
 func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -312,7 +311,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -323,7 +322,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
 	return wait.PollUntilContextTimeout(context.Background(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -380,7 +379,7 @@ func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName 
 func getCertManagerOperatorSubscription(ctx context.Context, loader library.DynamicResourceLoader) (string, error) {
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
 
-	subs, err := subscriptionClient.List(ctx, v1.ListOptions{})
+	subs, err := subscriptionClient.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -422,7 +421,7 @@ func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.Dy
 	}
 
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, v1.PatchOptions{})
+	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
 	return err
 }
 

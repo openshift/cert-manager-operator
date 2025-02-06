@@ -6,7 +6,7 @@ import (
 	time "time"
 
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -20,5 +20,5 @@ type SharedInformerFactory interface {
 	InformerFor(obj runtime.Object, newFunc NewInformerFunc) cache.SharedIndexInformer
 }
 
-// TweakListOptionsFunc is a function that transforms a v1.ListOptions.
-type TweakListOptionsFunc func(*v1.ListOptions)
+// TweakListOptionsFunc is a function that transforms a metav1.ListOptions.
+type TweakListOptionsFunc func(*metav1.ListOptions)
