@@ -335,7 +335,7 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	// Create channel to know when the watch has started.
@@ -857,7 +857,7 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	// Create channel to know when the watch has started.
