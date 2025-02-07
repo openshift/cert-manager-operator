@@ -743,5 +743,5 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.5
     name: cert-manager-acmesolver
-  replaces: cert-manager-operator.v1.15.1
+  replaces: cert-manager-operator.v1.15.0
   version: 1.15.1
