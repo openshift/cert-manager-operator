@@ -38,7 +38,7 @@ jsonnet \
     > _output/targets_as_map.json
 
 # regenerate all bindata
-rm -rf bindata
+rm -rf bindata/cert-manager-deployment
 # regenerate all cert manager crds
 rm -rf config/crd/bases/*-crd.yaml
 

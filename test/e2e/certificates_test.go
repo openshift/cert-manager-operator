@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -188,7 +189,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", func() {
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with ClusterIssuer", Label("Debug:Yes"), func() {
 
 			By("creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
@@ -207,6 +208,19 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			credentialSecret := "aws-creds"
 			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("force deleting controller manager pod which should be rolling restarted automatically")
+			podClient := loader.KubeClient.CoreV1().Pods("cert-manager-operator")
+			pods, _ := podClient.List(ctx, metav1.ListOptions{
+				LabelSelector: "name=cert-manager-operator",
+			})
+			for _, pod := range pods.Items {
+				log.Printf("deleting Pod %v", pod.Name)
+				err = podClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("fail to delete Pod %v: %v, %v", pod.Name, err, err.Error())
+				}
+			}
 
 			By("getting AWS zone from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
@@ -280,7 +294,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should obtain a valid LetsEncrypt certificate using ambient credentials with Issuer", func() {
+		It("should obtain a valid LetsEncrypt certificate using ambient credentials with Issuer", Label("Debug:Yes"),func() {
 
 			By("creating CredentialsRequest object")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
@@ -299,6 +313,19 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			credentialSecret := "aws-creds"
 			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("force deleting controller manager pod which should be rolling restarted automatically")
+			podClient := loader.KubeClient.CoreV1().Pods("cert-manager-operator")
+			pods, _ := podClient.List(ctx, metav1.ListOptions{
+				LabelSelector: "name=cert-manager-operator",
+			})
+			for _, pod := range pods.Items {
+				log.Printf("deleting Pod %v", pod.Name)
+				err = podClient.Delete(ctx, pod.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("fail to delete Pod %v: %v, %v", pod.Name, err, err.Error())
+				}
+			}
 
 			By("getting AWS zone from Infrastructure object")
 			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
