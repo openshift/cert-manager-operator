@@ -1,0 +1,99 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-istio-csr
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  template:
+    metadata:
+      labels:
+        app: cert-manager-istio-csr
+        app.kubernetes.io/name: cert-manager-istio-csr
+        app.kubernetes.io/instance: cert-manager-istio-csr
+        app.kubernetes.io/version: "v0.12.0"
+        app.kubernetes.io/managed-by: cert-manager-operator
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      serviceAccountName: cert-manager-istio-csr
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: cert-manager-istio-csr
+        image: "quay.io/jetstack/cert-manager-istio-csr:v0.12.0"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 6443
+        - containerPort: 9402
+        readinessProbe:
+          httpGet:
+            port: 6060
+            path: /readyz
+          initialDelaySeconds: 3
+          periodSeconds: 7
+        args:
+          - "--log-level=1"
+          - "--log-format=text"
+          - "--metrics-port=9402"
+          - "--readiness-probe-port=6060"
+          - "--readiness-probe-path=/readyz"
+
+          # cert-manager
+          - "--certificate-namespace=cert-manager"
+          - "--issuer-enabled=true"
+          - "--issuer-name=istio-csr-issuer"
+          - "--issuer-kind=Issuer"
+          - "--issuer-group=cert-manager.io"
+          - "--preserve-certificate-requests=false"
+
+          # tls
+          - "--root-ca-file=/var/run/secrets/istio-csr/ca.crt"
+          - "--serving-certificate-dns-names=cert-manager-istio-csr.cert-manager.svc"
+          - "--serving-certificate-duration=1h"
+          - "--trust-domain=cluster.local"
+
+          # server
+          - "--cluster-id=Kubernetes"
+          - "--max-client-certificate-duration=1h"
+          - "--serving-address=0.0.0.0:6443"
+          - "--serving-certificate-key-size=2048"
+          - "--serving-signature-algorithm=RSA"
+
+          # server authenticators
+          - "--enable-client-cert-authenticator=false"
+
+          # controller
+          - "--leader-election-namespace=cert-manager"
+          - "--disable-kubernetes-client-rate-limiter=false"
+
+          - "--runtime-issuance-config-map-name="
+          - "--runtime-issuance-config-map-namespace=cert-manager"
+
+          # dynamic istiod cert
+          - "--istiod-cert-enabled=false"
+          - "--istiod-cert-name=istiod"
+          - "--istiod-cert-namespace=istio-system"
+          - "--istiod-cert-duration=1h"
+          - "--istiod-cert-renew-before=30m"
+          - "--istiod-cert-key-algorithm=RSA"
+          - "--istiod-cert-key-size=2048"
+          - "--istiod-cert-additional-dns-names=istiod.istio-system.svc"
+          - "--istiod-cert-istio-revisions=default,basic"
+        securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

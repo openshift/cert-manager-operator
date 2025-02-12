@@ -205,6 +205,34 @@ metadata:
             "logLevel": "Normal",
             "managementState": "Managed"
           }
+        },
+        {
+          "apiVersion": "operator.openshift.io/v1alpha1",
+          "kind": "IstioCSR",
+          "metadata": {
+            "annotations": {
+              "kubernetes.io/description": "Creating this resource requires the istio-csr tech-preview feature to be enabled, which otherwise has no effect. Please refer to the cert-manager documentation for more information on enabling the istio-csr feature. Technology Preview features are not supported with Red Hat production service level agreements (SLAs) and might not be functionally complete. Red Hat does not recommend using them in production. These features provide early access to upcoming product features, enabling customers to test functionality and provide feedback during the development process"
+            },
+            "name": "default",
+            "namespace": "istio-csr"
+          },
+          "spec": {
+            "istioCSRConfig": {
+              "certManager": {
+                "issuerRef": {
+                  "group": "cert-manager.io",
+                  "kind": "Issuer",
+                  "name": "istio-csr-issuer"
+                }
+              },
+              "istio": {
+                "namespace": "istio-system"
+              },
+              "istiodTLSConfig": {
+                "trustDomain": "cluster.local"
+              }
+            }
+          }
         }
       ]
     capabilities: Seamless Upgrades
@@ -270,6 +298,9 @@ spec:
     - kind: Issuer
       name: issuers.cert-manager.io
       version: v1
+    - kind: IstioCSR
+      name: istiocsrs.operator.openshift.io
+      version: v1alpha1
     - kind: Order
       name: orders.acme.cert-manager.io
       version: v1
@@ -534,6 +565,30 @@ spec:
           - patch
           - update
         - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs
+          verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - istiocsrs/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
@@ -639,8 +694,12 @@ spec:
                   value: quay.io/jetstack/cert-manager-controller:v1.15.4
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
                   value: quay.io/jetstack/cert-manager-acmesolver:v1.15.4
+                - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
+                  value: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.15.4
+                - name: ISTIOCSR_OPERAND_IMAGE_VERSION
+                  value: 0.12.0
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.15.0
                 - name: OPERATOR_LOG_LEVEL
@@ -743,5 +802,7 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.4
     name: cert-manager-acmesolver
+  - image: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
+    name: cert-manager-istiocsr
   replaces: cert-manager-operator.v1.14.1
   version: 1.15.0

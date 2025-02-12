@@ -1,0 +1,32 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: istiod
+  namespace: istio-system
+  labels:
+    app: cert-manager-istio-csr
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: "v0.12.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  commonName: istiod.istio-system.svc
+  dnsNames:
+  - istiod.istio-system.svc
+  - istiod-basic.istio-system.svc
+  uris:
+  - spiffe://cluster.local/ns/istio-system/sa/istiod-service-account
+  secretName: istiod-tls
+  duration: 1h
+  renewBefore: 30m
+  privateKey:
+    rotationPolicy: Always
+    algorithm: RSA
+    size: 2048
+  revisionHistoryLimit: 1
+  issuerRef:
+    name: istio-ca
+    kind: issuer
+    group: cert-manager.io
