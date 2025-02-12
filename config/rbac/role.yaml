@@ -254,6 +254,30 @@ rules:
   - patch
   - update
 - apiGroups:
+  - operator.openshift.io
+  resources:
+  - istiocsrs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - istiocsrs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - istiocsrs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
