@@ -250,7 +250,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
-    olm.skipRange: '>=1.14.1 <1.15.0'
+    olm.skipRange: '>=1.15.0 <1.15.1'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -305,7 +305,7 @@ spec:
       name: orders.acme.cert-manager.io
       version: v1
   description: |
-    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.15.4](https://github.com/cert-manager/cert-manager/tree/v1.15.2), which automates certificate management.
+    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.15.5](https://github.com/cert-manager/cert-manager/tree/v1.15.2), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
   displayName: cert-manager Operator for Red Hat OpenShift
   icon:
@@ -804,5 +804,5 @@ spec:
     name: cert-manager-acmesolver
   - image: quay.io/jetstack/cert-manager-istio-csr:v0.12.0
     name: cert-manager-istiocsr
-  replaces: cert-manager-operator.v1.14.1
+  replaces: cert-manager-operator.v1.15.0
   version: 1.15.1
