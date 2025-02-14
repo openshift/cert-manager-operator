@@ -520,8 +520,10 @@ github.com/openshift/jetstack-cert-manager v1.15.4 h1:hkWvMqZ8nyx4Vz3gpVScXBdAQj
 github.com/openshift/jetstack-cert-manager v1.15.4/go.mod h1:stBge/DTvrhfQMB/93+Y62s+gQgZBsfL1o0C/4AL/mI=
 github.com/openshift/library-go v0.0.0-20241118144106-bfd968d8eef4 h1:PMSC7hk/jrgRPztEw5kBonLZ5O/0NvhY8elZlZ9kvnE=
 github.com/openshift/library-go v0.0.0-20241118144106-bfd968d8eef4/go.mod h1:PdASVamWinll2BPxiUpXajTwZxV8A1pQbWEsCN1od7I=
-github.com/operator-framework/operator-lib v0.11.0 h1:eYzqpiOfq9WBI4Trddisiq/X9BwCisZd3rIzmHRC9Z8=
-github.com/operator-framework/operator-lib v0.11.0/go.mod h1:RpyKhFAoG6DmKTDIwMuO6pI3LRc8IE9rxEYWy476o6g=
+github.com/operator-framework/api v0.20.1-0.20240109180431-9ffba44ad7ed h1:9EQ9DB4r4fqK4kJ1Qs3+YogEt70fhJ9k7PSp/ps0m7k=
+github.com/operator-framework/api v0.20.1-0.20240109180431-9ffba44ad7ed/go.mod h1:vt/GSfAnjulnMva2kreNsUBYA3ftJRKwrxJLqTY/yc4=
+github.com/operator-framework/operator-lib v0.12.0 h1:OzpMU5N7mvFgg/uje8FUUeD24Ahq64R6TdN25uswCYA=
+github.com/operator-framework/operator-lib v0.12.0/go.mod h1:ClpLUI7hctEF7F5DBe/kg041dq/4NLR7XC5tArY7bG4=
 github.com/otiai10/copy v1.2.0 h1:HvG945u96iNadPoG2/Ja2+AUJeW5YuFQMixq9yirC+k=
 github.com/otiai10/copy v1.2.0/go.mod h1:rrF5dJ5F0t/EWSYODDu4j9/vEeYHMkc8jt0zJChqQWw=
 github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95/go.mod h1:9qAhocn7zKJG+0mI8eUu6xqkFDYS2kb2saOteoSB3cE=
