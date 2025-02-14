@@ -40,7 +40,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	BeforeAll(func() {
 		By("creating Kube clients")
-		ctx = context.Background()
+		ctx = context.TODO()
 		var err error
 		baseDomain, err = library.GetClusterBaseDomain(ctx, configClient)
 		Expect(err).NotTo(HaveOccurred())
@@ -680,7 +680,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 	var ns *corev1.Namespace
 
 	BeforeAll(func() {
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		By("creating a test namespace")
 		namespace, err := loader.CreateTestingNS("e2e-self-signed-certs")

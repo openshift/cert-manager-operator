@@ -321,7 +321,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 // polling the deployment scheduling.
 func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
-	return wait.PollUntilContextTimeout(context.Background(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
