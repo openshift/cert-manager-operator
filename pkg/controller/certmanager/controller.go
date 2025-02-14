@@ -18,22 +18,46 @@ package certmanager
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	operatoropenshiftiov1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/operator/features"
+	olmapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	"github.com/operator-framework/operator-lib/conditions"
+
+	"github.com/go-logr/logr"
 )
 
-// TODO: This is just a placeholder controller to contain all the required rbac
-// in a single place. Needs to be deleted later.
+var (
+	ControllerName = "cert-manager-ctrl-controller"
+
+	reQInterval = 1 * time.Minute
+)
 
 // CertManagerReconciler reconciles a CertManager object
 type CertManagerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+
+	scheme          *runtime.Scheme
+	log             logr.Logger
+	featureAccessor features.FeatureAccessor
+}
+
+func NewCertManagerReconciler(mgr ctrl.Manager, featureAccessor features.FeatureAccessor) *CertManagerReconciler {
+	return &CertManagerReconciler{
+		Client: mgr.GetClient(),
+
+		log:             ctrl.Log.WithName(ControllerName),
+		scheme:          mgr.GetScheme(),
+		featureAccessor: featureAccessor,
+	}
 }
 
 //+kubebuilder:rbac:groups=operator.openshift.io,resources=certmanagers,verbs=get;list;watch;create;update;patch;delete
@@ -61,19 +85,52 @@ type CertManagerReconciler struct {
 //+kubebuilder:rbac:groups="acme.cert-manager.io",resources=challenges;challenges/finalizers;challenges/status;orders;orders/finalizers;orders/status,verbs=get;list;watch;create;update;patch;delete;deletecollection
 //+kubebuilder:rbac:groups="route.openshift.io",resources=routes;routes/custom-host,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the CertManager object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
+// Reconcile is run each time the CertManager object has a create/update/delete event.
+// All objects other than certmanager.operator.openshift.io/cluster lead to no-op syncs.
 func (r *CertManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	r.log.V(2).Info("reconciling", "request", req)
 
-	// TODO(user): your logic here
+	if req.Name != "cluster" {
+		r.log.V(2).Info("skipping reconciliation for object certmanager.openshift.operator.io", "name", req.Name)
+		return ctrl.Result{}, nil
+	}
+
+	cm := &v1alpha1.CertManager{}
+	if err := r.Get(ctx, req.NamespacedName, cm); err != nil {
+		if errors.IsNotFound(err) {
+			// NotFound errors, since they can't be fixed by an immediate
+			// requeue (have to wait for a new notification), and can be processed
+			// on deleted requests.
+			r.log.V(2).Info("certmanager.openshift.operator.io object not found, skipping reconciliation", "request", req)
+			return ctrl.Result{}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("failed to fetch certmanager.openshift.operator.io %q during reconciliation: %w", req.NamespacedName, err)
+	}
+
+	if cm.Spec.Features == nil || len(cm.Spec.Features.TechPreview) == 0 {
+		return ctrl.Result{}, nil
+	}
+
+	// updates the list of runtime features with what was observed from the resource
+	// Features once enabled, cannot be disabled: by design; thread-safe, idempotent.
+	go func(tpFeatures v1alpha1.TechPreview) {
+		err := r.featureAccessor.EnableMultipleFeatures(tpFeatures)
+		if err != nil {
+			err = fmt.Errorf("enabling feature gates from spec.features.techPreview failed: %v", err)
+			r.log.V(3).Error(err, "spec.features.techPreview", tpFeatures)
+		}
+	}(cm.Spec.Features.TechPreview.DeepCopy())
+
+	upgradeCond, err := conditions.InClusterFactory{Client: r.Client}.NewCondition(olmapiv2.ConditionType(olmapiv2.Upgradeable))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = ensureNoUpgrade(ctx, upgradeCond)
+	if err != nil {
+		return ctrl.Result{RequeueAfter: reQInterval}, fmt.Errorf("failed to reconcile %q: %w", req, err)
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -81,6 +138,7 @@ func (r *CertManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *CertManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&operatoropenshiftiov1alpha1.CertManager{}).
+		Named(ControllerName).
+		For(&v1alpha1.CertManager{}).
 		Complete(r)
 }
