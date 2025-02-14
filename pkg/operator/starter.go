@@ -17,8 +17,12 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	cm "github.com/openshift/cert-manager-operator/pkg/controller/certmanager"
 	"github.com/openshift/cert-manager-operator/pkg/controller/deployment"
+	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	"github.com/openshift/cert-manager-operator/pkg/operator/features"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
@@ -116,9 +120,35 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	if err != nil {
 		return fmt.Errorf("failed to create controller manager: %w", err)
 	}
-	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
-		return fmt.Errorf("failed to start istiocsr controller: %w", err)
+
+	cmReconciler := cm.NewCertManagerReconciler(manager.manager, features.RuntimeFeatures)
+	if err := cmReconciler.SetupWithManager(manager.manager); err != nil {
+		return fmt.Errorf("failed to start cert-manager-ctrl-controller: %w", err)
 	}
+
+	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+		return fmt.Errorf("failed to start ctrl controller manager: %w", err)
+	}
+
+	// TODO: fair to export manager rather than use manager.manager each time.
+	istiocsrController, err := istiocsr.New(manager.manager)
+	if err != nil {
+		return fmt.Errorf("failed to initialize cert-manager-istio-csr-controller: %w", err)
+	}
+
+	// Feature-gated controller(s)
+	featureControllers := FeatureControllerSetFactory(
+		[]FeatureControllerSet{
+			{
+				FeatureName: v1alpha1.FeatureIstioCSR,
+				controllers: []ManagedController{
+					istiocsrController,
+				},
+				log: ctrl.Log.WithName("istio-csr-feature-controller-set"),
+			},
+		})
+
+	go featureControllers.RunWithManagerOnceEnabled(ctrl.SetupSignalHandler(), manager.manager, features.RuntimeFeatures)
 
 	<-ctx.Done()
 	return nil
