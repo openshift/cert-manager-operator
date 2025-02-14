@@ -5,7 +5,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 
-	v1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
@@ -36,7 +36,7 @@ func unsupportedConfigOverrides(deployment *appsv1.Deployment, unsupportedConfig
 
 // withUnsupportedArgsOverrideHook overrides the container args with those provided by
 // UnsupportedConfigOverrides in the operatorSpec.
-func withUnsupportedArgsOverrideHook(operatorSpec *v1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withUnsupportedArgsOverrideHook(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	cfg := &v1alpha1.UnsupportedConfigOverrides{}
 	if len(operatorSpec.UnsupportedConfigOverrides.Raw) != 0 {
 		err := json.Unmarshal(operatorSpec.UnsupportedConfigOverrides.Raw, cfg)

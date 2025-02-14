@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
-func GetX509Certificate(secret *v1.Secret) (*x509.Certificate, error) {
+func GetX509Certificate(secret *corev1.Secret) (*x509.Certificate, error) {
 	tlsCrtBytes, ok := secret.Data["tls.crt"]
 	if !ok {
 		return nil, fmt.Errorf("tls.crt key not found in provided secret %v in %v namespace", secret.Name, secret.Namespace)
@@ -24,7 +24,7 @@ func GetX509Certificate(secret *v1.Secret) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
-func GetTLSConfig(secret *v1.Secret) (tls.Config, bool) {
+func GetTLSConfig(secret *corev1.Secret) (tls.Config, bool) {
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(secret.Data["tls.crt"]))
 	if !ok {
@@ -80,11 +80,11 @@ func GetCertIssuer(hostname string) (pkix.Name, error) {
 	return conn.ConnectionState().PeerCertificates[0].Issuer, err
 }
 
-func VerifySecretNotNull(secret *v1.Secret) (bool, error) {
+func VerifySecretNotNull(secret *corev1.Secret) (bool, error) {
 	return len(secret.Data["tls.crt"]) != 0 && len(secret.Data["tls.key"]) != 0, nil
 }
 
-func VerifyHostx509Cert(secret *v1.Secret, hostname string) (bool, error) {
+func VerifyHostx509Cert(secret *corev1.Secret, hostname string) (bool, error) {
 	// TODO: verify cert using the x509 package WIP
 	cert, err := x509.ParseCertificates((secret.Data["tls.crt"]))
 	if err != nil {
@@ -98,7 +98,7 @@ func VerifyHostx509Cert(secret *v1.Secret, hostname string) (bool, error) {
 	return true, err
 }
 
-func VerifyCertificate(secret *v1.Secret, commonName string) (bool, error) {
+func VerifyCertificate(secret *corev1.Secret, commonName string) (bool, error) {
 	// check certificate is not null
 	isNotNull, err := VerifySecretNotNull(secret)
 	if !isNotNull {

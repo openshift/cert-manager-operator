@@ -10,7 +10,7 @@ import (
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
@@ -41,13 +41,13 @@ func NewCertManagerInformer(client versioned.Interface, resyncPeriod time.Durati
 func NewFilteredCertManagerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
 				return client.OperatorV1alpha1().CertManagers().List(context.TODO(), options)
 			},
-			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
