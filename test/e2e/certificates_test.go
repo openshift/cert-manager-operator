@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -508,29 +509,22 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("Creating new certificate ClusterIssuer")
 			// The name is defined by the testdata YAML file clusterissuer_gcp.yaml
 			clusterIssuerName := "acme-dns01-clouddns-ambient"
-			replaceStrMap := map[string]string{
-				"PROJECT_ID": gcpProjectId,
-			}
-			loadFileAndReplaceStr := func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_gcp.yaml"), "")
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IssuerConfig{
+					GCPProjectID: gcpProjectId,
+				},
+			), filepath.Join("testdata", "acme", "clusterissuer_gcp.yaml"), "")
 			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 
 			By("Creating new certificate")
 			randomString := randomStr(3)
-			replaceStrMap = map[string]string{
-				"RANDOM_STR": randomString,
-				"DNS_NAME":   baseDomain,
-			}
-			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
 			// The name is defined by the testdata YAML file certificate_gcp.yaml
 			certName := "cert-with-acme-dns01-clouddns-ambient"
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_gcp.yaml"), ns.Name)
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				CertificateConfig{
+					DNSName: fmt.Sprintf("%s.%s", randomString, baseDomain),
+				},
+			), filepath.Join("testdata", "acme", "certificate_gcp.yaml"), ns.Name)
 
 			By("Waiting for certificate to get ready")
 			err = waitForCertificateReadiness(ctx, certName, ns.Name)
@@ -559,29 +553,23 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("creating new certificate ClusterIssuer with IBM Cloud CIS webhook solver")
 			randomString := randomStr(3)
 			clusterIssuerName := "letsencrypt-dns01-explicit-ic"
-			replaceStrMap := map[string]string{
-				"CIS_CRN": cisCRN,
-			}
-			loadFileAndReplaceStr := func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "clusterissuer_ibmcis.yaml"), "")
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IssuerConfig{
+					IBMCloudCISCRN: cisCRN,
+				},
+			), filepath.Join("testdata", "acme", "clusterissuer_ibmcis.yaml"), "")
 			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 
 			By("creating new certificate")
 			// The name is defined by the testdata YAML file certificate_ibmcis.yaml
 			certDomain := "adwie." + appsDomain // acronym for "ACME dns-01 ibmcloud Webhook Explicit", short naming to pass dns name validation
 			certName := "letsencrypt-cert-ic"
-			replaceStrMap = map[string]string{
-				"RANDOM_STR": randomString,
-				"DNS_NAME":   certDomain,
-			}
-			loadFileAndReplaceStr = func(fileName string) ([]byte, error) {
-				fileContentsStr, err := replaceStrInFile(replaceStrMap, fileName)
-				return []byte(fileContentsStr), err
-			}
-			loader.CreateFromFile(loadFileAndReplaceStr, filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
+			loader.CreateFromFile(
+				AssetFunc(testassets.ReadFile).WithTemplateValues(
+					CertificateConfig{
+						DNSName: certDomain,
+					},
+				), filepath.Join("testdata", "acme", "certificate_ibmcis.yaml"), ns.Name)
 
 			By("waiting for certificate to get ready")
 			err := waitForCertificateReadiness(ctx, certName, ns.Name)

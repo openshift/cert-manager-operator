@@ -17,5 +17,4 @@ spec:
               name: ibmcis-credentials
               key: api-token
             cisCRN: 
-              - "CIS_CRN"
-              
+              - "{{.IBMCloudCISCRN}}"

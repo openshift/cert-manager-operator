@@ -9,5 +9,5 @@ spec:
     kind: ClusterIssuer
     name: acme-dns01-clouddns-ambient
   dnsNames:
-    - RANDOM_STR.DNS_NAME
-    - '*.RANDOM_STR.DNS_NAME'
+    - {{.DNSName}}
+    - '*.{{.DNSName}}'
