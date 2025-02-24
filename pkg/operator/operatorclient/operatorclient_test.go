@@ -2,36 +2,67 @@ package operatorclient
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/fake"
 	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testingclock "k8s.io/utils/clock/testing"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/google/go-cmp/cmp"
+	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 )
 
-func TestApplyOperatorStatus(t *testing.T) {
-	commonTypeMeta := metav1.TypeMeta{
-		Kind:       "CertManager",
-		APIVersion: "operator.openshift.io/v1alpha1",
+var testEnv = &envtest.Environment{
+	CRDDirectoryPaths:     []string{filepath.Join("../../..", "config", "crd", "bases")},
+	ErrorIfCRDPathMissing: true,
+}
+
+func skipIfNoEnvTest(t *testing.T) {
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		t.Skip("skipping envtest as KUBEBUILDER_ASSETS env var not found.")
 	}
+}
+
+func TestApplyOperatorStatusWithEnvTest(t *testing.T) {
+	skipIfNoEnvTest(t)
+
+	cfg, err := testEnv.Start()
+	require.NoError(t, err)
+	defer func() {
+		err = testEnv.Stop()
+		require.NoError(t, err)
+	}()
+
+	clientSet, err := certmanoperatorclient.NewForConfig(cfg)
+	require.NoError(t, err)
+
+	clockStep := 5 * time.Minute
+	startTs := time.Unix(0, 0)
+	aheadTs1, aheadTs2, aheadTs3 := startTs.Add(clockStep), startTs.Add(clockStep*2), startTs.Add(clockStep*3)
+	clock := testingclock.NewFakeClock(startTs)
+
+	operatorClient := &OperatorClient{
+		Client: clientSet.OperatorV1alpha1(),
+		Clock:  clock,
+	}
+
 	commonObjectMeta := metav1.ObjectMeta{
 		Name: "cluster",
 	}
 	commonSpec := v1alpha1.CertManagerSpec{
 		OperatorSpec: operatorv1.OperatorSpec{
-			ManagementState: "",
+			ManagementState: operatorv1.Managed,
 		},
 	}
-
-	clock := testingclock.NewFakeClock(time.Unix(0, 0).Add(5 * time.Minute))
 
 	sampleCond1 := applyoperatorv1.OperatorCondition()
 	sampleCond1.WithStatus(operatorv1.ConditionTrue)
@@ -61,39 +92,27 @@ func TestApplyOperatorStatus(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		previousObj    v1alpha1.CertManager
+		previousStatus v1alpha1.CertManagerStatus
 		statusToApply  applyoperatorv1.OperatorStatusApplyConfiguration
-		expectedObj    v1alpha1.CertManager
+		expectedStatus v1alpha1.CertManagerStatus
 		moveClockAhead bool
 	}{
 		// test status.conditions
 		{
-			name: "applies one condition on empty status",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{},
-			},
+			name:           "applies one condition on empty status",
+			previousStatus: v1alpha1.CertManagerStatus{},
 			statusToApply: applyoperatorv1.OperatorStatusApplyConfiguration{
 				Conditions: []applyoperatorv1.OperatorConditionApplyConfiguration{
 					*sampleCond1,
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
 					},
 				},
@@ -101,19 +120,13 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 		{
 			name: "applies another condition on status with an existing condition",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
 					},
 				},
@@ -123,24 +136,18 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleCond2,
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
+						},
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
 					},
 				},
@@ -148,24 +155,18 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 		{
 			name: "idempotent applying of two conditions",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
+						},
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
 					},
 				},
@@ -176,25 +177,19 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleCond1,
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						// conditions are sorted by Type during Canonicalize
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					// conditions are sorted by Type during Canonicalize
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(aheadTs1),
+						},
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(aheadTs1),
 						},
 					},
 				},
@@ -203,24 +198,18 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 		{
 			name: "applies update of two conditions",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
+						},
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
 					},
 				},
@@ -231,24 +220,18 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleCond2.WithStatus(operatorv1.ConditionTrue),  // FooDegraded=True
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond2.Type, Status: operatorv1.ConditionTrue,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								// LastTransitionTime will be set from clock ahead time
-							},
-							{
-								Type: *sampleCond1.Type, Status: operatorv1.ConditionFalse,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								// LastTransitionTime will be set from clock ahead time
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond2.Type, Status: operatorv1.ConditionTrue,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(aheadTs2),
+						},
+						{
+							Type: *sampleCond1.Type, Status: operatorv1.ConditionFalse,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(aheadTs2),
 						},
 					},
 				},
@@ -258,33 +241,21 @@ func TestApplyOperatorStatus(t *testing.T) {
 
 		// test status.generations
 		{
-			name: "apply one generation on empty status",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{},
-			},
+			name:           "apply one generation on empty status",
+			previousStatus: v1alpha1.CertManagerStatus{},
 			statusToApply: applyoperatorv1.OperatorStatusApplyConfiguration{
 				Generations: []applyoperatorv1.GenerationStatusApplyConfiguration{
 					*sampleGen1,
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: nil,
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: *sampleGen1.LastGeneration,
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: nil,
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: *sampleGen1.LastGeneration,
 						},
 					},
 				},
@@ -292,20 +263,14 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 		{
 			name: "apply update generation on existing status",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: nil,
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: *sampleGen1.LastGeneration,
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: nil,
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: *sampleGen1.LastGeneration,
 						},
 					},
 				},
@@ -315,20 +280,14 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleGen1.WithLastGeneration(100),
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: nil,
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: 100,
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: nil,
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: 100,
 						},
 					},
 				},
@@ -336,20 +295,14 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 		{
 			name: "apply new generation on existing status",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: nil,
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: *sampleGen1.LastGeneration,
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: nil,
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: *sampleGen1.LastGeneration,
 						},
 					},
 				},
@@ -359,25 +312,19 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleGen2,
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: nil,
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: *sampleGen1.LastGeneration,
-							},
-							{
-								Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
-								Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
-								LastGeneration: *sampleGen2.LastGeneration,
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: nil,
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: *sampleGen1.LastGeneration,
+						},
+						{
+							Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
+							Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
+							LastGeneration: *sampleGen2.LastGeneration,
 						},
 					},
 				},
@@ -387,36 +334,30 @@ func TestApplyOperatorStatus(t *testing.T) {
 		// test status.generations and status.conditions together
 		{
 			name: "update one condition and one generation on existing",
-			previousObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond1.Type, Status: *sampleCond1.Status,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
+			previousStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: *sampleCond1.Status,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
 						},
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: 99,
-							},
-							{
-								Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
-								Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
-								LastGeneration: *sampleGen2.LastGeneration,
-							},
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
+						},
+					},
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: 99,
+						},
+						{
+							Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
+							Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
+							LastGeneration: *sampleGen2.LastGeneration,
 						},
 					},
 				},
@@ -429,36 +370,30 @@ func TestApplyOperatorStatus(t *testing.T) {
 					*sampleCond1.WithStatus(operatorv1.ConditionFalse), // set FooProgressing=False
 				},
 			},
-			expectedObj: v1alpha1.CertManager{
-				TypeMeta:   commonTypeMeta,
-				ObjectMeta: commonObjectMeta,
-				Spec:       commonSpec,
-
-				Status: v1alpha1.CertManagerStatus{
-					OperatorStatus: operatorv1.OperatorStatus{
-						Conditions: []operatorv1.OperatorCondition{
-							{
-								Type: *sampleCond2.Type, Status: *sampleCond2.Status,
-								Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
-								LastTransitionTime: metav1.NewTime(clock.Now()),
-							},
-							{
-								Type: *sampleCond1.Type, Status: operatorv1.ConditionFalse,
-								Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
-								// LastTransitionTime will be set from clock ahead time
-							},
+			expectedStatus: v1alpha1.CertManagerStatus{
+				OperatorStatus: operatorv1.OperatorStatus{
+					Conditions: []operatorv1.OperatorCondition{
+						{
+							Type: *sampleCond1.Type, Status: operatorv1.ConditionFalse,
+							Reason: *sampleCond1.Reason, Message: *sampleCond1.Message,
+							LastTransitionTime: metav1.NewTime(aheadTs3),
 						},
-						Generations: []operatorv1.GenerationStatus{
-							{
-								Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
-								Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
-								LastGeneration: 100,
-							},
-							{
-								Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
-								Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
-								LastGeneration: *sampleGen2.LastGeneration,
-							},
+						{
+							Type: *sampleCond2.Type, Status: *sampleCond2.Status,
+							Reason: *sampleCond2.Reason, Message: *sampleCond2.Message,
+							LastTransitionTime: metav1.NewTime(startTs),
+						},
+					},
+					Generations: []operatorv1.GenerationStatus{
+						{
+							Group: *sampleGen1.Group, Resource: *sampleGen1.Resource,
+							Name: *sampleGen1.Name, Namespace: *sampleGen1.Namespace,
+							LastGeneration: 100,
+						},
+						{
+							Group: *sampleGen2.Group, Resource: *sampleGen2.Resource,
+							Name: *sampleGen2.Name, Namespace: *sampleGen2.Namespace,
+							LastGeneration: *sampleGen2.LastGeneration,
 						},
 					},
 				},
@@ -467,19 +402,21 @@ func TestApplyOperatorStatus(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake.NewSimpleClientset()
-	operatorClient := &OperatorClient{
-		Client: fakeClient.OperatorV1alpha1(),
-		Clock:  clock,
-	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, &tc.previousObj, metav1.CreateOptions{})
+			obj, err := operatorClient.Client.CertManagers().Create(ctx, &v1alpha1.CertManager{
+				ObjectMeta: commonObjectMeta,
+				Spec:       commonSpec,
+			}, metav1.CreateOptions{})
 			require.NoError(t, err)
-			defer fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.previousObj.Name, metav1.DeleteOptions{})
+			defer operatorClient.Client.CertManagers().Delete(ctx, commonObjectMeta.Name, metav1.DeleteOptions{})
+
+			obj = obj.DeepCopy()
+			obj.Status = tc.previousStatus
+			_, err = operatorClient.Client.CertManagers().UpdateStatus(ctx, obj, metav1.UpdateOptions{})
+			require.NoError(t, err)
 
 			if tc.moveClockAhead {
 				clock.Step(5 * time.Minute)
@@ -488,17 +425,11 @@ func TestApplyOperatorStatus(t *testing.T) {
 			err = operatorClient.ApplyOperatorStatus(ctx, "field-manager", &tc.statusToApply)
 			require.NoError(t, err)
 
-			actual, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+			actual, err := operatorClient.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			require.NoError(t, err)
 
-			if tc.moveClockAhead {
-				for i := range tc.expectedObj.Status.Conditions {
-					tc.expectedObj.Status.Conditions[i].LastTransitionTime = metav1.NewTime(clock.Now())
-				}
-			}
-
-			if !reflect.DeepEqual(tc.expectedObj, *actual) {
-				t.Fatalf("expected status mismatch, diff = %v", cmp.Diff(tc.expectedObj, *actual))
+			if !reflect.DeepEqual(tc.expectedStatus, actual.Status) {
+				t.Fatalf("expected status mismatch, diff = %v", cmp.Diff(tc.expectedStatus, actual.Status))
 			}
 		})
 	}

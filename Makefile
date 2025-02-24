@@ -55,7 +55,7 @@ endif
 IMG ?= $(IMAGE_TAG_BASE):$(IMG_VERSION)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25.0
+ENVTEST_K8S_VERSION = 1.27 # cert-manager-operator v1.15 ATLEAST supports OpenShift v4.14 = k8s v1.27
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -71,8 +71,6 @@ CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
 SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v5
-
-K8S_ENVTEST_VERSION := 1.21.4
 
 PACKAGE=github.com/openshift/cert-manager-operator
 
@@ -140,10 +138,15 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 ENVTEST_ASSETS_DIR ?= $(shell pwd)/testbin
-.PHONY: test
-test: manifests generate fmt vet ## Run tests.
+setup-envtest:
 	mkdir -p "$(ENVTEST_ASSETS_DIR)"
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test ./... -coverprofile cover.out
+	@$(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path || { \
+        echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
+        exit 1; \
+    }
+
+test-crds: generate fmt vet setup-envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test -v ./pkg/operator/operatorclient
 
 update-manifests: $(HELM_BIN)
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
@@ -164,7 +167,7 @@ verify-scripts:
 .PHONY: verify-scripts
 
 .PHONY: verify
-verify: verify-scripts
+verify: verify-scripts test-crds
 
 .PHONY: verify-with-container
 verify-with-container:
