@@ -53,7 +53,7 @@ endif
 IMG ?= $(IMAGE_TAG_BASE):$(IMG_VERSION)
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25.0
+ENVTEST_K8S_VERSION = 1.27 # cert-manager-operator v1.15 ATLEAST supports OpenShift v4.14 = k8s v1.27
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -70,8 +70,6 @@ SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v5
 
-K8S_ENVTEST_VERSION := 1.21.4
-
 PACKAGE=github.com/openshift/cert-manager-operator
 
 BIN=$(lastword $(subst /, ,$(PACKAGE)))
@@ -82,7 +80,7 @@ BIN_DIR=$(shell pwd)/bin
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-CONTAINER_ENGINE ?= docker
+CONTAINER_ENGINE ?= podman
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
 CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.17
@@ -107,7 +105,6 @@ E2E_TIMEOUT ?= 1h
 E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.4/cert-manager.yaml
-
 
 ##@ Development
 
@@ -136,10 +133,16 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 ENVTEST_ASSETS_DIR ?= $(shell pwd)/testbin
-.PHONY: test
-test: manifests generate fmt vet ## Run tests.
+setup-envtest:
 	mkdir -p "$(ENVTEST_ASSETS_DIR)"
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test ./... -coverprofile cover.out
+	@$(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path || { \
+        echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
+        exit 1; \
+    }
+
+.PHONY: test-crds
+test-crds: manifests generate fmt vet setup-envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test ./api/... -coverprofile cover.out
 
 update-manifests:
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
@@ -164,7 +167,7 @@ verify-scripts:
 .PHONY: verify-scripts
 
 .PHONY: verify
-verify: verify-scripts
+verify: verify-scripts test-crds
 
 .PHONY: verify-with-container
 verify-with-container:
