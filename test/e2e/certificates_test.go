@@ -74,7 +74,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("e2e-acme-certs")
+		namespace, err := loader.CreateTestingNS("e2e-acme-certs", false)
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
@@ -683,7 +683,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 		ctx = context.Background()
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("e2e-self-signed-certs")
+		namespace, err := loader.CreateTestingNS("e2e-self-signed-certs", false)
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
