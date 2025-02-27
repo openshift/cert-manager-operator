@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -32,7 +31,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -611,10 +613,10 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 	return err
 }
 
-// pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istio-grpc-endpoint
+// pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istioCSRStatus
 // once the istiocsr is available, otherwise should return a time-out error
-func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (string, error) {
-	var istioCSRGRPCEndpoint string
+func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
+	var istioCSRStatus v1alpha1.IstioCSRStatus
 	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 		gvr := schema.GroupVersionResource{
 			Group:    "operator.openshift.io",
@@ -636,44 +638,24 @@ func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.Dynam
 			return false, nil
 		}
 
-		conditions, found, err := unstructured.NestedSlice(customResource.Object, "status", "conditions")
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
 		if err != nil {
 			return false, nil
 		}
 
-		if !found {
+		readyCondition := meta.FindStatusCondition(istioCSRStatus.Conditions, v1alpha1.Ready)
+
+		if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
 			return false, nil
 		}
 
-		for _, condition := range conditions {
-			condMap, ok := condition.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			condType, _ := condMap["type"].(string)
-			condStatus, _ := condMap["status"].(string)
-
-			if condType != "Ready" {
-				continue
-			}
-
-			if condStatus == string(metav1.ConditionTrue) {
-				break
-			} else {
-				return false, nil
-			}
-
-		}
-
-		if !library.IsEmptyString(status["istioCSRGRPCEndpoint"]) && !library.IsEmptyString(status["clusterRoleBinding"]) && !library.IsEmptyString(status["istioCSRImage"]) && !library.IsEmptyString(status["serviceAccount"]) {
-			istioCSRGRPCEndpoint = status["istioCSRGRPCEndpoint"].(string)
+		if !library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) && !library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) && !library.IsEmptyString(istioCSRStatus.IstioCSRImage) && !library.IsEmptyString(istioCSRStatus.ServiceAccount) {
 			return true, nil
 		}
 		return false, nil
 	})
 
-	return istioCSRGRPCEndpoint, err
+	return istioCSRStatus, err
 }
 
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {

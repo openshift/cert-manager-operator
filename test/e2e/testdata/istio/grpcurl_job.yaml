@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grpcurl-istio-csr
+spec:
+  backoffLimit: 10
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app: grpcurl-istio-csr
+      name: grpcurl-istio-csr
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - args:
+            - |
+              go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.2 >/dev/null 2>&1 && \
+              TOKEN=$(cat /var/run/secrets/istio-ca/token) && \
+              /tmp/go/bin/grpcurl \
+                -import-path /proto \
+                -proto /proto/ca.proto \
+                -H "Authorization: Bearer $TOKEN" \
+                -d '{"csr": "{{.CertificateSigningRequest}}", "validity_duration": 3600}' \
+                -cacert /etc/root-secret/ca.crt \
+                -key /etc/root-secret/tls.key \
+                -cert /etc/root-secret/tls.crt \
+                {{.IstioCSRStatus.IstioCSRGRPCEndpoint}} istio.v1.auth.IstioCertificateService/CreateCertificate
+          command:
+            - /bin/sh
+            - -c
+          env:
+            - name: GOCACHE
+              value: /tmp/go-cache
+            - name: GOPATH
+              value: /tmp/go
+          image: registry.redhat.io/rhel9/go-toolset
+          name: grpcurl
+          volumeMounts:
+            - mountPath: /etc/root-secret
+              name: root-secret
+            - mountPath: /proto
+              name: proto
+            - mountPath: /var/run/secrets/istio-ca
+              name: sa-token
+      restartPolicy: OnFailure
+      serviceAccountName: '{{.IstioCSRStatus.ServiceAccount}}'
+      volumes:
+        - name: sa-token
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  audience: istio-ca
+                  expirationSeconds: 3600
+                  path: token
+        - name: root-secret
+          secret:
+            secretName: istiod-tls
+        - configMap:
+            name: proto-cm
+          name: proto
