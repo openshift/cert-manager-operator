@@ -15,14 +15,16 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/pkg/version"
+
+	operatorv2 "github.com/operator-framework/api/pkg/operators/v2"
 )
 
 var (
@@ -39,6 +41,7 @@ func init() {
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(operatorv2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -49,7 +52,7 @@ type Manager struct {
 
 // NewControllerManager creates a new manager.
 func NewControllerManager() (*Manager, error) {
-	setupLog.Info("setting up operator manager", "controller", istiocsr.ControllerName)
+	setupLog.Info("setting up operator manager")
 	setupLog.Info("controller", "version", version.Get())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -63,12 +66,11 @@ func NewControllerManager() (*Manager, error) {
 		return nil, fmt.Errorf("failed to create manager: %w", err)
 	}
 
-	r, err := istiocsr.New(mgr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create %s reconciler object: %w", istiocsr.ControllerName, err)
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("failed to set up health check: %w", err)
 	}
-	if err := r.SetupWithManager(mgr); err != nil {
-		return nil, fmt.Errorf("failed to create %s controller: %w", istiocsr.ControllerName, err)
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("failed to set up ready check: %w", err)
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -79,6 +81,7 @@ func NewControllerManager() (*Manager, error) {
 
 // Start starts the operator synchronously until a message is received from ctx.
 func (mgr *Manager) Start(ctx context.Context) error {
+	// TODO: can we pass this to ManagedController.SetupWithManager?
 	mgr.manager.GetEventRecorderFor("cert-manager-istio-csr-controller").Event(&v1alpha1.IstioCSR{}, corev1.EventTypeNormal, "ControllerStarted", "controller is starting")
 	return mgr.manager.Start(ctx)
 }
