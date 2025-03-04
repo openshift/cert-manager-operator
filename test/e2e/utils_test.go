@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -32,8 +31,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -62,7 +63,7 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 		go func(index int) {
 			defer wg.Done()
 			err := wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return false, nil
@@ -98,7 +99,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
 		err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", v1.GetOptions{})
+			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
@@ -122,7 +123,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 			ManagementState: opv1.Managed,
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 
@@ -146,7 +147,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	}
 
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, v1.PatchOptions{})
+	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
 	return err
 }
 
@@ -154,7 +155,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 // a conflict error is encountered.
 func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName string, args []string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -178,7 +179,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -189,7 +190,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
 	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -221,7 +222,7 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 // is retried if a conflict error is encountered.
 func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -245,7 +246,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -256,7 +257,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
 	return wait.PollImmediate(time.Second*10, time.Minute*5, func() (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -292,7 +293,7 @@ func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName s
 // is retried if a conflict error is encountered.
 func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", v1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -316,7 +317,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, v1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -327,7 +328,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
 	return wait.PollUntilContextTimeout(context.Background(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, v1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -384,7 +385,7 @@ func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName 
 func getCertManagerOperatorSubscription(ctx context.Context, loader library.DynamicResourceLoader) (string, error) {
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
 
-	subs, err := subscriptionClient.List(ctx, v1.ListOptions{})
+	subs, err := subscriptionClient.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -426,7 +427,7 @@ func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.Dy
 	}
 
 	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, v1.PatchOptions{})
+	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
 	return err
 }
 
@@ -612,10 +613,10 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 	return err
 }
 
-// pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istio-grpc-endpoint
+// pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istioCSRStatus
 // once the istiocsr is available, otherwise should return a time-out error
-func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (string, error) {
-	var istioCSRGRPCEndpoint string
+func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
+	var istioCSRStatus v1alpha1.IstioCSRStatus
 	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 		gvr := schema.GroupVersionResource{
 			Group:    "operator.openshift.io",
@@ -637,44 +638,24 @@ func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.Dynam
 			return false, nil
 		}
 
-		conditions, found, err := unstructured.NestedSlice(customResource.Object, "status", "conditions")
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
 		if err != nil {
 			return false, nil
 		}
 
-		if !found {
+		readyCondition := meta.FindStatusCondition(istioCSRStatus.Conditions, v1alpha1.Ready)
+
+		if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
 			return false, nil
 		}
 
-		for _, condition := range conditions {
-			condMap, ok := condition.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			condType, _ := condMap["type"].(string)
-			condStatus, _ := condMap["status"].(string)
-
-			if condType != "Ready" {
-				continue
-			}
-
-			if condStatus == string(metav1.ConditionTrue) {
-				break
-			} else {
-				return false, nil
-			}
-
-		}
-
-		if !library.IsEmptyString(status["istioCSRGRPCEndpoint"]) && !library.IsEmptyString(status["clusterRoleBinding"]) && !library.IsEmptyString(status["istioCSRImage"]) && !library.IsEmptyString(status["serviceAccount"]) {
-			istioCSRGRPCEndpoint = status["istioCSRGRPCEndpoint"].(string)
+		if !library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) && !library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) && !library.IsEmptyString(istioCSRStatus.IstioCSRImage) && !library.IsEmptyString(istioCSRStatus.ServiceAccount) {
 			return true, nil
 		}
 		return false, nil
 	})
 
-	return istioCSRGRPCEndpoint, err
+	return istioCSRStatus, err
 }
 
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
