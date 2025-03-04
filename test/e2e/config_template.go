@@ -6,6 +6,8 @@ package e2e
 import (
 	"bytes"
 	"text/template"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
 // IssuerConfig customizes fields in the issuer spec
@@ -17,6 +19,12 @@ type IssuerConfig struct {
 // Certificate customize fields in the cert spec
 type CertificateConfig struct {
 	DNSName string
+}
+
+// IstioCSRConfig customizes the fields in a job spec
+type IstioCSRGRPCurlJobConfig struct {
+	CertificateSigningRequest string
+	IstioCSRStatus            v1alpha1.IstioCSRStatus
 }
 
 // replaceWithTemplate puts field values from a template struct
