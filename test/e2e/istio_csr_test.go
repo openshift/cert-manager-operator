@@ -13,12 +13,10 @@ import (
 	"net/url"
 	"path/filepath"
 
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/utils/ptr"
 
 	"github.com/openshift/cert-manager-operator/test/library"
 
@@ -74,7 +72,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 	Context("grpc call istio.v1.auth.IstioCertificateService/CreateCertificate to istio-csr agent", func() {
 		It("should return cert-chain as response", func() {
 			serviceAccountName := "cert-manager-istio-csr"
-			grpcAppName := "grpcurl"
+			grpcAppName := "grpcurl-istio-csr"
 
 			By("creating cluster issuer")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
@@ -115,7 +113,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			err = pollTillDeploymentAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
 			Expect(err).Should(BeNil())
 
-			istioCSRGRPCEndpoint, err := pollTillIstioCSRAvailable(ctx, dynamicClient, ns.Name, "default")
+			istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, dynamicClient, ns.Name, "default")
 			Expect(err).Should(BeNil())
 
 			By("poll till the service account is available")
@@ -142,109 +140,16 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			Expect(err).Should(BeNil())
 
 			By("creating an grpcurl job")
-			job := &batchv1.Job{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "grpcurl-job",
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRGRPCurlJobConfig{
+					CertificateSigningRequest: csr,
+					IstioCSRStatus:            istioCSRStatus,
 				},
-				Spec: batchv1.JobSpec{
-					Completions:  ptr.To(int32(1)),
-					BackoffLimit: ptr.To(backOffLimit),
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: grpcAppName,
-							Labels: map[string]string{
-								"app": grpcAppName,
-							},
-						},
-						Spec: corev1.PodSpec{
-							ServiceAccountName:           serviceAccountName,
-							AutomountServiceAccountToken: ptr.To(false),
-							RestartPolicy:                corev1.RestartPolicyOnFailure,
-							Containers: []corev1.Container{
-								{
-									Name:  grpcAppName,
-									Image: "registry.redhat.io/rhel9/go-toolset",
-									Command: []string{
-										"/bin/sh",
-										"-c",
-									},
-									Env: []corev1.EnvVar{
-										{
-											Name:  "GOCACHE",
-											Value: "/tmp/go-cache",
-										},
-										{
-											Name:  "GOPATH",
-											Value: "/tmp/go",
-										},
-									},
-									Args: []string{
-										"go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.2 >/dev/null 2>&1 && " +
-											"TOKEN=$(cat /var/run/secrets/istio-ca/token) && " +
-											"/tmp/go/bin/grpcurl " +
-											"-import-path /proto " +
-											"-proto /proto/ca.proto " +
-											"-H \"Authorization: Bearer $TOKEN\" " +
-											fmt.Sprintf("-d '{\"csr\": \"%s\", \"validity_duration\": 3600}' ", csr) +
-											"-cacert /etc/root-secret/ca.crt " +
-											"-key /etc/root-secret/tls.key " +
-											"-cert /etc/root-secret/tls.crt " +
-											fmt.Sprintf("%s istio.v1.auth.IstioCertificateService/CreateCertificate", istioCSRGRPCEndpoint),
-									},
-									VolumeMounts: []corev1.VolumeMount{
-										{Name: "root-secret", MountPath: "/etc/root-secret"},
-										{Name: "proto", MountPath: "/proto"},
-										{Name: "sa-token", MountPath: "/var/run/secrets/istio-ca"},
-									},
-								},
-							},
-							Volumes: []corev1.Volume{
-								{
-									Name: "sa-token",
-									VolumeSource: corev1.VolumeSource{
-										Projected: &corev1.ProjectedVolumeSource{
-											DefaultMode: ptr.To(int32(420)),
-											Sources: []corev1.VolumeProjection{
-												{
-													ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
-														Audience:          "istio-ca",
-														ExpirationSeconds: ptr.To(int64(3600)),
-														Path:              "token",
-													},
-												},
-											},
-										},
-									},
-								},
-								{
-									Name: "root-secret",
-									VolumeSource: corev1.VolumeSource{
-										Secret: &corev1.SecretVolumeSource{
-											SecretName: "istiod-tls",
-										},
-									},
-								},
-								{
-									Name: "proto",
-									VolumeSource: corev1.VolumeSource{
-										ConfigMap: &corev1.ConfigMapVolumeSource{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "proto-cm",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-			_, err = clientset.BatchV1().Jobs(ns.Name).Create(context.TODO(), job, metav1.CreateOptions{})
-			Expect(err).Should(BeNil())
-			defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, job.Name, metav1.DeleteOptions{})
+			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
+			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
 
 			By("waiting for the job to be completed")
-			err = pollTillJobCompleted(ctx, clientset, ns.Name, "grpcurl-job")
+			err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
 			Expect(err).Should(BeNil())
 
 			By("fetching logs of the grpcurl job")
