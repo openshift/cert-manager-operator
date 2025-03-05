@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,6 +46,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 		Expect(err).Should(BeNil())
 
 		dynamicClient, err = dynamic.NewForConfig(cfg)
+		Expect(err).Should(BeNil())
+
+		By("enabling IstioCSR TechPreview feature gate")
+		err = enableTechPreviewFeatures(ctx, certmanageroperatorclient, v1alpha1.FeatureIstioCSR)
 		Expect(err).Should(BeNil())
 	})
 

@@ -676,3 +676,36 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 
 	return err
 }
+
+// enableTechPreviewFeatures updates operator spec with specified unsupportedFeatures for TechPreview
+func enableTechPreviewFeatures(ctx context.Context, client *certmanoperatorclient.Clientset, features ...v1alpha1.FeatureName) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var currentObject *v1alpha1.CertManager
+		err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			operatorObject, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+
+			currentObject = operatorObject
+			return true, nil
+		})
+		if err != nil {
+			return err
+		}
+
+		updatedObject := currentObject.DeepCopy()
+		if updatedObject.Spec.UnsupportedFeatures == nil {
+			updatedObject.Spec.UnsupportedFeatures = &v1alpha1.Features{
+				TechPreview: []v1alpha1.FeatureName{},
+			}
+		}
+		updatedObject.Spec.UnsupportedFeatures.TechPreview = append(updatedObject.Spec.UnsupportedFeatures.TechPreview, features...)
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedObject, metav1.UpdateOptions{})
+		return err
+	})
+}
