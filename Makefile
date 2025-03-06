@@ -102,6 +102,9 @@ SHORTCOMMIT ?= $(shell git rev-parse --short HEAD)
 GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCOMMIT) -X $(PACKAGE)/pkg/version.COMMIT=$(COMMIT)"
 
 E2E_TIMEOUT ?= 1h
+# E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests. See
+# https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
+E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.5/cert-manager.yaml
 
@@ -246,7 +249,8 @@ test-e2e: test-e2e-wait-for-stable-state
 	-p 1 \
 	-tags e2e \
 	-run "$(TEST)" \
-	./test/e2e
+	./test/e2e \
+	-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
 test-e2e-wait-for-stable-state:
 	@echo "---- Waiting for stable state ----"
