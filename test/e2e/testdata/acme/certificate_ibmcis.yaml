@@ -4,8 +4,8 @@ metadata:
   name: letsencrypt-cert-ic
 spec:
   dnsNames:
-    - RANDOM_STR.DNS_NAME
-    - '*.RANDOM_STR.DNS_NAME'
+    - {{.DNSName}}
+    - '*.{{.DNSName}}'
   issuerRef:
     name: letsencrypt-dns01-explicit-ic
     kind: ClusterIssuer
