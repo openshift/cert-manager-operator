@@ -11,8 +11,9 @@ mkdir -p ./_output
 echo "---- Downloading manifest file from $MANIFEST_SOURCE ----"
 curl -NLs "$MANIFEST_SOURCE" -o ./_output/manifest.yaml
 
-echo "---- Installing tooling ----"
 if [ ! -f ./_output/tools/bin/yq ]; then
+    echo "---- Installing yq tooling ----"
+
     mkdir -p ./_output/tools/bin
     curl -s -f -L https://github.com/mikefarah/yq/releases/download/v4.13.3/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
     chmod +x ./_output/tools/bin/yq
