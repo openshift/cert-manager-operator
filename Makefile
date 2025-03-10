@@ -97,6 +97,8 @@ GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 
 OPERATOR_SDK_BIN=$(BIN_DIR)/operator-sdk
 
+HELM_BIN=$(BIN_DIR)/helm
+
 COMMIT ?= $(shell git rev-parse HEAD)
 SHORTCOMMIT ?= $(shell git rev-parse --short HEAD)
 GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCOMMIT) -X $(PACKAGE)/pkg/version.COMMIT=$(COMMIT)"
@@ -107,7 +109,7 @@ E2E_TIMEOUT ?= 1h
 E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.5/cert-manager.yaml
-
+ISTIO_CSR_VERSION = "v0.14.0"
 
 ##@ Development
 
@@ -141,8 +143,9 @@ test: manifests generate fmt vet ## Run tests.
 	mkdir -p "$(ENVTEST_ASSETS_DIR)"
 	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test ./... -coverprofile cover.out
 
-update-manifests:
+update-manifests: $(HELM_BIN)
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
+	hack/update-istio-csr-manifests.sh $(ISTIO_CSR_VERSION)
 .PHONY: update-manifests
 
 update-scripts:
@@ -284,6 +287,10 @@ $(GOLANGCI_LINT_BIN):
 $(OPERATOR_SDK_BIN):
 	mkdir -p $(BIN_DIR)
 	hack/operator-sdk.sh $(OPERATOR_SDK_BIN)
+
+$(HELM_BIN):
+	mkdir -p $(BIN_DIR)
+	hack/helm.sh $(HELM_BIN)
 
 clean:
 	go clean

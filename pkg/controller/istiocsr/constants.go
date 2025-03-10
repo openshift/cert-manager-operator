@@ -102,16 +102,16 @@ var (
 // asset names are the files present in the root bindata/ dir. Which are then loaded
 // and made available by the pkg/operator/assets package.
 const (
-	certificateAssetName        = "istio-csr/certificate.yaml"
-	clusterRoleAssetName        = "istio-csr/clusterrole.yaml"
-	clusterRoleBindingAssetName = "istio-csr/clusterrolebinding.yaml"
-	deploymentAssetName         = "istio-csr/deployment.yaml"
-	roleAssetName               = "istio-csr/role.yaml"
-	roleLeasesAssetName         = "istio-csr/role_leases.yaml"
-	roleBindingAssetName        = "istio-csr/rolebinding.yaml"
-	roleBindingLeasesAssetName  = "istio-csr/rolebinding_leases.yaml"
-	serviceAssetName            = "istio-csr/service.yaml"
-	serviceAccountAssetName     = "istio-csr/serviceaccount.yaml"
+	certificateAssetName        = "istio-csr/istiod-certificate.yaml"
+	clusterRoleAssetName        = "istio-csr/cert-manager-istio-csr-clusterrole.yaml"
+	clusterRoleBindingAssetName = "istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml"
+	deploymentAssetName         = "istio-csr/cert-manager-istio-csr-deployment.yaml"
+	roleAssetName               = "istio-csr/cert-manager-istio-csr-role.yaml"
+	roleLeasesAssetName         = "istio-csr/cert-manager-istio-csr-leases-role.yaml"
+	roleBindingAssetName        = "istio-csr/cert-manager-istio-csr-rolebinding.yaml"
+	roleBindingLeasesAssetName  = "istio-csr/cert-manager-istio-csr-leases-rolebinding.yaml"
+	serviceAssetName            = "istio-csr/cert-manager-istio-csr-service.yaml"
+	serviceAccountAssetName     = "istio-csr/cert-manager-istio-csr-serviceaccount.yaml"
 )
 
 const (
