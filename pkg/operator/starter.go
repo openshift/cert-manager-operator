@@ -17,7 +17,9 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/deployment"
+	"github.com/openshift/cert-manager-operator/pkg/features"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
@@ -34,6 +36,10 @@ var TrustedCAConfigMapName string
 // CloudSecretName is the name of the cloud secret to be
 // used in ambient credentials mode, and is provided as a runtime arg
 var CloudCredentialSecret string
+
+// UnsupportedAddonFeatures is the user-specific list of unsupported addon features
+// that the operator optionally enables, and is provided as a runtime arg.
+var UnsupportedAddonFeatures string
 
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
@@ -112,12 +118,21 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		go controller.Run(ctx, 1)
 	}
 
-	manager, err := NewControllerManager()
+	err = features.SetupWithFlagValue(UnsupportedAddonFeatures)
 	if err != nil {
-		return fmt.Errorf("failed to create controller manager: %w", err)
+		return fmt.Errorf("failed to parse addon features: %w", err)
 	}
-	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
-		return fmt.Errorf("failed to start istiocsr controller: %w", err)
+
+	// enable controller-runtime and istio-csr controller
+	// only when "IstioCSR" feature is turned on from --addon-features
+	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
+		manager, err := NewControllerManager()
+		if err != nil {
+			return fmt.Errorf("failed to create controller manager: %w", err)
+		}
+		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+			return fmt.Errorf("failed to start istiocsr controller: %w", err)
+		}
 	}
 
 	<-ctx.Done()
