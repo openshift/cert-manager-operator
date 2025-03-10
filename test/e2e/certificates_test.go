@@ -205,8 +205,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("setting cloud credential secret name in subscription object")
-			credentialSecret := "aws-creds"
-			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+				"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
+			})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting AWS zone from Infrastructure object")
@@ -297,8 +298,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("setting cloud credential secret name in subscription object")
-			credentialSecret := "aws-creds"
-			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+				"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
+			})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting AWS zone from Infrastructure object")
@@ -496,7 +498,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Configure cert-manager to use credential, setting this credential secret name in subscription object")
-			err = patchSubscriptionWithCloudCredential(ctx, loader, credentialSecret)
+			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+				"CLOUD_CREDENTIALS_SECRET_NAME": credentialSecret,
+			})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Getting GCP project ID from Infrastructure object")
