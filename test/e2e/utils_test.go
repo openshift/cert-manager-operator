@@ -400,24 +400,28 @@ func getCertManagerOperatorSubscription(ctx context.Context, loader library.Dyna
 	return subName, nil
 }
 
-// patchSubscriptionWithCloudCredential uses the k8s dynamic client to patche the only Subscription object
-// in the cert-manager-operator namespace to inject CLOUD_CREDENTIALS_SECRET_NAME="aws-creds" env
-// into its spec.config.env
-func patchSubscriptionWithCloudCredential(ctx context.Context, loader library.DynamicResourceLoader, credentialSecret string) error {
+// patchSubscriptionWithEnvVars uses the k8s dynamic client to patch the only Subscription object
+// in the cert-manager-operator namespace, inject specified env vars into spec.config.env
+func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
 	subName, err := getCertManagerOperatorSubscription(ctx, loader)
 	if err != nil {
 		return err
 	}
 
+	env := make([]interface{}, len(envVars))
+	i := 0
+	for k, v := range envVars {
+		env[i] = map[string]interface{}{
+			"name":  k,
+			"value": v,
+		}
+		i++
+	}
+
 	patch := map[string]interface{}{
 		"spec": map[string]interface{}{
 			"config": map[string]interface{}{
-				"env": []interface{}{
-					map[string]interface{}{
-						"name":  "CLOUD_CREDENTIALS_SECRET_NAME",
-						"value": credentialSecret,
-					},
-				},
+				"env": env,
 			},
 		},
 	}
