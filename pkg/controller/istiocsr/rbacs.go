@@ -124,8 +124,14 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 
 func (r *Reconciler) getClusterRoleObject(istioCSRNamespace string, resourceLabels map[string]string) *rbacv1.ClusterRole {
 	clusterRole := decodeClusterRoleObjBytes(assets.MustAsset(clusterRoleAssetName))
+	updateToUseGenerateName(clusterRole)
 	updateResourceLabelsWithIstioMapperLabels(clusterRole, istioCSRNamespace, resourceLabels)
 	return clusterRole
+}
+
+func updateToUseGenerateName(obj client.Object) {
+	obj.SetName("")
+	obj.SetGenerateName("cert-manager-istio-csr-")
 }
 
 func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, new, existing *rbacv1.ClusterRole) (string, error) {
@@ -212,6 +218,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 func (r *Reconciler) getClusterRoleBindingObject(clusterRoleName, serviceAccount, istiocsrNamespace string, resourceLabels map[string]string) *rbacv1.ClusterRoleBinding {
 	clusterRoleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
 	clusterRoleBinding.RoleRef.Name = clusterRoleName
+	updateToUseGenerateName(clusterRoleBinding)
 	updateResourceLabelsWithIstioMapperLabels(clusterRoleBinding, istiocsrNamespace, resourceLabels)
 	updateServiceAccountNamespaceInRBACBindingObject[*rbacv1.ClusterRoleBinding](clusterRoleBinding, serviceAccount, istiocsrNamespace)
 	return clusterRoleBinding
