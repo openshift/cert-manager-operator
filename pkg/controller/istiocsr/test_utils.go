@@ -157,6 +157,7 @@ func testClusterRole() *rbacv1.ClusterRole {
 func testClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 	roleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
 	roleBinding.SetName("cert-manager-istio-csr-dfkhk")
+	roleBinding.SetGenerateName("cert-manager-istio-csr-")
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
 	return roleBinding
 }
@@ -164,6 +165,7 @@ func testClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 func testClusterRoleBindingExtra() *rbacv1.ClusterRoleBinding {
 	roleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
 	roleBinding.SetName("cert-manager-istio-csr-dfmfj")
+	roleBinding.SetGenerateName("cert-manager-istio-csr-")
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
 	return roleBinding
 }
