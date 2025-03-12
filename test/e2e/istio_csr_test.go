@@ -46,6 +46,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 
 		dynamicClient, err = dynamic.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
+
+		By("enable IstioCSR addon feature by patching subscription object")
+		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"UNSUPPORTED_ADDON_FEATURES": "IstioCSR=true",
+		})
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	var ns *corev1.Namespace
