@@ -202,7 +202,7 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 			return false, fmt.Errorf("%s deployment spec does not have container information", deploymentName)
 		}
 
-		containerArgsSet := sets.New[string](controllerDeployment.Spec.Template.Spec.Containers[0].Args...)
+		containerArgsSet := sets.New(controllerDeployment.Spec.Template.Spec.Containers[0].Args...)
 
 		if added {
 			if !containerArgsSet.HasAll(args...) {
@@ -210,6 +210,73 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 			}
 		} else {
 			if containerArgsSet.HasAll(args...) {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+}
+
+// addOverrideEnv adds the override environment variables to specific the cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName string, env []corev1.EnvVar) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		case certmanagerWebhookDeployment:
+			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		case certmanagerCAinjectorDeployment:
+			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyDeploymentEnv polls every 1 second to check if the deployment env list is updated to contain the
+// passed env. It returns an error if a timeout (5 mins) occurs or an error was encountered while polling
+// the deployment env list.
+func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string, env []corev1.EnvVar, added bool) error {
+
+	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if len(controllerDeployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("%s deployment spec does not have container information", deploymentName)
+		}
+
+		containerEnvList := sets.New(controllerDeployment.Spec.Template.Spec.Containers[0].Env...)
+
+		if added {
+			if !containerEnvList.HasAll(env...) {
+				return false, nil
+			}
+		} else {
+			if containerEnvList.HasAll(env...) {
 				return false, nil
 			}
 		}

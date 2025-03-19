@@ -490,6 +490,44 @@ var _ = Describe("Overrides test", Ordered, func() {
 		})
 	})
 
+	Context("When adding valid cert-manager controller override env", func() {
+
+		It("should add the env to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override env to the cert-managaer operator object")
+			env := []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy.example.com:8080"}, {Name: "HTTPS_PROXY", Value: "http://proxy.example.com:8088"}, {Name: "NO_PROXY", Value: "localhost"}}
+			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the env to be added to the cert-manager controller deployment")
+			err = verifyDeploymentEnv(k8sClientSet, certmanagerControllerDeployment, env, true)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding invalid cert-manager controller override env", func() {
+
+		It("should not add the env to the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override env to the cert-managaer operator object")
+			env := []corev1.EnvVar{{Name: "FOO", Value: "BAR"}}
+			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become degraded")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Checking if the env are not added to the cert-manager controller deployment")
+			err = verifyDeploymentEnv(k8sClientSet, certmanagerControllerDeployment, env, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
 	AfterAll(func() {
 		By("Reset cert-manager state")
 		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
