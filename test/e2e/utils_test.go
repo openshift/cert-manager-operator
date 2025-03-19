@@ -6,17 +6,16 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
@@ -28,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -44,6 +42,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
+
+const (
+	PollInterval = 5 * time.Second
+	TestTimeout  = 10 * time.Minute
+)
+
+//go:embed testdata/*
+var testassets embed.FS
 
 var subscriptionSchema = schema.GroupVersionResource{
 	Group:    "operators.coreos.com",
@@ -584,61 +590,6 @@ func randomStr(size int) string {
 		s.WriteByte(char[rand.Int63()%int64(len(char))])
 	}
 	return s.String()
-}
-
-// replace string in bytes of ReadFile
-func replaceStrInFile(replaceStrMap map[string]string, fileName string) ([]byte, error) {
-	bytes, err := testassets.ReadFile(fileName)
-	if err != nil {
-		return nil, err
-	}
-	fileContentsStr := string(bytes)
-	for k, v := range replaceStrMap {
-		fileContentsStr = strings.ReplaceAll(fileContentsStr, k, v)
-	}
-	return []byte(fileContentsStr), nil
-}
-
-// waitForCertificateReadinessWithClient polls the status of the Certificate object and returns non-nil error
-// once the Ready condition is true, otherwise should return a time-out error.
-func waitForCertificateReadinessWithClient(ctx context.Context, client *certmanagerclientset.Clientset, certName, namespace string) error {
-	return wait.PollUntilContextTimeout(ctx, PollInterval, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		cert, err := client.CertmanagerV1().Certificates(namespace).Get(ctx, certName, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-
-		for _, cond := range cert.Status.Conditions {
-			if cond.Type == cmv1.CertificateConditionReady {
-				return cond.Status == cmmetav1.ConditionTrue, nil
-			}
-		}
-		return false, nil
-	})
-}
-
-// waitForIngressReadiness polls the status of the Ingress object and returns non-nil error
-// once the ingress endpoint is available, otherwise should return a time-out error.
-func waitForIngressReadiness(ctx context.Context, client kubernetes.Interface, ingressObj networkingv1.Ingress, domainName string) error {
-	return wait.PollUntilContextTimeout(ctx, PollInterval, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		ingress, err := client.NetworkingV1().Ingresses(ingressObj.Namespace).Get(ctx, ingressObj.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-
-		endpoints := ingress.Status.LoadBalancer.Ingress
-		if endpoints == nil {
-			return false, nil
-		}
-		for _, endpoint := range endpoints {
-			matched, err := regexp.MatchString(fmt.Sprintf(".%s$", domainName), endpoint.Hostname)
-			if err != nil {
-				return false, nil
-			}
-			return matched, nil
-		}
-		return false, nil
-	})
 }
 
 // pollTillJobCompleted poll the job object and returns non-nil error

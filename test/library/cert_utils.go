@@ -6,7 +6,6 @@ package library
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"time"
@@ -74,28 +73,8 @@ func GetCertExpiry(hostname string, tlsConfig *tls.Config) (time.Time, error) {
 	return conn.ConnectionState().PeerCertificates[0].NotAfter, err
 }
 
-func GetCertIssuer(hostname string) (pkix.Name, error) {
-	conn, err := tls.Dial("tcp", hostname, nil)
-	conn.Close()
-	return conn.ConnectionState().PeerCertificates[0].Issuer, err
-}
-
 func VerifySecretNotNull(secret *corev1.Secret) (bool, error) {
 	return len(secret.Data["tls.crt"]) != 0 && len(secret.Data["tls.key"]) != 0, nil
-}
-
-func VerifyHostx509Cert(secret *corev1.Secret, hostname string) (bool, error) {
-	// TODO: verify cert using the x509 package WIP
-	cert, err := x509.ParseCertificates((secret.Data["tls.crt"]))
-	if err != nil {
-		return false, err
-	}
-	if cert[0].Verify(x509.VerifyOptions{
-		DNSName: hostname,
-	}); err != nil {
-		return false, err
-	}
-	return true, err
 }
 
 func VerifyCertificate(secret *corev1.Secret, commonName string) (bool, error) {
