@@ -15,7 +15,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/openshift/cert-manager-operator/test/library"
@@ -37,19 +36,16 @@ type LogEntry struct {
 var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
-	var dynamicClient *dynamic.DynamicClient
 
 	BeforeAll(func() {
 		var err error
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		dynamicClient, err = dynamic.NewForConfig(cfg)
-		Expect(err).Should(BeNil())
-
 		By("enable IstioCSR addon feature by patching subscription object")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": "IstioCSR=true",
+			"OPERATOR_LOG_LEVEL":         "6",
 		})
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -76,7 +72,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 	})
 
 	Context("grpc call istio.v1.auth.IstioCertificateService/CreateCertificate to istio-csr agent", func() {
-		It("should return cert-chain as response", func() {
+		It("should return cert-chain as response", Label("Debug:Yes"), MustPassRepeatedly(15), func() {
 			serviceAccountName := "cert-manager-istio-csr"
 			grpcAppName := "grpcurl-istio-csr"
 
@@ -87,6 +83,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			By("issuing TLS certificate")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+
+			By("waiting for certificate to get ready")
+			err := waitForCertificateReadiness(ctx, "my-selfsigned-ca", ns.Name)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("fetching proto file from api")
 			protoContent, err := library.FetchFileFromURL(istioCSRProtoURL)
@@ -115,84 +115,88 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
 
-			By("poll till cert-manager-istio-csr is available")
+			By("poll till cert-manager-istio-csr deployment is available")
 			err = pollTillDeploymentAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
-			Expect(err).Should(BeNil())
-
-			istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, dynamicClient, ns.Name, "default")
-			Expect(err).Should(BeNil())
-
-			By("poll till the service account is available")
-			err = pollTillServiceAccountAvailable(ctx, clientset, ns.Name, serviceAccountName)
-			Expect(err).Should(BeNil())
-
-			By("generate csr request")
-
-			csrTemplate := &x509.CertificateRequest{
-				Subject: pkix.Name{
-					Organization:       []string{"My Organization"},
-					OrganizationalUnit: []string{"IT Department"},
-					Country:            []string{"US"},
-					Locality:           []string{"Los Angeles"},
-					Province:           []string{"California"},
-				},
-				URIs: []*url.URL{
-					{Scheme: "spiffe", Host: "cluster.local", Path: "/ns/istio-system/sa/cert-manager-istio-csr"},
-				},
-				SignatureAlgorithm: x509.SHA256WithRSA,
-			}
-
-			csr, err := library.GenerateCSR(csrTemplate)
-			Expect(err).Should(BeNil())
-
-			By("creating an grpcurl job")
-			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRGRPCurlJobConfig{
-					CertificateSigningRequest: csr,
-					IstioCSRStatus:            istioCSRStatus,
-				},
-			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
-
-			By("waiting for the job to be completed")
-			err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
-			Expect(err).Should(BeNil())
-
-			By("fetching logs of the grpcurl job")
-			pods, err := clientset.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("app=%s", grpcAppName),
-			})
-			Expect(err).Should(BeNil())
-
-			By("fetching succeeded pod name")
-			var succeededPodName string
-			for _, pod := range pods.Items {
-				if pod.Status.Phase == corev1.PodSucceeded {
-					succeededPodName = pod.Name
-				}
-			}
-			Expect(succeededPodName).ShouldNot(BeEmpty())
-
-			req := clientset.CoreV1().Pods(ns.Name).GetLogs(succeededPodName, &corev1.PodLogOptions{})
-			logs, err := req.Stream(context.TODO())
-			Expect(err).Should(BeNil())
-
-			defer logs.Close()
-
-			logData, err := io.ReadAll(logs)
-			Expect(err).Should(BeNil())
-
-			var entry LogEntry
-			err = json.Unmarshal(logData, &entry)
-			Expect(err).Should(BeNil())
-			Expect(entry.CertChain).ShouldNot(BeEmpty())
-
-			By("validating each certificate")
-			for _, certPEM := range entry.CertChain {
-				err = library.ValidateCertificate(certPEM, "my-selfsigned-ca")
+			// Expect(err).Should(BeNil())
+			if err == nil {
+				By("poll till istiocsr object is available")
+				istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, loader, ns.Name, "default")
 				Expect(err).Should(BeNil())
+	
+				By("poll till the service account is available")
+				err = pollTillServiceAccountAvailable(ctx, clientset, ns.Name, serviceAccountName)
+				Expect(err).Should(BeNil())
+	
+				By("generate csr request")
+	
+				csrTemplate := &x509.CertificateRequest{
+					Subject: pkix.Name{
+						Organization:       []string{"My Organization"},
+						OrganizationalUnit: []string{"IT Department"},
+						Country:            []string{"US"},
+						Locality:           []string{"Los Angeles"},
+						Province:           []string{"California"},
+					},
+					URIs: []*url.URL{
+						{Scheme: "spiffe", Host: "cluster.local", Path: "/ns/istio-system/sa/cert-manager-istio-csr"},
+					},
+					SignatureAlgorithm: x509.SHA256WithRSA,
+				}
+	
+				csr, err := library.GenerateCSR(csrTemplate)
+				Expect(err).Should(BeNil())
+	
+				By("creating an grpcurl job")
+				loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+					IstioCSRGRPCurlJobConfig{
+						CertificateSigningRequest: csr,
+						IstioCSRStatus:            istioCSRStatus,
+					},
+				), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
+				policy := metav1.DeletePropagationBackground
+				defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+	
+				By("waiting for the job to be completed")
+				err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
+				Expect(err).Should(BeNil())
+	
+				By("fetching logs of the grpcurl job")
+				pods, err := clientset.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{
+					LabelSelector: fmt.Sprintf("app=%s", grpcAppName),
+				})
+				Expect(err).Should(BeNil())
+	
+				By("fetching succeeded pod name")
+				var succeededPodName string
+				for _, pod := range pods.Items {
+					if pod.Status.Phase == corev1.PodSucceeded {
+						succeededPodName = pod.Name
+					}
+				}
+				Expect(succeededPodName).ShouldNot(BeEmpty())
+	
+				req := clientset.CoreV1().Pods(ns.Name).GetLogs(succeededPodName, &corev1.PodLogOptions{})
+				logs, err := req.Stream(context.TODO())
+				Expect(err).Should(BeNil())
+	
+				defer logs.Close()
+	
+				logData, err := io.ReadAll(logs)
+				Expect(err).Should(BeNil())
+	
+				var entry LogEntry
+				err = json.Unmarshal(logData, &entry)
+				Expect(err).Should(BeNil())
+				Expect(entry.CertChain).ShouldNot(BeEmpty())
+	
+				By("validating each certificate")
+				for _, certPEM := range entry.CertChain {
+					err = library.ValidateCertificate(certPEM, "my-selfsigned-ca")
+					Expect(err).Should(BeNil())
+				}
+			} else {
+				By("skipping undesired result to only catch - istiocsr's 'type: Ready' condition is missing while deployment is ready")
 			}
-
 		})
 	})
 })

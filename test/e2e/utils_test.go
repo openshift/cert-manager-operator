@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -40,7 +41,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
@@ -49,6 +49,12 @@ var subscriptionSchema = schema.GroupVersionResource{
 	Group:    "operators.coreos.com",
 	Version:  "v1alpha1",
 	Resource: "subscriptions",
+}
+
+var istiocsrSchema = schema.GroupVersionResource{
+	Group:    "operator.openshift.io",
+	Version:  "v1alpha1",
+	Resource: "istiocsrs",
 }
 
 // verifyOperatorStatusCondition polls every 1 second to check if the status of each of the controllers
@@ -619,44 +625,43 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 
 // pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istioCSRStatus
 // once the istiocsr is available, otherwise should return a time-out error
-func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
+func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResourceLoader, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
 	var istioCSRStatus v1alpha1.IstioCSRStatus
-	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
-		gvr := schema.GroupVersionResource{
-			Group:    "operator.openshift.io",
-			Version:  "v1alpha1",
-			Resource: "istiocsrs",
-		}
-
-		customResource, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, istioCsrName, metav1.GetOptions{})
+	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace)
+	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, false, func(ctx context.Context) (bool, error) {
+		customResource, err := istiocsrClient.Get(ctx, istioCsrName, metav1.GetOptions{})
 		if err != nil {
+			log.Printf("failed to get IstioCSR: %v", err)
 			return false, nil
 		}
 
 		status, found, err := unstructured.NestedMap(customResource.Object, "status")
 		if err != nil {
+			log.Printf("failed to extract status from IstioCSR: %v", err)
 			return false, nil
 		}
-
-		if !found {
+		if !found || status == nil {
+			log.Printf("status field not found in IstioCSR")
 			return false, nil
 		}
 
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
 		if err != nil {
+			log.Printf("failed to convert status to IstioCSRStatus: %v", err)
+			return false, nil
+		}
+
+		if library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) || library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) || library.IsEmptyString(istioCSRStatus.IstioCSRImage) || library.IsEmptyString(istioCSRStatus.ServiceAccount) {
+			log.Printf("IstioCSR status has empty field(s)")
 			return false, nil
 		}
 
 		readyCondition := meta.FindStatusCondition(istioCSRStatus.Conditions, v1alpha1.Ready)
-
 		if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
+			log.Printf("IstioCSR is not ready yet (status: %+v)", istioCSRStatus.Conditions)
 			return false, nil
 		}
-
-		if !library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) && !library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) && !library.IsEmptyString(istioCSRStatus.IstioCSRImage) && !library.IsEmptyString(istioCSRStatus.ServiceAccount) {
-			return true, nil
-		}
-		return false, nil
+		return true, nil
 	})
 
 	return istioCSRStatus, err
