@@ -640,7 +640,7 @@ func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResour
 			log.Printf("failed to extract status from IstioCSR: %v", err)
 			return false, nil
 		}
-		if !found {
+		if !found || status == nil {
 			log.Printf("status field not found in IstioCSR")
 			return false, nil
 		}
