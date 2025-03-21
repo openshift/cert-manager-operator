@@ -5,7 +5,6 @@ set -e
 VERSION="1.25.1"
 
 OUTPUT_PATH=${1:-./bin/operator-sdk}
-VERIFY=${2:-yes}
 
 GOOS=$(go env GOOS)
 GOARCH=$(go env GOARCH)
