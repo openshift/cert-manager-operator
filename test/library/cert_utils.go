@@ -27,11 +27,14 @@ func GetTLSConfig(secret *corev1.Secret) (tls.Config, bool) {
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM([]byte(secret.Data["tls.crt"]))
 	if !ok {
-		return tls.Config{}, ok
+		return tls.Config{
+			MinVersion: tls.VersionTLS13,
+		}, ok
 	}
 	return tls.Config{
 		RootCAs:    roots,
 		ClientCAs:  roots,
+		MinVersion: tls.VersionTLS13,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{
 			{

@@ -44,6 +44,7 @@ func withUnsupportedArgsOverrideHook(operatorSpec *operatorv1.OperatorSpec, depl
 			return err
 		}
 	}
+	//nolint:staticcheck,ineffassign
 	deployment = unsupportedConfigOverrides(deployment, cfg)
 	return nil
 }

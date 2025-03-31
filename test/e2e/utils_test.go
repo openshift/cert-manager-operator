@@ -185,6 +185,10 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 		return err
 	})
 
+	if err != nil {
+		return err
+	}
+
 	// remove any entries present in Subscription spec.config for
 	// user provided injected env vars, etc.
 	// it should put operator back to default deployment
@@ -618,7 +622,7 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 		}
 
 		// checks if expiry time was updated
-		if *initExpiryTime == cert.NotAfter {
+		if time.Time.Equal(*initExpiryTime, cert.NotAfter) {
 			return false, nil
 		}
 

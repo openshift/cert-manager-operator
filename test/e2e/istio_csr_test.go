@@ -24,9 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// backOffLimit is the max retries for the Job
-const backOffLimit int32 = 10
-
 // istioCSRProtoURL links to proto for istio-csr API spec
 const istioCSRProtoURL = "https://raw.githubusercontent.com/istio/api/v1.24.1/security/v1alpha1/ca.proto"
 
@@ -71,7 +68,8 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			_, err := loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete namespace %s", ns.Name)
 		})
 	})
 

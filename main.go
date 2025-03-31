@@ -27,6 +27,7 @@ func NewOperatorCommand() *cobra.Command {
 		Use:   "cert-manager-operator",
 		Short: "OpenShift cluster cert-manager operator",
 		Run: func(cmd *cobra.Command, args []string) {
+			//nolint: errcheck
 			cmd.Help()
 			os.Exit(1)
 		},

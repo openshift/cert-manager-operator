@@ -98,7 +98,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -135,7 +135,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *appsv1.Deployment:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -160,7 +160,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *appsv1.Deployment:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -289,7 +289,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -456,7 +456,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
 					case *corev1.ConfigMap:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -489,7 +489,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})

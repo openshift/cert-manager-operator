@@ -128,7 +128,7 @@ func TestReconcile(t *testing.T) {
 					case *v1alpha1.IstioCSR:
 						// fail the operation where controller is trying to add processed annotation.
 						if _, exist := o.GetAnnotations()[controllerProcessedAnnotation]; exist {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil
@@ -349,7 +349,7 @@ func TestReconcile(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -371,7 +371,7 @@ func TestReconcile(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -555,7 +555,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				m.ListCalls(func(ctx context.Context, list client.ObjectList, option ...client.ListOption) error {
 					switch list.(type) {
 					case *v1alpha1.IstioCSRList:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -632,7 +632,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
 						switch obj.(type) {
 						case *v1alpha1.IstioCSR:
-							return testError
+							return errorForTest
 						}
 						return nil
 					})
@@ -681,7 +681,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
 						switch obj.(type) {
 						case *v1alpha1.IstioCSR:
-							return testError
+							return errorForTest
 						}
 						return nil
 					})

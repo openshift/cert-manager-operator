@@ -42,7 +42,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
-						return false, testError
+						return false, errorForTest
 					}
 					return false, nil
 				})
@@ -55,7 +55,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
