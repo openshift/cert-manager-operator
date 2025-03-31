@@ -9,7 +9,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	coreinformersv1 "k8s.io/client-go/informers/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/operator-framework/operator-lib/proxy"
@@ -92,7 +92,7 @@ func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertM
 			return err
 		}
 
-		if overrideArgs != nil && len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
+		if len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
 			deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
 				deployment.Spec.Template.Spec.Containers[0].Args, overrideArgs)
 			sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
@@ -110,7 +110,7 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 			return err
 		}
 
-		if overrideEnv != nil && len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
+		if len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
 			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
 				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv)
 
@@ -212,7 +212,7 @@ func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManag
 			return err
 		}
 
-		if overrideLabels != nil && len(overrideLabels) > 0 && deployment.Name == deploymentName {
+		if len(overrideLabels) > 0 && deployment.Name == deploymentName {
 			mergedLabels := labels.Merge(deployment.Spec.Template.GetLabels(), overrideLabels)
 			deployment.Spec.Template.SetLabels(mergedLabels)
 		}
@@ -225,11 +225,11 @@ func withSABoundToken(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.
 		Name: boundSATokenVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
-				DefaultMode: pointer.Int32(420),
+				DefaultMode: ptr.To(int32(420)),
 				Sources: []corev1.VolumeProjection{{
 					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 						Audience:          boundSAAudience,
-						ExpirationSeconds: pointer.Int64(boundSAExpirySec),
+						ExpirationSeconds: ptr.To(int64(boundSAExpirySec)),
 						Path:              boundSAPath,
 					}},
 				},
