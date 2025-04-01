@@ -52,8 +52,7 @@ func TestSelfSignedCerts(t *testing.T) {
 	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 	defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 
-	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
-		// TODO: The loader.KubeClient might be worth splitting out. Let's see once we have more tests.
+	err = wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, "root-secret", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			t.Logf("Unable to retrieve the root secret: %v", err)
@@ -131,7 +130,7 @@ func TestACMECertsIngress(t *testing.T) {
 	require.NoError(t, err)
 	defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
-	err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(ingress.ObjectMeta.Namespace).Get(ctx, "ingress-prod-secret", metav1.GetOptions{})
 		tlsConfig, isvalid := library.GetTLSConfig(secret)
 		if !isvalid {
@@ -360,10 +359,9 @@ func TestContainerOverrides(t *testing.T) {
 }
 
 func verifyValidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
-
 	t.Log("verifying valid controller operator status")
-	err := wait.PollImmediate(time.Second*5, time.Minute*5, func() (done bool, err error) {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), time.Second*5, time.Minute*5, true, func(ctx context.Context) (done bool, err error) {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -427,9 +425,8 @@ func addInvalidControlleOverrideEnv(operator *v1alpha1.CertManager) {
 
 func verifyInvalidControllerOperatorStatus(t *testing.T, client *certmanoperatorclient.Clientset) {
 	t.Log("verifying invalid controller operator status")
-	err := wait.PollImmediate(time.Second*5, time.Minute*5, func() (done bool, err error) {
-
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), time.Second*5, time.Minute*5, true, func(ctx context.Context) (done bool, err error) {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}

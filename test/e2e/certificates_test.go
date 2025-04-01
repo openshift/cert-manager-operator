@@ -195,7 +195,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -288,7 +288,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -488,7 +488,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("Waiting for cloud secret to be available")
 			// The name is defined cloud credential by the testdata YAML file.
 			credentialSecret := "gcp-credentials"
-			err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, credentialSecret, metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -645,7 +645,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
 
 			By("checking TLS certificate contents")
-			err = wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
 				secret, err := loader.KubeClient.CoreV1().Secrets(ingress.ObjectMeta.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 				tlsConfig, isvalid := library.GetTLSConfig(secret)
 				if !isvalid {
