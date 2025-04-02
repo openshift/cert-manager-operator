@@ -272,7 +272,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.15.1
+  name: cert-manager-operator.v1.16.0
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -321,35 +321,10 @@ spec:
           - configmaps
           - events
           - namespaces
-          - serviceaccounts
-          - services
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
           - pods
           - secrets
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - acme.cert-manager.io
-          resources:
-          - challenges
-          - challenges/finalizers
-          - challenges/status
+          - serviceaccounts
+          - services
           verbs:
           - create
           - delete
@@ -554,12 +529,14 @@ spec:
           - operator.openshift.io
           resources:
           - certmanagers/finalizers
+          - istiocsrs/finalizers
           verbs:
           - update
         - apiGroups:
           - operator.openshift.io
           resources:
           - certmanagers/status
+          - istiocsrs/status
           verbs:
           - get
           - patch
@@ -574,20 +551,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - operator.openshift.io
-          resources:
-          - istiocsrs/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - operator.openshift.io
-          resources:
-          - istiocsrs/status
-          verbs:
-          - get
-          - patch
-          - update
         - apiGroups:
           - rbac.authorization.k8s.io
           resources:
@@ -688,21 +651,21 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.15.5
+                  value: quay.io/jetstack/cert-manager-webhook
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.15.5
+                  value: quay.io/jetstack/cert-manager-cainjector
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.15.5
+                  value: quay.io/jetstack/cert-manager-controller
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.15.5
+                  value: quay.io/jetstack/cert-manager-acmesolver:v1.16.4
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
                   value: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.15.5
+                  value: 1.16.4
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
                   value: 0.14.0
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.15.1
+                  value: 1.16.0
                 - name: OPERATOR_LOG_LEVEL
                   value: "2"
                 - name: TRUSTED_CA_CONFIGMAP_NAME
@@ -796,15 +759,15 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.15.5
+  - image: quay.io/jetstack/cert-manager-webhook
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.15.5
+  - image: quay.io/jetstack/cert-manager-cainjector
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.15.5
+  - image: quay.io/jetstack/cert-manager-controller
     name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.15.5
+  - image: quay.io/jetstack/cert-manager-acmesolver:v1.16.4
     name: cert-manager-acmesolver
   - image: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
     name: cert-manager-istiocsr
   replaces: cert-manager-operator.v1.15.0
-  version: 1.15.1
+  version: 1.16.0
