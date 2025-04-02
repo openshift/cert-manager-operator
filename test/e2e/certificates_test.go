@@ -592,11 +592,11 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "clusterissuer.yaml"), ns.Name)
 
-			By("creating an openshift-hello deployment")
+			By("creating an hello-openshift deployment")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
 
-			By("creating a service for the deployment openshift-hello")
+			By("creating a service for the deployment hello-openshift")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
@@ -740,14 +740,15 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "issuer.yaml"), ns.Name)
 
 			By("creating a certificate using the CA Issuer")
+			certName := "renewable-ca-issued-cert"
 			cert := &certmanagerv1.Certificate{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "renewable-ca-issued-cert",
+					Name:      certName,
 					Namespace: ns.Name,
 				},
 				Spec: certmanagerv1.CertificateSpec{
 					DNSNames:    []string{"sample-renewable-cert"},
-					SecretName:  "renewable-ca-issued-cert",
+					SecretName:  certName,
 					IsCA:        false,
 					Duration:    &metav1.Duration{Duration: time.Hour},
 					RenewBefore: &metav1.Duration{Duration: time.Minute * 59}, // essentially becomes a renewal loop of 1min
@@ -760,10 +761,10 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 			}
 			cert, err := certmanagerClient.CertmanagerV1().Certificates(ns.Name).Create(ctx, cert, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, cert.Name, metav1.DeleteOptions{})
+			defer certmanagerClient.CertmanagerV1().Certificates(ns.Name).Delete(ctx, certName, metav1.DeleteOptions{})
 
 			By("waiting for certificate to get ready")
-			err = waitForCertificateReadiness(ctx, "renewable-ca-issued-cert", ns.Name)
+			err = waitForCertificateReadiness(ctx, certName, ns.Name)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("certificate was renewed atleast once")
