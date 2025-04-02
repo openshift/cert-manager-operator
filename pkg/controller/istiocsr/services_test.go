@@ -45,7 +45,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Service:
-						return false, testError
+						return false, errorForTest
 					}
 					return false, nil
 				})
@@ -58,7 +58,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -81,7 +81,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})

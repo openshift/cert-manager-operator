@@ -112,7 +112,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 		},
 
 		// unsupported config overrides as a mechanism of appending new args
-		"Controller overrides should append newer overriden values": {
+		"Controller overrides should append newer overridden values": {
 			deploymentName: "cert-manager",
 			overrides: &v1alpha1.UnsupportedConfigOverrides{
 				Controller: v1alpha1.UnsupportedConfigOverridesForCertManagerController{
@@ -129,7 +129,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				"--v=2",
 			},
 		},
-		"CAInjector overrides should append newer overriden values": {
+		"CAInjector overrides should append newer overridden values": {
 			deploymentName: "cert-manager-cainjector",
 			overrides: &v1alpha1.UnsupportedConfigOverrides{
 				CAInjector: v1alpha1.UnsupportedConfigOverridesForCertManagerCAInjector{
@@ -143,7 +143,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				"--v=2",
 			},
 		},
-		"Webhook overrides should append newer overriden values": {
+		"Webhook overrides should append newer overridden values": {
 			deploymentName: "cert-manager-webhook",
 			overrides: &v1alpha1.UnsupportedConfigOverrides{
 				Webhook: v1alpha1.UnsupportedConfigOverridesForCertManagerWebhook{

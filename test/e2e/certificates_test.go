@@ -80,7 +80,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			_, err := loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
@@ -640,9 +641,9 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					}},
 				},
 			}
-			ingress, err := loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
+			ingress, err := loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
+			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
 
 			By("checking TLS certificate contents")
 			err = wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
@@ -680,7 +681,8 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			_, err := loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
