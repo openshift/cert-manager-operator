@@ -270,7 +270,7 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 		return true
 	}
 
-	if !reflect.DeepEqual(desired.Spec.Template.ObjectMeta.Labels, fetched.Spec.Template.ObjectMeta.Labels) ||
+	if !reflect.DeepEqual(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
 		len(desired.Spec.Template.Spec.Containers) != len(fetched.Spec.Template.Spec.Containers) {
 		return true
 	}

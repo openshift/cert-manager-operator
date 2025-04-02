@@ -640,13 +640,13 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					}},
 				},
 			}
-			ingress, err := loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
+			ingress, err := loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.ObjectMeta.Namespace).Delete(ctx, ingress.ObjectMeta.Name, metav1.DeleteOptions{})
+			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
 
 			By("checking TLS certificate contents")
 			err = wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
-				secret, err := loader.KubeClient.CoreV1().Secrets(ingress.ObjectMeta.Namespace).Get(ctx, secretName, metav1.GetOptions{})
+				secret, err := loader.KubeClient.CoreV1().Secrets(ingress.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 				tlsConfig, isvalid := library.GetTLSConfig(secret)
 				if !isvalid {
 					return false, nil

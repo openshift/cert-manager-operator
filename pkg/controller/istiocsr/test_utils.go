@@ -174,7 +174,7 @@ func testDeployment() *appsv1.Deployment {
 	deployment := decodeDeploymentObjBytes(assets.MustAsset(deploymentAssetName))
 	deployment.SetNamespace(testIstioCSRNamespace)
 	deployment.SetLabels(controllerDefaultResourceLabels)
-	deployment.Spec.Template.ObjectMeta.Labels = controllerDefaultResourceLabels
+	deployment.Spec.Template.Labels = controllerDefaultResourceLabels
 	deployment.Spec.Template.Spec.Containers[0].Image = image
 	return deployment
 }
