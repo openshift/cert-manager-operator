@@ -10,35 +10,10 @@ rules:
   - configmaps
   - events
   - namespaces
-  - serviceaccounts
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - acme.cert-manager.io
-  resources:
-  - challenges
-  - challenges/finalizers
-  - challenges/status
+  - serviceaccounts
+  - services
   verbs:
   - create
   - delete
@@ -243,12 +218,14 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/finalizers
+  - istiocsrs/finalizers
   verbs:
   - update
 - apiGroups:
   - operator.openshift.io
   resources:
   - certmanagers/status
+  - istiocsrs/status
   verbs:
   - get
   - patch
@@ -263,20 +240,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - operator.openshift.io
-  resources:
-  - istiocsrs/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - operator.openshift.io
-  resources:
-  - istiocsrs/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
