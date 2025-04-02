@@ -6,17 +6,16 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
@@ -28,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -44,6 +42,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
+
+const (
+	PollInterval = 5 * time.Second
+	TestTimeout  = 10 * time.Minute
+)
+
+//go:embed testdata/*
+var testassets embed.FS
 
 var subscriptionSchema = schema.GroupVersionResource{
 	Group:    "operators.coreos.com",
@@ -62,7 +68,7 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			err := wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
+			err := wait.PollUntilContextTimeout(context.TODO(), time.Second*1, time.Minute*5, true, func(context.Context) (bool, error) {
 				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 				if err != nil {
 					if apierrors.IsNotFound(err) {
@@ -98,7 +104,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	// update operator spec to empty *Config and set operatorSpec to default values
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
-		err := wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+		err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -189,7 +195,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 // the deployment args list.
 func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
-	return wait.PollImmediate(time.Second*1, time.Minute*5, func() (done bool, err error) {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*1, time.Minute*5, true, func(context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -202,7 +208,7 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 			return false, fmt.Errorf("%s deployment spec does not have container information", deploymentName)
 		}
 
-		containerArgsSet := sets.New[string](controllerDeployment.Spec.Template.Spec.Containers[0].Args...)
+		containerArgsSet := sets.New(controllerDeployment.Spec.Template.Spec.Containers[0].Args...)
 
 		if added {
 			if !containerArgsSet.HasAll(args...) {
@@ -210,6 +216,73 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 			}
 		} else {
 			if containerArgsSet.HasAll(args...) {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+}
+
+// addOverrideEnv adds the override environment variables to specific the cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName string, env []corev1.EnvVar) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		case certmanagerWebhookDeployment:
+			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		case certmanagerCAinjectorDeployment:
+			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
+				OverrideEnv: env,
+			}
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyDeploymentEnv polls every 1 second to check if the deployment env list is updated to contain the
+// passed env. It returns an error if a timeout (5 mins) occurs or an error was encountered while polling
+// the deployment env list.
+func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string, env []corev1.EnvVar, added bool) error {
+
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*1, time.Minute*5, true, func(context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if len(controllerDeployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("%s deployment spec does not have container information", deploymentName)
+		}
+
+		containerEnvList := sets.New(controllerDeployment.Spec.Template.Spec.Containers[0].Env...)
+
+		if added {
+			if !containerEnvList.HasAll(env...) {
+				return false, nil
+			}
+		} else {
+			if containerEnvList.HasAll(env...) {
 				return false, nil
 			}
 		}
@@ -256,7 +329,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 // polling the deployment resources.
 func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
-	return wait.PollImmediate(time.Second*10, time.Minute*5, func() (done bool, err error) {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*10, time.Minute*5, true, func(context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -327,7 +400,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 // polling the deployment scheduling.
 func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
-	return wait.PollUntilContextTimeout(context.Background(), time.Second*10, time.Minute*5, true, func(context.Context) (done bool, err error) {
+	return wait.PollUntilContextTimeout(context.TODO(), time.Second*10, time.Minute*5, true, func(context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -438,7 +511,7 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 // waitForCertificateReadiness polls the status of the Certificate object and returns non-nil error
 // once the Ready condition is true, otherwise should return a time-out error
 func waitForCertificateReadiness(ctx context.Context, certName, namespace string) error {
-	return wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		cert, err := certmanagerClient.CertmanagerV1().Certificates(namespace).Get(ctx, certName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -458,7 +531,7 @@ func waitForCertificateReadiness(ctx context.Context, certName, namespace string
 // - certificate hasn't expired
 // - certificate has subject CN matching provided hostname
 func verifyCertificate(ctx context.Context, secretName, namespace, hostname string) error {
-	return wait.PollImmediate(PollInterval, TestTimeout, func() (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -476,7 +549,7 @@ func verifyCertificate(ctx context.Context, secretName, namespace, hostname stri
 // and returns no error if certificate was renewed at least once
 func verifyCertificateRenewed(ctx context.Context, secretName, namespace string, pollDuration time.Duration) error {
 	var initExpiryTime *time.Time
-	return wait.PollImmediate(pollDuration, TestTimeout, func() (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), pollDuration, TestTimeout, true, func(context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -519,65 +592,10 @@ func randomStr(size int) string {
 	return s.String()
 }
 
-// replace string in bytes of ReadFile
-func replaceStrInFile(replaceStrMap map[string]string, fileName string) ([]byte, error) {
-	bytes, err := testassets.ReadFile(fileName)
-	if err != nil {
-		return nil, err
-	}
-	fileContentsStr := string(bytes)
-	for k, v := range replaceStrMap {
-		fileContentsStr = strings.ReplaceAll(fileContentsStr, k, v)
-	}
-	return []byte(fileContentsStr), nil
-}
-
-// waitForCertificateReadinessWithClient polls the status of the Certificate object and returns non-nil error
-// once the Ready condition is true, otherwise should return a time-out error.
-func waitForCertificateReadinessWithClient(ctx context.Context, client *certmanagerclientset.Clientset, certName, namespace string) error {
-	return wait.PollUntilContextTimeout(ctx, PollInterval, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		cert, err := client.CertmanagerV1().Certificates(namespace).Get(ctx, certName, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-
-		for _, cond := range cert.Status.Conditions {
-			if cond.Type == cmv1.CertificateConditionReady {
-				return cond.Status == cmmetav1.ConditionTrue, nil
-			}
-		}
-		return false, nil
-	})
-}
-
-// waitForIngressReadiness polls the status of the Ingress object and returns non-nil error
-// once the ingress endpoint is available, otherwise should return a time-out error.
-func waitForIngressReadiness(ctx context.Context, client kubernetes.Interface, ingressObj networkingv1.Ingress, domainName string) error {
-	return wait.PollUntilContextTimeout(ctx, PollInterval, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		ingress, err := client.NetworkingV1().Ingresses(ingressObj.Namespace).Get(ctx, ingressObj.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-
-		endpoints := ingress.Status.LoadBalancer.Ingress
-		if endpoints == nil {
-			return false, nil
-		}
-		for _, endpoint := range endpoints {
-			matched, err := regexp.MatchString(fmt.Sprintf(".%s$", domainName), endpoint.Hostname)
-			if err != nil {
-				return false, nil
-			}
-			return matched, nil
-		}
-		return false, nil
-	})
-}
-
 // pollTillJobCompleted poll the job object and returns non-nil error
 // once the job is completed, otherwise should return a time-out error
 func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
-	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 
 		if err != nil {
@@ -602,7 +620,7 @@ func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, 
 // pollTillServiceAccountAvailable poll the service account object and returns non-nil error
 // once the service account is available, otherwise should return a time-out error
 func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace, serviceAccountName string) error {
-	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		_, err := clientset.CoreV1().ServiceAccounts(namespace).Get(ctx, serviceAccountName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -621,7 +639,7 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 // once the istiocsr is available, otherwise should return a time-out error
 func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
 	var istioCSRStatus v1alpha1.IstioCSRStatus
-	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		gvr := schema.GroupVersionResource{
 			Group:    "operator.openshift.io",
 			Version:  "v1alpha1",
@@ -662,8 +680,10 @@ func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.Dynam
 	return istioCSRStatus, err
 }
 
+// pollTillDeploymentAvailable poll the deployment object and returns non-nil error
+// once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
-	err := wait.PollUntilContextTimeout(ctx, PollInterval, TestTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
 		deployment, err := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
