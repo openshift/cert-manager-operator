@@ -41,7 +41,7 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 	}
 
 	var got *corev1.Namespace
-	if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
 		var err error
 		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespace, metav1.CreateOptions{})
 		if err != nil {
@@ -66,7 +66,7 @@ func (d DynamicResourceLoader) DeleteTestingNS(name string, shouldDumpEvents fun
 		log.Printf("Error deleting namespace %v, err: %v", name, err)
 	}
 
-	if err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
 		// Poll until namespace is deleted
 		_, err := d.KubeClient.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 		if err != nil && k8serrors.IsNotFound(err) {
