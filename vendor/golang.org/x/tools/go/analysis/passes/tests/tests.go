@@ -16,7 +16,6 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
-	"golang.org/x/tools/internal/analysisinternal"
 )
 
 //go:embed doc.go
@@ -47,9 +46,9 @@ var acceptedFuzzTypes = []types.Type{
 	types.NewSlice(types.Universe.Lookup("byte").Type()),
 }
 
-func run(pass *analysis.Pass) (any, error) {
+func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range pass.Files {
-		if !strings.HasSuffix(pass.Fset.File(f.FileStart).Name(), "_test.go") {
+		if !strings.HasSuffix(pass.Fset.File(f.Pos()).Name(), "_test.go") {
 			continue
 		}
 		for _, decl := range f.Decls {
@@ -258,7 +257,7 @@ func isTestingType(typ types.Type, testingType string) bool {
 	if !ok {
 		return false
 	}
-	return analysisinternal.IsTypeNamed(ptr.Elem(), "testing", testingType)
+	return analysisutil.IsNamedType(ptr.Elem(), "testing", testingType)
 }
 
 // Validate that fuzz target function's arguments are of accepted types.
