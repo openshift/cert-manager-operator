@@ -82,8 +82,7 @@ import (
 	"runtime"
 	"sync"
 
-	"slices"
-
+	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
 	"golang.org/x/tools/internal/versions"
 )
@@ -561,7 +560,7 @@ func (sb *storebuf) emit(fn *Function) {
 // literal that may reference parts of the LHS.
 func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *storebuf) {
 	// Can we initialize it in place?
-	if e, ok := ast.Unparen(e).(*ast.CompositeLit); ok {
+	if e, ok := unparen(e).(*ast.CompositeLit); ok {
 		// A CompositeLit never evaluates to a pointer,
 		// so if the type of the location is a pointer,
 		// an &-operation is implied.
@@ -616,7 +615,7 @@ func (b *builder) assign(fn *Function, loc lvalue, e ast.Expr, isZero bool, sb *
 // expr lowers a single-result expression e to SSA form, emitting code
 // to fn and returning the Value defined by the expression.
 func (b *builder) expr(fn *Function, e ast.Expr) Value {
-	e = ast.Unparen(e)
+	e = unparen(e)
 
 	tv := fn.info.Types[e]
 
@@ -706,7 +705,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			return y
 		}
 		// Call to "intrinsic" built-ins, e.g. new, make, panic.
-		if id, ok := ast.Unparen(e.Fun).(*ast.Ident); ok {
+		if id, ok := unparen(e.Fun).(*ast.Ident); ok {
 			if obj, ok := fn.info.Uses[id].(*types.Builtin); ok {
 				if v := b.builtin(fn, obj, e.Args, fn.typ(tv.Type), e.Lparen); v != nil {
 					return v
@@ -723,7 +722,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 		switch e.Op {
 		case token.AND: // &X --- potentially escaping.
 			addr := b.addr(fn, e.X, true)
-			if _, ok := ast.Unparen(e.X).(*ast.StarExpr); ok {
+			if _, ok := unparen(e.X).(*ast.StarExpr); ok {
 				// &*p must panic if p is nil (http://golang.org/s/go12nil).
 				// For simplicity, we'll just (suboptimally) rely
 				// on the side effects of a load.
@@ -855,10 +854,10 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			if types.IsInterface(rt) {
 				// If v may be an interface type I (after instantiating),
 				// we must emit a check that v is non-nil.
-				if recv, ok := types.Unalias(sel.recv).(*types.TypeParam); ok {
+				if recv, ok := aliases.Unalias(sel.recv).(*types.TypeParam); ok {
 					// Emit a nil check if any possible instantiation of the
 					// type parameter is an interface type.
-					if !typeSetIsEmpty(recv) {
+					if typeSetOf(recv).Len() > 0 {
 						// recv has a concrete term its typeset.
 						// So it cannot be instantiated as an interface.
 						//
@@ -1004,7 +1003,7 @@ func (b *builder) setCallFunc(fn *Function, e *ast.CallExpr, c *CallCommon) {
 	c.pos = e.Lparen
 
 	// Is this a method call?
-	if selector, ok := ast.Unparen(e.Fun).(*ast.SelectorExpr); ok {
+	if selector, ok := unparen(e.Fun).(*ast.SelectorExpr); ok {
 		sel := fn.selection(selector)
 		if sel != nil && sel.kind == types.MethodVal {
 			obj := sel.obj.(*types.Func)
@@ -1374,7 +1373,7 @@ func (b *builder) compLit(fn *Function, addr Value, e *ast.CompositeLit, isZero 
 			// An &-operation may be implied:
 			//	map[*struct{}]bool{&struct{}{}: true}
 			wantAddr := false
-			if _, ok := ast.Unparen(e.Key).(*ast.CompositeLit); ok {
+			if _, ok := unparen(e.Key).(*ast.CompositeLit); ok {
 				wantAddr = isPointerCore(t.Key())
 			}
 
@@ -1549,9 +1548,9 @@ func (b *builder) typeSwitchStmt(fn *Function, s *ast.TypeSwitchStmt, label *lbl
 	var x Value
 	switch ass := s.Assign.(type) {
 	case *ast.ExprStmt: // x.(type)
-		x = b.expr(fn, ast.Unparen(ass.X).(*ast.TypeAssertExpr).X)
+		x = b.expr(fn, unparen(ass.X).(*ast.TypeAssertExpr).X)
 	case *ast.AssignStmt: // y := x.(type)
-		x = b.expr(fn, ast.Unparen(ass.Rhs[0]).(*ast.TypeAssertExpr).X)
+		x = b.expr(fn, unparen(ass.Rhs[0]).(*ast.TypeAssertExpr).X)
 	}
 
 	done := fn.newBasicBlock("typeswitch.done")
@@ -1669,7 +1668,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 			}
 
 		case *ast.AssignStmt: // x := <-ch
-			recv := ast.Unparen(comm.Rhs[0]).(*ast.UnaryExpr)
+			recv := unparen(comm.Rhs[0]).(*ast.UnaryExpr)
 			st = &SelectState{
 				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),
@@ -1680,7 +1679,7 @@ func (b *builder) selectStmt(fn *Function, s *ast.SelectStmt, label *lblock) {
 			}
 
 		case *ast.ExprStmt: // <-ch
-			recv := ast.Unparen(comm.X).(*ast.UnaryExpr)
+			recv := unparen(comm.X).(*ast.UnaryExpr)
 			st = &SelectState{
 				Dir:  types.RecvOnly,
 				Chan: b.expr(fn, recv.X),
@@ -2023,8 +2022,8 @@ func (b *builder) forStmtGo122(fn *Function, s *ast.ForStmt, label *lblock) {
 		// Remove instructions for phi, load, and store.
 		// lift() will remove the unused i_next *Alloc.
 		isDead := func(i Instruction) bool { return dead[i] }
-		loop.Instrs = slices.DeleteFunc(loop.Instrs, isDead)
-		post.Instrs = slices.DeleteFunc(post.Instrs, isDead)
+		loop.Instrs = removeInstrsIf(loop.Instrs, isDead)
+		post.Instrs = removeInstrsIf(post.Instrs, isDead)
 	}
 }
 
@@ -2509,7 +2508,7 @@ func (b *builder) rangeFunc(fn *Function, x Value, tk, tv types.Type, rng *ast.R
 		name:           fmt.Sprintf("%s$%d", fn.Name(), anonIdx+1),
 		Signature:      ysig,
 		Synthetic:      "range-over-func yield",
-		pos:            rng.Range,
+		pos:            rangePosition(rng),
 		parent:         fn,
 		anonIdx:        int32(len(fn.AnonFuncs)),
 		Pkg:            fn.Pkg,
@@ -2567,8 +2566,6 @@ func (b *builder) rangeFunc(fn *Function, x Value, tk, tv types.Type, rng *ast.R
 
 	emitJump(fn, done)
 	fn.currentBlock = done
-	// pop the stack for the range-over-func
-	fn.targets = fn.targets.tail
 }
 
 // buildYieldResume emits to fn code for how to resume execution once a call to
@@ -2970,7 +2967,7 @@ func (b *builder) buildFromSyntax(fn *Function) {
 func (b *builder) buildYieldFunc(fn *Function) {
 	// See builder.rangeFunc for detailed documentation on how fn is set up.
 	//
-	// In pseudo-Go this roughly builds:
+	// In psuedo-Go this roughly builds:
 	// func yield(_k tk, _v tv) bool {
 	// 	   if jump != READY { panic("yield function called after range loop exit") }
 	//     jump = BUSY
@@ -3001,7 +2998,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		}
 	}
 	fn.targets = &targets{
-		tail:      fn.targets,
 		_continue: ycont,
 		// `break` statement targets fn.parent.targets._break.
 	}
@@ -3079,8 +3075,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		// unreachable.
 		emitJump(fn, ycont)
 	}
-	// pop the stack for the yield function
-	fn.targets = fn.targets.tail
 
 	// Clean up exits and promote any unresolved exits to fn.parent.
 	for _, e := range fn.exits {
@@ -3110,17 +3104,17 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	fn.finishBody()
 }
 
-// addMakeInterfaceType records non-interface type t as the type of
-// the operand a MakeInterface operation, for [Program.RuntimeTypes].
+// addRuntimeType records t as a runtime type,
+// along with all types derivable from it using reflection.
 //
-// Acquires prog.makeInterfaceTypesMu.
-func addMakeInterfaceType(prog *Program, t types.Type) {
-	prog.makeInterfaceTypesMu.Lock()
-	defer prog.makeInterfaceTypesMu.Unlock()
-	if prog.makeInterfaceTypes == nil {
-		prog.makeInterfaceTypes = make(map[types.Type]unit)
-	}
-	prog.makeInterfaceTypes[t] = unit{}
+// Acquires prog.runtimeTypesMu.
+func addRuntimeType(prog *Program, t types.Type) {
+	prog.runtimeTypesMu.Lock()
+	defer prog.runtimeTypesMu.Unlock()
+	forEachReachable(&prog.MethodSets, t, func(t types.Type) bool {
+		prev, _ := prog.runtimeTypes.Set(t, true).(bool)
+		return !prev // already seen?
+	})
 }
 
 // Build calls Package.Build for each package in prog.

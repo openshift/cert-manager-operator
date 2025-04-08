@@ -6,9 +6,10 @@ package add
 import (
 	"errors"
 	"log"
+	"slices"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/kustomize/api/loader"
+	ldrhelper "sigs.k8s.io/kustomize/api/pkg/loader"
 	"sigs.k8s.io/kustomize/kustomize/v5/commands/internal/kustfile"
 	"sigs.k8s.io/kustomize/kustomize/v5/commands/internal/util"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -16,6 +17,7 @@ import (
 
 type addResourceOptions struct {
 	resourceFilePaths []string
+	noVerify          bool
 }
 
 // newCmdAddResource adds the name of a file containing a resource to the kustomization file.
@@ -35,6 +37,9 @@ func newCmdAddResource(fSys filesys.FileSystem) *cobra.Command {
 			return o.RunAddResource(fSys)
 		},
 	}
+	cmd.Flags().BoolVar(&o.noVerify, "no-verify", false,
+		"skip validation for resources",
+	)
 	return cmd
 }
 
@@ -49,7 +54,7 @@ func (o *addResourceOptions) Validate(args []string) error {
 
 // RunAddResource runs addResource command (do real work).
 func (o *addResourceOptions) RunAddResource(fSys filesys.FileSystem) error {
-	resources, err := util.GlobPatternsWithLoader(fSys, loader.NewFileLoaderAtCwd(fSys), o.resourceFilePaths)
+	resources, err := util.GlobPatternsWithLoader(fSys, ldrhelper.NewFileLoaderAtCwd(fSys), o.resourceFilePaths, o.noVerify)
 	if err != nil {
 		return err
 	}
@@ -69,7 +74,7 @@ func (o *addResourceOptions) RunAddResource(fSys filesys.FileSystem) error {
 
 	for _, resource := range resources {
 		if mf.GetPath() != resource {
-			if kustfile.StringInSlice(resource, m.Resources) {
+			if slices.Contains(m.Resources, resource) {
 				log.Printf("resource %s already in kustomization file", resource)
 				continue
 			}

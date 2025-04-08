@@ -53,7 +53,7 @@ so the analyzer is not included in typical suites such as vet or
 gopls. Use this standalone command to run it on your code:
 
    $ go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest
-   $ fieldalignment [packages]
+   $ go fieldalignment [packages]
 
 `
 
@@ -65,7 +65,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 }
 
-func run(pass *analysis.Pass) (any, error) {
+func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	nodeFilter := []ast.Node{
 		(*ast.StructType)(nil),
