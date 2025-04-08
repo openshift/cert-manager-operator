@@ -5,6 +5,8 @@
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
 BUNDLE_VERSION ?= 1.15.1
+CERT_MANAGER_VERSION ?= "v1.15.5"
+ISTIO_CSR_VERSION ?= "v0.14.0"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -82,7 +84,7 @@ BIN_DIR=$(shell pwd)/bin
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-CONTAINER_ENGINE ?= docker
+CONTAINER_ENGINE ?= podman
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
 CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.17
@@ -108,8 +110,7 @@ E2E_TIMEOUT ?= 1h
 # https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
 E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
 
-MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/v1.15.5/cert-manager.yaml
-ISTIO_CSR_VERSION = "v0.14.0"
+MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
 
 ##@ Development
 
@@ -178,8 +179,20 @@ verify-deps:
 	hack/verify-deps.sh
 
 local-run: build
-	OPERATOR_NAME=cert-manager-operator OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) ./cert-manager-operator start --config=./hack/local-run-config.yaml --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} --namespace=cert-manager-operator
+	RELATED_IMAGE_CERT_MANAGER_WEBHOOK=quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR=quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_CONTROLLER=quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_ACMESOLVER=quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_ISTIOCSR=quay.io/jetstack/cert-manager-istio-csr:$(ISTIO_CSR_VERSION) \
+	OPERATOR_NAME=cert-manager-operator \
+	OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
+	OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
+	./cert-manager-operator start \
+		--config=./hack/local-run-config.yaml \
+		--kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} \
+		--namespace=cert-manager-operator
 .PHONY: local-run
+
 
 ##@ Build
 GO=GO111MODULE=on CGO_ENABLED=1 go
