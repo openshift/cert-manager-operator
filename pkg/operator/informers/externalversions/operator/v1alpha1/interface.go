@@ -10,6 +10,8 @@ import (
 type Interface interface {
 	// CertManagers returns a CertManagerInformer.
 	CertManagers() CertManagerInformer
+	// IstioCSRs returns a IstioCSRInformer.
+	IstioCSRs() IstioCSRInformer
 }
 
 type version struct {
@@ -26,4 +28,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CertManagers returns a CertManagerInformer.
 func (v *version) CertManagers() CertManagerInformer {
 	return &certManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// IstioCSRs returns a IstioCSRInformer.
+func (v *version) IstioCSRs() IstioCSRInformer {
+	return &istioCSRInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

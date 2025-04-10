@@ -428,7 +428,7 @@ var KnownClusterVersionCapabilities = []ClusterVersionCapability{
 }
 
 // ClusterVersionCapabilitySet defines sets of cluster version capabilities.
-// +kubebuilder:validation:Enum=None;v4.11;v4.12;v4.13;v4.14;v4.15;v4.16;v4.17;vCurrent
+// +kubebuilder:validation:Enum=None;v4.11;v4.12;v4.13;v4.14;v4.15;v4.16;v4.17;v4.18;vCurrent
 type ClusterVersionCapabilitySet string
 
 const (
@@ -477,6 +477,12 @@ const (
 	// OpenShift.  This list will remain the same no matter which
 	// version of OpenShift is installed.
 	ClusterVersionCapabilitySet4_17 ClusterVersionCapabilitySet = "v4.17"
+
+	// ClusterVersionCapabilitySet4_18 is the recommended set of
+	// optional capabilities to enable for the 4.18 version of
+	// OpenShift.  This list will remain the same no matter which
+	// version of OpenShift is installed.
+	ClusterVersionCapabilitySet4_18 ClusterVersionCapabilitySet = "v4.18"
 
 	// ClusterVersionCapabilitySetCurrent is the recommended set
 	// of optional capabilities to enable for the cluster's
@@ -563,6 +569,24 @@ var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVers
 		ClusterVersionCapabilityCloudControllerManager,
 	},
 	ClusterVersionCapabilitySet4_17: {
+		ClusterVersionCapabilityBaremetal,
+		ClusterVersionCapabilityConsole,
+		ClusterVersionCapabilityInsights,
+		ClusterVersionCapabilityMarketplace,
+		ClusterVersionCapabilityStorage,
+		ClusterVersionCapabilityOpenShiftSamples,
+		ClusterVersionCapabilityCSISnapshot,
+		ClusterVersionCapabilityNodeTuning,
+		ClusterVersionCapabilityMachineAPI,
+		ClusterVersionCapabilityBuild,
+		ClusterVersionCapabilityDeploymentConfig,
+		ClusterVersionCapabilityImageRegistry,
+		ClusterVersionCapabilityOperatorLifecycleManager,
+		ClusterVersionCapabilityCloudCredential,
+		ClusterVersionCapabilityIngress,
+		ClusterVersionCapabilityCloudControllerManager,
+	},
+	ClusterVersionCapabilitySet4_18: {
 		ClusterVersionCapabilityBaremetal,
 		ClusterVersionCapabilityConsole,
 		ClusterVersionCapabilityInsights,

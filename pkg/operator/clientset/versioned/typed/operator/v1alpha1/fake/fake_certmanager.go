@@ -4,9 +4,12 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -23,21 +26,23 @@ var certmanagersResource = v1alpha1.SchemeGroupVersion.WithResource("certmanager
 var certmanagersKind = v1alpha1.SchemeGroupVersion.WithKind("CertManager")
 
 // Get takes name of the certManager, and returns the corresponding certManager object, and an error if there is any.
-func (c *FakeCertManagers) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1alpha1.CertManager, err error) {
+func (c *FakeCertManagers) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.CertManager, err error) {
+	emptyResult := &v1alpha1.CertManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(certmanagersResource, name), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootGetActionWithOptions(certmanagersResource, name, options), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.CertManager), err
 }
 
 // List takes label and field selectors, and returns the list of CertManagers that match those selectors.
-func (c *FakeCertManagers) List(ctx context.Context, opts metav1.ListOptions) (result *v1alpha1.CertManagerList, err error) {
+func (c *FakeCertManagers) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.CertManagerList, err error) {
+	emptyResult := &v1alpha1.CertManagerList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(certmanagersResource, certmanagersKind, opts), &v1alpha1.CertManagerList{})
+		Invokes(testing.NewRootListActionWithOptions(certmanagersResource, certmanagersKind, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -54,63 +59,112 @@ func (c *FakeCertManagers) List(ctx context.Context, opts metav1.ListOptions) (r
 }
 
 // Watch returns a watch.Interface that watches the requested certManagers.
-func (c *FakeCertManagers) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+func (c *FakeCertManagers) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(certmanagersResource, opts))
+		InvokesWatch(testing.NewRootWatchActionWithOptions(certmanagersResource, opts))
 }
 
 // Create takes the representation of a certManager and creates it.  Returns the server's representation of the certManager, and an error, if there is any.
-func (c *FakeCertManagers) Create(ctx context.Context, certManager *v1alpha1.CertManager, opts metav1.CreateOptions) (result *v1alpha1.CertManager, err error) {
+func (c *FakeCertManagers) Create(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.CreateOptions) (result *v1alpha1.CertManager, err error) {
+	emptyResult := &v1alpha1.CertManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(certmanagersResource, certManager), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootCreateActionWithOptions(certmanagersResource, certManager, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.CertManager), err
 }
 
 // Update takes the representation of a certManager and updates it. Returns the server's representation of the certManager, and an error, if there is any.
-func (c *FakeCertManagers) Update(ctx context.Context, certManager *v1alpha1.CertManager, opts metav1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
+func (c *FakeCertManagers) Update(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
+	emptyResult := &v1alpha1.CertManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(certmanagersResource, certManager), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootUpdateActionWithOptions(certmanagersResource, certManager, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.CertManager), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeCertManagers) UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts metav1.UpdateOptions) (*v1alpha1.CertManager, error) {
+func (c *FakeCertManagers) UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (result *v1alpha1.CertManager, err error) {
+	emptyResult := &v1alpha1.CertManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(certmanagersResource, "status", certManager), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootUpdateSubresourceActionWithOptions(certmanagersResource, "status", certManager, opts), emptyResult)
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.CertManager), err
 }
 
 // Delete takes name of the certManager and deletes it. Returns an error if one occurs.
-func (c *FakeCertManagers) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+func (c *FakeCertManagers) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewRootDeleteActionWithOptions(certmanagersResource, name, opts), &v1alpha1.CertManager{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeCertManagers) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(certmanagersResource, listOpts)
+func (c *FakeCertManagers) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewRootDeleteCollectionActionWithOptions(certmanagersResource, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.CertManagerList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched certManager.
-func (c *FakeCertManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error) {
+func (c *FakeCertManagers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error) {
+	emptyResult := &v1alpha1.CertManager{}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(certmanagersResource, name, pt, data, subresources...), &v1alpha1.CertManager{})
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(certmanagersResource, name, pt, data, opts, subresources...), emptyResult)
 	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v1alpha1.CertManager), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied certManager.
+func (c *FakeCertManagers) Apply(ctx context.Context, certManager *operatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.CertManager, err error) {
+	if certManager == nil {
+		return nil, fmt.Errorf("certManager provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(certManager)
+	if err != nil {
 		return nil, err
+	}
+	name := certManager.Name
+	if name == nil {
+		return nil, fmt.Errorf("certManager.Name must be provided to Apply")
+	}
+	emptyResult := &v1alpha1.CertManager{}
+	obj, err := c.Fake.
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(certmanagersResource, *name, types.ApplyPatchType, data, opts.ToPatchOptions()), emptyResult)
+	if obj == nil {
+		return emptyResult, err
+	}
+	return obj.(*v1alpha1.CertManager), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeCertManagers) ApplyStatus(ctx context.Context, certManager *operatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.CertManager, err error) {
+	if certManager == nil {
+		return nil, fmt.Errorf("certManager provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(certManager)
+	if err != nil {
+		return nil, err
+	}
+	name := certManager.Name
+	if name == nil {
+		return nil, fmt.Errorf("certManager.Name must be provided to Apply")
+	}
+	emptyResult := &v1alpha1.CertManager{}
+	obj, err := c.Fake.
+		Invokes(testing.NewRootPatchSubresourceActionWithOptions(certmanagersResource, *name, types.ApplyPatchType, data, opts.ToPatchOptions(), "status"), emptyResult)
+	if obj == nil {
+		return emptyResult, err
 	}
 	return obj.(*v1alpha1.CertManager), err
 }
