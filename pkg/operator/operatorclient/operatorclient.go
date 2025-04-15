@@ -80,21 +80,11 @@ func (c OperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager stri
 
 func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
 	if applyConfiguration == nil {
-
 		return fmt.Errorf("applyConfiguration must have a value")
 	}
 
 	desired := applyconfig.CertManager("cluster")
-	//desired.Status.Conditions = make([]operatorv1.OperatorCondition, len(applyConfiguration.Conditions))
-	//for i := range applyConfiguration.Conditions {
-	//	desired.Status.Conditions[i] = operatorv1.OperatorCondition{
-	//		Type:               *applyConfiguration.Conditions[i].Type,
-	//		Status:             *applyConfiguration.Conditions[i].Status,
-	//		LastTransitionTime: *applyConfiguration.Conditions[i].LastTransitionTime,
-	//		Reason:             *applyConfiguration.Conditions[i].Reason,
-	//		Message:            *applyConfiguration.Conditions[i].Message,
-	//	}
-	//}
+	desired.Status = &applyconfig.CertManagerStatusApplyConfiguration{}
 
 	desired.Status.Conditions = applyConfiguration.Conditions
 	desired.Status.ObservedGeneration = applyConfiguration.ObservedGeneration
@@ -108,58 +98,20 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 		v1helpers.SetApplyConditionsLastTransitionTime(c.clock, &applyConfiguration.Conditions, nil)
 		ts := c.clock.Now()
 		for i := range desired.Status.Conditions {
-			desired.Status.Conditions[i].LastTransitionTime = &metav1.Time{Time: ts}
+			if desired.Status.Conditions[i].LastTransitionTime == nil {
+				desired.Status.Conditions[i].LastTransitionTime = &metav1.Time{Time: ts}
+			}
 		}
 
 	case err != nil:
 		return fmt.Errorf("unable to get operator configuration: %w", err)
 	default:
-		//previous, err := v1.ExtractOpenShiftControllerManagerStatus(instance, fieldManager)
-		//if err != nil {
-		//	return fmt.Errorf("unable to extract operator configuration: %w", err)
-		//}
 
-		//operatorStatus := &v1.OperatorStatusApplyConfiguration{}
-		//if previous.Status != nil {
-		//	jsonBytes, err := json.Marshal(previous.Status)
-		//	if err != nil {
-		//		return fmt.Errorf("unable to serialize operator configuration: %w", err)
-		//	}
-		//	if err := json.Unmarshal(jsonBytes, operatorStatus); err != nil {
-		//		return fmt.Errorf("unable to deserialize operator configuration: %w", err)
-		//	}
-		//}
-
-		//switch {
-		//case applyConfiguration.Conditions != nil && operatorStatus != nil:
-		//	v1helpers.SetApplyConditionsLastTransitionTime(c.clock, &applyConfiguration.Conditions, operatorStatus.Conditions)
-		//case applyConfiguration.Conditions != nil && operatorStatus == nil:
-		//	v1helpers.SetApplyConditionsLastTransitionTime(c.clock, &applyConfiguration.Conditions, nil)
-		//}
-
-		//v1helpers.CanonicalizeOperatorStatus(applyConfiguration)
-		//v1helpers.CanonicalizeOperatorStatus(operatorStatus)
 		original := &applyconfig.CertManagerApplyConfiguration{}
 		original.WithName(instance.Name)
 
 		original.WithKind(instance.Kind)
 		original.WithAPIVersion(instance.APIVersion)
-
-		//if equality.Semantic.DeepEqual(original, desired) {
-		//	return nil
-		//}
-		//original := v1.OpenShiftControllerManager("cluster")
-		//if operatorStatus != nil {
-		//	originalStatus := &v1.OpenShiftControllerManagerStatusApplyConfiguration{
-		//		OperatorStatusApplyConfiguration: *operatorStatus,
-		//	}
-		//	original.WithStatus(originalStatus)
-		//}
-		//
-		//desiredStatus := &v1.OpenShiftControllerManagerStatusApplyConfiguration{
-		//	OperatorStatusApplyConfiguration: *applyConfiguration,
-		//}
-		//desired.WithStatus(desiredStatus)
 
 		if equality.Semantic.DeepEqual(original, desired) {
 			return nil
