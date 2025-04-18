@@ -173,6 +173,7 @@ verify-with-container:
 verify-deps:
 	hack/verify-deps.sh
 
+.PHONY: local-run
 local-run: build
 	RELATED_IMAGE_CERT_MANAGER_WEBHOOK=quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION) \
 	RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR=quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION) \
@@ -199,28 +200,40 @@ check-tools:
 	@command -v $(CONTAINER_ENGINE) >/dev/null 2>&1 || { echo "WARNING: $(CONTAINER_ENGINE) is not installed. Please install it to avoid issues."; }
 	@command -v kubectl >/dev/null 2>&1 || { echo "WARNING: kubectl is not installed. Please install it to avoid issues."; }
 
+.PHONY: build-operator
 build-operator: ## Build operator binary, no additional checks or code generation
 	@GOFLAGS="-mod=vendor" source hack/go-fips.sh && $(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN)
 
+.PHONY: build
 build: check-tools generate fmt vet build-operator ## Build operator binary.
 
+.PHONY: run
 run: check-tools manifests generate fmt vet ## Run a controller from your host.
 	go run $(PACKAGE)
 
+.PHONY: image-build
 image-build: check-tools ## Build container image with the operator.
 	$(CONTAINER_ENGINE) build -t ${IMG} .
 
+.PHONY: image-push
 image-push: check-tools ## Push container image with the operator.
 	$(CONTAINER_ENGINE) push ${IMG} ${CONTAINER_PUSH_ARGS}
 
 ##@ Deployment
 
+.PHONY: deploy
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	@kubectl get namespace cert-manager-operator >/dev/null 2>&1 || { \
+		echo "Namespace 'cert-manager-operator' does not exist. Creating it..."; \
+		kubectl create namespace cert-manager-operator; \
+	}
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f - 
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
+.PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl delete -f -
+	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found -f -
+	kubectl delete namespace cert-manager-operator --ignore-not-found
 
 .PHONY: bundle
 bundle: check-tools $(OPERATOR_SDK_BIN) manifests
@@ -246,6 +259,7 @@ index-image-push: check-tools
 	$(CONTAINER_ENGINE) push ${INDEX_IMG}
 
 OPM=$(BIN_DIR)/opm
+.PHONY: opm
 opm: ## Download opm locally if necessary.
 	$(call get-bin,$(OPM),$(BIN_DIR),https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/linux-amd64-opm)
 
@@ -270,6 +284,7 @@ test-e2e: test-e2e-wait-for-stable-state
 	./test/e2e \
 	-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
+.PHONY: test-e2e-wait-for-stable-state
 test-e2e-wait-for-stable-state:
 	@echo "---- Waiting for stable state ----"
 	# This ensures the test-e2e-debug-cluster is called if a timeout is reached.
@@ -277,8 +292,8 @@ test-e2e-wait-for-stable-state:
 	oc wait --for=condition=Available=true deployment/cert-manager -n cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
 	oc wait --for=condition=Available=true deployment/cert-manager-webhook -n cert-manager --timeout=120s || $(MAKE) test-e2e-debug-cluster
 	@echo "---- /Waiting for stable state ----"
-.PHONY: test-e2e-wait-for-stable-state
 
+.PHONY: test-e2e-debug-cluster
 test-e2e-debug-cluster:
 	@echo "---- Debugging the current state ----"
 	- oc get pod -n cert-manager-operator
@@ -289,10 +304,13 @@ test-e2e-debug-cluster:
 	- oc get subscriptions --all-namespaces
 	- oc logs deployment/cert-manager-operator -n cert-manager-operator
 	@echo "---- /Debugging the current state ----"
-.PHONY: test-e2e-debug-cluster
  
 .PHONY: lint
 lint: 
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "golangci-lint not found. Please install it before running 'make lint'."; \
+		exit 1; \
+	fi
 	$(GOLANGCI_LINT) run --config .golangci.yaml	
 
 $(GOLANGCI_LINT_BIN):
