@@ -37,7 +37,11 @@ The Operator automatically deploys a cluster-scoped `CertManager` object named `
 
 Connect to your OpenShift cluster and run the following command:
 
-    make local-run
+```sh
+make deploy
+oc scale --replicas=0 deploy --all -n cert-manager-operator
+make local-run
+```
 
 This command will install all the necessary Operator manifests as well as all necessary CRDs. After this part is complete, it will run the Operator locally.
 
