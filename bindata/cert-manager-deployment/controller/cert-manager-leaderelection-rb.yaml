@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: cert-manager
     app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.15.5
+    app.kubernetes.io/version: v1.16.5
   name: cert-manager:leaderelection
   namespace: kube-system
 roleRef:
@@ -14,7 +14,6 @@ roleRef:
   kind: Role
   name: cert-manager:leaderelection
 subjects:
-  - apiGroup: ""
-    kind: ServiceAccount
+  - kind: ServiceAccount
     name: cert-manager
     namespace: cert-manager

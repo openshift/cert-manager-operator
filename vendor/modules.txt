@@ -695,7 +695,6 @@ github.com/openshift/api/networkoperator
 github.com/openshift/api/networkoperator/v1
 github.com/openshift/api/oauth
 github.com/openshift/api/oauth/v1
-github.com/openshift/api/openapi
 github.com/openshift/api/openshiftcontrolplane
 github.com/openshift/api/openshiftcontrolplane/v1
 github.com/openshift/api/operator

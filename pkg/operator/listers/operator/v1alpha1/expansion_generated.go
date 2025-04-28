@@ -5,3 +5,11 @@ package v1alpha1
 // CertManagerListerExpansion allows custom methods to be added to
 // CertManagerLister.
 type CertManagerListerExpansion interface{}
+
+// IstioCSRListerExpansion allows custom methods to be added to
+// IstioCSRLister.
+type IstioCSRListerExpansion interface{}
+
+// IstioCSRNamespaceListerExpansion allows custom methods to be added to
+// IstioCSRNamespaceLister.
+type IstioCSRNamespaceListerExpansion interface{}
