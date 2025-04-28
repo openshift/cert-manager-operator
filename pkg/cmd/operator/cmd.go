@@ -6,6 +6,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator"
 	"github.com/openshift/cert-manager-operator/pkg/version"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
+	"k8s.io/utils/clock"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +16,7 @@ func NewOperator() *cobra.Command {
 		"cert-manager-operator",
 		version.Get(),
 		operator.RunOperator,
+		clock.RealClock{},
 	).NewCommandWithContext(context.TODO())
 	cmd.Use = "start"
 	cmd.Short = "Start the cert-manager Operator"

@@ -62,6 +62,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	operatorClient := &operatorclient.OperatorClient{
 		Informers: certManagerInformers,
 		Client:    certManagerOperatorClient.OperatorV1alpha1(),
+		Clock:     cc.Clock,
 	}
 
 	// perform version changes to the version getter prior to tying it up in the status controller
