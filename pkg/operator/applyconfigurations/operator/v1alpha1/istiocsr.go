@@ -3,8 +3,11 @@
 package v1alpha1
 
 import (
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	internal "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
@@ -26,6 +29,42 @@ func IstioCSR(name, namespace string) *IstioCSRApplyConfiguration {
 	b.WithKind("IstioCSR")
 	b.WithAPIVersion("operator.openshift.io/v1alpha1")
 	return b
+}
+
+// ExtractIstioCSR extracts the applied configuration owned by fieldManager from
+// istioCSR. If no managedFields are found in istioCSR for fieldManager, a
+// IstioCSRApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// istioCSR must be a unmodified IstioCSR API object that was retrieved from the Kubernetes API.
+// ExtractIstioCSR provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+// Experimental!
+func ExtractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
+	return extractIstioCSR(istioCSR, fieldManager, "")
+}
+
+// ExtractIstioCSRStatus is the same as ExtractIstioCSR except
+// that it extracts the status subresource applied configuration.
+// Experimental!
+func ExtractIstioCSRStatus(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
+	return extractIstioCSR(istioCSR, fieldManager, "status")
+}
+
+func extractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string, subresource string) (*IstioCSRApplyConfiguration, error) {
+	b := &IstioCSRApplyConfiguration{}
+	err := managedfields.ExtractInto(istioCSR, internal.Parser().Type("com.github.openshift.cert-manager-operator.api.operator.v1alpha1.IstioCSR"), fieldManager, b, subresource)
+	if err != nil {
+		return nil, err
+	}
+	b.WithName(istioCSR.Name)
+	b.WithNamespace(istioCSR.Namespace)
+
+	b.WithKind("IstioCSR")
+	b.WithAPIVersion("operator.openshift.io/v1alpha1")
+	return b, nil
 }
 
 // WithKind sets the Kind field in the declarative configuration to the given value
