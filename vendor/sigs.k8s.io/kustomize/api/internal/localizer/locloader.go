@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/kustomize/api/ifc"
 	"sigs.k8s.io/kustomize/api/internal/git"
-	"sigs.k8s.io/kustomize/api/loader"
+	"sigs.k8s.io/kustomize/api/internal/loader"
 	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
@@ -89,11 +89,8 @@ func (ll *Loader) Load(path string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.WrapPrefixf(err, "invalid file reference")
 	}
-	if filepath.IsAbs(path) {
-		return nil, errors.Errorf("absolute paths not yet supported in alpha: file path %q is absolute", path)
-	}
 	if !loader.IsRemoteFile(path) && ll.local {
-		cleanPath := cleanFilePath(ll.fSys, filesys.ConfirmedDir(ll.Root()), path)
+		cleanPath := cleanedRelativePath(ll.fSys, filesys.ConfirmedDir(ll.Root()), path)
 		cleanAbs := filepath.Join(ll.Root(), cleanPath)
 		dir := filesys.ConfirmedDir(filepath.Dir(cleanAbs))
 		// target cannot reference newDir, as this load would've failed prior to localize;
