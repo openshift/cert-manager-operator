@@ -4,8 +4,8 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.15.1
-CERT_MANAGER_VERSION ?= "v1.15.5"
+BUNDLE_VERSION ?= 1.16.0
+CERT_MANAGER_VERSION ?= "v1.16.5"
 ISTIO_CSR_VERSION ?= "v0.14.0"
 
 # CHANNELS define the bundle channels used in the bundle.
@@ -128,7 +128,8 @@ manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefin
 
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
+	hack/update-clientgen.sh
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -149,13 +150,8 @@ update-manifests: $(HELM_BIN)
 	hack/update-istio-csr-manifests.sh $(ISTIO_CSR_VERSION)
 .PHONY: update-manifests
 
-update-scripts:
-	hack/update-deepcopy.sh
-	hack/update-clientgen.sh
-.PHONY: update-scripts
-
 .PHONY: update
-update: update-scripts update-manifests update-bindata
+update: generate update-manifests update-bindata
 
 .PHONY: update-with-container
 update-with-container:
