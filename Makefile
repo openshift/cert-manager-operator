@@ -5,7 +5,7 @@
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
 BUNDLE_VERSION ?= 1.16.0
-CERT_MANAGER_VERSION ?= "v1.15.5"
+CERT_MANAGER_VERSION ?= "v1.16.4"
 ISTIO_CSR_VERSION ?= "v0.14.0"
 
 # CHANNELS define the bundle channels used in the bundle.
@@ -48,7 +48,7 @@ BUNDLE_GEN_FLAGS ?= -q --overwrite=false --version $(BUNDLE_VERSION) $(BUNDLE_ME
 # To enable set flag to true
 USE_IMAGE_DIGESTS ?= false
 ifeq ($(USE_IMAGE_DIGESTS), true)
-    BUNDLE_GEN_FLAGS += --use-image-digests
+	BUNDLE_GEN_FLAGS += --use-image-digests
 endif
 
 # Image URL to use all building/pushing image targets
@@ -116,7 +116,7 @@ MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download
 
 # Include the library makefiles
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
-    targets/openshift/bindata.mk \
+	targets/openshift/bindata.mk \
 )
 
 # generate bindata targets
@@ -124,11 +124,12 @@ $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/binda
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-    $(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-    $(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
+	hack/update-clientgen.sh
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -149,18 +150,13 @@ update-manifests: $(HELM_BIN)
 	hack/update-istio-csr-manifests.sh $(ISTIO_CSR_VERSION)
 .PHONY: update-manifests
 
-update-scripts:
-	hack/update-deepcopy.sh
-	hack/update-clientgen.sh
-.PHONY: update-scripts
-
 .PHONY: update
-update: update-scripts update-manifests update-bindata
+update: generate update-manifests update-bindata
 
 .PHONY: update-with-container
 update-with-container:
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
-
+	 
 verify-scripts:
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
@@ -179,18 +175,18 @@ verify-deps:
 	hack/verify-deps.sh
 
 local-run: build
-    RELATED_IMAGE_CERT_MANAGER_WEBHOOK=quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION) \
-    RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR=quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION) \
-    RELATED_IMAGE_CERT_MANAGER_CONTROLLER=quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION) \
-    RELATED_IMAGE_CERT_MANAGER_ACMESOLVER=quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION) \
-    RELATED_IMAGE_CERT_MANAGER_ISTIOCSR=quay.io/jetstack/cert-manager-istio-csr:$(ISTIO_CSR_VERSION) \
-    OPERATOR_NAME=cert-manager-operator \
-    OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
-    OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
-    ./cert-manager-operator start \
-        --config=./hack/local-run-config.yaml \
-        --kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} \
-        --namespace=cert-manager-operator
+	RELATED_IMAGE_CERT_MANAGER_WEBHOOK=quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR=quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_CONTROLLER=quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_ACMESOLVER=quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_ISTIOCSR=quay.io/jetstack/cert-manager-istio-csr:$(ISTIO_CSR_VERSION) \
+	OPERATOR_NAME=cert-manager-operator \
+	OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
+	OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
+	./cert-manager-operator start \
+		--config=./hack/local-run-config.yaml \
+		--kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} \
+		--namespace=cert-manager-operator
 .PHONY: local-run
 
 
@@ -215,7 +211,7 @@ image-push: ## Push container image with the operator.
 
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+	$(KUSTOMIZE) build config/default | kubectl apply -f - 
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
@@ -288,10 +284,10 @@ test-e2e-debug-cluster:
 	- oc logs deployment/cert-manager-operator -n cert-manager-operator
 	@echo "---- /Debugging the current state ----"
 .PHONY: test-e2e-debug-cluster
-
+ 
 .PHONY: lint
-lint:
-	$(GOLANGCI_LINT) run --config .golangci.yaml
+lint: 
+	$(GOLANGCI_LINT) run --config .golangci.yaml	
 
 $(GOLANGCI_LINT_BIN):
 	mkdir -p $(BIN_DIR)
