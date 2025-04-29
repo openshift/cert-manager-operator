@@ -81,15 +81,20 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 					return false, nil
 				}
 
+				var condMatchCount int
 				for _, cond := range operator.Status.Conditions {
 					if status, exists := expectedConditionMap[strings.TrimPrefix(cond.Type, controllerNames[index])]; exists {
+						condMatchCount += 1
+
 						if cond.Status != status {
 							return false, nil
 						}
 					}
 				}
 
-				return true, nil
+				// [retry]    false:  when NOT all expected conditions were found
+				// [no-retry] true:   when all expected conditions were found
+				return condMatchCount == len(expectedConditionMap), nil
 			})
 			errs[index] = err
 		}(index)
