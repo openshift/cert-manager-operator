@@ -2,7 +2,7 @@ module github.com/openshift/cert-manager-operator
 
 go 1.23.0
 
-toolchain go1.23.8
+toolchain go1.23.4
 
 require (
 	github.com/cert-manager/cert-manager v1.16.4
