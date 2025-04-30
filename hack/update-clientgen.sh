@@ -1,32 +1,31 @@
 #!/bin/bash
 
-# This script is inspired by https://github.com/openshift/client-go/blob/master/hack/update-codegen.sh
-
-source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
+set -o errexit
+set -o nounset
+set -o pipefail
 
 SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../../../k8s.io/code-generator)}
 
-verify="${VERIFY:-}"
+source "${CODEGEN_PKG}/kube_codegen.sh"
 
-set -x
-# Because go mod sux, we have to fake the vendor for generator in order to be able to build it...
-mv ${CODEGEN_PKG}/kube_codegen.sh ${CODEGEN_PKG}/kube_codegen.sh.orig
-sed 's/  GO111MODULE=on go install/  #GO111MODULE=on go install/g' ${CODEGEN_PKG}/kube_codegen.sh.orig > ${CODEGEN_PKG}/kube_codegen.sh
-function cleanup {
-  mv ${CODEGEN_PKG}/kube_codegen.sh.orig ${CODEGEN_PKG}/kube_codegen.sh
-}
-trap cleanup EXIT
-
-go install ./${CODEGEN_PKG}/cmd/{defaulter-gen,client-gen,lister-gen,informer-gen,deepcopy-gen}
-
-for group in ${API_GROUP_VERSIONS}; do
-  bash ${CODEGEN_PKG}/kube_codegen.sh "client,lister,informer" \
-    github.com/openshift/cert-manager-operator/pkg/"${group%\/*}" \
-    github.com/openshift/cert-manager-operator/api \
-    "${group/\//:}" \
-    --go-header-file ${SCRIPT_ROOT}/hack/empty.txt \
-    --plural-exceptions=DNS:DNSes,DNSList:DNSList,Endpoints:Endpoints,Features:Features,FeaturesList:FeaturesList,SecurityContextConstraints:SecurityContextConstraints \
-    --output-base ../../.. \
-    ${verify}
+API_GROUP_VERSIONS="
+operator
+"
+for group in ${API_GROUP_VERSIONS};  do
+  echo "# Processing ${group} ..."
+  kube::codegen::gen_client \
+      --with-watch \
+      --with-applyconfig \
+      --applyconfig-name "applyconfigurations" \
+      --applyconfig-externals "github.com/openshift/api/operator/v1.OperatorSpec:github.com/openshift/client-go/operator/applyconfigurations/operator/v1,github.com/openshift/api/operator/v1.OperatorStatus:github.com/openshift/client-go/operator/applyconfigurations/operator/v1,github.com/openshift/api/operator/v1.OperatorCondition:github.com/openshift/client-go/operator/applyconfigurations/operator/v1,github.com/openshift/api/operator/v1.GenerationStatus:github.com/openshift/client-go/operator/applyconfigurations/operator/v1" \
+      --applyconfig-openapi-schema "vendor/github.com/openshift/api/openapi/openapi.json" \
+      --one-input-api "${group}" \
+      --output-pkg github.com/openshift/cert-manager-operator/pkg/"${group%\/*}" \
+      --output-dir "${SCRIPT_ROOT}/pkg/${group}" \
+      --plural-exceptions "DNS:DNSes,DNSList:DNSList,SecurityContextConstraints:SecurityContextConstraints" \
+      --boilerplate "${SCRIPT_ROOT}/hack/empty.txt" \
+      "${SCRIPT_ROOT}/api"
 done
+
+

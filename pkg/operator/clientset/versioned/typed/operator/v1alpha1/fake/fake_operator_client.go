@@ -16,6 +16,10 @@ func (c *FakeOperatorV1alpha1) CertManagers() v1alpha1.CertManagerInterface {
 	return &FakeCertManagers{c}
 }
 
+func (c *FakeOperatorV1alpha1) IstioCSRs(namespace string) v1alpha1.IstioCSRInterface {
+	return &FakeIstioCSRs{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeOperatorV1alpha1) RESTClient() rest.Interface {
