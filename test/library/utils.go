@@ -35,9 +35,9 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 	}
 
 	if noSuffix {
-		namespace.ObjectMeta.Name = namespacePrefix
+		namespace.Name = namespacePrefix
 	} else {
-		namespace.ObjectMeta.GenerateName = fmt.Sprintf("%v-", namespacePrefix)
+		namespace.GenerateName = fmt.Sprintf("%v-", namespacePrefix)
 	}
 
 	var got *corev1.Namespace

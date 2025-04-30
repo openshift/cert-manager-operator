@@ -134,7 +134,7 @@ func (r *Reconciler) updateImageInStatus(istiocsr *v1alpha1.IstioCSR, deployment
 }
 
 func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[string]string) {
-	deployment.Spec.Template.ObjectMeta.Labels = resourceLabels
+	deployment.Spec.Template.Labels = resourceLabels
 }
 
 func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
