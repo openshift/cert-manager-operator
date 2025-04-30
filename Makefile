@@ -158,7 +158,7 @@ update: update-scripts update-manifests update-bindata
 
 .PHONY: update-with-container
 update-with-container:
-	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) $(MAKE) update
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
 verify-scripts:
 	hack/verify-deepcopy.sh
@@ -171,7 +171,7 @@ verify: verify-scripts
 
 .PHONY: verify-with-container
 verify-with-container:
-	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) $(MAKE) verify
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make verify
 
 .PHONY: verify-deps
 verify-deps:
