@@ -3,11 +3,21 @@ package operatorclient
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	applyconfig "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
+	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
+	//v1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
+
+	"github.com/openshift/library-go/pkg/apiserver/jsonpatch"
+	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/clock"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorconfigclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
@@ -19,9 +29,114 @@ import (
 type OperatorClient struct {
 	Informers operatorclientinformers.SharedInformerFactory
 	Client    operatorconfigclient.CertManagersGetter
+	clock     clock.PassiveClock
 }
 
 var _ v1helpers.OperatorClient = &OperatorClient{}
+
+func (c OperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorSpecApplyConfiguration) (err error) {
+	if applyConfiguration == nil {
+		return fmt.Errorf("applyConfiguration must have a value")
+	}
+
+	desired := applyconfig.CertManager("cluster")
+	desired.Spec.OperatorLogLevel = applyConfiguration.OperatorLogLevel
+	desired.Spec.LogLevel = applyConfiguration.LogLevel
+	desired.Spec.ManagementState = applyConfiguration.ManagementState
+	desired.Spec.UnsupportedConfigOverrides = applyConfiguration.UnsupportedConfigOverrides
+	desired.Spec.ObservedConfig = applyConfiguration.ObservedConfig
+	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	switch {
+	case apierrors.IsNotFound(err):
+	// do nothing and proceed with the apply
+	case err != nil:
+		return fmt.Errorf("unable to get operator configuration: %w", err)
+	default:
+		original := &applyconfig.CertManagerApplyConfiguration{}
+		//err := managedfields.ExtractInto(instance, internal.Parser().Type("com.github.openshift.cert-manager-operator.api.v1.CertManager"), fieldManager, original, "")
+		//if err != nil {
+		//	return nil
+		//}
+		original.WithName(instance.Name)
+
+		original.WithKind(instance.Kind)
+		original.WithAPIVersion(instance.APIVersion)
+
+		if equality.Semantic.DeepEqual(original, desired) {
+			return nil
+		}
+	}
+
+	_, err = c.Client.CertManagers().Apply(ctx, desired, metav1.ApplyOptions{
+		Force:        true,
+		FieldManager: fieldManager,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to Apply for operator using fieldManager %q: %w", fieldManager, err)
+	}
+
+	return nil
+}
+
+func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
+	if applyConfiguration == nil {
+		return fmt.Errorf("applyConfiguration must have a value")
+	}
+
+	desired := applyconfig.CertManager("cluster")
+	desired.Status = &applyconfig.CertManagerStatusApplyConfiguration{}
+
+	desired.Status.Conditions = applyConfiguration.Conditions
+	desired.Status.ObservedGeneration = applyConfiguration.ObservedGeneration
+	desired.Status.LatestAvailableRevision = applyConfiguration.LatestAvailableRevision
+	desired.Status.ReadyReplicas = applyConfiguration.ReadyReplicas
+	desired.Status.Version = applyConfiguration.Version
+	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	switch {
+	case apierrors.IsNotFound(err):
+		// do nothing and proceed with the apply
+		v1helpers.SetApplyConditionsLastTransitionTime(c.clock, &applyConfiguration.Conditions, nil)
+		ts := c.clock.Now()
+		for i := range desired.Status.Conditions {
+			if desired.Status.Conditions[i].LastTransitionTime == nil {
+				desired.Status.Conditions[i].LastTransitionTime = &metav1.Time{Time: ts}
+			}
+		}
+
+	case err != nil:
+		return fmt.Errorf("unable to get operator configuration: %w", err)
+	default:
+
+		original := &applyconfig.CertManagerApplyConfiguration{}
+		original.WithName(instance.Name)
+
+		original.WithKind(instance.Kind)
+		original.WithAPIVersion(instance.APIVersion)
+
+		if equality.Semantic.DeepEqual(original, desired) {
+			return nil
+		}
+	}
+
+	_, err = c.Client.CertManagers().ApplyStatus(ctx, desired, metav1.ApplyOptions{
+		Force:        true,
+		FieldManager: fieldManager,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to Apply for operator using fieldManager %q: %w", fieldManager, err)
+	}
+
+	return nil
+}
+
+func (c OperatorClient) PatchOperatorStatus(ctx context.Context, jsonPatch *jsonpatch.PatchSet) (err error) {
+	jsonPatchBytes, err := jsonPatch.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = c.Client.CertManagers().Patch(ctx, "cluster", types.JSONPatchType, jsonPatchBytes, metav1.PatchOptions{}, "/status")
+	return err
+}
 
 func (c OperatorClient) GetObjectMeta() (*metav1.ObjectMeta, error) {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")

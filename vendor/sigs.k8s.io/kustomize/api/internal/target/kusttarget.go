@@ -13,12 +13,12 @@ import (
 	"sigs.k8s.io/kustomize/api/internal/accumulator"
 	"sigs.k8s.io/kustomize/api/internal/builtins"
 	"sigs.k8s.io/kustomize/api/internal/kusterr"
+	load "sigs.k8s.io/kustomize/api/internal/loader"
 	"sigs.k8s.io/kustomize/api/internal/plugins/builtinconfig"
 	"sigs.k8s.io/kustomize/api/internal/plugins/builtinhelpers"
 	"sigs.k8s.io/kustomize/api/internal/plugins/loader"
 	"sigs.k8s.io/kustomize/api/internal/utils"
 	"sigs.k8s.io/kustomize/api/konfig"
-	load "sigs.k8s.io/kustomize/api/loader"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
@@ -425,7 +425,14 @@ func (kt *KustTarget) accumulateResources(
 			}
 			ldr, err := kt.ldr.New(path)
 			if err != nil {
-				if kusterr.IsMalformedYAMLError(errF) { // Some error occurred while tyring to decode YAML file
+				// If accumulateFile found malformed YAML and there was a failure
+				// loading the resource as a base, then the resource is likely a
+				// file. The loader failure message is unnecessary, and could be
+				// confusing. Report only the file load error.
+				//
+				// However, a loader timeout implies there is a git repo at the
+				// path. In that case, both errors could be important.
+				if kusterr.IsMalformedYAMLError(errF) && !utils.IsErrTimeout(err) {
 					return nil, errF
 				}
 				return nil, errors.WrapPrefixf(
