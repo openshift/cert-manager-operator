@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Overrides test", Ordered, func() {
@@ -29,6 +30,14 @@ var _ = Describe("Overrides test", Ordered, func() {
 				certManagerCAInjectorDeploymentControllerName},
 			validOperatorStatusConditions)
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+
+		By("Wait for non-empty generations status")
+		err = verifyDeploymentGenerationIsNotEmpty(certmanageroperatorclient, []metav1.ObjectMeta{
+			{Name: certmanagerControllerDeployment, Namespace: operandNamespace},
+			{Name: certmanagerWebhookDeployment, Namespace: operandNamespace},
+			{Name: certmanagerCAinjectorDeployment, Namespace: operandNamespace},
+		})
+		Expect(err).NotTo(HaveOccurred(), "Operator status Generations should contain deployment last generation")
 	})
 
 	Context("When adding valid cert-manager controller override args", func() {

@@ -104,6 +104,53 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 	return errors.NewAggregate(errs)
 }
 
+func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
+	var wg sync.WaitGroup
+	errs := make([]error, len(deployments))
+	for index, deployMeta := range deployments {
+		wg.Add(1)
+
+		go func(idx int, nameAndNs *metav1.ObjectMeta) {
+			defer wg.Done()
+
+			err := wait.PollUntilContextTimeout(context.TODO(), time.Second*1, time.Minute*5, true, func(context.Context) (bool, error) {
+				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+
+				if operator.DeletionTimestamp != nil {
+					return false, nil
+				}
+
+				var exists bool
+				for _, gen := range operator.Status.Generations {
+					// match deployment: name and namespace, group, resource
+					if gen.Name != nameAndNs.Name || gen.Namespace != nameAndNs.Namespace ||
+						gen.Group != "apps" || gen.Resource != "deployments" {
+						continue
+					}
+					exists = true
+
+					if gen.LastGeneration <= 0 {
+						return false, nil
+					}
+				}
+
+				return exists, nil
+			})
+
+			errs[idx] = err
+		}(index, &deployMeta)
+	}
+	wg.Wait()
+
+	return errors.NewAggregate(errs)
+}
+
 // resetCertManagerState is used to revert back to the default cert-manager operands' state
 func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Clientset, loader library.DynamicResourceLoader) error {
 	// update operator spec to empty *Config and set operatorSpec to default values
