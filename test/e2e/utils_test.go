@@ -81,18 +81,70 @@ func verifyOperatorStatusCondition(client *certmanoperatorclient.Clientset, cont
 					return false, nil
 				}
 
+				var condMatchCount int
 				for _, cond := range operator.Status.Conditions {
 					if status, exists := expectedConditionMap[strings.TrimPrefix(cond.Type, controllerNames[index])]; exists {
+						condMatchCount += 1
+
 						if cond.Status != status {
 							return false, nil
 						}
 					}
 				}
 
-				return true, nil
+				// [retry]    false:  when NOT all expected conditions were found
+				// [no-retry] true:   when all expected conditions were found
+				return condMatchCount == len(expectedConditionMap), nil
 			})
 			errs[index] = err
 		}(index)
+	}
+	wg.Wait()
+
+	return errors.NewAggregate(errs)
+}
+
+func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
+	var wg sync.WaitGroup
+	errs := make([]error, len(deployments))
+	for index, deployMeta := range deployments {
+		wg.Add(1)
+
+		go func(idx int, nameAndNs *metav1.ObjectMeta) {
+			defer wg.Done()
+
+			err := wait.PollUntilContextTimeout(context.TODO(), time.Second*1, time.Minute*5, true, func(context.Context) (bool, error) {
+				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+
+				if operator.DeletionTimestamp != nil {
+					return false, nil
+				}
+
+				var exists bool
+				for _, gen := range operator.Status.Generations {
+					// match deployment: name and namespace, group, resource
+					if gen.Name != nameAndNs.Name || gen.Namespace != nameAndNs.Namespace ||
+						gen.Group != "apps" || gen.Resource != "deployments" {
+						continue
+					}
+					exists = true
+
+					if gen.LastGeneration <= 0 {
+						return false, nil
+					}
+				}
+
+				return exists, nil
+			})
+
+			errs[idx] = err
+		}(index, &deployMeta)
 	}
 	wg.Wait()
 
