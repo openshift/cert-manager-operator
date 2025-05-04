@@ -80,7 +80,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			_, err := loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
@@ -680,7 +681,8 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 		ns = namespace
 
 		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			_, err := loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

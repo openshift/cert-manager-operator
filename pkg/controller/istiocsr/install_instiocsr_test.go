@@ -65,7 +65,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -78,7 +78,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.Role:
-						return testError
+						return errorForTest
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
 						roleBinding.DeepCopyInto(o)
@@ -94,7 +94,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Certificate:
-						return testError
+						return errorForTest
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
 						roleBinding.DeepCopyInto(o)

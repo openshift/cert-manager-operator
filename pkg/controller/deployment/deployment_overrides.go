@@ -92,7 +92,7 @@ func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertM
 			return err
 		}
 
-		if overrideArgs != nil && len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
+		if len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
 			deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
 				deployment.Spec.Template.Spec.Containers[0].Args, overrideArgs)
 			sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
@@ -110,7 +110,7 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 			return err
 		}
 
-		if overrideEnv != nil && len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
+		if len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
 			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
 				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv)
 
@@ -212,7 +212,7 @@ func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManag
 			return err
 		}
 
-		if overrideLabels != nil && len(overrideLabels) > 0 && deployment.Name == deploymentName {
+		if len(overrideLabels) > 0 && deployment.Name == deploymentName {
 			mergedLabels := labels.Merge(deployment.Spec.Template.GetLabels(), overrideLabels)
 			deployment.Spec.Template.SetLabels(mergedLabels)
 		}
