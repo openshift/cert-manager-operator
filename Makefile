@@ -1,4 +1,3 @@
-
 # BUNDLE_VERSION defines the project version for the bundle.
 # Update this value when you upgrade the version of your project.
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
@@ -193,18 +192,25 @@ local-run: build
 ##@ Build
 GO=GO111MODULE=on CGO_ENABLED=1 go
 
+# Check for required tools
+.PHONY: check-tools
+check-tools:
+	@command -v go >/dev/null 2>&1 || { echo "WARNING: go is not installed. Please install it to avoid issues."; }
+	@command -v $(CONTAINER_ENGINE) >/dev/null 2>&1 || { echo "WARNING: $(CONTAINER_ENGINE) is not installed. Please install it to avoid issues."; }
+	@command -v kubectl >/dev/null 2>&1 || { echo "WARNING: kubectl is not installed. Please install it to avoid issues."; }
+
 build-operator: ## Build operator binary, no additional checks or code generation
 	@GOFLAGS="-mod=vendor" source hack/go-fips.sh && $(GO) build $(GOBUILD_VERSION_ARGS) -o $(BIN)
 
-build: generate fmt vet build-operator ## Build operator binary.
+build: check-tools generate fmt vet build-operator ## Build operator binary.
 
-run: manifests generate fmt vet ## Run a controller from your host.
+run: check-tools manifests generate fmt vet ## Run a controller from your host.
 	go run $(PACKAGE)
 
-image-build: ## Build container image with the operator.
+image-build: check-tools ## Build container image with the operator.
 	$(CONTAINER_ENGINE) build -t ${IMG} .
 
-image-push: ## Push container image with the operator.
+image-push: check-tools ## Push container image with the operator.
 	$(CONTAINER_ENGINE) push ${IMG} ${CONTAINER_PUSH_ARGS}
 
 ##@ Deployment
@@ -217,26 +223,26 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
 .PHONY: bundle
-bundle: $(OPERATOR_SDK_BIN) manifests
+bundle: check-tools $(OPERATOR_SDK_BIN) manifests
 	$(OPERATOR_SDK_BIN) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK_BIN) generate bundle -q --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS)
 	$(OPERATOR_SDK_BIN) bundle validate $(BUNDLE_DIR)
 
 .PHONY: bundle-image-build
-bundle-image-build: bundle
+bundle-image-build: check-tools bundle
 	$(CONTAINER_ENGINE) build -t ${BUNDLE_IMG} -f bundle.Dockerfile .
 
 .PHONY: bundle-image-push
-bundle-image-push:
+bundle-image-push: check-tools
 	$(CONTAINER_ENGINE) push ${BUNDLE_IMG}
 
 .PHONY: index-image-build
-index-image-build: opm
+index-image-build: check-tools opm
 	$(OPM) index add -c $(CONTAINER_ENGINE) --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
 
 .PHONY: index-image-push
-index-image-push:
+index-image-push: check-tools
 	$(CONTAINER_ENGINE) push ${INDEX_IMG}
 
 OPM=$(BIN_DIR)/opm
@@ -301,6 +307,7 @@ $(HELM_BIN):
 	mkdir -p $(BIN_DIR)
 	hack/helm.sh $(HELM_BIN)
 
+.PHONY: clean
 clean:
 	go clean
 	rm -f $(BIN)
