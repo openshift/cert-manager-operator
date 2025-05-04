@@ -1,9 +1,11 @@
 reviewers:
-  - deads2k
   - swghosh
   - TrilokGeer
+  - arkadeepsen
+  - bharath-b-rh
 approvers:
-  - deads2k
   - swghosh
   - TrilokGeer
+emeritus_approvers:
+  - deads2k
 components: cert-manager-operator
