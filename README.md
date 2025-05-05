@@ -90,6 +90,16 @@ Prepare your environment for the installation commands.
     make deploy
     ```
 
+### Cleaning up the deployment
+
+To remove the Cert Manager Operator and its associated resources from the cluster, run the following command:
+
+```sh
+make undeploy
+```
+
+This will delete all resources created during the deployment process, including the operator and operand resources.
+
 ## Updating resources
 
 Use the following command to update all generated resources:
@@ -131,6 +141,14 @@ cert-manager-crds/certificaterequests.cert-manager.io-crd.yaml
 
 Check the changes in the `bindata/` folder and assert any inconsistencies or errors.
 
+## Running tests locally
+
+To run all unit tests locally, use the following command:
+
+    make test
+
+This will execute all unit tests and generate a coverage report (`cover.out`).
+
 ## Running e2e tests locally
 
 The testsuite assumes, that Cert Manager Operator has been successfully deployed 
@@ -145,6 +163,14 @@ are met. The easiest way to do it follow steps from above.
 Then, let it run for a few minutes. Once the operands are deployed, just invoke:
 
     make test-e2e
+
+## Linting the code
+
+To ensure the code adheres to the project's linting rules, run:
+
+    make lint
+
+This will use `golangci-lint` to check for any linting issues in the codebase.
 
 ## Using unsupported config overrides options
 
