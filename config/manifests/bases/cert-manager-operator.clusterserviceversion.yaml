@@ -27,7 +27,6 @@ metadata:
       for additional steps.
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: cert-manager-operator
-    operators.openshift.io/infrastructure-features: '["proxy-aware"]'
     operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift
       Container Platform", "OpenShift Platform Plus"]'
     operators.operatorframework.io/project_layout: unknown
