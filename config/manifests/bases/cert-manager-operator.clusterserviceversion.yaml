@@ -18,6 +18,10 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
+    # TODO: get rid of the o-sdk warning
+    # ClusterServiceVersion validation: [PropertiesAnnotationUsed] found olm.properties annotation, 
+    # please define these properties in metadata/properties.yaml instead
+    olm.properties: '[{"type": "olm.maxOpenShiftVersion", "value": "4.19"}]'
     olm.skipRange: '>=1.15.1 <1.16.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
