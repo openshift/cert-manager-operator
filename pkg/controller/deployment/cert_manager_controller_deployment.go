@@ -25,12 +25,9 @@ const (
 var (
 	certManagerControllerAssetFiles = []string{
 		"cert-manager-deployment/cert-manager-namespace.yaml",
-		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml",
-		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml",
+		"cert-manager-deployment/controller/cert-manager-cluster-view-cr.yaml",
 		"cert-manager-deployment/controller/cert-manager-controller-certificates-cr.yaml",
 		"cert-manager-deployment/controller/cert-manager-controller-certificates-crb.yaml",
-		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-cr.yaml",
-		"cert-manager-deployment/cert-manager/cert-manager-controller-certificatesigningrequests-crb.yaml",
 		"cert-manager-deployment/controller/cert-manager-controller-challenges-cr.yaml",
 		"cert-manager-deployment/controller/cert-manager-controller-challenges-crb.yaml",
 		"cert-manager-deployment/controller/cert-manager-controller-clusterissuers-cr.yaml",
@@ -46,6 +43,8 @@ var (
 		"cert-manager-deployment/controller/cert-manager-leaderelection-role.yaml",
 		"cert-manager-deployment/controller/cert-manager-sa.yaml",
 		"cert-manager-deployment/controller/cert-manager-svc.yaml",
+		"cert-manager-deployment/controller/cert-manager-cert-manager-tokenrequest-rb.yaml",
+		"cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml",
 		"cert-manager-deployment/controller/cert-manager-view-cr.yaml",
 		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml",
 		"cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml",

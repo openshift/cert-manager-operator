@@ -29,6 +29,7 @@ var (
 		"cert-manager-deployment/cainjector/cert-manager-cainjector-leaderelection-rb.yaml",
 		"cert-manager-deployment/cainjector/cert-manager-cainjector-leaderelection-role.yaml",
 		"cert-manager-deployment/cainjector/cert-manager-cainjector-sa.yaml",
+		"cert-manager-deployment/cainjector/cert-manager-cainjector-svc.yaml",
 	}
 )
 
