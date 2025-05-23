@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	testError = fmt.Errorf("test client error")
+	errorForTest = fmt.Errorf("test client error")
 )
 
 func testReconciler(t *testing.T) *Reconciler {

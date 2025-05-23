@@ -28,7 +28,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -44,7 +44,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -60,7 +60,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.Role:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -73,7 +73,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -87,7 +87,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(ns.Name, "-leases") {
-							return false, testError
+							return false, errorForTest
 						}
 					}
 					return true, nil
@@ -102,7 +102,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(ns.Name, "-leases") {
-							return false, testError
+							return false, errorForTest
 						}
 					}
 					return true, nil
@@ -116,7 +116,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -173,7 +173,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -214,7 +214,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -247,7 +247,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -284,7 +284,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						if o.Status.ClusterRoleBinding != "" {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil
@@ -310,7 +310,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -333,7 +333,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -355,7 +355,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -375,7 +375,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -400,7 +400,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil
@@ -424,7 +424,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil
@@ -447,7 +447,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -467,7 +467,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -492,7 +492,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil
@@ -516,7 +516,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
-							return testError
+							return errorForTest
 						}
 					}
 					return nil

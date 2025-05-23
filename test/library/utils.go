@@ -24,6 +24,11 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
+const (
+	PollInterval = 5 * time.Second
+	TestTimeout  = 10 * time.Minute
+)
+
 func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix bool) (*corev1.Namespace, error) {
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
