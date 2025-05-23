@@ -64,7 +64,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		ctrlClient:    c,
-		ctx:           context.Background(),
+		ctx:           context.TODO(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
@@ -111,43 +111,43 @@ func BuildCustomClient(mgr ctrl.Manager) (client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &v1alpha1.IstioCSR{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &v1alpha1.IstioCSR{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &certmanagerv1.Certificate{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &certmanagerv1.Certificate{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &appsv1.Deployment{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &appsv1.Deployment{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &rbacv1.ClusterRole{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &rbacv1.ClusterRole{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &rbacv1.ClusterRoleBinding{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &rbacv1.ClusterRoleBinding{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &rbacv1.Role{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &rbacv1.Role{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &rbacv1.RoleBinding{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &rbacv1.RoleBinding{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &corev1.Service{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &corev1.Service{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &corev1.ServiceAccount{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &corev1.ServiceAccount{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &corev1.Secret{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &corev1.Secret{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &corev1.ConfigMap{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &corev1.ConfigMap{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &certmanagerv1.Issuer{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &certmanagerv1.Issuer{}); err != nil {
 		return nil, err
 	}
-	if _, err = customCache.GetInformer(context.Background(), &certmanagerv1.ClusterIssuer{}); err != nil {
+	if _, err = customCache.GetInformer(context.TODO(), &certmanagerv1.ClusterIssuer{}); err != nil {
 		return nil, err
 	}
 
