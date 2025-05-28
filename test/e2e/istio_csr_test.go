@@ -58,11 +58,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := verifyOperatorStatusCondition(certmanageroperatorclient, []string{
-			certManagerControllerDeploymentControllerName,
-			certManagerWebhookDeploymentControllerName,
-			certManagerCAInjectorDeploymentControllerName,
-		}, validOperatorStatusConditions)
+		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")

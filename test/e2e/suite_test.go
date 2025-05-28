@@ -26,9 +26,9 @@ import (
 const (
 	operatorName = "cert-manager"
 
-	certManagerControllerDeploymentControllerName = operatorName + "-controller-deployment"
-	certManagerWebhookDeploymentControllerName    = operatorName + "-webhook-deployment"
-	certManagerCAInjectorDeploymentControllerName = operatorName + "-cainjector-deployment"
+	certManagerController = operatorName + "-controller"
+	certManagerWebhook    = operatorName + "-webhook"
+	certManagerCAInjector = operatorName + "-cainjector"
 
 	certmanagerControllerDeployment = "cert-manager"
 	certmanagerWebhookDeployment    = "cert-manager-webhook"
@@ -96,11 +96,7 @@ var _ = BeforeSuite(func() {
 	Expect(certmanageroperatorclient).NotTo(BeNil())
 
 	By("verifying operator and cert-manager deployments status is available")
-	err = verifyOperatorStatusCondition(certmanageroperatorclient,
-		[]string{certManagerControllerDeploymentControllerName,
-			certManagerWebhookDeploymentControllerName,
-			certManagerCAInjectorDeploymentControllerName},
-		validOperatorStatusConditions)
+	err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 	Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 
 	By("creating dynamic resources client")
