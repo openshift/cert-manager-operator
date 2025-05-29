@@ -73,6 +73,8 @@ var subscriptionSchema = schema.GroupVersionResource{
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
 	var wg sync.WaitGroup
+	var lastFetchedGenerationStatus []opv1.GenerationStatus
+
 	errs := make([]error, len(deployments))
 	for index, deployMeta := range deployments {
 		wg.Add(1)
@@ -92,6 +94,8 @@ func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientse
 				if operator.DeletionTimestamp != nil {
 					return false, nil
 				}
+
+				lastFetchedGenerationStatus = operator.Status.DeepCopy().Generations
 
 				var exists bool
 				for _, gen := range operator.Status.Generations {
@@ -115,7 +119,14 @@ func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientse
 	}
 	wg.Wait()
 
-	return errors.NewAggregate(errs)
+	if err := errors.NewAggregate(errs); err != nil {
+		prettyGens, _ := json.Marshal(lastFetchedGenerationStatus)
+		log.Printf("found status.generations: %s", prettyGens)
+
+		return fmt.Errorf("could not verify deployment generation status : %v", err)
+	}
+
+	return nil
 }
 
 // resetCertManagerState is used to revert back to the default cert-manager operands' state
