@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	"github.com/openshift/cert-manager-operator/pkg/operator/optionalinformer"
 )
 
 type CertManagerControllerSet struct {
@@ -27,7 +28,7 @@ func NewCertManagerControllerSet(
 	kubeClient kubernetes.Interface,
 	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
-	infraInformers configinformers.SharedInformerFactory,
+	infraInformers optionalinformer.OptionalInformer[configinformers.SharedInformerFactory],
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClientContainer *resourceapply.ClientHolder,

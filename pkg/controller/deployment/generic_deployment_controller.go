@@ -14,34 +14,24 @@ import (
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	"github.com/openshift/cert-manager-operator/pkg/operator/optionalinformer"
 )
 
 func newGenericDeploymentController(
 	controllerName, targetVersion, deploymentFile string,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
-	infraInformers configinformers.SharedInformerFactory,
+	infraInformers optionalinformer.OptionalInformer[configinformers.SharedInformerFactory],
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
 	versionRecorder status.VersionGetter,
 	trustedCAConfigmapName string,
-	cloucloudCredentialsSecretName string,
+	cloudCredentialsSecretName string,
 ) factory.Controller {
 	deployment := resourceread.ReadDeploymentV1OrDie(assets.MustAsset(deploymentFile))
-	return deploymentcontroller.NewDeploymentController(
-		controllerName,
-		assets.MustAsset(deploymentFile),
-		eventsRecorder,
-		operatorClient,
-		kubeClient,
-		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
-		[]factory.Informer{
-			kubeInformersForTargetNamespace.Core().V1().ConfigMaps().Informer(),
-			kubeInformersForTargetNamespace.Core().V1().Secrets().Informer(),
-			infraInformers.Config().V1().Infrastructures().Informer(),
-		},
-		[]deploymentcontroller.ManifestHookFunc{},
+
+	hooks := []deploymentcontroller.DeploymentHookFunc{
 		withOperandImageOverrideHook,
 		withLogLevel,
 		withPodLabelsOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverridePodLabelsFor),
@@ -58,6 +48,35 @@ func newGenericDeploymentController(
 		withProxyEnv,
 		withCAConfigMap(kubeInformersForTargetNamespace.Core().V1().ConfigMaps(), deployment, trustedCAConfigmapName),
 		withSABoundToken,
-		withCloudCredentials(kubeInformersForTargetNamespace.Core().V1().Secrets(), infraInformers.Config().V1().Infrastructures(), deployment.Name, cloucloudCredentialsSecretName),
+	}
+
+	informers := []factory.Informer{
+		kubeInformersForTargetNamespace.Core().V1().ConfigMaps().Informer(),
+		kubeInformersForTargetNamespace.Core().V1().Secrets().Informer(),
+	}
+
+	if infraInformers.Applicable() {
+		infraInformerFactory := (*infraInformers.InformerFactory)
+
+		hooks = append(hooks, withCloudCredentials(
+			kubeInformersForTargetNamespace.Core().V1().Secrets(),
+			infraInformerFactory.Config().V1().Infrastructures(),
+			deployment.Name,
+			cloudCredentialsSecretName,
+		))
+
+		informers = append(informers, (*infraInformers.InformerFactory).Config().V1().Infrastructures().Informer())
+	}
+
+	return deploymentcontroller.NewDeploymentController(
+		controllerName,
+		assets.MustAsset(deploymentFile),
+		eventsRecorder,
+		operatorClient,
+		kubeClient,
+		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
+		nil,
+		[]deploymentcontroller.ManifestHookFunc{},
+		hooks...,
 	)
 }

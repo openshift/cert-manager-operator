@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	"github.com/openshift/cert-manager-operator/pkg/operator/optionalinformer"
 )
 
 const (
@@ -50,7 +51,7 @@ func NewCertManagerCAInjectorStaticResourcesController(operatorClient v1helpers.
 
 func NewCertManagerCAInjectorDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
-	infraInformers configinformers.SharedInformerFactory,
+	infraInformers optionalinformer.OptionalInformer[configinformers.SharedInformerFactory],
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter,
