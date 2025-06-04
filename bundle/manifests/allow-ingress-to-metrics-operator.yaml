@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traffic-to-api-and-from-metrics
+  namespace: ${NAMESPACE}
+spec:
+  podSelector:
+    matchLabels:
+      name: cert-manager-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
