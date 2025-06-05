@@ -24,12 +24,8 @@ var _ = Describe("Overrides test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = verifyOperatorStatusCondition(certmanageroperatorclient,
-			[]string{certManagerControllerDeploymentControllerName,
-				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName},
-			validOperatorStatusConditions)
-		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be healthy and available")
 
 		By("Wait for non-empty generations status")
 		err = verifyDeploymentGenerationIsNotEmpty(certmanageroperatorclient, []metav1.ObjectMeta{
@@ -50,7 +46,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager controller deployment")
@@ -69,7 +67,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager webhook deployment")
@@ -88,7 +88,10 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(),
+				GenerateConditionMatchers(
+					[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
+				))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager cainjector deployment")
@@ -107,7 +110,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager controller deployment")
@@ -126,7 +131,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager webhook deployment")
@@ -145,7 +152,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
@@ -173,7 +182,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager controller deployment")
@@ -201,7 +212,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager webhook deployment")
@@ -229,7 +242,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager cainjector deployment")
@@ -255,7 +270,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager controller deployment")
@@ -281,7 +298,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions),
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager webhook deployment")
@@ -307,7 +326,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager cainjector deployment")
@@ -337,7 +358,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager controller deployment")
@@ -367,7 +390,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager webhook deployment")
@@ -397,7 +422,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager cainjector deployment")
@@ -428,7 +455,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager controller deployment")
@@ -459,7 +488,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerWebhookDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions),
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager webhook deployment")
@@ -490,7 +521,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerCAInjectorDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager cainjector deployment")
@@ -509,7 +542,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, validOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the env to be added to the cert-manager controller deployment")
@@ -528,7 +563,9 @@ var _ = Describe("Overrides test", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient, []string{certManagerControllerDeploymentControllerName}, invalidOperatorStatusConditions)
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
+			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the env are not added to the cert-manager controller deployment")
@@ -543,11 +580,7 @@ var _ = Describe("Overrides test", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = verifyOperatorStatusCondition(certmanageroperatorclient,
-			[]string{certManagerControllerDeploymentControllerName,
-				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName},
-			validOperatorStatusConditions)
+		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 })
