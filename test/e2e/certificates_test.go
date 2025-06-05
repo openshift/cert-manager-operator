@@ -67,11 +67,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := verifyOperatorStatusCondition(certmanageroperatorclient,
-			[]string{certManagerControllerDeploymentControllerName,
-				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName},
-			validOperatorStatusConditions)
+		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
@@ -195,7 +191,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
+			err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -288,7 +284,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 
 			By("waiting for cloud secret to be available")
-			err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
+			err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -488,7 +484,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			By("Waiting for cloud secret to be available")
 			// The name is defined cloud credential by the testdata YAML file.
 			credentialSecret := "gcp-credentials"
-			err := wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
+			err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 				_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, credentialSecret, metav1.GetOptions{})
 				if err != nil {
 					return false, nil
@@ -645,7 +641,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
 
 			By("checking TLS certificate contents")
-			err = wait.PollUntilContextTimeout(context.TODO(), PollInterval, TestTimeout, true, func(context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 				secret, err := loader.KubeClient.CoreV1().Secrets(ingress.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 				tlsConfig, isvalid := library.GetTLSConfig(secret)
 				if !isvalid {
@@ -686,11 +682,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := verifyOperatorStatusCondition(certmanageroperatorclient,
-			[]string{certManagerControllerDeploymentControllerName,
-				certManagerWebhookDeploymentControllerName,
-				certManagerCAInjectorDeploymentControllerName},
-			validOperatorStatusConditions)
+		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 
@@ -768,7 +760,7 @@ var _ = Describe("Self-signed Certificate", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("certificate was renewed atleast once")
-			err = verifyCertificateRenewed(ctx, cert.Spec.SecretName, ns.Name, time.Minute+5*time.Second) // using wait period of (1min+jitter)=65s
+			err = verifyCertificateRenewed(ctx, cert.Spec.SecretName, ns.Name, time.Minute+slowPollInterval) // using wait period of (1min+jitter)=65s
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
