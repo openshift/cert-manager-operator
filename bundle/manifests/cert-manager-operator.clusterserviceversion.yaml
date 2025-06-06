@@ -239,7 +239,7 @@ metadata:
     categories: Security
     console.openshift.io/disable-operand-delete: "true"
     containerImage: openshift.io/cert-manager-operator:latest
-    createdAt: 2023-03-03T00:00:00
+    createdAt: "2025-06-05T04:17:28Z"
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
     features.operators.openshift.io/csi: "false"
@@ -261,8 +261,8 @@ metadata:
     operatorframework.io/suggested-namespace: cert-manager-operator
     operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift
       Container Platform", "OpenShift Platform Plus"]'
-    operators.operatorframework.io/builder: operator-sdk-v1.25.1
-    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    operators.operatorframework.io/builder: operator-sdk-v1.40.0
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/openshift/cert-manager-operator
     support: Red Hat, Inc.
   labels:

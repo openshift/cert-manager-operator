@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION="1.25.1"
+VERSION="1.40.0"
 
 OUTPUT_PATH=${1:-./bin/operator-sdk}
 
