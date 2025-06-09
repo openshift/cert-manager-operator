@@ -41,7 +41,27 @@ var _ = Describe("Overrides test", Ordered, func() {
 		It("should add the args to the cert-manager controller deployment", func() {
 
 			By("Adding cert-manager controller override args to the cert-managaer operator object")
-			args := []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref", "--v=3"}
+			args := []string{
+				// good-have to sync these args updated with the args present in
+				// pkg/controller/deployment/deployment_overrides_validation.go,
+				// so the e2e is self-aware of overrideArgs.
+
+				"--acme-http01-solver-resource-limits-cpu=150m",
+				"--acme-http01-solver-resource-limits-memory=100Mi",
+				"--acme-http01-solver-resource-request-cpu=50m",
+				"--acme-http01-solver-resource-request-memory=100Mi",
+
+				"--dns01-recursive-nameservers=10.10.10.10:53",
+				"--dns01-recursive-nameservers-only",
+
+				"--enable-certificate-owner-ref",
+
+				"--issuer-ambient-credentials",
+
+				"--v=5",
+
+				"--metrics-listen-address=0.0.0.0:9401",
+			}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
