@@ -71,10 +71,13 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	versionRecorder := status.NewVersionGetter()
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
+	operatorclient.OperatorNamespace = cc.OperatorNamespace
+
 	kubeInformersForNamespaces := v1helpers.NewKubeInformersForNamespaces(kubeClient,
 		"",
 		"kube-system",
 		operatorclient.TargetNamespace,
+		operatorclient.OperatorNamespace,
 	)
 
 	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
