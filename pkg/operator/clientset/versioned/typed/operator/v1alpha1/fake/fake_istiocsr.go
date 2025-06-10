@@ -3,179 +3,33 @@
 package fake
 
 import (
-	"context"
-	json "encoding/json"
-	"fmt"
-
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	typedoperatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeIstioCSRs implements IstioCSRInterface
-type FakeIstioCSRs struct {
+// fakeIstioCSRs implements IstioCSRInterface
+type fakeIstioCSRs struct {
+	*gentype.FakeClientWithListAndApply[*v1alpha1.IstioCSR, *v1alpha1.IstioCSRList, *operatorv1alpha1.IstioCSRApplyConfiguration]
 	Fake *FakeOperatorV1alpha1
-	ns   string
 }
 
-var istiocsrsResource = v1alpha1.SchemeGroupVersion.WithResource("istiocsrs")
-
-var istiocsrsKind = v1alpha1.SchemeGroupVersion.WithKind("IstioCSR")
-
-// Get takes name of the istioCSR, and returns the corresponding istioCSR object, and an error if there is any.
-func (c *FakeIstioCSRs) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.IstioCSR, err error) {
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(istiocsrsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeIstioCSRs(fake *FakeOperatorV1alpha1, namespace string) typedoperatorv1alpha1.IstioCSRInterface {
+	return &fakeIstioCSRs{
+		gentype.NewFakeClientWithListAndApply[*v1alpha1.IstioCSR, *v1alpha1.IstioCSRList, *operatorv1alpha1.IstioCSRApplyConfiguration](
+			fake.Fake,
+			namespace,
+			v1alpha1.SchemeGroupVersion.WithResource("istiocsrs"),
+			v1alpha1.SchemeGroupVersion.WithKind("IstioCSR"),
+			func() *v1alpha1.IstioCSR { return &v1alpha1.IstioCSR{} },
+			func() *v1alpha1.IstioCSRList { return &v1alpha1.IstioCSRList{} },
+			func(dst, src *v1alpha1.IstioCSRList) { dst.ListMeta = src.ListMeta },
+			func(list *v1alpha1.IstioCSRList) []*v1alpha1.IstioCSR { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1alpha1.IstioCSRList, items []*v1alpha1.IstioCSR) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// List takes label and field selectors, and returns the list of IstioCSRs that match those selectors.
-func (c *FakeIstioCSRs) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.IstioCSRList, err error) {
-	emptyResult := &v1alpha1.IstioCSRList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(istiocsrsResource, istiocsrsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1alpha1.IstioCSRList{ListMeta: obj.(*v1alpha1.IstioCSRList).ListMeta}
-	for _, item := range obj.(*v1alpha1.IstioCSRList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested istioCSRs.
-func (c *FakeIstioCSRs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(istiocsrsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a istioCSR and creates it.  Returns the server's representation of the istioCSR, and an error, if there is any.
-func (c *FakeIstioCSRs) Create(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.CreateOptions) (result *v1alpha1.IstioCSR, err error) {
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(istiocsrsResource, c.ns, istioCSR, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// Update takes the representation of a istioCSR and updates it. Returns the server's representation of the istioCSR, and an error, if there is any.
-func (c *FakeIstioCSRs) Update(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.UpdateOptions) (result *v1alpha1.IstioCSR, err error) {
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(istiocsrsResource, c.ns, istioCSR, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeIstioCSRs) UpdateStatus(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.UpdateOptions) (result *v1alpha1.IstioCSR, err error) {
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceActionWithOptions(istiocsrsResource, "status", c.ns, istioCSR, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// Delete takes name of the istioCSR and deletes it. Returns an error if one occurs.
-func (c *FakeIstioCSRs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(istiocsrsResource, c.ns, name, opts), &v1alpha1.IstioCSR{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeIstioCSRs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(istiocsrsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1alpha1.IstioCSRList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched istioCSR.
-func (c *FakeIstioCSRs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.IstioCSR, err error) {
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(istiocsrsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// Apply takes the given apply declarative configuration, applies it and returns the applied istioCSR.
-func (c *FakeIstioCSRs) Apply(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.IstioCSR, err error) {
-	if istioCSR == nil {
-		return nil, fmt.Errorf("istioCSR provided to Apply must not be nil")
-	}
-	data, err := json.Marshal(istioCSR)
-	if err != nil {
-		return nil, err
-	}
-	name := istioCSR.Name
-	if name == nil {
-		return nil, fmt.Errorf("istioCSR.Name must be provided to Apply")
-	}
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(istiocsrsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions()), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
-}
-
-// ApplyStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-func (c *FakeIstioCSRs) ApplyStatus(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.IstioCSR, err error) {
-	if istioCSR == nil {
-		return nil, fmt.Errorf("istioCSR provided to Apply must not be nil")
-	}
-	data, err := json.Marshal(istioCSR)
-	if err != nil {
-		return nil, err
-	}
-	name := istioCSR.Name
-	if name == nil {
-		return nil, fmt.Errorf("istioCSR.Name must be provided to Apply")
-	}
-	emptyResult := &v1alpha1.IstioCSR{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(istiocsrsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions(), "status"), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1alpha1.IstioCSR), err
 }

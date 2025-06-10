@@ -3,13 +3,13 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	apioperatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // CertManagers.
 type CertManagerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.CertManagerLister
+	Lister() operatorv1alpha1.CertManagerLister
 }
 
 type certManagerInformer struct {
@@ -54,7 +54,7 @@ func NewFilteredCertManagerInformer(client versioned.Interface, resyncPeriod tim
 				return client.OperatorV1alpha1().CertManagers().Watch(context.TODO(), options)
 			},
 		},
-		&operatorv1alpha1.CertManager{},
+		&apioperatorv1alpha1.CertManager{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +65,9 @@ func (f *certManagerInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *certManagerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.CertManager{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1alpha1.CertManager{}, f.defaultInformer)
 }
 
-func (f *certManagerInformer) Lister() v1alpha1.CertManagerLister {
-	return v1alpha1.NewCertManagerLister(f.Informer().GetIndexer())
+func (f *certManagerInformer) Lister() operatorv1alpha1.CertManagerLister {
+	return operatorv1alpha1.NewCertManagerLister(f.Informer().GetIndexer())
 }

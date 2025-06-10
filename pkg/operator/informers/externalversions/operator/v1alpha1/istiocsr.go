@@ -3,13 +3,13 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	apioperatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	versioned "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	internalinterfaces "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/listers/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // IstioCSRs.
 type IstioCSRInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.IstioCSRLister
+	Lister() operatorv1alpha1.IstioCSRLister
 }
 
 type istioCSRInformer struct {
@@ -55,7 +55,7 @@ func NewFilteredIstioCSRInformer(client versioned.Interface, namespace string, r
 				return client.OperatorV1alpha1().IstioCSRs(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorv1alpha1.IstioCSR{},
+		&apioperatorv1alpha1.IstioCSR{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +66,9 @@ func (f *istioCSRInformer) defaultInformer(client versioned.Interface, resyncPer
 }
 
 func (f *istioCSRInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.IstioCSR{}, f.defaultInformer)
+	return f.factory.InformerFor(&apioperatorv1alpha1.IstioCSR{}, f.defaultInformer)
 }
 
-func (f *istioCSRInformer) Lister() v1alpha1.IstioCSRLister {
-	return v1alpha1.NewIstioCSRLister(f.Informer().GetIndexer())
+func (f *istioCSRInformer) Lister() operatorv1alpha1.IstioCSRLister {
+	return operatorv1alpha1.NewIstioCSRLister(f.Informer().GetIndexer())
 }

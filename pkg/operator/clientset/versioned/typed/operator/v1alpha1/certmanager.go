@@ -3,10 +3,10 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	applyconfigurationsoperatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
 	scheme "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -22,36 +22,37 @@ type CertManagersGetter interface {
 
 // CertManagerInterface has methods to work with CertManager resources.
 type CertManagerInterface interface {
-	Create(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.CreateOptions) (*v1alpha1.CertManager, error)
-	Update(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (*v1alpha1.CertManager, error)
+	Create(ctx context.Context, certManager *operatorv1alpha1.CertManager, opts v1.CreateOptions) (*operatorv1alpha1.CertManager, error)
+	Update(ctx context.Context, certManager *operatorv1alpha1.CertManager, opts v1.UpdateOptions) (*operatorv1alpha1.CertManager, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, certManager *v1alpha1.CertManager, opts v1.UpdateOptions) (*v1alpha1.CertManager, error)
+	UpdateStatus(ctx context.Context, certManager *operatorv1alpha1.CertManager, opts v1.UpdateOptions) (*operatorv1alpha1.CertManager, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.CertManager, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.CertManagerList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operatorv1alpha1.CertManager, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operatorv1alpha1.CertManagerList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.CertManager, err error)
-	Apply(ctx context.Context, certManager *operatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.CertManager, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorv1alpha1.CertManager, err error)
+	Apply(ctx context.Context, certManager *applyconfigurationsoperatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *operatorv1alpha1.CertManager, err error)
 	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-	ApplyStatus(ctx context.Context, certManager *operatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.CertManager, err error)
+	ApplyStatus(ctx context.Context, certManager *applyconfigurationsoperatorv1alpha1.CertManagerApplyConfiguration, opts v1.ApplyOptions) (result *operatorv1alpha1.CertManager, err error)
 	CertManagerExpansion
 }
 
 // certManagers implements CertManagerInterface
 type certManagers struct {
-	*gentype.ClientWithListAndApply[*v1alpha1.CertManager, *v1alpha1.CertManagerList, *operatorv1alpha1.CertManagerApplyConfiguration]
+	*gentype.ClientWithListAndApply[*operatorv1alpha1.CertManager, *operatorv1alpha1.CertManagerList, *applyconfigurationsoperatorv1alpha1.CertManagerApplyConfiguration]
 }
 
 // newCertManagers returns a CertManagers
 func newCertManagers(c *OperatorV1alpha1Client) *certManagers {
 	return &certManagers{
-		gentype.NewClientWithListAndApply[*v1alpha1.CertManager, *v1alpha1.CertManagerList, *operatorv1alpha1.CertManagerApplyConfiguration](
+		gentype.NewClientWithListAndApply[*operatorv1alpha1.CertManager, *operatorv1alpha1.CertManagerList, *applyconfigurationsoperatorv1alpha1.CertManagerApplyConfiguration](
 			"certmanagers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			"",
-			func() *v1alpha1.CertManager { return &v1alpha1.CertManager{} },
-			func() *v1alpha1.CertManagerList { return &v1alpha1.CertManagerList{} }),
+			func() *operatorv1alpha1.CertManager { return &operatorv1alpha1.CertManager{} },
+			func() *operatorv1alpha1.CertManagerList { return &operatorv1alpha1.CertManagerList{} },
+		),
 	}
 }
