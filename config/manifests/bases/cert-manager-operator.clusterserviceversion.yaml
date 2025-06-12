@@ -67,6 +67,10 @@ spec:
       kind: CertManager
       name: certmanagers.operator.openshift.io
       version: v1alpha1
+    required:
+    - kind: NetworkPolicy
+      name: networking.k8s.io
+      version: v1
   description: |
     The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.16.4](https://github.com/cert-manager/cert-manager/tree/v1.16.4), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
