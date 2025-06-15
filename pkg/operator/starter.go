@@ -96,7 +96,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		kubeClient,
 		kubeInformersForNamespaces,
 		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
-		*optinInformer,
+		*optInformer,
 		operatorClient,
 		certManagerInformers,
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
