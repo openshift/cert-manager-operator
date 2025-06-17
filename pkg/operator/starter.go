@@ -10,6 +10,7 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
@@ -23,6 +24,7 @@ import (
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
+	"github.com/openshift/cert-manager-operator/pkg/operator/optionalinformer"
 )
 
 const (
@@ -81,13 +83,23 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	if err != nil {
 		return err
 	}
-	infraInformers := configinformers.NewSharedInformerFactory(configClient, resyncInterval)
+
+	infraGVR := configv1.GroupVersion.WithResource("infrastructures")
+	optInfraInformer, err := optionalinformer.NewOptionalInformer(
+		ctx, infraGVR, configClient.Discovery(),
+		func() configinformers.SharedInformerFactory {
+			return configinformers.NewSharedInformerFactory(configClient, resyncInterval)
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to discover Infrastructure presence: %w", err)
+	}
 
 	certManagerControllerSet := deployment.NewCertManagerControllerSet(
 		kubeClient,
 		kubeInformersForNamespaces,
 		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
-		infraInformers,
+		*optInfraInformer,
 		operatorClient,
 		certManagerInformers,
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
@@ -110,9 +122,13 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		certManagerInformers,
 		kubeInformersForNamespaces,
-		infraInformers,
 	} {
 		informer.Start(ctx.Done())
+	}
+
+	// only start the informer if Infrastructure is found applicable
+	if optInfraInformer.Applicable() {
+		(*optInfraInformer.InformerFactory).Start(ctx.Done())
 	}
 
 	for _, controller := range controllersToStart {
