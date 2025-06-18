@@ -433,7 +433,7 @@ func validateTolerationsConfig(tolerations []corev1.Toleration, fldPath *field.P
 func validateResourceRequirements(requirements corev1.ResourceRequirements, fldPath *field.Path) error {
 	// convert corev1.ResourceRequirements to core.ResourceRequirements, required for validation.
 	convRequirements := *(*core.ResourceRequirements)(unsafe.Pointer(&requirements))
-	return corevalidation.ValidateResourceRequirements(&convRequirements, nil, fldPath.Child("resources"), corevalidation.PodValidationOptions{}).ToAggregate()
+	return corevalidation.ValidateContainerResourceRequirements(&convRequirements, nil, fldPath.Child("resources"), corevalidation.PodValidationOptions{}).ToAggregate()
 }
 
 func validateAffinityRules(affinity *corev1.Affinity, fldPath *field.Path) error {
