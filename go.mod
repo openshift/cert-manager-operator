@@ -293,3 +293,8 @@ require (
 )
 
 replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.15.5
+
+// Security fix for CVE-2025-30204: jwt-go allows excessive memory allocation during header parsing
+replace github.com/golang-jwt/jwt/v4 => github.com/golang-jwt/jwt/v4 v4.5.2
+
+replace github.com/golang-jwt/jwt/v5 => github.com/golang-jwt/jwt/v5 v5.2.2
