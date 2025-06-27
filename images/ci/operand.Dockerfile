@@ -1,6 +1,6 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder
 
-ARG RELEASE_BRANCH=v1.16.4
+ARG RELEASE_BRANCH=v1.16.5
 
 ARG GO_BUILD_TAGS=strictfipsruntime,openssl
 ENV GOEXPERIMENT strictfipsruntime 
