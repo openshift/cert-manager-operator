@@ -34,6 +34,9 @@
 // bindata/cert-manager-deployment/controller/cert-manager-svc.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-view-cr.yaml
+// bindata/cert-manager-deployment/network-policy/operator-allow-egress-to-api-server.yaml
+// bindata/cert-manager-deployment/network-policy/operator-allow-ingress-to-metrics.yaml
+// bindata/cert-manager-deployment/network-policy/operator-deny-all-pod-selector.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-rb.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-role.yaml
@@ -1815,6 +1818,96 @@ func certManagerDeploymentControllerCertManagerViewCrYaml() (*asset, error) {
 	return a, nil
 }
 
+var _certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operator-allow-egress-to-api-server
+spec:
+  podSelector:
+    matchLabels:
+      name: cert-manager-operator
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 6443
+`)
+
+func certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYamlBytes() ([]byte, error) {
+	return _certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYaml, nil
+}
+
+func certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYaml() (*asset, error) {
+	bytes, err := certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager-deployment/network-policy/operator-allow-egress-to-api-server.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operator-allow-ingress-to-metrics
+spec:
+  podSelector:
+    matchLabels:
+      name: cert-manager-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+`)
+
+func certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYamlBytes() ([]byte, error) {
+	return _certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYaml, nil
+}
+
+func certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYaml() (*asset, error) {
+	bytes, err := certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager-deployment/network-policy/operator-allow-ingress-to-metrics.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operator-deny-all-traffic
+spec:
+  podSelector:
+    matchLabels:
+      name: cert-manager-operator
+  policyTypes:
+    - Ingress
+    - Egress
+`)
+
+func certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYamlBytes() ([]byte, error) {
+	return _certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYaml, nil
+}
+
+func certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYaml() (*asset, error) {
+	bytes, err := certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager-deployment/network-policy/operator-deny-all-pod-selector.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _certManagerDeploymentWebhookCertManagerWebhookDeploymentYaml = []byte(`apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -2795,6 +2888,9 @@ var _bindata = map[string]func() (*asset, error){
 	"cert-manager-deployment/controller/cert-manager-svc.yaml":                                         certManagerDeploymentControllerCertManagerSvcYaml,
 	"cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml":                           certManagerDeploymentControllerCertManagerTokenrequestRoleYaml,
 	"cert-manager-deployment/controller/cert-manager-view-cr.yaml":                                     certManagerDeploymentControllerCertManagerViewCrYaml,
+	"cert-manager-deployment/network-policy/operator-allow-egress-to-api-server.yaml":                  certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYaml,
+	"cert-manager-deployment/network-policy/operator-allow-ingress-to-metrics.yaml":                    certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYaml,
+	"cert-manager-deployment/network-policy/operator-deny-all-pod-selector.yaml":                       certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml":                             certManagerDeploymentWebhookCertManagerWebhookDeploymentYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-rb.yaml":                     certManagerDeploymentWebhookCertManagerWebhookDynamicServingRbYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-role.yaml":                   certManagerDeploymentWebhookCertManagerWebhookDynamicServingRoleYaml,
@@ -2899,6 +2995,11 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"cert-manager-svc.yaml":                           {certManagerDeploymentControllerCertManagerSvcYaml, map[string]*bintree{}},
 			"cert-manager-tokenrequest-role.yaml":             {certManagerDeploymentControllerCertManagerTokenrequestRoleYaml, map[string]*bintree{}},
 			"cert-manager-view-cr.yaml":                       {certManagerDeploymentControllerCertManagerViewCrYaml, map[string]*bintree{}},
+		}},
+		"network-policy": {nil, map[string]*bintree{
+			"operator-allow-egress-to-api-server.yaml": {certManagerDeploymentNetworkPolicyOperatorAllowEgressToApiServerYaml, map[string]*bintree{}},
+			"operator-allow-ingress-to-metrics.yaml":   {certManagerDeploymentNetworkPolicyOperatorAllowIngressToMetricsYaml, map[string]*bintree{}},
+			"operator-deny-all-pod-selector.yaml":      {certManagerDeploymentNetworkPolicyOperatorDenyAllPodSelectorYaml, map[string]*bintree{}},
 		}},
 		"webhook": {nil, map[string]*bintree{
 			"cert-manager-webhook-deployment.yaml":                     {certManagerDeploymentWebhookCertManagerWebhookDeploymentYaml, map[string]*bintree{}},

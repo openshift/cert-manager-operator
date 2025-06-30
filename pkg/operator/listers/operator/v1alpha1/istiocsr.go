@@ -3,10 +3,10 @@
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // IstioCSRLister helps list IstioCSRs.
@@ -14,7 +14,7 @@ import (
 type IstioCSRLister interface {
 	// List lists all IstioCSRs in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha1.IstioCSR, err error)
+	List(selector labels.Selector) (ret []*operatorv1alpha1.IstioCSR, err error)
 	// IstioCSRs returns an object that can list and get IstioCSRs.
 	IstioCSRs(namespace string) IstioCSRNamespaceLister
 	IstioCSRListerExpansion
@@ -22,17 +22,17 @@ type IstioCSRLister interface {
 
 // istioCSRLister implements the IstioCSRLister interface.
 type istioCSRLister struct {
-	listers.ResourceIndexer[*v1alpha1.IstioCSR]
+	listers.ResourceIndexer[*operatorv1alpha1.IstioCSR]
 }
 
 // NewIstioCSRLister returns a new IstioCSRLister.
 func NewIstioCSRLister(indexer cache.Indexer) IstioCSRLister {
-	return &istioCSRLister{listers.New[*v1alpha1.IstioCSR](indexer, v1alpha1.Resource("istiocsr"))}
+	return &istioCSRLister{listers.New[*operatorv1alpha1.IstioCSR](indexer, operatorv1alpha1.Resource("istiocsr"))}
 }
 
 // IstioCSRs returns an object that can list and get IstioCSRs.
 func (s *istioCSRLister) IstioCSRs(namespace string) IstioCSRNamespaceLister {
-	return istioCSRNamespaceLister{listers.NewNamespaced[*v1alpha1.IstioCSR](s.ResourceIndexer, namespace)}
+	return istioCSRNamespaceLister{listers.NewNamespaced[*operatorv1alpha1.IstioCSR](s.ResourceIndexer, namespace)}
 }
 
 // IstioCSRNamespaceLister helps list and get IstioCSRs.
@@ -40,15 +40,15 @@ func (s *istioCSRLister) IstioCSRs(namespace string) IstioCSRNamespaceLister {
 type IstioCSRNamespaceLister interface {
 	// List lists all IstioCSRs in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1alpha1.IstioCSR, err error)
+	List(selector labels.Selector) (ret []*operatorv1alpha1.IstioCSR, err error)
 	// Get retrieves the IstioCSR from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1alpha1.IstioCSR, error)
+	Get(name string) (*operatorv1alpha1.IstioCSR, error)
 	IstioCSRNamespaceListerExpansion
 }
 
 // istioCSRNamespaceLister implements the IstioCSRNamespaceLister
 // interface.
 type istioCSRNamespaceLister struct {
-	listers.ResourceIndexer[*v1alpha1.IstioCSR]
+	listers.ResourceIndexer[*operatorv1alpha1.IstioCSR]
 }

@@ -510,6 +510,7 @@ spec:
           resources:
           - ingresses
           - ingresses/finalizers
+          - networkpolicies
           verbs:
           - create
           - delete

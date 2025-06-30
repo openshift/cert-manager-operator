@@ -22,6 +22,7 @@ type CertManagerControllerSet struct {
 	certManagerWebhookDeploymentController         factory.Controller
 	certManagerCAInjectorStaticResourcesController factory.Controller
 	certManagerCAInjectorDeploymentController      factory.Controller
+	certManagerOperatorStaticResourcesController   factory.Controller
 }
 
 func NewCertManagerControllerSet(
@@ -45,6 +46,7 @@ func NewCertManagerControllerSet(
 		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
+		certManagerOperatorStaticResourcesController:   NewCertManagerOperatorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 	}
 }
 
@@ -56,5 +58,6 @@ func (c *CertManagerControllerSet) ToArray() []factory.Controller {
 		c.certManagerWebhookDeploymentController,
 		c.certManagerCAInjectorStaticResourcesController,
 		c.certManagerCAInjectorDeploymentController,
+		c.certManagerOperatorStaticResourcesController,
 	}
 }
