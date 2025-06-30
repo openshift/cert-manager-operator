@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -66,9 +67,10 @@ func TestReconcile(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
@@ -162,8 +164,8 @@ func TestReconcile(t *testing.T) {
 					Reason: v1alpha1.ReasonReady,
 				},
 			},
-			requeue: true,
-			wantErr: `failed to reconcile "istiocsr-test-ns/istiocsr-test-resource" IstioCSR deployment: failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
+			requeue: false,
+			wantErr: `failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
 		},
 		{
 			name: "reconciliation failed with irrecoverable error",
@@ -459,9 +461,10 @@ func TestProcessReconcileRequest(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
@@ -510,9 +513,10 @@ func TestProcessReconcileRequest(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
@@ -700,6 +704,75 @@ func TestProcessReconcileRequest(t *testing.T) {
 				controllerProcessingRejectedAnnotation: "true",
 			},
 			wantErr: `failed to update reject processing annotation to istiocsr3/istiocsr-test-resource: test client error`,
+		},
+		{
+			name: "reconciliation successful with status update retry after conflict",
+			getIstioCSR: func() *v1alpha1.IstioCSR {
+				return testIstioCSR()
+			},
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				retryCount := 0
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *v1alpha1.IstioCSR:
+						istiocsr := testIstioCSR()
+						// Simulate resource version changes during conflicts
+						if retryCount > 0 {
+							istiocsr.ResourceVersion = "456"
+							istiocsr.Generation = 2
+						}
+						istiocsr.DeepCopyInto(o)
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return nil
+				})
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						roleBinding := testClusterRoleBinding()
+						roleBinding.DeepCopyInto(o)
+					}
+					return nil
+				})
+				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+					switch obj.(type) {
+					case *v1alpha1.IstioCSR:
+						retryCount++
+						// Fail first attempt (simulate conflict), succeed on retry
+						if retryCount == 1 {
+							return apierrors.NewConflict(v1alpha1.Resource("istiocsr"), "test", fmt.Errorf("conflict"))
+						}
+						return nil
+					}
+					return nil
+				})
+			},
+			expectedStatusCondition: []metav1.Condition{
+				{
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
+				},
+				{
+					Type:   v1alpha1.Degraded,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
+				},
+			},
+			expectedAnnotations: map[string]string{
+				controllerProcessedAnnotation: "true",
+			},
 		},
 	}
 
