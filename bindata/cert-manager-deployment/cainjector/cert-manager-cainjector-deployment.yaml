@@ -60,4 +60,5 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+        readOnlyRootFilesystem: true
       serviceAccountName: cert-manager-cainjector
