@@ -45,6 +45,7 @@ func init() {
 
 // updateStatus is for updating the status subresource of istiocsr.openshift.operator.io.
 func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCSR) error {
+	r.log.V(4).Info("changed istio-csr", "conditions", changed.Status.Conditions)
 	namespacedName := types.NamespacedName{Name: changed.Name, Namespace: changed.Namespace}
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		r.log.V(4).Info("updating istiocsr.openshift.operator.io status", "request", namespacedName)
@@ -52,11 +53,20 @@ func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCS
 		if err := r.Get(ctx, namespacedName, current); err != nil {
 			return fmt.Errorf("failed to fetch istiocsr.openshift.operator.io %q for status update: %w", namespacedName, err)
 		}
+
+		// Preserve the changes we want to make by copying the entire status
+		// This ensures atomic updates of all conditions and status fields
 		changed.Status.DeepCopyInto(&current.Status)
+		r.log.V(4).Info("updated current istio-csr", "conditions", current.Status.Conditions)
 
 		if err := r.StatusUpdate(ctx, current); err != nil {
 			return fmt.Errorf("failed to update istiocsr.openshift.operator.io %q status: %w", namespacedName, err)
 		}
+
+		// Update the changed object with the latest resource version to avoid conflicts
+		// in subsequent operations
+		changed.ResourceVersion = current.ResourceVersion
+		changed.Generation = current.Generation
 
 		return nil
 	}); err != nil {
