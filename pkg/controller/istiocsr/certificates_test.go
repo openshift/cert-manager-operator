@@ -34,7 +34,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
-						return false, testError
+						return false, errorForTest
 					}
 					return true, nil
 				})
@@ -64,7 +64,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
@@ -113,7 +113,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
-						return testError
+						return errorForTest
 					}
 					return nil
 				})
