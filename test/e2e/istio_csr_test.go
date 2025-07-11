@@ -15,7 +15,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/openshift/cert-manager-operator/test/library"
@@ -37,19 +36,16 @@ type LogEntry struct {
 var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
-	var dynamicClient *dynamic.DynamicClient
 
 	BeforeAll(func() {
 		var err error
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		dynamicClient, err = dynamic.NewForConfig(cfg)
-		Expect(err).Should(BeNil())
-
 		By("enable IstioCSR addon feature by patching subscription object")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": "IstioCSR=true",
+			"OPERATOR_LOG_LEVEL":         "6",
 		})
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -67,6 +63,15 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 		ns = namespace
 
 		DeferCleanup(func() {
+			By("deleting cluster-scoped RBAC resources of the istio-csr agent")
+			clientset.RbacV1().ClusterRoles().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+				LabelSelector: "app.kubernetes.io/name=cert-manager-istio-csr",
+			})
+			clientset.RbacV1().ClusterRoleBindings().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+				LabelSelector: "app.kubernetes.io/name=cert-manager-istio-csr",
+			})
+
+			By("deleting the test namespace")
 			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 	})
@@ -83,6 +88,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			By("issuing TLS certificate")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+
+			err := waitForCertificateReadiness(ctx, "my-selfsigned-ca", ns.Name)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("fetching proto file from api")
 			protoContent, err := library.FetchFileFromURL(istioCSRProtoURL)
@@ -111,11 +119,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
 			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
 
-			By("poll till cert-manager-istio-csr is available")
+			By("poll till cert-manager-istio-csr deployment is available")
 			err = pollTillDeploymentAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
 			Expect(err).Should(BeNil())
 
-			istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, dynamicClient, ns.Name, "default")
+			By("poll till istiocsr object is available")
+			istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, loader, ns.Name, "default")
 			Expect(err).Should(BeNil())
 
 			By("poll till the service account is available")
@@ -148,7 +157,8 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 					IstioCSRStatus:            istioCSRStatus,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
+			policy := metav1.DeletePropagationBackground
+			defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
 
 			By("waiting for the job to be completed")
 			err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
