@@ -66,9 +66,10 @@ func TestReconcile(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
@@ -162,8 +163,8 @@ func TestReconcile(t *testing.T) {
 					Reason: v1alpha1.ReasonReady,
 				},
 			},
-			requeue: true,
-			wantErr: `failed to reconcile "istiocsr-test-ns/istiocsr-test-resource" IstioCSR deployment: failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
+			requeue: false,
+			wantErr: `failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
 		},
 		{
 			name: "reconciliation failed with irrecoverable error",
@@ -459,9 +460,10 @@ func TestProcessReconcileRequest(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
@@ -510,9 +512,10 @@ func TestProcessReconcileRequest(t *testing.T) {
 			},
 			expectedStatusCondition: []metav1.Condition{
 				{
-					Type:   v1alpha1.Ready,
-					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonReady,
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
 				},
 				{
 					Type:   v1alpha1.Degraded,
