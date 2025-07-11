@@ -38,7 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 )
@@ -69,6 +68,12 @@ var subscriptionSchema = schema.GroupVersionResource{
 	Group:    "operators.coreos.com",
 	Version:  "v1alpha1",
 	Resource: "subscriptions",
+}
+
+var istiocsrSchema = schema.GroupVersionResource{
+	Group:    "operator.openshift.io",
+	Version:  "v1alpha1",
+	Resource: "istiocsrs",
 }
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
@@ -667,44 +672,49 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 
 // pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istioCSRStatus
 // once the istiocsr is available, otherwise should return a time-out error
-func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
+func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResourceLoader, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
 	var istioCSRStatus v1alpha1.IstioCSRStatus
-	err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		gvr := schema.GroupVersionResource{
-			Group:    "operator.openshift.io",
-			Version:  "v1alpha1",
-			Resource: "istiocsrs",
-		}
-
-		customResource, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, istioCsrName, metav1.GetOptions{})
+	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace)
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		customResource, err := istiocsrClient.Get(ctx, istioCsrName, metav1.GetOptions{})
 		if err != nil {
-			return false, nil
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
 		}
 
 		status, found, err := unstructured.NestedMap(customResource.Object, "status")
 		if err != nil {
-			return false, nil
+			return false, fmt.Errorf("failed to extract status from IstioCSR: %w", err)
 		}
-
 		if !found {
 			return false, nil
 		}
 
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
 		if err != nil {
+			return false, fmt.Errorf("failed to convert status to IstioCSRStatus: %w", err)
+		}
+
+		// Check if required fields are populated
+		if library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) || library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) || library.IsEmptyString(istioCSRStatus.IstioCSRImage) || library.IsEmptyString(istioCSRStatus.ServiceAccount) {
 			return false, nil
 		}
 
+		// Check ready condition
 		readyCondition := meta.FindStatusCondition(istioCSRStatus.Conditions, v1alpha1.Ready)
-
-		if readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
+		if readyCondition == nil {
 			return false, nil
 		}
 
-		if !library.IsEmptyString(istioCSRStatus.IstioCSRGRPCEndpoint) && !library.IsEmptyString(istioCSRStatus.ClusterRoleBinding) && !library.IsEmptyString(istioCSRStatus.IstioCSRImage) && !library.IsEmptyString(istioCSRStatus.ServiceAccount) {
-			return true, nil
+		// Check for degraded condition
+		degradedCondition := meta.FindStatusCondition(istioCSRStatus.Conditions, v1alpha1.Degraded)
+		if degradedCondition != nil && degradedCondition.Status == metav1.ConditionTrue {
+			return false, fmt.Errorf("IstioCSR is degraded: %s", degradedCondition.Message)
 		}
-		return false, nil
+
+		return readyCondition.Status == metav1.ConditionTrue, nil
 	})
 
 	return istioCSRStatus, err
@@ -713,20 +723,44 @@ func pollTillIstioCSRAvailable(ctx context.Context, dynamicClient *dynamic.Dynam
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
 // once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
-	err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		deployment, err := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
-			return false, nil
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
 		}
 
+		// Check for failure conditions first
 		for _, cond := range deployment.Status.Conditions {
-			if cond.Type == appsv1.DeploymentAvailable {
-				return cond.Status == corev1.ConditionTrue, nil
+			if (cond.Type == appsv1.DeploymentProgressing && cond.Status == corev1.ConditionFalse) ||
+				(cond.Type == appsv1.DeploymentReplicaFailure && cond.Status == corev1.ConditionTrue) {
+				return false, fmt.Errorf("deployment failed: %s - %s", cond.Reason, cond.Message)
+			}
+			if cond.Type == appsv1.DeploymentAvailable && cond.Status == corev1.ConditionTrue {
+				return true, nil
 			}
 		}
 
 		return false, nil
 	})
+
+	if err != nil && wait.Interrupted(err) {
+		deployment, getErr := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if getErr != nil {
+			if apierrors.IsNotFound(getErr) {
+				return fmt.Errorf("timeout waiting for deployment %s/%s: deployment does not exist", namespace, deploymentName)
+			}
+			return fmt.Errorf("timeout waiting for deployment %s/%s: failed to get status: %v", namespace, deploymentName, getErr)
+		}
+
+		// Deployment exists but not ready
+		return fmt.Errorf("timeout waiting for deployment %s/%s: ready %d/%d, updated %d/%d",
+			namespace, deploymentName,
+			deployment.Status.ReadyReplicas, *deployment.Spec.Replicas,
+			deployment.Status.UpdatedReplicas, *deployment.Spec.Replicas)
+	}
 
 	return err
 }
