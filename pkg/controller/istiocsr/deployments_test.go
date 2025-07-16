@@ -560,7 +560,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: spec.istioCSRConfig.tolerations[0].operator: Invalid value: core.Toleration{Key:\"\", Operator:\"Exists\", Value:\"test\", Effect:\"NoSchedule\", TolerationSeconds:(*int64)(nil)}: value must be empty when `operator` is 'Exists'",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
 		},
 		{
 			name: "deployment reconciliation with invalid nodeSelector configuration",

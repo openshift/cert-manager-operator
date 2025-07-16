@@ -42,7 +42,7 @@ func validateNodeAffinity(na *core.NodeAffinity, fldPath *field.Path) field.Erro
 	//	allErrs = append(allErrs, ValidateNodeSelector(na.RequiredDuringSchedulingRequiredDuringExecution, fldPath.Child("requiredDuringSchedulingRequiredDuringExecution"))...)
 	// }
 	if na.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-		allErrs = append(allErrs, corevalidation.ValidateNodeSelector(na.RequiredDuringSchedulingIgnoredDuringExecution, fldPath.Child("requiredDuringSchedulingIgnoredDuringExecution"))...)
+		allErrs = append(allErrs, corevalidation.ValidateNodeSelector(na.RequiredDuringSchedulingIgnoredDuringExecution, false, fldPath.Child("requiredDuringSchedulingIgnoredDuringExecution"))...)
 	}
 	if len(na.PreferredDuringSchedulingIgnoredDuringExecution) > 0 {
 		allErrs = append(allErrs, corevalidation.ValidatePreferredSchedulingTerms(na.PreferredDuringSchedulingIgnoredDuringExecution, fldPath.Child("preferredDuringSchedulingIgnoredDuringExecution"))...)
