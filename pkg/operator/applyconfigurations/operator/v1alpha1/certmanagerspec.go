@@ -27,7 +27,7 @@ func CertManagerSpec() *CertManagerSpecApplyConfiguration {
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ManagementState field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithManagementState(value operatorv1.ManagementState) *CertManagerSpecApplyConfiguration {
-	b.ManagementState = &value
+	b.OperatorSpecApplyConfiguration.ManagementState = &value
 	return b
 }
 
@@ -35,7 +35,7 @@ func (b *CertManagerSpecApplyConfiguration) WithManagementState(value operatorv1
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogLevel field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLevel) *CertManagerSpecApplyConfiguration {
-	b.LogLevel = &value
+	b.OperatorSpecApplyConfiguration.LogLevel = &value
 	return b
 }
 
@@ -43,7 +43,7 @@ func (b *CertManagerSpecApplyConfiguration) WithLogLevel(value operatorv1.LogLev
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the OperatorLogLevel field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithOperatorLogLevel(value operatorv1.LogLevel) *CertManagerSpecApplyConfiguration {
-	b.OperatorLogLevel = &value
+	b.OperatorSpecApplyConfiguration.OperatorLogLevel = &value
 	return b
 }
 
@@ -51,7 +51,7 @@ func (b *CertManagerSpecApplyConfiguration) WithOperatorLogLevel(value operatorv
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UnsupportedConfigOverrides field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithUnsupportedConfigOverrides(value runtime.RawExtension) *CertManagerSpecApplyConfiguration {
-	b.UnsupportedConfigOverrides = &value
+	b.OperatorSpecApplyConfiguration.UnsupportedConfigOverrides = &value
 	return b
 }
 
@@ -59,7 +59,7 @@ func (b *CertManagerSpecApplyConfiguration) WithUnsupportedConfigOverrides(value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ObservedConfig field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithObservedConfig(value runtime.RawExtension) *CertManagerSpecApplyConfiguration {
-	b.ObservedConfig = &value
+	b.OperatorSpecApplyConfiguration.ObservedConfig = &value
 	return b
 }
 
