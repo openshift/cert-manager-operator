@@ -48,13 +48,18 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		Expect(baseDomain).NotTo(BeEmpty())
 		appsDomain = "apps." + baseDomain
 
-		By("adding override args to cert-manager controller")
+		By("adding required args to cert-manager controller")
 		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
 			// for dns-01 private zone passthrough
 			"--dns01-recursive-nameservers-only",
 			"--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53",
 			// for Issuer to use ambient credentials
 			"--issuer-ambient-credentials",
+			// for http-01 solver ingress
+			"--acme-http01-solver-resource-limits-cpu=150m",
+			"--acme-http01-solver-resource-limits-memory=200Mi",
+			"--acme-http01-solver-resource-request-cpu=100m",
+			"--acme-http01-solver-resource-request-memory=100Mi",
 		})
 		Expect(err).NotTo(HaveOccurred())
 
