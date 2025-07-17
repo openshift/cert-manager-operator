@@ -1,9 +1,9 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20 AS builder
 
-ARG RELEASE_BRANCH=v1.16.5
+ARG RELEASE_BRANCH=v1.17.4
 
 ARG GO_BUILD_TAGS=strictfipsruntime,openssl
-ENV GOEXPERIMENT strictfipsruntime 
+ENV GOEXPERIMENT strictfipsruntime
 ENV CGO_ENABLED 1
 
 RUN mkdir -p /go/src/github.com/cert-manager

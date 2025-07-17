@@ -13,11 +13,11 @@ type FakeOperatorV1alpha1 struct {
 }
 
 func (c *FakeOperatorV1alpha1) CertManagers() v1alpha1.CertManagerInterface {
-	return &FakeCertManagers{c}
+	return newFakeCertManagers(c)
 }
 
 func (c *FakeOperatorV1alpha1) IstioCSRs(namespace string) v1alpha1.IstioCSRInterface {
-	return &FakeIstioCSRs{c, namespace}
+	return newFakeIstioCSRs(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

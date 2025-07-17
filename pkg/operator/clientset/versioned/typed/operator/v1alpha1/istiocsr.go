@@ -3,10 +3,10 @@
 package v1alpha1
 
 import (
-	"context"
+	context "context"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
+	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	applyconfigurationsoperatorv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/applyconfigurations/operator/v1alpha1"
 	scheme "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -22,36 +22,37 @@ type IstioCSRsGetter interface {
 
 // IstioCSRInterface has methods to work with IstioCSR resources.
 type IstioCSRInterface interface {
-	Create(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.CreateOptions) (*v1alpha1.IstioCSR, error)
-	Update(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.UpdateOptions) (*v1alpha1.IstioCSR, error)
+	Create(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSR, opts v1.CreateOptions) (*operatorv1alpha1.IstioCSR, error)
+	Update(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSR, opts v1.UpdateOptions) (*operatorv1alpha1.IstioCSR, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, istioCSR *v1alpha1.IstioCSR, opts v1.UpdateOptions) (*v1alpha1.IstioCSR, error)
+	UpdateStatus(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSR, opts v1.UpdateOptions) (*operatorv1alpha1.IstioCSR, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.IstioCSR, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.IstioCSRList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*operatorv1alpha1.IstioCSR, error)
+	List(ctx context.Context, opts v1.ListOptions) (*operatorv1alpha1.IstioCSRList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.IstioCSR, err error)
-	Apply(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.IstioCSR, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *operatorv1alpha1.IstioCSR, err error)
+	Apply(ctx context.Context, istioCSR *applyconfigurationsoperatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *operatorv1alpha1.IstioCSR, err error)
 	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-	ApplyStatus(ctx context.Context, istioCSR *operatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.IstioCSR, err error)
+	ApplyStatus(ctx context.Context, istioCSR *applyconfigurationsoperatorv1alpha1.IstioCSRApplyConfiguration, opts v1.ApplyOptions) (result *operatorv1alpha1.IstioCSR, err error)
 	IstioCSRExpansion
 }
 
 // istioCSRs implements IstioCSRInterface
 type istioCSRs struct {
-	*gentype.ClientWithListAndApply[*v1alpha1.IstioCSR, *v1alpha1.IstioCSRList, *operatorv1alpha1.IstioCSRApplyConfiguration]
+	*gentype.ClientWithListAndApply[*operatorv1alpha1.IstioCSR, *operatorv1alpha1.IstioCSRList, *applyconfigurationsoperatorv1alpha1.IstioCSRApplyConfiguration]
 }
 
 // newIstioCSRs returns a IstioCSRs
 func newIstioCSRs(c *OperatorV1alpha1Client, namespace string) *istioCSRs {
 	return &istioCSRs{
-		gentype.NewClientWithListAndApply[*v1alpha1.IstioCSR, *v1alpha1.IstioCSRList, *operatorv1alpha1.IstioCSRApplyConfiguration](
+		gentype.NewClientWithListAndApply[*operatorv1alpha1.IstioCSR, *operatorv1alpha1.IstioCSRList, *applyconfigurationsoperatorv1alpha1.IstioCSRApplyConfiguration](
 			"istiocsrs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1alpha1.IstioCSR { return &v1alpha1.IstioCSR{} },
-			func() *v1alpha1.IstioCSRList { return &v1alpha1.IstioCSRList{} }),
+			func() *operatorv1alpha1.IstioCSR { return &operatorv1alpha1.IstioCSR{} },
+			func() *operatorv1alpha1.IstioCSRList { return &operatorv1alpha1.IstioCSRList{} },
+		),
 	}
 }

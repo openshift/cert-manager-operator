@@ -31,7 +31,7 @@ func (b *IstioCSRStatusApplyConfiguration) WithConditions(values ...*v1.Conditio
 		if values[i] == nil {
 			panic("nil value passed to WithConditions")
 		}
-		b.Conditions = append(b.Conditions, *values[i])
+		b.ConditionalStatusApplyConfiguration.Conditions = append(b.ConditionalStatusApplyConfiguration.Conditions, *values[i])
 	}
 	return b
 }
