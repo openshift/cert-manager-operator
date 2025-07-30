@@ -77,6 +77,9 @@ func TestAll(t *testing.T) {
 	reportConfig.JUnitReport = filepath.Join(testDir, "junit.xml")
 	reportConfig.NoColor = true
 	reportConfig.VeryVerbose = true
+	reportConfig.ShowNodeEvents = true
+	reportConfig.FullTrace = true
+	reportConfig.SilenceSkips = true
 
 	RunSpecs(t, "Cert Manager Suite", suiteConfig, reportConfig)
 }

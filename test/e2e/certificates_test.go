@@ -726,7 +726,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
 										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{
-											Class: &ingressClassName,
+											IngressClassName: &ingressClassName,
 										},
 									},
 								},
@@ -756,11 +756,11 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					Name:      "ingress-http01",
 					Namespace: ns.Name,
 					Annotations: map[string]string{
-						"cert-manager.io/cluster-issuer":            clusterIssuerName,
-						"acme.cert-manager.io/http01-ingress-class": ingressClassName,
+						"cert-manager.io/cluster-issuer": clusterIssuerName,
 					},
 				},
 				Spec: networkingv1.IngressSpec{
+					IngressClassName: &ingressClassName,
 					Rules: []networkingv1.IngressRule{
 						{
 							Host: ingressHost,
