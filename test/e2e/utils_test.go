@@ -764,3 +764,44 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 
 	return err
 }
+
+// VerifyContainerResources verifies that a container in a pod has resources matching the expected configuration.
+// If containerName is empty, it verifies the first container.
+func VerifyContainerResources(pod corev1.Pod, containerName string, expectedResources corev1.ResourceRequirements) error {
+	var targetContainer *corev1.Container
+
+	if containerName == "" {
+		// Default to first container when no specific container name is provided
+		targetContainer = &pod.Spec.Containers[0]
+	} else {
+		// Find the specific container by name
+		for i := range pod.Spec.Containers {
+			if pod.Spec.Containers[i].Name == containerName {
+				targetContainer = &pod.Spec.Containers[i]
+				break
+			}
+		}
+		if targetContainer == nil {
+			return fmt.Errorf("container '%s' not found in pod '%s'", containerName, pod.Name)
+		}
+	}
+
+	// Verify limits
+	if expectedResources.Limits != nil {
+		for resourceType, expectedValue := range expectedResources.Limits {
+			if actualValue := targetContainer.Resources.Limits[resourceType]; !actualValue.Equal(expectedValue) {
+				return fmt.Errorf("%s limit for container '%s' in pod '%s' is '%v' but expected '%v'", resourceType, targetContainer.Name, pod.Name, actualValue, expectedValue)
+			}
+		}
+	}
+
+	// Verify requests
+	if expectedResources.Requests != nil {
+		for resourceType, expectedValue := range expectedResources.Requests {
+			if actualValue := targetContainer.Resources.Requests[resourceType]; !actualValue.Equal(expectedValue) {
+				return fmt.Errorf("%s request for container '%s' in pod '%s' is '%v' but expected '%v'", resourceType, targetContainer.Name, pod.Name, actualValue, expectedValue)
+			}
+		}
+	}
+	return nil
+}
