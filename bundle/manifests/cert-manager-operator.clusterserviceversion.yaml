@@ -693,15 +693,22 @@ spec:
                     drop:
                     - ALL
                   privileged: false
+                  readOnlyRootFilesystem: true
                   runAsNonRoot: true
                   seccompProfile:
                     type: RuntimeDefault
+                volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
               securityContext:
                 runAsNonRoot: true
                 seccompProfile:
                   type: RuntimeDefault
               serviceAccountName: cert-manager-operator-controller-manager
               terminationGracePeriodSeconds: 10
+              volumes:
+              - emptyDir: {}
+                name: tmp
       permissions:
       - rules:
         - apiGroups:
