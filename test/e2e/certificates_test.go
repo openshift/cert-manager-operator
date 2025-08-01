@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -29,6 +30,12 @@ import (
 const (
 	// letsEncryptStagingServerURL is the address for the Let's Encrypt staging environment server.
 	letsEncryptStagingServerURL = "https://acme-staging-v02.api.letsencrypt.org/directory"
+
+	// acmeSolverPodLabel is the label that cert-manager uses to identify ACME solver pods.
+	acmeSolverPodLabel = "acme.cert-manager.io/http01-solver"
+
+	// acmeSolverContainerName is the name of the container in the ACME solver pod.
+	acmeSolverContainerName = "acmesolver"
 
 	// TARGET_PLATFORM is the environment variable for IBM Cloud CIS test.
 	targetPlatformEnvironmentVar = "TARGET_PLATFORM"
@@ -693,11 +700,15 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 	})
 
 	Context("http-01 challenge using ingress", func() {
-		It("should obtain a valid LetsEncrypt certificate", func() {
+		var ingressHost string
+		var secretName string
 
-			By("creating a cluster issuer")
+		BeforeEach(func() {
 			clusterIssuerName := "letsencrypt-http01"
 			ingressClassName := "openshift-default"
+			secretName = "ingress-http01-secret"
+
+			By("creating a cluster issuer")
 			clusterIssuer := &certmanagerv1.ClusterIssuer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: clusterIssuerName,
@@ -715,7 +726,7 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
 										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{
-											Class: &ingressClassName,
+											IngressClassName: &ingressClassName,
 										},
 									},
 								},
@@ -726,20 +737,16 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			}
 			_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 
 			By("creating an hello-openshift deployment")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
 
 			By("creating a service for the deployment hello-openshift")
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
 			By("creating an Ingress object")
-			ingressHost := fmt.Sprintf("ahi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME http-01 Ingress"
+			ingressHost = fmt.Sprintf("ahi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME http-01 Ingress"
 			pathType := networkingv1.PathTypePrefix
-			secretName := "ingress-http01-secret"
 			ingress := &networkingv1.Ingress{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "networking.k8s.io/v1",
@@ -749,11 +756,11 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					Name:      "ingress-http01",
 					Namespace: ns.Name,
 					Annotations: map[string]string{
-						"cert-manager.io/cluster-issuer":            clusterIssuerName,
-						"acme.cert-manager.io/http01-ingress-class": ingressClassName,
+						"cert-manager.io/cluster-issuer": clusterIssuerName,
 					},
 				},
 				Spec: networkingv1.IngressSpec{
+					IngressClassName: &ingressClassName,
 					Rules: []networkingv1.IngressRule{
 						{
 							Host: ingressHost,
@@ -776,13 +783,18 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 					}},
 				},
 			}
-			ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
+			ingress, err = loader.KubeClient.NetworkingV1().Ingresses(ns.Name).Create(ctx, ingress, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			defer loader.KubeClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
 
+			DeferCleanup(func() {
+				certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+			})
+		})
+
+		It("should obtain a valid LetsEncrypt certificate", func() {
 			By("checking TLS certificate contents")
-			err = wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-				secret, err := loader.KubeClient.CoreV1().Secrets(ingress.Namespace).Get(ctx, secretName, metav1.GetOptions{})
+			err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+				secret, err := loader.KubeClient.CoreV1().Secrets(ns.Name).Get(ctx, secretName, metav1.GetOptions{})
 				tlsConfig, isvalid := library.GetTLSConfig(secret)
 				if !isvalid {
 					return false, nil
@@ -798,6 +810,48 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 
 				return isHostCorrect && isNotExpired, nil
 			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should create HTTP01 solver pods with custom resource limits and requests", func() {
+			By("monitoring for ACME HTTP01 solver pods with expected resource configuration")
+			// These values match what's configured in BeforeAll
+			expectedResources := corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("150m"),
+					corev1.ResourceMemory: k8sresource.MustParse("200Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    k8sresource.MustParse("100m"),
+					corev1.ResourceMemory: k8sresource.MustParse("100Mi"),
+				},
+			}
+
+			err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+				pods, err := k8sClientSet.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+					LabelSelector: acmeSolverPodLabel,
+				})
+				if err != nil {
+					return false, nil // Retry on transient errors
+				}
+
+				if len(pods.Items) == 0 {
+					return false, nil // Keep waiting for pods to appear
+				}
+
+				// Check if any pod matches the expected resource configuration
+				for _, pod := range pods.Items {
+					if err := VerifyContainerResources(pod, acmeSolverContainerName, expectedResources); err == nil {
+						return true, nil
+					}
+				}
+
+				return false, nil // No matching pods yet, keep waiting
+			})
+			Expect(err).NotTo(HaveOccurred(), "should find ACME HTTP01 solver pods with expected resource configuration")
+
+			By("waiting for certificate to get ready")
+			err = waitForCertificateReadiness(ctx, secretName, ns.Name)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
