@@ -139,6 +139,11 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 
 func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 	istiocsrConfigs := istiocsr.Spec.IstioCSRConfig
+	// Default clusterID to "Kubernetes" if not provided.
+	clusterID := "Kubernetes"
+	if istiocsrConfigs.Server != nil && istiocsrConfigs.Server.ClusterID != "" {
+		clusterID = istiocsrConfigs.Server.ClusterID
+	}
 	args := []string{
 		fmt.Sprintf("--log-level=%d", istiocsrConfigs.LogLevel),
 		fmt.Sprintf("--log-format=%s", istiocsrConfigs.LogFormat),
@@ -152,7 +157,7 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 		fmt.Sprintf("--serving-certificate-dns-names=cert-manager-istio-csr.%s.svc", istiocsr.GetNamespace()),
 		fmt.Sprintf("--serving-certificate-duration=%.0fm", istiocsrConfigs.IstiodTLSConfig.CertificateDuration.Minutes()),
 		fmt.Sprintf("--trust-domain=%s", istiocsrConfigs.IstiodTLSConfig.TrustDomain),
-		"--cluster-id=Kubernetes",
+		fmt.Sprintf("--cluster-id=%s", clusterID),
 		fmt.Sprintf("--max-client-certificate-duration=%.0fm", istiocsrConfigs.IstiodTLSConfig.MaxCertificateDuration.Minutes()),
 		"--serving-address=0.0.0.0:6443",
 		fmt.Sprintf("--serving-certificate-key-size=%d", istiocsrConfigs.IstiodTLSConfig.PrivateKeySize),
