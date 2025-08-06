@@ -664,11 +664,11 @@ spec:
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
                   value: quay.io/jetstack/cert-manager-acmesolver:v1.17.4
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
-                  value: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
+                  value: quay.io/jetstack/cert-manager-istio-csr:v0.14.2
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.17.4
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
-                  value: 0.14.0
+                  value: 0.14.2
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.17.0
                 - name: OPERATOR_LOG_LEVEL
@@ -772,7 +772,7 @@ spec:
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.17.4
     name: cert-manager-acmesolver
-  - image: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
+  - image: quay.io/jetstack/cert-manager-istio-csr:v0.14.2
     name: cert-manager-istiocsr
   replaces: cert-manager-operator.v1.16.1
   version: 1.17.0
