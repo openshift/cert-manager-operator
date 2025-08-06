@@ -21,8 +21,7 @@ spec:
                 -import-path /proto \
                 -proto /proto/ca.proto \
                 -H "Authorization: Bearer $TOKEN" \
-                -H "ClusterID: {{.ClusterID}}" \
-                -d '{"csr": "{{.CertificateSigningRequest}}", "validity_duration": 3600}' \
+                -d '{"csr": "{{.CertificateSigningRequest}}", "validity_duration": 3600, "metadata": {"ClusterID": "{{.ClusterID}}"}}' \
                 -cacert /etc/root-secret/ca.crt \
                 -key /etc/root-secret/tls.key \
                 -cert /etc/root-secret/tls.crt \
