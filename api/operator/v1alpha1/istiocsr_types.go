@@ -212,6 +212,12 @@ type IstiodTLSConfig struct {
 // ServerConfig is for configuring the server endpoint used by istio
 // for obtaining the certificates.
 type ServerConfig struct {
+	// clusterID is the istio cluster ID to verify incoming CSRs.
+	// +kubebuilder:default:="Kubernetes"
+	// +kubebuilder:validation:Optional
+	// +optional
+	ClusterID string `json:"clusterID,omitempty"`
+
 	// port to serve istio-csr gRPC service.
 	// +kubebuilder:default:=443
 	// +kubebuilder:validation:XValidation:rule="oldSelf == 0 || self == oldSelf",message="port is immutable once set"

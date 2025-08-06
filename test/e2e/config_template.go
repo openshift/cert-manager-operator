@@ -25,6 +25,8 @@ type CertificateConfig struct {
 type IstioCSRGRPCurlJobConfig struct {
 	CertificateSigningRequest string
 	IstioCSRStatus            v1alpha1.IstioCSRStatus
+	ClusterID                 string
+	JobName                   string
 }
 
 // replaceWithTemplate puts field values from a template struct
