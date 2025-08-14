@@ -2,6 +2,8 @@ package istiocsr
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -735,4 +737,82 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateArgList(t *testing.T) {
+	tests := []struct {
+		name           string
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		expectedArgs   map[string]string // key is arg name (without --), value is expected value
+	}{
+		{
+			name: "clusterID not provided should default to Kubernetes",
+			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
+				// Server config is nil, so clusterID should default
+			},
+			expectedArgs: map[string]string{
+				"cluster-id": "Kubernetes",
+			},
+		},
+		{
+			name: "clusterID empty string should default to Kubernetes",
+			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
+				istiocsr.Spec.IstioCSRConfig.Server = &v1alpha1.ServerConfig{
+					ClusterID: "",
+				}
+			},
+			expectedArgs: map[string]string{
+				"cluster-id": "Kubernetes",
+			},
+		},
+		{
+			name: "clusterID provided should use custom value",
+			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
+				istiocsr.Spec.IstioCSRConfig.Server = &v1alpha1.ServerConfig{
+					ClusterID: "cluster-123_dev.local",
+				}
+			},
+			expectedArgs: map[string]string{
+				"cluster-id": "cluster-123_dev.local",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := testDeployment()
+			istiocsr := testIstioCSR()
+			if tt.updateIstioCSR != nil {
+				tt.updateIstioCSR(istiocsr)
+			}
+
+			updateArgList(deployment, istiocsr)
+
+			// Find the istio-csr container and check its arguments
+			var containerArgs []string
+			for _, container := range deployment.Spec.Template.Spec.Containers {
+				if container.Name == istiocsrContainerName {
+					containerArgs = container.Args
+					break
+				}
+			}
+
+			if len(containerArgs) == 0 {
+				t.Fatalf("Expected container args to be set, but got empty args")
+			}
+
+			// Verify each expected argument
+			for argName, expectedValue := range tt.expectedArgs {
+				expectedArg := fmt.Sprintf("--%s=%s", argName, expectedValue)
+				if !containsArg(containerArgs, expectedArg) {
+					t.Errorf("Expected to find argument %q in container args, but it was not found. Args: %v", expectedArg, containerArgs)
+				}
+			}
+		})
+	}
+}
+
+// containsArg checks if the given argument is present in the args list
+func containsArg(args []string, targetArg string) bool {
+	return slices.Contains(args, targetArg)
 }

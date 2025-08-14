@@ -1221,6 +1221,11 @@ spec:
                       server is for configuring the server endpoint used by istio
                       for obtaining the certificates.
                     properties:
+                      clusterID:
+                        default: Kubernetes
+                        description: clusterID is the istio cluster ID to verify incoming
+                          CSRs.
+                        type: string
                       port:
                         default: 443
                         description: port to serve istio-csr gRPC service.

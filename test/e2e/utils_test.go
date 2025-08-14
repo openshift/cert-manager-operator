@@ -630,7 +630,7 @@ func randomStr(size int) string {
 // pollTillJobCompleted poll the job object and returns non-nil error
 // once the job is completed, otherwise should return a time-out error
 func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
-	err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 
 		if err != nil {
@@ -650,6 +650,27 @@ func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, 
 		return false, nil
 	})
 	return err
+}
+
+// pollTillJobFailed poll the job object and returns non-nil error
+// if job succeeds or encounters other issues. Returns nil when job fails.
+func pollTillJobFailed(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		if job.Status.Succeeded > 0 {
+			return false, fmt.Errorf("job %s succeeded when we expected it to fail", jobName)
+		}
+
+		if job.Status.Failed > 0 {
+			return true, nil
+		}
+
+		return false, nil
+	})
 }
 
 // pollTillServiceAccountAvailable poll the service account object and returns non-nil error
