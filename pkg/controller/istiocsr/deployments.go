@@ -162,7 +162,7 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 		"--serving-address=0.0.0.0:6443",
 		fmt.Sprintf("--serving-certificate-key-size=%d", istiocsrConfigs.IstiodTLSConfig.PrivateKeySize),
 		fmt.Sprintf("--serving-signature-algorithm=%s", istiocsrConfigs.IstiodTLSConfig.SignatureAlgorithm),
-		"--enable-client-cert-authenticator=false",
+		"--enable-client-cert-authenticator=true",
 		fmt.Sprintf("--leader-election-namespace=%s", istiocsrConfigs.Istio.Namespace),
 		"--disable-kubernetes-client-rate-limiter=false", "--istiod-cert-enabled=false",
 		fmt.Sprintf("--istiod-cert-namespace=%s", istiocsrConfigs.Istio.Namespace),
