@@ -47,7 +47,19 @@ local processManifests(manifest) =
                 if std.startsWith(arg, dsdnArgKey) == false
               ] + [
                 if std.length(dsdnArgVal) > 0 then (dsdnArgKey + dsdnArgVal)
-              ]),
+              ] + (
+                // Temporary workaround: Disable ACMEHTTP01IngressPathTypeExact feature gate
+                // for OpenShift compatibility. This should be removed when OpenShift's
+                // ingress-to-route controller supports Exact path type (RFE-4169).
+                //
+                // Background: cert-manager 1.18 changed ACME HTTP01 challenge ingress path type
+                // from ImplementationSpecific to Exact, but OpenShift's ingress-to-route controller
+                // doesn't support Exact path type, causing 503 errors during HTTP01 challenges.
+                if container.name == 'cert-manager-controller' then
+                  ['--feature-gates=ACMEHTTP01IngressPathTypeExact=false']
+                else
+                  []
+              )),
             }
             for container in super.containers
           ],

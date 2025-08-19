@@ -1461,6 +1461,7 @@ spec:
             - --leader-election-namespace=kube-system
             - --acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.18.2
             - --max-concurrent-challenges=60
+            - --feature-gates=ACMEHTTP01IngressPathTypeExact=false
           command:
             - /app/cmd/controller/controller
           env:
