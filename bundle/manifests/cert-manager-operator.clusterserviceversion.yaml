@@ -250,7 +250,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
-    olm.skipRange: '>=1.16.1 <1.17.0'
+    olm.skipRange: '>=1.17.0 <1.18.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -271,7 +271,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.17.0
+  name: cert-manager-operator.v1.18.0
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -304,7 +304,7 @@ spec:
       name: orders.acme.cert-manager.io
       version: v1
   description: |
-    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.17.4](https://github.com/cert-manager/cert-manager/tree/v1.17.4), which automates certificate management.
+    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.18.2](https://github.com/cert-manager/cert-manager/tree/v1.18.2), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
   displayName: cert-manager Operator for Red Hat OpenShift
   icon:
@@ -662,15 +662,15 @@ spec:
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
                   value: quay.io/jetstack/cert-manager-controller:latest
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.17.4
+                  value: quay.io/jetstack/cert-manager-acmesolver:v1.18.2
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
                   value: quay.io/jetstack/cert-manager-istio-csr:v0.14.2
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.17.4
+                  value: 1.18.2
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
                   value: 0.14.2
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.17.0
+                  value: 1.18.0
                 - name: OPERATOR_LOG_LEVEL
                   value: "2"
                 - name: TRUSTED_CA_CONFIGMAP_NAME
@@ -777,9 +777,9 @@ spec:
     name: cert-manager-ca-injector
   - image: quay.io/jetstack/cert-manager-controller:latest
     name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.17.4
+  - image: quay.io/jetstack/cert-manager-acmesolver:v1.18.2
     name: cert-manager-acmesolver
   - image: quay.io/jetstack/cert-manager-istio-csr:v0.14.2
     name: cert-manager-istiocsr
-  replaces: cert-manager-operator.v1.16.1
-  version: 1.17.0
+  replaces: cert-manager-operator.v1.17.0
+  version: 1.18.0
