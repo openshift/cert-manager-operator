@@ -5,13 +5,22 @@ package v1alpha1
 // ServerConfigApplyConfiguration represents a declarative configuration of the ServerConfig type for use
 // with apply.
 type ServerConfigApplyConfiguration struct {
-	Port *int32 `json:"port,omitempty"`
+	ClusterID *string `json:"clusterID,omitempty"`
+	Port      *int32  `json:"port,omitempty"`
 }
 
 // ServerConfigApplyConfiguration constructs a declarative configuration of the ServerConfig type for use with
 // apply.
 func ServerConfig() *ServerConfigApplyConfiguration {
 	return &ServerConfigApplyConfiguration{}
+}
+
+// WithClusterID sets the ClusterID field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ClusterID field is set to the value of the last call.
+func (b *ServerConfigApplyConfiguration) WithClusterID(value string) *ServerConfigApplyConfiguration {
+	b.ClusterID = &value
+	return b
 }
 
 // WithPort sets the Port field in the declarative configuration to the given value
