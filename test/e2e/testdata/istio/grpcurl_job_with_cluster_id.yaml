@@ -44,7 +44,7 @@ spec:
               name: proto
             - mountPath: /var/run/secrets/istio-ca
               name: sa-token
-      restartPolicy: OnFailure
+      restartPolicy: Never
       serviceAccountName: "{{.IstioCSRStatus.ServiceAccount}}"
       volumes:
         - name: sa-token
