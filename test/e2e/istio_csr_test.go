@@ -34,6 +34,10 @@ type LogEntry struct {
 	CertChain []string `json:"certChain"`
 }
 
+type IstioCSRConfig struct {
+	ClusterID string
+}
+
 var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
@@ -224,8 +228,16 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			grpcAppName := "grpcurl-istio-csr-cluster-id"
 
 			By("creating istiocsr.operator.openshift.io resource with custom clusterID")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					ClusterID: clusterName,
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					ClusterID: clusterName,
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
 
@@ -241,7 +253,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 				IstioCSRGRPCurlJobConfig{
 					CertificateSigningRequest: csr,
 					IstioCSRStatus:            istioCSRStatus,
-					ClusterID:                 "test-cluster-id", // matches the IstioCSR resource
+					ClusterID:                 clusterName, // matches the IstioCSR resource
 					JobName:                   grpcAppName,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job_with_cluster_id.yaml"), ns.Name)
@@ -284,8 +296,16 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 			grpcAppName := "grpcurl-istio-csr-wrong-cluster-id"
 
 			By("creating istiocsr.operator.openshift.io resource with custom clusterID")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					ClusterID: clusterName,
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					ClusterID: clusterName,
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
 

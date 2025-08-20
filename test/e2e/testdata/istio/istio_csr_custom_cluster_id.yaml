@@ -15,4 +15,4 @@ spec:
     istio:
       namespace: istio-system
     server:
-      clusterID: test-cluster-id
+      clusterID: {{.ClusterID}}
