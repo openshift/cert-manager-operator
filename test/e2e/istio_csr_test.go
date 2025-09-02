@@ -79,8 +79,8 @@ var _ = Describe("Istio-CSR", Ordered, Label("TechPreview", "Feature:IstioCSR"),
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		By("enable IstioCSR addon feature by patching subscription object")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		By("enable IstioCSR addon feature by patching operator deployment")
+		err = patchOperatorDeploymentWithEnvVars(ctx, loader.KubeClient, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": "IstioCSR=true",
 			"OPERATOR_LOG_LEVEL":         "6",
 		})

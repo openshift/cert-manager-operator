@@ -132,4 +132,8 @@ var _ = BeforeSuite(func() {
 	By("creating cert-manager client")
 	certmanagerClient, err = certmanagerclientset.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
+
+	By("storing initial operator deployment environment variables")
+	err = storeInitialOperatorEnvVars(context.Background(), k8sClientSet)
+	Expect(err).NotTo(HaveOccurred())
 })
