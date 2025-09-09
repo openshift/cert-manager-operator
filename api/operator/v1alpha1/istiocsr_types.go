@@ -146,6 +146,30 @@ type CertManagerConfig struct {
 	// +kubebuilder:validation:Required
 	// +required
 	IssuerRef certmanagerv1.ObjectReference `json:"issuerRef,omitempty"`
+
+	// istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap. If empty, the operator will
+	// automatically extract the CA certificate from the Secret containing the istiod certificate obtained from cert-manager.
+	// +kubebuilder:validation:Optional
+	// +optional
+	IstioCACertificate *ConfigMapReference `json:"istioCACertificate,omitempty"`
+}
+
+// ConfigMapReference holds the details of a configmap.
+type ConfigMapReference struct {
+	// name of the ConfigMap.
+	// +kubebuilder:validation:Required
+	// +required
+	Name string `json:"name"`
+
+	// namespace in which the ConfigMap exists. If empty, ConfigMap will be looked up in the IstioCSR namespace.
+	// +kubebuilder:validation:Optional
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// key name holding the required data.
+	// +kubebuilder:validation:Required
+	// +required
+	Key string `json:"key"`
 }
 
 // IstiodTLSConfig is for configuring istiod certificate specifics.
