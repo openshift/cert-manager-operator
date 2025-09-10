@@ -920,6 +920,70 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to update watch label on CA certificate ConfigMap istiocsr-test-ns/watch-label-fail-test: failed to update watch-label-fail-test resource with watch label: no access to update watch label`,
 		},
+
+		{
+			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "non-ca-cert-test" {
+							configMap := testNonCACertificateConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "non-ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
+		},
+
+		{
+			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-without-certsign-test" {
+							configMap := testCertificateWithoutCertSignConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-without-certsign-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
+		},
 	}
 
 	for _, tt := range tests {

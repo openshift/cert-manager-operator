@@ -2,6 +2,11 @@ package istiocsr
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"testing"
 	"time"
@@ -33,6 +38,8 @@ const (
 var (
 	testError = fmt.Errorf("test client error")
 )
+
+type CertificateTweak func(*x509.Certificate)
 
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
@@ -233,33 +240,83 @@ func testConfigMap() *corev1.ConfigMap {
 	}
 }
 
+// testCACertificateConfigMap creates a ConfigMap with a CA certificate
 func testCACertificateConfigMap() *corev1.ConfigMap {
+	caPEM := generateCertificate("Test CA", []string{"cert-manager-operator"},
+		func(cert *x509.Certificate) {
+			cert.IsCA = true
+			cert.KeyUsage |= x509.KeyUsageCertSign
+		},
+	)
+	return createCertificateConfigMap("ca-cert-test", testIstioCSRNamespace, caPEM)
+}
+
+// testNonCACertificateConfigMap creates a ConfigMap with a non-CA certificate
+func testNonCACertificateConfigMap() *corev1.ConfigMap {
+	certPEM := generateCertificate("Test non-CA", []string{"cert-manager-operator"},
+		func(cert *x509.Certificate) {
+			cert.IsCA = false
+		},
+	)
+	return createCertificateConfigMap("non-ca-cert-test", testIstioCSRNamespace, certPEM)
+}
+
+// testCertificateWithoutCertSignConfigMap creates a ConfigMap with a CA certificate missing CertSign
+func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
+	certPEM := generateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
+		func(cert *x509.Certificate) {
+			cert.IsCA = true
+		},
+	)
+	return createCertificateConfigMap("ca-without-certsign-test", testIstioCSRNamespace, certPEM)
+}
+
+// generateCertificate creates a certificate with specified tweaks
+func generateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
+	// Generate RSA private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate private key: %v", err))
+	}
+
+	template := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName:   commonName,
+			Organization: organization,
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+
+	// Apply tweaks to modify the template
+	tweak(template)
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create certificate: %v", err))
+	}
+
+	// Encode certificate to PEM format
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+
+	return string(certPEM)
+}
+
+func createCertificateConfigMap(name string, namespace string, pemData string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ca-cert-test",
-			Namespace: testIstioCSRNamespace, // Use IstioCSR namespace by default
+			Name:      name,
+			Namespace: namespace,
 		},
 		Data: map[string]string{
-			"ca-cert.pem": `-----BEGIN CERTIFICATE-----
-MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
-ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
-b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL
-MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv
-b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj
-ca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM
-9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw
-IFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6
-VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L
-93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm
-jgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC
-AYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA
-A4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI
-U5PMCCjjmCXPI6T53iHTfIuJruydjsw2hUwsHXdLTcAJZSRpocQWOdKjUC/0P7GJ
-BQFZG+WGYqEWCFAFgqLMBfPLZqUbMYrRKRCQCpOqR4mTjdKKUXXZhOQABGTVGiCz
-sBCJZTVTgJCJD3k4vV9hHAVKzLGRRZcRdm3mLvvWz3YmJa8kqXYDjyTRQWJL5/Iq
-DdSLLWzGbHKzI0PqTyZdEZJwJg8Wh/sZdvBJCf+4KFvxrjSiEpjJkFGCrKgZlnkF
-QXBPHJf7uYR8+o+d3z7RqnSP6yGa
------END CERTIFICATE-----`,
+			"ca-cert.pem": pemData,
 		},
 	}
 }
