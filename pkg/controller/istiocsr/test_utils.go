@@ -235,14 +235,14 @@ func testConfigMap() *corev1.ConfigMap {
 			Namespace: testIstioCSRNamespace,
 		},
 		Data: map[string]string{
-			istiocsrCAKeyName: "testCAData",
+			IstiocsrCAKeyName: "testCAData",
 		},
 	}
 }
 
 // testCACertificateConfigMap creates a ConfigMap with a CA certificate
 func testCACertificateConfigMap() *corev1.ConfigMap {
-	caPEM := generateCertificate("Test CA", []string{"cert-manager-operator"},
+	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = true
 			cert.KeyUsage |= x509.KeyUsageCertSign
@@ -253,7 +253,7 @@ func testCACertificateConfigMap() *corev1.ConfigMap {
 
 // testNonCACertificateConfigMap creates a ConfigMap with a non-CA certificate
 func testNonCACertificateConfigMap() *corev1.ConfigMap {
-	certPEM := generateCertificate("Test non-CA", []string{"cert-manager-operator"},
+	certPEM := GenerateCertificate("Test non-CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = false
 		},
@@ -263,7 +263,7 @@ func testNonCACertificateConfigMap() *corev1.ConfigMap {
 
 // testCertificateWithoutCertSignConfigMap creates a ConfigMap with a CA certificate missing CertSign
 func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
-	certPEM := generateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
+	certPEM := GenerateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = true
 		},
@@ -271,8 +271,8 @@ func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
 	return createCertificateConfigMap("ca-without-certsign-test", testIstioCSRNamespace, certPEM)
 }
 
-// generateCertificate creates a certificate with specified tweaks
-func generateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
+// GenerateCertificate creates a certificate with specified tweaks
+func GenerateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
 	// Generate RSA private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

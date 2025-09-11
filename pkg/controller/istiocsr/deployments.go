@@ -155,7 +155,7 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 		fmt.Sprintf("--issuer-name=%s", istiocsrConfigs.CertManager.IssuerRef.Name),
 		fmt.Sprintf("--issuer-kind=%s", istiocsrConfigs.CertManager.IssuerRef.Kind),
 		fmt.Sprintf("--issuer-group=%s", istiocsrConfigs.CertManager.IssuerRef.Group),
-		fmt.Sprintf("--root-ca-file=%s/%s", caVolumeMountPath, istiocsrCAKeyName),
+		fmt.Sprintf("--root-ca-file=%s/%s", caVolumeMountPath, IstiocsrCAKeyName),
 		fmt.Sprintf("--serving-certificate-dns-names=cert-manager-istio-csr.%s.svc", istiocsr.GetNamespace()),
 		fmt.Sprintf("--serving-certificate-duration=%.0fm", istiocsrConfigs.IstiodTLSConfig.CertificateDuration.Minutes()),
 		fmt.Sprintf("--trust-domain=%s", istiocsrConfigs.IstiodTLSConfig.TrustDomain),
@@ -382,12 +382,12 @@ func updateVolumeWithIssuerCA(deployment *appsv1.Deployment) {
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: istiocsrCAConfigMapName,
+						Name: IstiocsrCAConfigMapName,
 					},
 					Items: []corev1.KeyToPath{
 						{
-							Key:  istiocsrCAKeyName,
-							Path: istiocsrCAKeyName,
+							Key:  IstiocsrCAKeyName,
+							Path: IstiocsrCAKeyName,
 							Mode: &defaultMode,
 						},
 					},
@@ -443,14 +443,14 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 		return err
 	}
 
-	certData := string(secret.Data[istiocsrCAKeyName])
+	certData := string(secret.Data[IstiocsrCAKeyName])
 	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
 }
 
 // createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data
 func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
 	configmapKey := types.NamespacedName{
-		Name:      istiocsrCAConfigMapName,
+		Name:      IstiocsrCAConfigMapName,
 		Namespace: istiocsr.GetNamespace(),
 	}
 	fetched := &corev1.ConfigMap{}
@@ -466,7 +466,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 			Labels:    resourceLabels,
 		},
 		Data: map[string]string{
-			istiocsrCAKeyName: certData,
+			IstiocsrCAKeyName: certData,
 		},
 	}
 
@@ -532,7 +532,7 @@ func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	labels[istiocsrResourceWatchLabelName] = fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
+	labels[IstiocsrResourceWatchLabelName] = fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
 	obj.SetLabels(labels)
 
 	if err := r.UpdateWithRetry(r.ctx, obj); err != nil {
