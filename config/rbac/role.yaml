@@ -212,6 +212,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers
+  - http01proxies
   verbs:
   - create
   - delete
@@ -224,6 +225,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/finalizers
+  - http01proxies/finalizers
   - istiocsrs/finalizers
   verbs:
   - update
@@ -231,6 +233,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/status
+  - http01proxies/status
   - istiocsrs/status
   verbs:
   - get
