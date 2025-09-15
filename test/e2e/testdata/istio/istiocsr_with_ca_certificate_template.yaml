@@ -11,8 +11,9 @@ spec:
         kind: Issuer
         group: cert-manager.io
       istioCACertificate:
-        name: test-ca-certificate
-        key: ca-cert.pem
+        name: {{.ConfigMapName}}{{- if .CustomNamespace}}
+        namespace: {{.CustomNamespace}}{{- end}}
+        key: {{.ConfigMapKey}}
     istiodTLSConfig:
       trustDomain: cluster.local
     istio:
