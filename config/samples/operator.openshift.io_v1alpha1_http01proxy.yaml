@@ -1,0 +1,11 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: HTTP01Proxy
+metadata:
+  name: default
+spec:
+  enabled: true
+  allowedNamespaces:
+    matchLabels:
+      acme-http01-enabled: "true"
+  cleanupTTLSeconds: 600
+
