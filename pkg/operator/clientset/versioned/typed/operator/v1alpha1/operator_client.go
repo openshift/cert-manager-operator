@@ -13,6 +13,7 @@ import (
 type OperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CertManagersGetter
+	HTTP01ProxiesGetter
 	IstioCSRsGetter
 }
 
@@ -23,6 +24,10 @@ type OperatorV1alpha1Client struct {
 
 func (c *OperatorV1alpha1Client) CertManagers() CertManagerInterface {
 	return newCertManagers(c)
+}
+
+func (c *OperatorV1alpha1Client) HTTP01Proxies(namespace string) HTTP01ProxyInterface {
+	return newHTTP01Proxies(c, namespace)
 }
 
 func (c *OperatorV1alpha1Client) IstioCSRs(namespace string) IstioCSRInterface {
