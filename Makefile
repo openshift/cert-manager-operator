@@ -307,11 +307,7 @@ test-e2e-debug-cluster:
  
 .PHONY: lint
 lint: 
-	@if ! command -v golangci-lint &> /dev/null; then \
-		echo "golangci-lint not found. Please install it before running 'make lint'."; \
-		exit 1; \
-	fi
-	$(GOLANGCI_LINT) run --config .golangci.yaml	
+	$(GOLANGCI_LINT) run --config .golangci.yaml
 
 $(GOLANGCI_LINT_BIN):
 	mkdir -p $(BIN_DIR)
