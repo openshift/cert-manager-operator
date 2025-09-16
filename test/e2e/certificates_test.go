@@ -220,8 +220,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("setting cloud credential secret name in subscription object")
-			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			By("setting cloud credential secret name in operator deployment")
+			err = patchOperatorDeploymentWithEnvVars(ctx, loader.KubeClient, map[string]string{
 				"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -317,8 +317,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("setting cloud credential secret name in subscription object")
-			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			By("setting cloud credential secret name in operator deployment")
+			err = patchOperatorDeploymentWithEnvVars(ctx, loader.KubeClient, map[string]string{
 				"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -523,8 +523,8 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Configure cert-manager to use credential, setting this credential secret name in subscription object")
-			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			By("Configure cert-manager to use credential, setting this credential secret name in operator deployment")
+			err = patchOperatorDeploymentWithEnvVars(ctx, loader.KubeClient, map[string]string{
 				"CLOUD_CREDENTIALS_SECRET_NAME": credentialSecret,
 			})
 			Expect(err).NotTo(HaveOccurred())

@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
+
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -42,7 +42,16 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+const (
+	// cert-manager operator deployment details
+	operatorNamespace      = "cert-manager-operator"
+	operatorDeploymentName = "cert-manager-operator-controller-manager"
+)
+
 var (
+	// initialOperatorEnvVars stores the original environment variables
+	// from the cert-manager operator deployment to restore during reset
+	initialOperatorEnvVars []corev1.EnvVar
 
 	// slowPollInterval and highTimeout are generally
 	// used together in poll(s) where slow reaction and
@@ -64,16 +73,59 @@ var (
 //go:embed testdata/*
 var testassets embed.FS
 
-var subscriptionSchema = schema.GroupVersionResource{
-	Group:    "operators.coreos.com",
-	Version:  "v1alpha1",
-	Resource: "subscriptions",
+// Deployment schema for cert-manager operator
+var operatorDeploymentSchema = schema.GroupVersionResource{
+	Group:    "apps",
+	Version:  "v1",
+	Resource: "deployments",
 }
 
 var istiocsrSchema = schema.GroupVersionResource{
 	Group:    "operator.openshift.io",
 	Version:  "v1alpha1",
 	Resource: "istiocsrs",
+}
+
+// storeInitialOperatorEnvVars captures and stores the initial environment variables
+// from the cert-manager operator deployment for later restoration
+func storeInitialOperatorEnvVars(ctx context.Context, clientset *kubernetes.Clientset) error {
+	deployment, err := clientset.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get operator deployment: %w", err)
+	}
+
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("operator deployment has no containers")
+	}
+
+	// Store a deep copy of the initial environment variables
+	container := deployment.Spec.Template.Spec.Containers[0]
+	initialOperatorEnvVars = make([]corev1.EnvVar, len(container.Env))
+	copy(initialOperatorEnvVars, container.Env)
+
+	return nil
+}
+
+// resetOperatorDeploymentEnvVars resets the cert-manager operator deployment
+// environment variables to their initial state
+func resetOperatorDeploymentEnvVars(ctx context.Context, clientset kubernetes.Interface) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deployment, err := clientset.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get operator deployment: %w", err)
+		}
+
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return fmt.Errorf("operator deployment has no containers")
+		}
+
+		// Reset environment variables to initial state
+		deployment.Spec.Template.Spec.Containers[0].Env = make([]corev1.EnvVar, len(initialOperatorEnvVars))
+		copy(deployment.Spec.Template.Spec.Containers[0].Env, initialOperatorEnvVars)
+
+		_, err = clientset.AppsV1().Deployments(operatorNamespace).Update(ctx, deployment, metav1.UpdateOptions{})
+		return err
+	})
 }
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
@@ -167,29 +219,12 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
-
-	// remove any entries present in Subscription spec.config for
-	// user provided injected env vars, etc.
-	// it should put operator back to default deployment
-	subName, err := getCertManagerOperatorSubscription(ctx, loader)
 	if err != nil {
 		return err
 	}
 
-	// to get an empty spec.config
-	configPatch := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"config": nil,
-		},
-	}
-	payload, err := json.Marshal(configPatch)
-	if err != nil {
-		return err
-	}
-
-	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
-	return err
+	// reset cert-manager operator deployment environment variables to initial state
+	return resetOperatorDeploymentEnvVars(ctx, loader.KubeClient)
 }
 
 // addOverrideArgs adds the override args to specific the cert-manager operand. The update process is retried if
@@ -488,59 +523,47 @@ func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName 
 	})
 }
 
-// getCertManagerOperatorSubscription returns the name of the first subscription object by listing
-// them in the cert-manager-operator namespace using a k8s dynamic client
-func getCertManagerOperatorSubscription(ctx context.Context, loader library.DynamicResourceLoader) (string, error) {
-	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-
-	subs, err := subscriptionClient.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	if len(subs.Items) == 0 {
-		return "", fmt.Errorf("no subscription object found in operator namespace")
-	}
-
-	subName, ok := subs.Items[0].Object["metadata"].(map[string]interface{})["name"].(string)
-	if !ok {
-		return "", fmt.Errorf("could not parse metadata.name from the first subscription object found")
-	}
-	return subName, nil
-}
-
-// patchSubscriptionWithEnvVars uses the k8s dynamic client to patch the only Subscription object
-// in the cert-manager-operator namespace, inject specified env vars into spec.config.env
-func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
-	subName, err := getCertManagerOperatorSubscription(ctx, loader)
-	if err != nil {
-		return err
-	}
-
-	env := make([]interface{}, len(envVars))
-	i := 0
-	for k, v := range envVars {
-		env[i] = map[string]interface{}{
-			"name":  k,
-			"value": v,
+// patchOperatorDeploymentWithEnvVars patches the cert-manager operator deployment
+// to inject specified environment variables
+func patchOperatorDeploymentWithEnvVars(ctx context.Context, clientset kubernetes.Interface, envVars map[string]string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deployment, err := clientset.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get operator deployment: %w", err)
 		}
-		i++
-	}
 
-	patch := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"config": map[string]interface{}{
-				"env": env,
-			},
-		},
-	}
-	payload, err := json.Marshal(patch)
-	if err != nil {
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return fmt.Errorf("operator deployment has no containers")
+		}
+
+		// Get current environment variables
+		currentEnv := deployment.Spec.Template.Spec.Containers[0].Env
+
+		// Create a map of existing env vars for easy lookup
+		envMap := make(map[string]corev1.EnvVar)
+		for _, env := range currentEnv {
+			envMap[env.Name] = env
+		}
+
+		// Add or update environment variables
+		for name, value := range envVars {
+			envMap[name] = corev1.EnvVar{
+				Name:  name,
+				Value: value,
+			}
+		}
+
+		// Convert back to slice
+		newEnv := make([]corev1.EnvVar, 0, len(envMap))
+		for _, env := range envMap {
+			newEnv = append(newEnv, env)
+		}
+
+		deployment.Spec.Template.Spec.Containers[0].Env = newEnv
+
+		_, err = clientset.AppsV1().Deployments(operatorNamespace).Update(ctx, deployment, metav1.UpdateOptions{})
 		return err
-	}
-
-	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
-	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
-	return err
+	})
 }
 
 // waitForCertificateReadiness polls the status of the Certificate object and returns non-nil error
