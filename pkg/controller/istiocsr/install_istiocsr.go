@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"k8s.io/klog/v2"
 )
 
 func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
@@ -26,27 +27,27 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 	}
 
 	if err := r.createOrApplyServices(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile service resource")
+		klog.ErrorS(err, "failed to reconcile service resource")
 		return err
 	}
 
 	if err := r.createOrApplyServiceAccounts(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile serviceaccount resource")
+		klog.ErrorS(err, "failed to reconcile serviceaccount resource")
 		return err
 	}
 
 	if err := r.createOrApplyRBACResource(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile rbac resources")
+		klog.ErrorS(err, "failed to reconcile rbac resources")
 		return err
 	}
 
 	if err := r.createOrApplyCertificates(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile certificate resource")
+		klog.ErrorS(err, "failed to reconcile certificate resource")
 		return err
 	}
 
 	if err := r.createOrApplyDeployments(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile deployment resource")
+		klog.ErrorS(err, "failed to reconcile deployment resource")
 		return err
 	}
 
@@ -56,6 +57,6 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		}
 	}
 
-	r.log.V(4).Info("finished reconciliation of istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	klog.V(4).InfoS("finished reconciliation of istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 	return nil
 }
