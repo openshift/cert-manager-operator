@@ -178,9 +178,10 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: Replicas defines the number of replicas to run for
-                      an operand
+                    description: OverrideReplicas defines the number of replicas to
+                      run for an operand
                     format: int32
+                    minimum: 1
                     type: integer
                   overrideResources:
                     description: |-
@@ -419,9 +420,10 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: Replicas defines the number of replicas to run for
-                      an operand
+                    description: OverrideReplicas defines the number of replicas to
+                      run for an operand
                     format: int32
+                    minimum: 1
                     type: integer
                   overrideResources:
                     description: |-
@@ -705,9 +707,10 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: Replicas defines the number of replicas to run for
-                      an operand
+                    description: OverrideReplicas defines the number of replicas to
+                      run for an operand
                     format: int32
+                    minimum: 1
                     type: integer
                   overrideResources:
                     description: |-
