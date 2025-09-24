@@ -273,6 +273,11 @@ func (in *DeploymentConfig) DeepCopyInto(out *DeploymentConfig) {
 		}
 	}
 	in.OverrideResources.DeepCopyInto(&out.OverrideResources)
+	if in.OverrideReplicas != nil {
+		in, out := &in.OverrideReplicas, &out.OverrideReplicas
+		*out = new(int32)
+		**out = **in
+	}
 	in.OverrideScheduling.DeepCopyInto(&out.OverrideScheduling)
 }
 
