@@ -151,10 +151,8 @@ func withDeploymentReplicasOverrideHook(certmanagerinformer certmanagerinformer.
 			return err
 		}
 
-		if overrideReplicas != nil {
-			if deployment.Name == deploymentName {
-				deployment.Spec.Replicas = overrideReplicas
-			}
+		if overrideReplicas != nil && deployment.Name == deploymentName {
+			deployment.Spec.Replicas = ptr.To(*overrideReplicas)
 		}
 		return nil
 	}
