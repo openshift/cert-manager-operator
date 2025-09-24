@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"fmt"
+
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 

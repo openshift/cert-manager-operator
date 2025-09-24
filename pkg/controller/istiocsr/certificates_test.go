@@ -169,7 +169,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
-						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.SignatureAlgorithm = ""
+						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm = ""
 						istiocsr.DeepCopyInto(o)
 					}
 					return nil
@@ -198,7 +198,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
 						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize = 2048
-						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.SignatureAlgorithm = "ECDSA"
+						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm = "ECDSA"
 						istiocsr.DeepCopyInto(o)
 					}
 					return nil

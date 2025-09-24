@@ -18,7 +18,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	"github.com/openshift/cert-manager-operator/test/library"
 )
@@ -50,23 +50,23 @@ func testIstioCSR() *v1alpha1.IstioCSR {
 			Namespace: testIstioCSRNamespace,
 		},
 		Spec: v1alpha1.IstioCSRSpec{
-			IstioCSRConfig: &v1alpha1.IstioCSRConfig{
-				CertManager: &v1alpha1.CertManagerConfig{
+			IstioCSRConfig: v1alpha1.IstioCSRConfig{
+				CertManager: v1alpha1.CertManagerConfig{
 					IssuerRef: certmanagermetav1.ObjectReference{
 						Name:  testResourcesName,
 						Kind:  issuerKind,
 						Group: issuerGroup,
 					},
 				},
-				IstiodTLSConfig: &v1alpha1.IstiodTLSConfig{
+				IstiodTLSConfig: v1alpha1.IstiodTLSConfig{
 					CertificateDuration:    &metav1.Duration{Duration: time.Hour},
 					CertificateRenewBefore: &metav1.Duration{Duration: time.Minute * 30},
 					MaxCertificateDuration: &metav1.Duration{Duration: time.Hour},
 					PrivateKeySize:         DefaultRSAPrivateKeySize,
-					SignatureAlgorithm:     string(DefaultSignatureAlgorithm),
+					PrivateKeyAlgorithm:    string(DefaultPrivateKeyAlgorithm),
 					TrustDomain:            "cluster.local",
 				},
-				Istio: &v1alpha1.IstioConfig{
+				Istio: v1alpha1.IstioConfig{
 					Namespace: testIstiodNamespace,
 					Revisions: []string{"default"},
 				},
