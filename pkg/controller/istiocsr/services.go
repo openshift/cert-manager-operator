@@ -59,7 +59,7 @@ func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabel
 	service := decodeServiceObjBytes(assets.MustAsset(serviceAssetName))
 	updateNamespace(service, istiocsr.GetNamespace())
 	updateResourceLabels(service, resourceLabels)
-	if istiocsr.Spec.IstioCSRConfig != nil && istiocsr.Spec.IstioCSRConfig.Server != nil {
+	if istiocsr.Spec.IstioCSRConfig.Server != nil {
 		updateServicePort(service, istiocsr.Spec.IstioCSRConfig.Server.Port)
 	}
 	return service

@@ -112,12 +112,12 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		certificate.Spec.RenewBefore = &metav1.Duration{Duration: DefaultCertificateRenewBeforeDuration}
 	}
 
-	certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.SignatureAlgorithm)
+	certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm)
 	if certificate.Spec.PrivateKey.Algorithm == "" {
-		certificate.Spec.PrivateKey.Algorithm = DefaultSignatureAlgorithm
+		certificate.Spec.PrivateKey.Algorithm = DefaultPrivateKeyAlgorithm
 	}
 
-	certificate.Spec.PrivateKey.Size = istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize
+	certificate.Spec.PrivateKey.Size = int(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize)
 	if certificate.Spec.PrivateKey.Size == 0 {
 		if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm {
 			certificate.Spec.PrivateKey.Size = DefaultRSAPrivateKeySize
