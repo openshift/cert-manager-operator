@@ -40,7 +40,7 @@ func newGenericDeploymentController(
 		withContainerArgsValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withContainerEnvOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideEnvFor),
 		withContainerEnvValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
-		withContainerReplicasOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideReplicasFor),
+		withDeploymentReplicasOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideReplicasFor),
 		withContainerResourcesOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideResourcesFor),
 		withContainerResourcesValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withPodSchedulingOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideSchedulingFor),
