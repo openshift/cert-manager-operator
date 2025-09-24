@@ -946,11 +946,13 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 }
 
 func TestGetOverrideReplicasFor(t *testing.T) {
+	ptr := func(i int32) *int32 { return &i }
+
 	tests := []struct {
 		name                     string
 		certManagerObj           v1alpha1.CertManager
 		deploymentName           string
-		expectedOverrideReplicas int32
+		expectedOverrideReplicas *int32
 	}{
 		{
 			name: "get override replicas of cert manager controller config",
@@ -960,12 +962,12 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					ControllerConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: 2,
+						OverrideReplicas: ptr(2),
 					},
 				},
 			},
 			deploymentName:           certmanagerControllerDeployment,
-			expectedOverrideReplicas: 2,
+			expectedOverrideReplicas: ptr(2),
 		},
 		{
 			name: "get override scheduling of cert manager webhook config",
@@ -975,12 +977,12 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					WebhookConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: 0,
+						OverrideReplicas: ptr(0),
 					},
 				},
 			},
 			deploymentName:           certmanagerWebhookDeployment,
-			expectedOverrideReplicas: 0,
+			expectedOverrideReplicas: ptr(0),
 		},
 		{
 			name: "get override scheduling of cert manager cainjector config",
@@ -990,12 +992,25 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					CAInjectorConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: 2,
+						OverrideReplicas: ptr(2),
 					},
 				},
 			},
 			deploymentName:           certmanagerCAinjectorDeployment,
-			expectedOverrideReplicas: 2,
+			expectedOverrideReplicas: ptr(2),
+		},
+		{
+			name: "no override replicas configured",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					// no configs set
+				},
+			},
+			deploymentName:           certmanagerControllerDeployment,
+			expectedOverrideReplicas: nil,
 		},
 	}
 

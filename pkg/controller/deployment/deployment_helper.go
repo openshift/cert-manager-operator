@@ -216,10 +216,10 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 
 // getOverrideReplicasFor is a helper function that returns the OverrideReplicas provided
 // in the operator spec based on the deployment name.
-func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (int32, error) {
+func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (*int32, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return 0, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -236,9 +236,9 @@ func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerI
 			return certmanager.Spec.CAInjectorConfig.OverrideReplicas, nil
 		}
 	default:
-		return 0, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
-	return 0, nil
+	return nil, nil
 }
 
 // getOverrideResourcesFor is a helper function that returns the OverrideResources provided
