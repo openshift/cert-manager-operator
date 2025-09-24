@@ -985,7 +985,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 			expectedOverrideReplicas: ptr(0),
 		},
 		{
-			name: "get override scheduling of cert manager cainjector config",
+			name: "get override replicas of cert manager cainjector config",
 			certManagerObj: v1alpha1.CertManager{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
