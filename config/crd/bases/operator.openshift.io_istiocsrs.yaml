@@ -44,7 +44,7 @@ spec:
           IstioCSR describes the configuration and information about the managed istio-csr agent.
           The name must be `default` to make IstioCSR a singleton that is, to allow only one instance of IstioCSR per namespace.
 
-          When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR created namespace.
+          When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR-created namespace.
         properties:
           apiVersion:
             description: |-
@@ -1157,9 +1157,8 @@ spec:
                         type: string
                       certificateRenewBefore:
                         default: 30m
-                        description: |-
-                          certificateRenewBefore is the time before expiry to renew the istio-csr and istiod certificates.
-                          before expiry.
+                        description: certificateRenewBefore is the time before expiry
+                          to renew the istio-csr and istiod certificates.
                         type: string
                       commonName:
                         description: |-

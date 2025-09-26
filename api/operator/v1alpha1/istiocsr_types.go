@@ -38,7 +38,7 @@ type IstioCSRList struct {
 // IstioCSR describes the configuration and information about the managed istio-csr agent.
 // The name must be `default` to make IstioCSR a singleton that is, to allow only one instance of IstioCSR per namespace.
 //
-// When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR created namespace.
+// When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR-created namespace.
 //
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default'",message="istiocsr is a singleton, .metadata.name must be 'default'"
 // +operator-sdk:csv:customresourcedefinitions:displayName="IstioCSR"
@@ -217,7 +217,6 @@ type IstiodTLSConfig struct {
 	CertificateDuration *metav1.Duration `json:"certificateDuration,omitempty"`
 
 	// certificateRenewBefore is the time before expiry to renew the istio-csr and istiod certificates.
-	// before expiry.
 	// +kubebuilder:default:="30m"
 	// +kubebuilder:validation:Optional
 	// +optional
