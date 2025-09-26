@@ -128,7 +128,7 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 	}
 	if (certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm && certificate.Spec.PrivateKey.Size < DefaultRSAPrivateKeySize) ||
 		(certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm && certificate.Spec.PrivateKey.Size != DefaultECDSA256PrivateKeySize && certificate.Spec.PrivateKey.Size != DefaultECDSA384PrivateKeySize) {
-		return fmt.Errorf("certificate parameters PrivateKeySize and SignatureAlgorithm do not comply")
+		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 	}
 
 	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{
