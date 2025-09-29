@@ -205,17 +205,26 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -272,17 +281,26 @@ func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName stri
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -339,17 +357,26 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -410,17 +437,26 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -501,17 +537,26 @@ func addOverrideReplicas(client *certmanoperatorclient.Clientset, deploymentName
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideReplicas: replicas,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideReplicas: replicas,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideReplicas: replicas,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
