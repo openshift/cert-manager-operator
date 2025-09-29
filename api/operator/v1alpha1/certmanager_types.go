@@ -82,7 +82,8 @@ type DeploymentConfig struct {
 	// +optional
 	OverrideResources CertManagerResourceRequirements `json:"overrideResources,omitempty"`
 
-	// OverrideReplicas defines the number of replicas to run for an operand
+	// OverrideReplicas defines the number of replicas for the operand deployment.
+	// If not specified, the default replicas from the deployment manifest will be used.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
 	// +optional
