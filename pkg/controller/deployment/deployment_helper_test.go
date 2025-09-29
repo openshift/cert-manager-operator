@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/ptr"
 )
 
 func TestMergeContainerResources(t *testing.T) {
@@ -946,8 +947,6 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 }
 
 func TestGetOverrideReplicasFor(t *testing.T) {
-	ptr := func(i int32) *int32 { return &i }
-
 	tests := []struct {
 		name                     string
 		certManagerObj           v1alpha1.CertManager
@@ -962,27 +961,27 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					ControllerConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: ptr(2),
+						OverrideReplicas: ptr.To(int32(3)),
 					},
 				},
 			},
 			deploymentName:           certmanagerControllerDeployment,
-			expectedOverrideReplicas: ptr(2),
+			expectedOverrideReplicas: ptr.To(int32(3)),
 		},
 		{
-			name: "get override scheduling of cert manager webhook config",
+			name: "get override replicas of cert manager webhook config",
 			certManagerObj: v1alpha1.CertManager{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					WebhookConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: ptr(0),
+						OverrideReplicas: ptr.To(int32(4)),
 					},
 				},
 			},
 			deploymentName:           certmanagerWebhookDeployment,
-			expectedOverrideReplicas: ptr(0),
+			expectedOverrideReplicas: ptr.To(int32(4)),
 		},
 		{
 			name: "get override replicas of cert manager cainjector config",
@@ -992,22 +991,68 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					CAInjectorConfig: &v1alpha1.DeploymentConfig{
-						OverrideReplicas: ptr(2),
+						OverrideReplicas: ptr.To(int32(2)),
 					},
 				},
 			},
 			deploymentName:           certmanagerCAinjectorDeployment,
-			expectedOverrideReplicas: ptr(2),
+			expectedOverrideReplicas: ptr.To(int32(2)),
 		},
 		{
-			name: "no override replicas configured",
+			name: "get nil override replicas when config exists but replicas field is nil for controller",
 			certManagerObj: v1alpha1.CertManager{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
 				},
 				Spec: v1alpha1.CertManagerSpec{
-					// no configs set
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--v=3"},
+						OverrideReplicas: nil,
+					},
 				},
+			},
+			deploymentName:           certmanagerControllerDeployment,
+			expectedOverrideReplicas: nil,
+		},
+		{
+			name: "get nil override replicas when config exists but replicas field is nil for webhook",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{{Name: "TEST", Value: "value"}},
+						OverrideReplicas: nil,
+					},
+				},
+			},
+			deploymentName:           certmanagerWebhookDeployment,
+			expectedOverrideReplicas: nil,
+		},
+		{
+			name: "get nil override replicas when config exists but replicas field is nil for cainjector",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{"test": "label"},
+						OverrideReplicas: nil,
+					},
+				},
+			},
+			deploymentName:           certmanagerCAinjectorDeployment,
+			expectedOverrideReplicas: nil,
+		},
+		{
+			name: "get nil override replicas when cert manager config is not set",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{},
 			},
 			deploymentName:           certmanagerControllerDeployment,
 			expectedOverrideReplicas: nil,
@@ -1085,7 +1130,12 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 
 			actualOverrideReplicas, err := getOverrideReplicasFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
-			require.Equal(t, tc.expectedOverrideReplicas, actualOverrideReplicas)
+			if tc.expectedOverrideReplicas == nil {
+				assert.Nil(t, actualOverrideReplicas)
+			} else {
+				require.NotNil(t, actualOverrideReplicas)
+				assert.Equal(t, *tc.expectedOverrideReplicas, *actualOverrideReplicas)
+			}
 
 			// Delete the cert manager object using the fake client.
 			err = fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.certManagerObj.Name, metav1.DeleteOptions{})
