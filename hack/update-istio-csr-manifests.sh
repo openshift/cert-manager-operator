@@ -40,10 +40,7 @@ mkdir -p bindata/istio-csr
   kind=$(echo "$item" | ./bin/yq eval '.kind' - | tr '[:upper:]' '[:lower:]')
 
   # skip unused manifests
-  if [[ "${name}-${kind}" == "cert-manager-istio-csr-metrics-service" || \
-        "${name}-${kind}" == "cert-manager-istio-csr-dynamic-istiod-rolebinding" \
-  ]]; then
-    
+  if [[ "${name}-${kind}" == "cert-manager-istio-csr-dynamic-istiod-rolebinding" ]]; then
     continue
   fi
   
