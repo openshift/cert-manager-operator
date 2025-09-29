@@ -6,7 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -243,11 +242,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 	roleName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling role resource", "name", roleName)
 	fetched := &rbacv1.Role{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s role resource already exists", roleName)
 	}
@@ -287,11 +282,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 	roleBindingName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling rolebinding resource", "name", roleBindingName)
 	fetched := &rbacv1.RoleBinding{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
 	}
@@ -333,11 +324,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 	roleName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling role for lease resource", "name", roleName)
 	fetched := &rbacv1.Role{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s role resource already exists", roleName)
 	}
@@ -377,11 +364,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 	roleBindingName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling rolebinding for lease resource", "name", roleBindingName)
 	fetched := &rbacv1.RoleBinding{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
 	}

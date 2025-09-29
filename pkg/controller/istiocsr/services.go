@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
@@ -16,16 +16,26 @@ const (
 )
 
 func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	desired := r.getServiceObject(istiocsr, resourceLabels)
+	service := r.getServiceObject(istiocsr, resourceLabels)
+	if err := r.createOrApplyService(istiocsr, service, istioCSRCreateRecon); err != nil {
+		return err
+	}
+	if err := r.updateGRPCEndpointInStatus(istiocsr, service); err != nil {
+		return FromClientError(err, "failed to update %s/%s istiocsr status with %s service endpoint info", istiocsr.GetNamespace(), istiocsr.GetName(), service.GetName())
+	}
 
-	serviceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+	metricsService := r.getMetricsServiceObject(istiocsr, resourceLabels)
+	if err := r.createOrApplyService(istiocsr, metricsService, istioCSRCreateRecon); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
+	serviceName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
 	r.log.V(4).Info("reconciling service resource", "name", serviceName)
 	fetched := &corev1.Service{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(svc), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s service resource already exists", serviceName)
 	}
@@ -33,9 +43,9 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 	if exist && istioCSRCreateRecon {
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s service resource already exists, maybe from previous installation", serviceName)
 	}
-	if exist && hasObjectChanged(desired, fetched) {
+	if exist && hasObjectChanged(svc, fetched) {
 		r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+		if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
 			return FromClientError(err, "failed to update %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
@@ -43,14 +53,10 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 		r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
 	}
 	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
+		if err := r.Create(r.ctx, svc); err != nil {
 			return FromClientError(err, "failed to create %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s created", serviceName)
-	}
-
-	if err := r.updateGRPCEndpointInStatus(istiocsr, desired); err != nil {
-		return FromClientError(err, "failed to update %s/%s istiocsr status with %s service endpoint info", istiocsr.GetNamespace(), istiocsr.GetName(), serviceName)
 	}
 	return nil
 }
@@ -62,6 +68,13 @@ func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabel
 	if istiocsr.Spec.IstioCSRConfig != nil && istiocsr.Spec.IstioCSRConfig.Server != nil {
 		updateServicePort(service, istiocsr.Spec.IstioCSRConfig.Server.Port)
 	}
+	return service
+}
+
+func (r *Reconciler) getMetricsServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.Service {
+	service := decodeServiceObjBytes(assets.MustAsset(metricsServiceAssetName))
+	updateNamespace(service, istiocsr.GetNamespace())
+	updateResourceLabels(service, resourceLabels)
 	return service
 }
 
