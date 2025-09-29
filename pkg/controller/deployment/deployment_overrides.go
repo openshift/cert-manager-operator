@@ -57,6 +57,11 @@ type overrideEnvFunc func(certmanagerinformer.CertManagerInformer, string) ([]co
 // to cert-manager-operator spec.
 type overrideLabelsFunc func(certmanagerinformer.CertManagerInformer, string) (map[string]string, error)
 
+// overrideReplicasFunc defines a function signature that is accepted by
+// withDeploymentReplicasOverrideHook(). This function returns the override
+// replicas provided to cert-manager-operator spec.
+type overrideReplicasFunc func(certmanagerinformer.CertManagerInformer, string) (*int32, error)
+
 // overrideResourcesFunc defines a function signature that is accepted by
 // withContainerResourcesOverrideHook(). This function returns the override
 // resources provided to cert-manager-operator spec.
@@ -132,6 +137,22 @@ func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.
 			deployment.Spec.Template.Spec.Containers[0].Resources = mergeContainerResources(
 				deployment.Spec.Template.Spec.Containers[0].Resources,
 				overrideResources)
+		}
+		return nil
+	}
+}
+
+// withDeploymentReplicasOverrideHook overrides the deployment replicas with those provided by
+// the overrideReplicasFunc function.
+func withDeploymentReplicasOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideReplicasFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+		overrideReplicas, err := fn(certmanagerinformer, deploymentName)
+		if err != nil {
+			return err
+		}
+
+		if overrideReplicas != nil && deployment.Name == deploymentName {
+			deployment.Spec.Replicas = ptr.To(*overrideReplicas)
 		}
 		return nil
 	}
