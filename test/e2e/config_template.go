@@ -21,7 +21,7 @@ type CertificateConfig struct {
 	DNSName string
 }
 
-// IstioCSRConfig customizes the fields in a job spec
+// IstioCSRGRPCurlJobConfig customizes the fields in a job spec
 type IstioCSRGRPCurlJobConfig struct {
 	CertificateSigningRequest string
 	IstioCSRStatus            v1alpha1.IstioCSRStatus
