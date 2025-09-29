@@ -14,5 +14,10 @@ spec:
       trustDomain: cluster.local
     istio:
       namespace: istio-system
+{{- if .ClusterID}}
     server:
       clusterID: {{.ClusterID}}
+{{- end}}
+{{- if .IstioDataPlaneNamespaceSelector}}
+    istioDataPlaneNamespaceSelector: "{{.IstioDataPlaneNamespaceSelector}}"
+{{- end}}
