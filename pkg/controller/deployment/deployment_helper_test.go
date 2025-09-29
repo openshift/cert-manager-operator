@@ -944,3 +944,161 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOverrideReplicasFor(t *testing.T) {
+	ptr := func(i int32) *int32 { return &i }
+
+	tests := []struct {
+		name                     string
+		certManagerObj           v1alpha1.CertManager
+		deploymentName           string
+		expectedOverrideReplicas *int32
+	}{
+		{
+			name: "get override replicas of cert manager controller config",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideReplicas: ptr(2),
+					},
+				},
+			},
+			deploymentName:           certmanagerControllerDeployment,
+			expectedOverrideReplicas: ptr(2),
+		},
+		{
+			name: "get override scheduling of cert manager webhook config",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideReplicas: ptr(0),
+					},
+				},
+			},
+			deploymentName:           certmanagerWebhookDeployment,
+			expectedOverrideReplicas: ptr(0),
+		},
+		{
+			name: "get override replicas of cert manager cainjector config",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideReplicas: ptr(2),
+					},
+				},
+			},
+			deploymentName:           certmanagerCAinjectorDeployment,
+			expectedOverrideReplicas: ptr(2),
+		},
+		{
+			name: "no override replicas configured",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: v1alpha1.CertManagerSpec{
+					// no configs set
+				},
+			},
+			deploymentName:           certmanagerControllerDeployment,
+			expectedOverrideReplicas: nil,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create channel to know when the watch has started.
+	watcherStarted := make(chan struct{})
+	// Create the fake client.
+	fakeClient := fake.NewSimpleClientset()
+	// A watch reactor for cert manager objects that allows the injection of the watcherStarted channel.
+	fakeClient.PrependWatchReactor("certmanagers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := fakeClient.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(watcherStarted)
+		return true, watch, nil
+	})
+
+	// Create cert manager informers using the fake client.
+	certManagerInformers := certmanoperatorinformer.NewSharedInformerFactory(fakeClient, 0).Operator().V1alpha1().CertManagers()
+
+	// Create a channel to receive the cert manager objects from the informer.
+	certManagerChan := make(chan *v1alpha1.CertManager, 1)
+
+	// Add event handlers to the informer to write the cert manager objects to
+	// the channel received during the add and the delete events.
+	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			certManagerObj := obj.(*v1alpha1.CertManager)
+			t.Logf("cert manager obj added: %s", certManagerObj.Name)
+			certManagerChan <- certManagerObj
+		},
+		DeleteFunc: func(obj interface{}) {
+			certManagerObj := obj.(*v1alpha1.CertManager)
+			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
+			certManagerChan <- certManagerObj
+		},
+	})
+
+	// Make sure informer is running.
+	go certManagerInformers.Informer().Run(ctx.Done())
+
+	// This is not required in tests, but it serves as a proof-of-concept by
+	// ensuring that the informer goroutine have warmed up and called List before
+	// we send any events to it.
+	cache.WaitForCacheSync(ctx.Done(), certManagerInformers.Informer().HasSynced)
+
+	// The fake client doesn't support resource version. Any writes to the client
+	// after the informer's initial LIST and before the informer establishing the
+	// watcher will be missed by the informer. Therefore we wait until the watcher
+	// starts.
+	<-watcherStarted
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create the cert manager object using the fake client.
+			_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, &tc.certManagerObj, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("error injecting cert manager add: %v", err)
+			}
+
+			// Wait for the informer to get the event.
+			select {
+			case <-certManagerChan:
+			case <-time.After(wait.ForeverTestTimeout):
+				t.Fatal("Informer did not get the added cert manager object")
+			}
+
+			actualOverrideReplicas, err := getOverrideReplicasFor(certManagerInformers, tc.deploymentName)
+			assert.NoError(t, err)
+			require.Equal(t, tc.expectedOverrideReplicas, actualOverrideReplicas)
+
+			// Delete the cert manager object using the fake client.
+			err = fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.certManagerObj.Name, metav1.DeleteOptions{})
+			if err != nil {
+				t.Fatalf("error deleting cert manager add: %v", err)
+			}
+
+			// Wait for the informer to get the event.
+			select {
+			case <-certManagerChan:
+			case <-time.After(wait.ForeverTestTimeout):
+				t.Fatal("Informer did not get the deleted cert manager")
+			}
+		})
+	}
+}
