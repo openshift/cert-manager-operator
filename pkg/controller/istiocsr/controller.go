@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/go-logr/logr"
+	klog "k8s.io/klog/v2"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
@@ -48,7 +48,7 @@ type Reconciler struct {
 
 	ctx           context.Context
 	eventRecorder record.EventRecorder
-	log           logr.Logger
+	log           klog.Logger
 	scheme        *runtime.Scheme
 }
 
