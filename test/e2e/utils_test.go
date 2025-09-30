@@ -205,17 +205,26 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideArgs: args,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideArgs = args
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -225,8 +234,8 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 	})
 }
 
-// verifyDeploymentArgs polls every 1 second to check if the deployment args list is updated to contain the
-// passed args. It returns an error if a timeout (5 mins) occurs or an error was encountered while polling
+// verifyDeploymentArgs polls every $fastPollInterval to check if the deployment args list is updated to contain the
+// passed args. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while polling
 // the deployment args list.
 func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
 
@@ -272,17 +281,26 @@ func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName stri
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideEnv: env,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideEnv = env
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -292,8 +310,8 @@ func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName stri
 	})
 }
 
-// verifyDeploymentEnv polls every 1 second to check if the deployment env list is updated to contain the
-// passed env. It returns an error if a timeout (5 mins) occurs or an error was encountered while polling
+// verifyDeploymentEnv polls every $fastPollInterval to check if the deployment env list is updated to contain the
+// passed env. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while polling
 // the deployment env list.
 func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string, env []corev1.EnvVar, added bool) error {
 
@@ -339,17 +357,26 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideResources: res,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideResources = res
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -359,8 +386,8 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 	})
 }
 
-// verifyDeploymentResources polls every 10 seconds to check if the deployment resources is updated to contain
-// the passed resources. It returns an error if a timeout (5 mins) occurs or an error was encountered while
+// verifyDeploymentResources polls every $slowPollInterval to check if the deployment resources is updated to contain
+// the passed resources. It returns an error if a timeout ($highTimeout) occurs or an error was encountered while
 // polling the deployment resources.
 func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
@@ -410,17 +437,26 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 
 		switch deploymentName {
 		case certmanagerControllerDeployment:
-			updatedOperator.Spec.ControllerConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.ControllerConfig = cfg
 		case certmanagerWebhookDeployment:
-			updatedOperator.Spec.WebhookConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.WebhookConfig = cfg
 		case certmanagerCAinjectorDeployment:
-			updatedOperator.Spec.CAInjectorConfig = &v1alpha1.DeploymentConfig{
-				OverrideScheduling: res,
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
 			}
+			cfg.OverrideScheduling = res
+			updatedOperator.Spec.CAInjectorConfig = cfg
 		default:
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
@@ -430,8 +466,8 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 	})
 }
 
-// verifyDeploymentScheduling polls every 10 seconds to check if the deployment scheduling is updated to contain
-// the passed scheduling. It returns an error if a timeout (5 mins) occurs or an error was encountered while
+// verifyDeploymentScheduling polls every $slowPollInterval to check if the deployment scheduling is updated to contain
+// the passed scheduling. It returns an error if a timeout ($highTimeout) occurs or an error was encountered while
 // polling the deployment scheduling.
 func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
@@ -485,6 +521,84 @@ func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName 
 		}
 
 		return true, nil
+	})
+}
+
+// addOverrideReplicas adds the override replicas to the specific cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideReplicas(client *certmanoperatorclient.Clientset, deploymentName string, replicas *int32) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.ControllerConfig = cfg
+		case certmanagerWebhookDeployment:
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.WebhookConfig = cfg
+		case certmanagerCAinjectorDeployment:
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideReplicas = replicas
+			updatedOperator.Spec.CAInjectorConfig = cfg
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// verifyDeploymentReplicas polls every $fastPollInterval to check if the deployment replicas is updated to contain
+// the passed replica count. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while
+// polling the deployment replicas.
+func verifyDeploymentReplicas(k8sclient *kubernetes.Clientset, deploymentName string, expectedReplicas *int32, shouldMatch bool) error {
+
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		// Get expected replica count - defaults to 1 when nil
+		expectedReplicaCount := int32(1)
+		if expectedReplicas != nil {
+			expectedReplicaCount = *expectedReplicas
+		}
+
+		// Get actual replica count from deployment spec - defaults to 1 when nil
+		actualReplicaCount := int32(1)
+		if deployment.Spec.Replicas != nil {
+			actualReplicaCount = *deployment.Spec.Replicas
+		}
+
+		// Check if spec replica count matches expected
+		replicasMatch := actualReplicaCount == expectedReplicaCount
+
+		if shouldMatch {
+			return replicasMatch, nil
+		}
+		return !replicasMatch, nil
 	})
 }
 
@@ -777,10 +891,14 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 		}
 
 		// Deployment exists but not ready
+		desired := int32(1)
+		if deployment.Spec.Replicas != nil {
+			desired = *deployment.Spec.Replicas
+		}
 		return fmt.Errorf("timeout waiting for deployment %s/%s: ready %d/%d, updated %d/%d",
 			namespace, deploymentName,
-			deployment.Status.ReadyReplicas, *deployment.Spec.Replicas,
-			deployment.Status.UpdatedReplicas, *deployment.Spec.Replicas)
+			deployment.Status.ReadyReplicas, desired,
+			deployment.Status.UpdatedReplicas, desired)
 	}
 
 	return err

@@ -14,6 +14,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+)
+
+const (
+	defaultControllerReplicasCount = 1
+	defaultWebhookReplicasCount    = 1
+	defaultCAInjectorReplicasCount = 1
 )
 
 var _ = Describe("Overrides test", Ordered, func() {
@@ -590,6 +597,135 @@ var _ = Describe("Overrides test", Ordered, func() {
 
 			By("Checking if the env are not added to the cert-manager controller deployment")
 			err = verifyDeploymentEnv(k8sClientSet, certmanagerControllerDeployment, env, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager controller override replicas", func() {
+
+		It("should set the replicas for the cert-manager controller deployment", func() {
+
+			By("Adding cert-manager controller override replicas to the cert-manager operator object")
+			replicas := ptr.To(int32(2))
+			err := addOverrideReplicas(certmanageroperatorclient, certmanagerControllerDeployment, replicas)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the replicas to be set on the cert-manager controller deployment")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerControllerDeployment, replicas, true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager controller deployment to be Available")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Removing override replicas for cert-manager controller")
+			err = addOverrideReplicas(certmanageroperatorclient, certmanagerControllerDeployment, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager controller status to become available after removing override")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying cert-manager controller rollback to default replica count")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerControllerDeployment, ptr.To(int32(defaultControllerReplicasCount)), true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager controller deployment to be Available after rollback")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager webhook override replicas", func() {
+
+		It("should set the replicas for the cert-manager webhook deployment", func() {
+
+			By("Adding cert-manager webhook override replicas to the cert-manager operator object")
+			replicas := ptr.To(int32(3))
+			err := addOverrideReplicas(certmanageroperatorclient, certmanagerWebhookDeployment, replicas)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the replicas to be set on the cert-manager webhook deployment")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerWebhookDeployment, replicas, true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager webhook deployment to be Available")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Removing override replicas for cert-manager webhook")
+			err = addOverrideReplicas(certmanageroperatorclient, certmanagerWebhookDeployment, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager webhook status to become available after removing override")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying cert-manager webhook rollback to default replica count")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerWebhookDeployment, ptr.To(int32(defaultWebhookReplicasCount)), true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager webhook deployment to be Available after rollback")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("When adding valid cert-manager cainjector override replicas", func() {
+
+		It("should set the replicas for the cert-manager cainjector deployment", func() {
+
+			By("Adding cert-manager cainjector override replicas to the cert-manager operator object")
+			replicas := ptr.To(int32(2))
+			err := addOverrideReplicas(certmanageroperatorclient, certmanagerCAinjectorDeployment, replicas)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector status to become available")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the replicas to be set on the cert-manager cainjector deployment")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerCAinjectorDeployment, replicas, true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager cainjector deployment to be Available")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Removing override replicas for cert-manager cainjector")
+			err = addOverrideReplicas(certmanageroperatorclient, certmanagerCAinjectorDeployment, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for cert-manager cainjector status to become available after removing override")
+			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
+			))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying cert-manager cainjector rollback to default replica count")
+			err = verifyDeploymentReplicas(k8sClientSet, certmanagerCAinjectorDeployment, ptr.To(int32(defaultCAInjectorReplicasCount)), true)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for the cert-manager cainjector deployment to be Available after rollback")
+			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
