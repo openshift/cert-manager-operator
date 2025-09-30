@@ -132,6 +132,16 @@ type IstioCSRConfig struct {
 	// +optional
 	// +mapType=atomic
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Istio-csr creates a ConfigMap named `istio-ca-root-cert` containing the root CA certificate, which the Istio data plane uses to verify server certificates. Its default behavior is to create and monitor ConfigMaps in all namespaces.
+	// The istioDataPlaneNamespaceSelector restricts the namespaces where the ConfigMap is created by using label selectors, such as maistra.io/member-of=istio-system. This selector is also attached to all desired namespaces that are part of the data plane.
+	// This field can have a maximum of 4096 characters.
+	// +kubebuilder:example:="maistra.io/member-of=istio-system"
+	// +kubebuilder:validation:MinLength:=0
+	// +kubebuilder:validation:MaxLength:=4096
+	// +kubebuilder:validation:Optional
+	// +optional
+	IstioDataPlaneNamespaceSelector string `json:"istioDataPlaneNamespaceSelector,omitempty"`
 }
 
 // CertManagerConfig is for configuring cert-manager specifics.
