@@ -163,13 +163,13 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 			},
 		},
 		{
-			name: "reconciliation of certificate when certificate SignatureAlgorithm not configured",
+			name: "reconciliation of certificate when certificate PrivateKeyAlgorithm not configured",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
-						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.SignatureAlgorithm = ""
+						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm = ""
 						istiocsr.DeepCopyInto(o)
 					}
 					return nil
@@ -191,20 +191,20 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 			},
 		},
 		{
-			name: "reconciliation of certificate when certificate PrivateKeySize and SignatureAlgorithm is misconfigured",
+			name: "reconciliation of certificate when certificate PrivateKeySize and PrivateKeyAlgorithm is misconfigured",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
 						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize = 2048
-						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.SignatureAlgorithm = "ECDSA"
+						istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm = "ECDSA"
 						istiocsr.DeepCopyInto(o)
 					}
 					return nil
 				})
 			},
-			wantErr: `failed to generate certificate resource for creation in istiocsr-test-ns: failed to update certificate resource for istiocsr-test-ns/istiocsr-test-resource istiocsr deployment: certificate parameters PrivateKeySize and SignatureAlgorithm do not comply`,
+			wantErr: `failed to generate certificate resource for creation in istiocsr-test-ns: failed to update certificate resource for istiocsr-test-ns/istiocsr-test-resource istiocsr deployment: certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply`,
 		},
 	}
 

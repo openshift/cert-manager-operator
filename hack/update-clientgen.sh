@@ -28,4 +28,3 @@ for group in ${API_GROUP_VERSIONS};  do
       "${SCRIPT_ROOT}/api"
 done
 
-

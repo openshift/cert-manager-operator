@@ -14,8 +14,8 @@ type IstiodTLSConfigApplyConfiguration struct {
 	CertificateDNSNames    []string     `json:"certificateDNSNames,omitempty"`
 	CertificateDuration    *v1.Duration `json:"certificateDuration,omitempty"`
 	CertificateRenewBefore *v1.Duration `json:"certificateRenewBefore,omitempty"`
-	PrivateKeySize         *int         `json:"privateKeySize,omitempty"`
-	SignatureAlgorithm     *string      `json:"signatureAlgorithm,omitempty"`
+	PrivateKeySize         *int32       `json:"privateKeySize,omitempty"`
+	PrivateKeyAlgorithm    *string      `json:"privateKeyAlgorithm,omitempty"`
 	MaxCertificateDuration *v1.Duration `json:"maxCertificateDuration,omitempty"`
 }
 
@@ -70,16 +70,16 @@ func (b *IstiodTLSConfigApplyConfiguration) WithCertificateRenewBefore(value v1.
 // WithPrivateKeySize sets the PrivateKeySize field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the PrivateKeySize field is set to the value of the last call.
-func (b *IstiodTLSConfigApplyConfiguration) WithPrivateKeySize(value int) *IstiodTLSConfigApplyConfiguration {
+func (b *IstiodTLSConfigApplyConfiguration) WithPrivateKeySize(value int32) *IstiodTLSConfigApplyConfiguration {
 	b.PrivateKeySize = &value
 	return b
 }
 
-// WithSignatureAlgorithm sets the SignatureAlgorithm field in the declarative configuration to the given value
+// WithPrivateKeyAlgorithm sets the PrivateKeyAlgorithm field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SignatureAlgorithm field is set to the value of the last call.
-func (b *IstiodTLSConfigApplyConfiguration) WithSignatureAlgorithm(value string) *IstiodTLSConfigApplyConfiguration {
-	b.SignatureAlgorithm = &value
+// If called multiple times, the PrivateKeyAlgorithm field is set to the value of the last call.
+func (b *IstiodTLSConfigApplyConfiguration) WithPrivateKeyAlgorithm(value string) *IstiodTLSConfigApplyConfiguration {
+	b.PrivateKeyAlgorithm = &value
 	return b
 }
 

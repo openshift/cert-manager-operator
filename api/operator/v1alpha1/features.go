@@ -5,8 +5,6 @@ import (
 )
 
 var (
-	// TechPreview: v1.15
-	//
 	// IstioCSR enables the controller for istiocsr.operator.openshift.io resource,
 	// which extends cert-manager-operator to deploy and manage the istio-csr agent.
 	// OpenShift Service Mesh facilitates the integration and istio-csr is an agent that
@@ -18,5 +16,5 @@ var (
 )
 
 var OperatorFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	FeatureIstioCSR: {Default: false, PreRelease: "TechPreview"},
+	FeatureIstioCSR: {Default: true, PreRelease: featuregate.GA},
 }

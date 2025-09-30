@@ -9,16 +9,17 @@ import (
 // IstioCSRConfigApplyConfiguration represents a declarative configuration of the IstioCSRConfig type for use
 // with apply.
 type IstioCSRConfigApplyConfiguration struct {
-	LogLevel        *int32                               `json:"logLevel,omitempty"`
-	LogFormat       *string                              `json:"logFormat,omitempty"`
-	CertManager     *CertManagerConfigApplyConfiguration `json:"certManager,omitempty"`
-	IstiodTLSConfig *IstiodTLSConfigApplyConfiguration   `json:"istiodTLSConfig,omitempty"`
-	Server          *ServerConfigApplyConfiguration      `json:"server,omitempty"`
-	Istio           *IstioConfigApplyConfiguration       `json:"istio,omitempty"`
-	Resources       *v1.ResourceRequirements             `json:"resources,omitempty"`
-	Affinity        *v1.Affinity                         `json:"affinity,omitempty"`
-	Tolerations     []v1.Toleration                      `json:"tolerations,omitempty"`
-	NodeSelector    map[string]string                    `json:"nodeSelector,omitempty"`
+	LogLevel                        *int32                               `json:"logLevel,omitempty"`
+	LogFormat                       *string                              `json:"logFormat,omitempty"`
+	IstioDataPlaneNamespaceSelector *string                              `json:"istioDataPlaneNamespaceSelector,omitempty"`
+	CertManager                     *CertManagerConfigApplyConfiguration `json:"certManager,omitempty"`
+	IstiodTLSConfig                 *IstiodTLSConfigApplyConfiguration   `json:"istiodTLSConfig,omitempty"`
+	Server                          *ServerConfigApplyConfiguration      `json:"server,omitempty"`
+	Istio                           *IstioConfigApplyConfiguration       `json:"istio,omitempty"`
+	Resources                       *v1.ResourceRequirements             `json:"resources,omitempty"`
+	Affinity                        *v1.Affinity                         `json:"affinity,omitempty"`
+	Tolerations                     []v1.Toleration                      `json:"tolerations,omitempty"`
+	NodeSelector                    map[string]string                    `json:"nodeSelector,omitempty"`
 }
 
 // IstioCSRConfigApplyConfiguration constructs a declarative configuration of the IstioCSRConfig type for use with
@@ -40,6 +41,14 @@ func (b *IstioCSRConfigApplyConfiguration) WithLogLevel(value int32) *IstioCSRCo
 // If called multiple times, the LogFormat field is set to the value of the last call.
 func (b *IstioCSRConfigApplyConfiguration) WithLogFormat(value string) *IstioCSRConfigApplyConfiguration {
 	b.LogFormat = &value
+	return b
+}
+
+// WithIstioDataPlaneNamespaceSelector sets the IstioDataPlaneNamespaceSelector field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IstioDataPlaneNamespaceSelector field is set to the value of the last call.
+func (b *IstioCSRConfigApplyConfiguration) WithIstioDataPlaneNamespaceSelector(value string) *IstioCSRConfigApplyConfiguration {
+	b.IstioDataPlaneNamespaceSelector = &value
 	return b
 }
 

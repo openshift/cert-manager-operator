@@ -17,13 +17,13 @@ import (
 var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 	// features ENABLED by default,
 	// list of features which are expected to be enabled at runtime.
-	true: {},
+	true: {
+		featuregate.Feature("IstioCSR"),
+	},
 
 	// features DISABLED by default,
 	// list of features which are expected to be disabled at runtime.
-	false: {
-		featuregate.Feature("IstioCSR"),
-	},
+	false: {},
 }
 
 func TestFeatureGates(t *testing.T) {

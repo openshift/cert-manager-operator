@@ -117,7 +117,7 @@ const (
 const (
 	DefaultCertificateDuration            = time.Hour
 	DefaultCertificateRenewBeforeDuration = time.Minute * 30
-	DefaultSignatureAlgorithm             = certmanagerv1.RSAKeyAlgorithm
+	DefaultPrivateKeyAlgorithm            = certmanagerv1.RSAKeyAlgorithm
 	DefaultRSAPrivateKeySize              = 2048
 	DefaultECDSA256PrivateKeySize         = 256
 	DefaultECDSA384PrivateKeySize         = 384

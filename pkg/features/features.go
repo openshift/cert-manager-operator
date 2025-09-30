@@ -20,5 +20,8 @@ func init() {
 }
 
 func SetupWithFlagValue(flagValue string) error {
+	if flagValue == "" {
+		return nil // use defined defaults
+	}
 	return mutableFeatureGate.Set(flagValue)
 }

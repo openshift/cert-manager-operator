@@ -30,6 +30,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.CertManagerStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ConditionalStatus"):
 		return &operatorv1alpha1.ConditionalStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ConfigMapReference"):
+		return &operatorv1alpha1.ConfigMapReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ControllerConfig"):
 		return &operatorv1alpha1.ControllerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("DeploymentConfig"):
