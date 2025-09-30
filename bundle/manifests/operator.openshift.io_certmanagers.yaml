@@ -178,8 +178,9 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: OverrideReplicas defines the number of replicas to
-                      run for an operand
+                    description: |-
+                      OverrideReplicas defines the number of replicas for the operand deployment.
+                      If not specified, the default replicas from the deployment manifest will be used.
                     format: int32
                     minimum: 1
                     type: integer
@@ -420,8 +421,9 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: OverrideReplicas defines the number of replicas to
-                      run for an operand
+                    description: |-
+                      OverrideReplicas defines the number of replicas for the operand deployment.
+                      If not specified, the default replicas from the deployment manifest will be used.
                     format: int32
                     minimum: 1
                     type: integer
@@ -707,8 +709,9 @@ spec:
                       type: string
                     type: object
                   overrideReplicas:
-                    description: OverrideReplicas defines the number of replicas to
-                      run for an operand
+                    description: |-
+                      OverrideReplicas defines the number of replicas for the operand deployment.
+                      If not specified, the default replicas from the deployment manifest will be used.
                     format: int32
                     minimum: 1
                     type: integer
