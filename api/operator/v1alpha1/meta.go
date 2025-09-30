@@ -13,24 +13,6 @@ const (
 
 	// Disabled indicates the optional configuration is disabled.
 	Disabled Mode = "Disabled"
-
-	// DisabledAndCleanup indicates the optional configuration is disabled and
-	// created resources are automatically removed.
-	DisabledAndCleanup Mode = "DisabledAndCleanup"
-)
-
-// PurgePolicy defines the policy for purging default resources.
-type PurgePolicy string
-
-const (
-	// PurgeAll indicates to purge all the created resources.
-	PurgeAll PurgePolicy = "PurgeAll"
-
-	// PurgeNone indicates to purge none of the created resources.
-	PurgeNone PurgePolicy = "PurgeNone"
-
-	// PurgeExceptCertificates indicates to purge all the created resources except the Certificate resource.
-	PurgeExceptCertificates PurgePolicy = "PurgeExceptCertificates"
 )
 
 // ConfigMapReference holds the details of a configmap.
