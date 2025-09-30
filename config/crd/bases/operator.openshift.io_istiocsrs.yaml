@@ -1028,6 +1028,26 @@ spec:
                             == 'clusterissuer'
                         - message: group must be 'cert-manager.io'
                           rule: self.group.lowerAscii() == 'cert-manager.io'
+                      istioCACertificate:
+                        description: |-
+                          istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap. If empty, the operator will
+                          automatically extract the CA certificate from the Secret containing the istiod certificate obtained from cert-manager.
+                        properties:
+                          key:
+                            description: key name holding the required data.
+                            type: string
+                          name:
+                            description: name of the ConfigMap.
+                            type: string
+                          namespace:
+                            description: namespace in which the ConfigMap exists.
+                              If empty, ConfigMap will be looked up in the IstioCSR
+                              namespace.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
                     required:
                     - issuerRef
                     type: object
