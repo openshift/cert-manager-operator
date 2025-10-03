@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/core"
 	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
@@ -331,7 +330,7 @@ func updateVolumeWithIssuerCA(deployment *appsv1.Deployment) {
 
 func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, error) {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	namespacedName := types.NamespacedName{
+	key := client.ObjectKey{
 		Name:      istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,
 		Namespace: istiocsr.Spec.IstioCSRConfig.Istio.Namespace,
 	}
@@ -344,8 +343,8 @@ func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, erro
 		object = &certmanagerv1.Issuer{}
 	}
 
-	if err := r.Get(r.ctx, namespacedName, object); err != nil {
-		return nil, fmt.Errorf("failed to fetch %q issuer: %w", namespacedName, err)
+	if err := r.Get(r.ctx, key, object); err != nil {
+		return nil, fmt.Errorf("failed to fetch %q issuer: %w", key, err)
 	}
 	return object, nil
 }
@@ -355,7 +354,7 @@ func (r *Reconciler) createCAConfigMap(istiocsr *v1alpha1.IstioCSR, issuerConfig
 		return nil
 	}
 
-	secretKey := types.NamespacedName{
+	secretKey := client.ObjectKey{
 		Name:      issuerConfig.CA.SecretName,
 		Namespace: istiocsr.Spec.IstioCSRConfig.Istio.Namespace,
 	}
@@ -367,7 +366,7 @@ func (r *Reconciler) createCAConfigMap(istiocsr *v1alpha1.IstioCSR, issuerConfig
 		return err
 	}
 
-	configmapKey := types.NamespacedName{
+	configmapKey := client.ObjectKey{
 		Name:      istiocsrCAConfigMapName,
 		Namespace: istiocsr.GetNamespace(),
 	}

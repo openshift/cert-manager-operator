@@ -5,7 +5,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -60,14 +59,14 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		exist    bool
 		err      error
 		roleName string
-		key      types.NamespacedName
+		key      client.ObjectKey
 		fetched  = &rbacv1.ClusterRole{}
 	)
 	r.log.V(4).Info("reconciling clusterrole resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 	if istiocsr.Status.ClusterRole != "" {
 		roleName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRole)
 		fetched = &rbacv1.ClusterRole{}
-		key = types.NamespacedName{
+		key = client.ObjectKey{
 			Name:      istiocsr.Status.ClusterRole,
 			Namespace: desired.GetNamespace(),
 		}
@@ -153,14 +152,14 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		exist           bool
 		err             error
 		roleBindingName string
-		key             types.NamespacedName
+		key             client.ObjectKey
 		fetched         = &rbacv1.ClusterRoleBinding{}
 	)
 	r.log.V(4).Info("reconciling clusterrolebinding resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 	if istiocsr.Status.ClusterRoleBinding != "" {
 		roleBindingName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRoleBinding)
 		fetched = &rbacv1.ClusterRoleBinding{}
-		key = types.NamespacedName{
+		key = client.ObjectKey{
 			Name:      istiocsr.Status.ClusterRoleBinding,
 			Namespace: desired.GetNamespace(),
 		}
