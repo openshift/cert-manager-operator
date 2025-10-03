@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,7 +73,7 @@ func (c *ctrlClientImpl) Update(
 func (c *ctrlClientImpl) UpdateWithRetry(
 	ctx context.Context, obj client.Object, opts ...client.UpdateOption,
 ) error {
-	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+	key := client.ObjectKeyFromObject(obj)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current := reflect.New(reflect.TypeOf(obj).Elem()).Interface().(client.Object)
 		if err := c.Client.Get(ctx, key, current); err != nil {

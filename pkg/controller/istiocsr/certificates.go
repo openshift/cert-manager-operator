@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -23,11 +23,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	certificateName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling certificate resource", "name", certificateName)
 	fetched := &certmanagerv1.Certificate{}
-	key := types.NamespacedName{
-		Name:      desired.GetName(),
-		Namespace: desired.GetNamespace(),
-	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return FromClientError(err, "failed to check %s certificate resource already exists", certificateName)
 	}

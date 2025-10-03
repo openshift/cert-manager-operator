@@ -48,6 +48,7 @@
 // bindata/istio-csr/cert-manager-istio-csr-deployment.yaml
 // bindata/istio-csr/cert-manager-istio-csr-leases-role.yaml
 // bindata/istio-csr/cert-manager-istio-csr-leases-rolebinding.yaml
+// bindata/istio-csr/cert-manager-istio-csr-metrics-service.yaml
 // bindata/istio-csr/cert-manager-istio-csr-role.yaml
 // bindata/istio-csr/cert-manager-istio-csr-rolebinding.yaml
 // bindata/istio-csr/cert-manager-istio-csr-service.yaml
@@ -2523,6 +2524,43 @@ func istioCsrCertManagerIstioCsrLeasesRolebindingYaml() (*asset, error) {
 	return a, nil
 }
 
+var _istioCsrCertManagerIstioCsrMetricsServiceYaml = []byte(`apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-istio-csr-metrics
+  namespace: cert-manager
+  labels:
+    app: cert-manager-istio-csr-metrics
+    app.kubernetes.io/name: cert-manager-istio-csr
+    app.kubernetes.io/instance: cert-manager-istio-csr
+    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/managed-by: cert-manager-operator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9402
+      targetPort: 9402
+      protocol: TCP
+      name: metrics
+  selector:
+    app: cert-manager-istio-csr
+`)
+
+func istioCsrCertManagerIstioCsrMetricsServiceYamlBytes() ([]byte, error) {
+	return _istioCsrCertManagerIstioCsrMetricsServiceYaml, nil
+}
+
+func istioCsrCertManagerIstioCsrMetricsServiceYaml() (*asset, error) {
+	bytes, err := istioCsrCertManagerIstioCsrMetricsServiceYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "istio-csr/cert-manager-istio-csr-metrics-service.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _istioCsrCertManagerIstioCsrRoleYaml = []byte(`kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -2812,6 +2850,7 @@ var _bindata = map[string]func() (*asset, error){
 	"istio-csr/cert-manager-istio-csr-deployment.yaml":                                                 istioCsrCertManagerIstioCsrDeploymentYaml,
 	"istio-csr/cert-manager-istio-csr-leases-role.yaml":                                                istioCsrCertManagerIstioCsrLeasesRoleYaml,
 	"istio-csr/cert-manager-istio-csr-leases-rolebinding.yaml":                                         istioCsrCertManagerIstioCsrLeasesRolebindingYaml,
+	"istio-csr/cert-manager-istio-csr-metrics-service.yaml":                                            istioCsrCertManagerIstioCsrMetricsServiceYaml,
 	"istio-csr/cert-manager-istio-csr-role.yaml":                                                       istioCsrCertManagerIstioCsrRoleYaml,
 	"istio-csr/cert-manager-istio-csr-rolebinding.yaml":                                                istioCsrCertManagerIstioCsrRolebindingYaml,
 	"istio-csr/cert-manager-istio-csr-service.yaml":                                                    istioCsrCertManagerIstioCsrServiceYaml,
@@ -2921,6 +2960,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"cert-manager-istio-csr-deployment.yaml":         {istioCsrCertManagerIstioCsrDeploymentYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-leases-role.yaml":        {istioCsrCertManagerIstioCsrLeasesRoleYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-leases-rolebinding.yaml": {istioCsrCertManagerIstioCsrLeasesRolebindingYaml, map[string]*bintree{}},
+		"cert-manager-istio-csr-metrics-service.yaml":    {istioCsrCertManagerIstioCsrMetricsServiceYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-role.yaml":               {istioCsrCertManagerIstioCsrRoleYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-rolebinding.yaml":        {istioCsrCertManagerIstioCsrRolebindingYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-service.yaml":            {istioCsrCertManagerIstioCsrServiceYaml, map[string]*bintree{}},
