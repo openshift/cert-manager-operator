@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-allow-ingress-to-webhook
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: webhook
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 10250

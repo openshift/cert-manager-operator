@@ -1006,7 +1006,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					ControllerConfig: &v1alpha1.DeploymentConfig{
-						OverrideArgs: []string{"--v=3"},
+						OverrideArgs:     []string{"--v=3"},
 						OverrideReplicas: nil,
 					},
 				},
@@ -1022,7 +1022,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					WebhookConfig: &v1alpha1.DeploymentConfig{
-						OverrideEnv: []corev1.EnvVar{{Name: "TEST", Value: "value"}},
+						OverrideEnv:      []corev1.EnvVar{{Name: "TEST", Value: "value"}},
 						OverrideReplicas: nil,
 					},
 				},
@@ -1038,7 +1038,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 				},
 				Spec: v1alpha1.CertManagerSpec{
 					CAInjectorConfig: &v1alpha1.DeploymentConfig{
-						OverrideLabels: map[string]string{"test": "label"},
+						OverrideLabels:   map[string]string{"test": "label"},
 						OverrideReplicas: nil,
 					},
 				},

@@ -7,6 +7,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,6 +32,9 @@ func init() {
 		panic(err)
 	}
 	if err := corev1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := networkingv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := rbacv1.AddToScheme(scheme); err != nil {
@@ -246,6 +250,8 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 		objectModified = serviceSpecModified(desired.(*corev1.Service), fetched.(*corev1.Service))
 	case *corev1.ConfigMap:
 		objectModified = configMapDataModified(desired.(*corev1.ConfigMap), fetched.(*corev1.ConfigMap))
+	case *networkingv1.NetworkPolicy:
+		objectModified = networkPolicySpecModified(desired.(*networkingv1.NetworkPolicy), fetched.(*networkingv1.NetworkPolicy))
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
@@ -363,6 +369,10 @@ func rbacRoleBindingSubjectsModified[Object *rbacv1.RoleBinding | *rbacv1.Cluste
 
 func configMapDataModified(desired, fetched *corev1.ConfigMap) bool {
 	return !reflect.DeepEqual(desired.Data, fetched.Data)
+}
+
+func networkPolicySpecModified(desired, fetched *networkingv1.NetworkPolicy) bool {
+	return !reflect.DeepEqual(desired.Spec, fetched.Spec)
 }
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {

@@ -54,6 +54,15 @@
 // bindata/istio-csr/cert-manager-istio-csr-service.yaml
 // bindata/istio-csr/cert-manager-istio-csr-serviceaccount.yaml
 // bindata/istio-csr/istiod-certificate.yaml
+// bindata/networkpolicies/cert-manager-allow-egress-to-api-server-networkpolicy.yaml
+// bindata/networkpolicies/cert-manager-allow-egress-to-dns-networkpolicy.yaml
+// bindata/networkpolicies/cert-manager-allow-ingress-to-metrics-networkpolicy.yaml
+// bindata/networkpolicies/cert-manager-allow-ingress-to-webhook-networkpolicy.yaml
+// bindata/networkpolicies/cert-manager-deny-all-networkpolicy.yaml
+// bindata/networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml
+// bindata/networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml
+// bindata/networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml
+// bindata/networkpolicies/istio-csr-deny-all-networkpolicy.yaml
 package assets
 
 import (
@@ -2750,6 +2759,319 @@ func istioCsrIstiodCertificateYaml() (*asset, error) {
 	return a, nil
 }
 
+var _networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-allow-egress-to-api-server
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 6443
+`)
+
+func networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml, nil
+}
+
+func networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/cert-manager-allow-egress-to-api-server-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-allow-egress-to-dns
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+          podSelector:
+            matchLabels:
+              dns.operator.openshift.io/daemonset-dns: default
+      ports:
+        - protocol: TCP
+          port: 5353
+        - protocol: UDP
+          port: 5353
+  policyTypes:
+    - Egress
+`)
+
+func networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml, nil
+}
+
+func networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/cert-manager-allow-egress-to-dns-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-allow-ingress-to-metrics
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    ports:
+    - protocol: TCP
+      port: 9402
+`)
+
+func networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml, nil
+}
+
+func networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/cert-manager-allow-ingress-to-metrics-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-allow-ingress-to-webhook
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: webhook
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 10250
+`)
+
+func networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml, nil
+}
+
+func networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/cert-manager-allow-ingress-to-webhook-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesCertManagerDenyAllNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-deny-all
+  namespace: cert-manager
+  labels:
+    cert-manager.operator.openshift.io/owned-by: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  policyTypes:
+  - Ingress
+  - Egress
+`)
+
+func networkpoliciesCertManagerDenyAllNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesCertManagerDenyAllNetworkpolicyYaml, nil
+}
+
+func networkpoliciesCertManagerDenyAllNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesCertManagerDenyAllNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/cert-manager-deny-all-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-allow-egress-to-api-server
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 6443
+`)
+
+func networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml, nil
+}
+
+func networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-allow-ingress-to-grpc
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 6443
+`)
+
+func networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml, nil
+}
+
+func networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-allow-ingress-to-metrics
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    ports:
+    - protocol: TCP
+      port: 9402
+`)
+
+func networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml, nil
+}
+
+func networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesIstioCsrDenyAllNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-deny-all
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Ingress
+  - Egress
+`)
+
+func networkpoliciesIstioCsrDenyAllNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesIstioCsrDenyAllNetworkpolicyYaml, nil
+}
+
+func networkpoliciesIstioCsrDenyAllNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesIstioCsrDenyAllNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/istio-csr-deny-all-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
 // could not be loaded.
@@ -2856,6 +3178,15 @@ var _bindata = map[string]func() (*asset, error){
 	"istio-csr/cert-manager-istio-csr-service.yaml":                                                    istioCsrCertManagerIstioCsrServiceYaml,
 	"istio-csr/cert-manager-istio-csr-serviceaccount.yaml":                                             istioCsrCertManagerIstioCsrServiceaccountYaml,
 	"istio-csr/istiod-certificate.yaml":                                                                istioCsrIstiodCertificateYaml,
+	"networkpolicies/cert-manager-allow-egress-to-api-server-networkpolicy.yaml":                       networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml,
+	"networkpolicies/cert-manager-allow-egress-to-dns-networkpolicy.yaml":                              networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml,
+	"networkpolicies/cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":                         networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml,
+	"networkpolicies/cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":                         networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml,
+	"networkpolicies/cert-manager-deny-all-networkpolicy.yaml":                                         networkpoliciesCertManagerDenyAllNetworkpolicyYaml,
+	"networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml":                          networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml,
+	"networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":                               networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml,
+	"networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":                            networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml,
+	"networkpolicies/istio-csr-deny-all-networkpolicy.yaml":                                            networkpoliciesIstioCsrDenyAllNetworkpolicyYaml,
 }
 
 // AssetDir returns the file names below a certain
@@ -2966,6 +3297,17 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"cert-manager-istio-csr-service.yaml":            {istioCsrCertManagerIstioCsrServiceYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-serviceaccount.yaml":     {istioCsrCertManagerIstioCsrServiceaccountYaml, map[string]*bintree{}},
 		"istiod-certificate.yaml":                        {istioCsrIstiodCertificateYaml, map[string]*bintree{}},
+	}},
+	"networkpolicies": {nil, map[string]*bintree{
+		"cert-manager-allow-egress-to-api-server-networkpolicy.yaml": {networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-egress-to-dns-networkpolicy.yaml":        {networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-deny-all-networkpolicy.yaml":                   {networkpoliciesCertManagerDenyAllNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-egress-to-api-server-networkpolicy.yaml":    {networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":         {networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":      {networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-deny-all-networkpolicy.yaml":                      {networkpoliciesIstioCsrDenyAllNetworkpolicyYaml, map[string]*bintree{}},
 	}},
 }}
 

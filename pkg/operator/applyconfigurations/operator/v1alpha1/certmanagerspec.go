@@ -15,6 +15,8 @@ type CertManagerSpecApplyConfiguration struct {
 	ControllerConfig                  *DeploymentConfigApplyConfiguration `json:"controllerConfig,omitempty"`
 	WebhookConfig                     *DeploymentConfigApplyConfiguration `json:"webhookConfig,omitempty"`
 	CAInjectorConfig                  *DeploymentConfigApplyConfiguration `json:"cainjectorConfig,omitempty"`
+	DefaultNetworkPolicy              *string                             `json:"defaultNetworkPolicy,omitempty"`
+	NetworkPolicies                   []NetworkPolicyApplyConfiguration   `json:"networkPolicies,omitempty"`
 }
 
 // CertManagerSpecApplyConfiguration constructs a declarative configuration of the CertManagerSpec type for use with
@@ -84,5 +86,26 @@ func (b *CertManagerSpecApplyConfiguration) WithWebhookConfig(value *DeploymentC
 // If called multiple times, the CAInjectorConfig field is set to the value of the last call.
 func (b *CertManagerSpecApplyConfiguration) WithCAInjectorConfig(value *DeploymentConfigApplyConfiguration) *CertManagerSpecApplyConfiguration {
 	b.CAInjectorConfig = value
+	return b
+}
+
+// WithDefaultNetworkPolicy sets the DefaultNetworkPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DefaultNetworkPolicy field is set to the value of the last call.
+func (b *CertManagerSpecApplyConfiguration) WithDefaultNetworkPolicy(value string) *CertManagerSpecApplyConfiguration {
+	b.DefaultNetworkPolicy = &value
+	return b
+}
+
+// WithNetworkPolicies adds the given value to the NetworkPolicies field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the NetworkPolicies field.
+func (b *CertManagerSpecApplyConfiguration) WithNetworkPolicies(values ...*NetworkPolicyApplyConfiguration) *CertManagerSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithNetworkPolicies")
+		}
+		b.NetworkPolicies = append(b.NetworkPolicies, *values[i])
+	}
 	return b
 }
