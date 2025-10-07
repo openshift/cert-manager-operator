@@ -368,16 +368,16 @@ func configMapDataModified(desired, fetched *corev1.ConfigMap) bool {
 }
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
-	if istiocsr.Spec.IstioCSRConfig == nil {
+	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig).IsZero() {
 		return fmt.Errorf("spec.istioCSRConfig config cannot be empty")
 	}
-	if istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig == nil {
+	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig).IsZero() {
 		return fmt.Errorf("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
 	}
-	if istiocsr.Spec.IstioCSRConfig.Istio == nil {
+	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Istio).IsZero() {
 		return fmt.Errorf("spec.istioCSRConfig.istio config cannot be empty")
 	}
-	if istiocsr.Spec.IstioCSRConfig.CertManager == nil {
+	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.CertManager).IsZero() {
 		return fmt.Errorf("spec.istioCSRConfig.certManager config cannot be empty")
 	}
 	return nil
