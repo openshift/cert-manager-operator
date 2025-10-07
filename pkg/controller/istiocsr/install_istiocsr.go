@@ -23,6 +23,11 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		resourceLabels[k] = v
 	}
 
+	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+		r.log.Error(err, "failed to reconcile network policy resources")
+		return err
+	}
+
 	if err := r.createOrApplyServices(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile service resource")
 		return err

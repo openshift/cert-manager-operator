@@ -123,3 +123,10 @@ const (
 	DefaultECDSA256PrivateKeySize         = 256
 	DefaultECDSA384PrivateKeySize         = 384
 )
+
+var istioCSRNetworkPolicyAssets = []string{
+	"networkpolicies/istio-csr-deny-all-networkpolicy.yaml",
+	"networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml",
+	"networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml",
+	"networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml",
+}

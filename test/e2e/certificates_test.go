@@ -74,6 +74,10 @@ var _ = Describe("ACME Certificate", Ordered, func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
+		By("setting defaultNetworkPolicy to true")
+		err = resetCertManagerNetworkPolicyState(ctx, certmanageroperatorclient, loader)
+		Expect(err).NotTo(HaveOccurred())
+
 		DeferCleanup(func() {
 			By("resetting cert-manager state")
 			err = resetCertManagerState(ctx, certmanageroperatorclient, loader)
