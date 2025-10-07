@@ -780,9 +780,6 @@ func TestUpdateArgList(t *testing.T) {
 		},
 		{
 			name: "istioDataPlaneNamespaceSelector not provided should not include argument",
-			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
-				// IstioDataPlaneNamespaceSelector is empty, so argument should not be present
-			},
 			notExpectedArgs: []string{
 				"configmap-namespace-selector",
 			},
