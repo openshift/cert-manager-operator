@@ -96,7 +96,7 @@ spec:
             - name: CLOUD_CREDENTIALS_SECRET_NAME
             - name: UNSUPPORTED_ADDON_FEATURES
           image: controller:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           name: cert-manager-operator
           securityContext:
             allowPrivilegeEscalation: false
