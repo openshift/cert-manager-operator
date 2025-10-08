@@ -135,13 +135,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
 					return true
 				}
-				value := objLabels[istiocsrResourceWatchLabelName]
+				value := objLabels[IstiocsrResourceWatchLabelName]
 				if value == "" {
 					return false
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", istiocsrResourceWatchLabelName, value, obj.GetName())
+					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}
 				namespace = key[0]
@@ -172,7 +172,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// predicate function to filter events for objects which controller is interested in, but
 	// not managed or created by controller.
 	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[istiocsrResourceWatchLabelName] != ""
+		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
 	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
