@@ -111,6 +111,7 @@ const (
 	roleBindingAssetName        = "istio-csr/cert-manager-istio-csr-rolebinding.yaml"
 	roleBindingLeasesAssetName  = "istio-csr/cert-manager-istio-csr-leases-rolebinding.yaml"
 	serviceAssetName            = "istio-csr/cert-manager-istio-csr-service.yaml"
+	metricsServiceAssetName     = "istio-csr/cert-manager-istio-csr-metrics-service.yaml"
 	serviceAccountAssetName     = "istio-csr/cert-manager-istio-csr-serviceaccount.yaml"
 )
 
