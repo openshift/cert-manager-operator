@@ -65,21 +65,21 @@ const (
 	// created in other namespaces by the controller.
 	istiocsrNamespaceMappingLabelName = "cert-manager-istio-csr-namespace"
 
-	// istiocsrResourceWatchLabelName is the label name for identifying the resources of interest for the
+	// IstiocsrResourceWatchLabelName is the label name for identifying the resources of interest for the
 	// controller but does not create or manage the resource.
-	istiocsrResourceWatchLabelName = "istiocsr.openshift.operator.io/watched-by"
+	IstiocsrResourceWatchLabelName = "istiocsr.openshift.operator.io/watched-by"
 
 	// istiocsrResourceWatchLabelName is the value format assigned to istiocsrResourceWatchLabelName label, which
 	// will be of the form <istiocsr_namespace>/<istiocsr_instance-Name>
 	istiocsrResourceWatchLabelValueFmt = "%s_%s"
 
-	// istiocsrCAConfigMapName is the name o the configmap which is mounted in istiocsr container, containing the
+	// IstiocsrCAConfigMapName is the name o the configmap which is mounted in istiocsr container, containing the
 	// CA certificate configured in the secret referenced in the issuer.
-	istiocsrCAConfigMapName = istiocsrCommonName + "-issuer-ca-copy"
+	IstiocsrCAConfigMapName = istiocsrCommonName + "-issuer-ca-copy"
 
-	// istiocsrCAKeyName is the key name holding the CA certificate in the issuer secret or the controller
+	// IstiocsrCAKeyName is the key name holding the CA certificate in the issuer secret or the controller
 	// CA configmap.
-	istiocsrCAKeyName = "ca.crt"
+	IstiocsrCAKeyName = "ca.crt"
 )
 
 var (
