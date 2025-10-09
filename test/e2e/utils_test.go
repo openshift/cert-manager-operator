@@ -904,6 +904,49 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 	return err
 }
 
+// pollTillConfigMapAvailable poll the configmap object and returns non-nil error
+// once the configmap is available, otherwise should return a time-out error
+func pollTillConfigMapAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace, configMapName string) error {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	})
+
+	return err
+}
+
+// pollTillConfigMapRemains poll to ensure a configmap does NOT exist for a specified duration
+// Returns nil if the configmap consistently does not exist, error if it gets created
+func pollTillConfigMapRemains(ctx context.Context, clientset *kubernetes.Clientset, namespace, configMapName string, duration time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, duration, true, func(context.Context) (bool, error) {
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				// ConfigMap doesn't exist, which is what we want
+				return false, nil // Continue polling to ensure it stays absent
+			}
+			return false, err // Some other error occurred
+		}
+
+		// ConfigMap exists when it shouldn't
+		return false, fmt.Errorf("configmap %s/%s should not exist but was found", namespace, configMapName)
+	})
+
+	// If we timed out without the ConfigMap being created, that's success
+	if wait.Interrupted(err) {
+		return nil
+	}
+
+	return err
+}
+
 // VerifyContainerResources verifies that a container in a pod has resources matching the expected configuration.
 // If containerName is empty, it verifies the first container.
 func VerifyContainerResources(pod corev1.Pod, containerName string, expectedResources corev1.ResourceRequirements) error {

@@ -168,6 +168,11 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 		fmt.Sprintf("--istiod-cert-istio-revisions=%s", strings.Join(istiocsrConfigs.Istio.Revisions, ",")),
 	}
 
+	// Add configmap-namespace-selector argument if configured
+	if istiocsrConfigs.IstioDataPlaneNamespaceSelector != "" {
+		args = append(args, fmt.Sprintf("--configmap-namespace-selector=%s", istiocsrConfigs.IstioDataPlaneNamespaceSelector))
+	}
+
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == istiocsrContainerName {
 			deployment.Spec.Template.Spec.Containers[i].Args = args

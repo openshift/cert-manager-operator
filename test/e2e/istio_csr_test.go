@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"path/filepath"
 
@@ -35,7 +36,8 @@ type LogEntry struct {
 }
 
 type IstioCSRConfig struct {
-	ClusterID string
+	ClusterID                       string
+	IstioDataPlaneNamespaceSelector string
 }
 
 var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
@@ -98,6 +100,27 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
+		By("creating cluster issuer")
+		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
+		})
+
+		By("issuing TLS certificate")
+		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		})
+
+		err = waitForCertificateReadiness(ctx, "my-selfsigned-ca", ns.Name)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("creating istio-ca issuer")
+		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
+		})
+
 		DeferCleanup(func() {
 			By("deleting cluster-scoped RBAC resources of the istio-csr agent")
 			clientset.RbacV1().ClusterRoles().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
@@ -114,21 +137,6 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 	Context("grpc call istio.v1.auth.IstioCertificateService/CreateCertificate to istio-csr agent", func() {
 		BeforeEach(func() {
-			By("creating cluster issuer")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
-			DeferCleanup(func() {
-				loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
-			})
-
-			By("issuing TLS certificate")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
-			DeferCleanup(func() {
-				loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
-			})
-
-			err := waitForCertificateReadiness(ctx, "my-selfsigned-ca", ns.Name)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("fetching proto file from api")
 			protoContent, err := library.FetchFileFromURL(istioCSRProtoURL)
 			Expect(err).Should(BeNil())
@@ -149,12 +157,6 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 			DeferCleanup(func() {
 				clientset.CoreV1().ConfigMaps(ns.Name).Delete(ctx, configMap.Name, metav1.DeleteOptions{})
 			})
-
-			By("creating istio-ca issuer")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
-			DeferCleanup(func() {
-				loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
-			})
 		})
 
 		It("should return cert-chain as response", func() {
@@ -162,8 +164,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 			grpcAppName := "grpcurl-istio-csr"
 
 			By("creating istiocsr.operator.openshift.io resource")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
-			defer loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_csr.yaml"), ns.Name)
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
 
@@ -231,12 +237,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				IstioCSRConfig{
 					ClusterID: clusterName,
 				},
-			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				IstioCSRConfig{
 					ClusterID: clusterName,
 				},
-			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
 
@@ -299,12 +305,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				IstioCSRConfig{
 					ClusterID: clusterName,
 				},
-			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				IstioCSRConfig{
 					ClusterID: clusterName,
 				},
-			), filepath.Join("testdata", "istio", "istio_csr_custom_cluster_id.yaml"), ns.Name)
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
 
@@ -346,6 +352,147 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				}
 			}
 			Expect(succeededPodName).Should(BeEmpty(), "Job should have failed due to wrong clusterID")
+		})
+	})
+
+	Context("istioDataPlaneNamespaceSelector functionality", func() {
+		var testNamespaces []*corev1.Namespace
+
+		BeforeEach(func() {
+			By("creating test namespaces with different labels")
+			namespacesToCreate := []*corev1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "ca-injection-enabled-",
+						Labels: map[string]string{
+							"cert-manager.io/test-ca-injection": "enabled", // matches the IstioCSR resource
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "ca-injection-disabled-",
+						Labels: map[string]string{
+							"cert-manager.io/test-ca-injection": "disabled", // doesn't match the IstioCSR resource
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "ca-injection-unlabeled-",
+						// no labels
+					},
+				},
+			}
+
+			for _, ns := range namespacesToCreate {
+				createdNs, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+				Expect(err).Should(BeNil())
+				testNamespaces = append(testNamespaces, createdNs)
+			}
+
+			DeferCleanup(func() {
+				for _, testNs := range testNamespaces {
+					err := clientset.CoreV1().Namespaces().Delete(ctx, testNs.Name, metav1.DeleteOptions{})
+					Expect(err).Should(BeNil())
+				}
+				testNamespaces = []*corev1.Namespace{}
+			})
+		})
+
+		It("should only create istio-ca-root-cert ConfigMap in namespaces matching the selector", func() {
+			By("creating istiocsr.operator.openshift.io resource with istioDataPlaneNamespaceSelector")
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{
+					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
+				},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+
+			By("waiting for IstioCSR to be ready and deployment to be created")
+			istioCSRStatus := waitForIstioCSRReady(ns)
+			log.Printf("IstioCSR status: %+v", istioCSRStatus)
+
+			By("verifying ConfigMap creation based on namespace selector")
+			var matchingNs *corev1.Namespace
+			for _, testNs := range testNamespaces {
+				labelValue, hasLabel := testNs.Labels["cert-manager.io/test-ca-injection"]
+
+				if hasLabel && labelValue == "enabled" {
+					// This namespace should have the ConfigMap
+					matchingNs = testNs
+					err := pollTillConfigMapAvailable(ctx, clientset, testNs.Name, "istio-ca-root-cert")
+					Expect(err).Should(BeNil(), fmt.Sprintf("ConfigMap should exist in namespace %s (enabled)", testNs.Name))
+				} else {
+					// This namespace should NOT have the ConfigMap
+					var reason string
+					if !hasLabel {
+						reason = "unlabeled"
+					} else {
+						reason = fmt.Sprintf("with %s label", labelValue)
+					}
+
+					err := pollTillConfigMapRemains(ctx, clientset, testNs.Name, "istio-ca-root-cert", lowTimeout)
+					Expect(err).Should(BeNil(), fmt.Sprintf("ConfigMap should NOT exist in namespace %s (%s)", testNs.Name, reason))
+				}
+			}
+			Expect(matchingNs).NotTo(BeNil(), "Should have found at least one namespace with enabled label")
+
+			By("verifying the ConfigMap contains the correct CA certificate data")
+			cm, err := clientset.CoreV1().ConfigMaps(matchingNs.Name).Get(ctx, "istio-ca-root-cert", metav1.GetOptions{})
+			Expect(err).Should(BeNil())
+			Expect(cm.Data).Should(HaveKey("root-cert.pem"))
+			Expect(cm.Data["root-cert.pem"]).ShouldNot(BeEmpty())
+
+			By("verifying ConfigMap exists in exactly 1 namespace (the one with matching label)")
+			configMapCount := 0
+			for _, testNs := range testNamespaces {
+				_, err := clientset.CoreV1().ConfigMaps(testNs.Name).Get(ctx, "istio-ca-root-cert", metav1.GetOptions{})
+				if err == nil {
+					configMapCount++
+				}
+			}
+			Expect(configMapCount).Should(Equal(1), "ConfigMap should exist in exactly 1 namespace (the one with enabled label)")
+		})
+
+		It("should create istio-ca-root-cert ConfigMap in all namespaces when istioDataPlaneNamespaceSelector is not set", func() {
+			By("creating istiocsr.operator.openshift.io resource without istioDataPlaneNamespaceSelector")
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+				IstioCSRConfig{},
+			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+
+			By("waiting for IstioCSR to be ready and deployment to be created")
+			istioCSRStatus := waitForIstioCSRReady(ns)
+			log.Printf("IstioCSR status: %+v", istioCSRStatus)
+
+			By("waiting for istio-ca-root-cert ConfigMap to be created in all test namespaces")
+			for _, testNs := range testNamespaces {
+				err := pollTillConfigMapAvailable(ctx, clientset, testNs.Name, "istio-ca-root-cert")
+				Expect(err).Should(BeNil(), fmt.Sprintf("ConfigMap should be created in namespace %s", testNs.Name))
+
+				By(fmt.Sprintf("verifying ConfigMap content in namespace %s", testNs.Name))
+				cm, err := clientset.CoreV1().ConfigMaps(testNs.Name).Get(ctx, "istio-ca-root-cert", metav1.GetOptions{})
+				Expect(err).Should(BeNil())
+				Expect(cm.Data).Should(HaveKey("root-cert.pem"))
+				Expect(cm.Data["root-cert.pem"]).ShouldNot(BeEmpty())
+			}
+
+			By("verifying ConfigMap exists in all 3 test namespaces when no selector is used")
+			configMapCount := 0
+			for _, testNs := range testNamespaces {
+				_, err := clientset.CoreV1().ConfigMaps(testNs.Name).Get(ctx, "istio-ca-root-cert", metav1.GetOptions{})
+				if err == nil {
+					configMapCount++
+				}
+			}
+			Expect(configMapCount).Should(Equal(3), "ConfigMap should exist in all 3 test namespaces when no selector is configured")
 		})
 	})
 })
