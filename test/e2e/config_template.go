@@ -21,7 +21,7 @@ type CertificateConfig struct {
 	DNSName string
 }
 
-// IstioCSRConfig customizes the fields in a job spec
+// IstioCSRGRPCurlJobConfig customizes the fields in a job spec
 type IstioCSRGRPCurlJobConfig struct {
 	CertificateSigningRequest string
 	IstioCSRStatus            v1alpha1.IstioCSRStatus
@@ -31,7 +31,7 @@ type IstioCSRGRPCurlJobConfig struct {
 
 // replaceWithTemplate puts field values from a template struct
 func replaceWithTemplate(sourceFileContents string, templatedValues any) ([]byte, error) {
-	tmpl, err := template.New("template").Parse(sourceFileContents)
+	tmpl, err := template.New("template").Option("missingkey=error").Parse(sourceFileContents)
 	if err != nil {
 		return nil, err
 	}
