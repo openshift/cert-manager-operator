@@ -516,31 +516,6 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 			ConfigMapKey    string
 		}
 
-		BeforeEach(func() {
-			By("creating cluster issuer")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
-
-			By("issuing TLS certificate")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
-
-			err := waitForCertificateReadiness(ctx, "my-selfsigned-ca", ns.Name)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating istio-ca issuer")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
-		})
-
-		AfterEach(func() {
-			By("cleaning up cluster issuer")
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), ns.Name)
-
-			By("cleaning up TLS certificate")
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
-
-			By("cleaning up istio-ca issuer")
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), ns.Name)
-		})
-
 		// Helper functions for CA ConfigMap verification
 		verifyConfigMapHasWatchLabel := func(namespace, configMapName string) {
 			By(fmt.Sprintf("Verifying watch label on ConfigMap %s in namespace %s", configMapName, namespace))
