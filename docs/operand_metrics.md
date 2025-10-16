@@ -6,7 +6,7 @@ You can configure OpenShift Monitoring to collect metrics from cert-manager oper
 
 ### Enable User Workload Monitoring
 
-Cluster administrators can enable monitoring for user-defined projects by setting the `enableUserWorkload: true` field in the cluster monitoring ConfigMap object. For more details, Please look at the detailed documentation to [Configuring user workload monitoring](https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/monitoring/configuring-user-workload-monitoring).
+Cluster administrators can enable monitoring for user-defined projects by setting the `enableUserWorkload: true` field in the cluster monitoring ConfigMap object. For more details, Please look at the detailed documentation to [Configuring user workload monitoring](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/monitoring/configuring-user-workload-monitoring).
 
 1. Create or edit the ConfigMap `cluster-monitoring-config` in namespace `openshift-monitoring`.
 
@@ -98,7 +98,7 @@ You can select and view these Prometheus Targets via the OpenShift web console, 
 
 ### Query Metrics
 
-As a cluster administrator or as a user with view permissions for all projects, You can access these metrics using the command line or via the OpenShift web console. For more details, Please look at the detailed documentation to [Accessing metrics](https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/monitoring/accessing-metrics).
+As a cluster administrator or as a user with view permissions for all projects, You can access these metrics using the command line or via the OpenShift web console. For more details, Please look at the detailed documentation to [Accessing metrics](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/monitoring/accessing-metrics).
 
 1. Retrieve a bearer token. You can use the following command to get a token for a specific service account.
 ```
