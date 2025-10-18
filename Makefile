@@ -163,7 +163,7 @@ verify-scripts:
 .PHONY: verify-scripts
 
 .PHONY: verify
-verify: verify-scripts
+verify: verify-scripts fmt
 
 .PHONY: verify-with-container
 verify-with-container:
@@ -252,7 +252,7 @@ bundle-image-push: check-tools
 
 .PHONY: index-image-build
 index-image-build: check-tools opm
-	$(OPM) index add -c $(CONTAINER_ENGINE) --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
+	$(OPM) index add --container-tool $(CONTAINER_ENGINE) --mode semver --tag $(INDEX_IMG) --bundles $(BUNDLE_IMG)
 
 .PHONY: index-image-push
 index-image-push: check-tools
