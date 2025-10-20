@@ -369,10 +369,23 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 		issuerConfig = obj.(*certmanagerv1.Issuer).Spec.IssuerConfig
 	}
 
+	shouldUpdateVolume := false
+
 	if issuerConfig.CA != nil && issuerConfig.CA.SecretName != "" {
 		if err := r.createCAConfigMapFromIssuerSecret(istiocsr, issuerConfig, resourceLabels); err != nil {
 			return FromClientError(err, "failed to create CA ConfigMap")
 		}
+		shouldUpdateVolume = true
+	}
+
+	if issuerConfig.CA == nil {
+		if err := r.createCAConfigMapFromIstiodCertificate(istiocsr, resourceLabels); err != nil {
+			return FromClientError(err, "failed to create CA ConfigMap")
+		}
+		shouldUpdateVolume = true
+	}
+
+	if shouldUpdateVolume {
 		updateVolumeWithIssuerCA(deployment)
 	}
 
@@ -471,9 +484,31 @@ func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, erro
 	return object, nil
 }
 
+func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+	istiodCertificate, err := r.getCertificateObject(istiocsr, resourceLabels)
+	if err != nil {
+		return FromClientError(err, "failed to fetch istiod certificate")
+	}
+
+	secretKey := client.ObjectKey{
+		Name:      istiodCertificate.Spec.SecretName,
+		Namespace: istiodCertificate.GetNamespace(),
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(r.ctx, secretKey, secret); err != nil {
+		return fmt.Errorf("failed to fetch secret in issuer: %w", err)
+	}
+	if err := r.updateWatchLabel(secret, istiocsr); err != nil {
+		return err
+	}
+
+	certData := string(secret.Data[IstiocsrCAKeyName])
+	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
+}
+
 func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
-	if issuerConfig.CA == nil || issuerConfig.CA.SecretName == "" {
-		return nil
+	if issuerConfig.CA.SecretName == "" {
+		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
 
 	secretKey := client.ObjectKey{
@@ -494,6 +529,10 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 
 // createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data
 func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
+	if certData == "" {
+		return fmt.Errorf("failed to find CA certificate")
+	}
+
 	configmapKey := client.ObjectKey{
 		Name:      IstiocsrCAConfigMapName,
 		Namespace: istiocsr.GetNamespace(),
