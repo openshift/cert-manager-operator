@@ -31,12 +31,12 @@ type ctrlClient interface {
 }
 
 func NewClient(m manager.Manager) (ctrlClient, error) {
-	c, err := BuildCustomClient(m)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build custom client: %w", err)
-	}
+	// Use the manager's client directly instead of creating a custom client.
+	// The manager's client uses the manager's cache, which ensures the reconciler
+	// reads from the same cache that the controller's watches use, preventing
+	// cache mismatch issues.
 	return &ctrlClientImpl{
-		Client: c,
+		Client: m.GetClient(),
 	}, nil
 }
 
