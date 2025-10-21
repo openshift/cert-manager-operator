@@ -10,11 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -54,10 +52,9 @@ func NewControllerManager() (*Manager, error) {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
-		NewClient: func(config *rest.Config, options client.Options) (client.Client, error) {
-			return client.New(config, options)
-		},
-		Logger: ctrl.Log.WithName("operator-manager"),
+		// Use custom cache builder to configure label selectors for managed resources
+		NewCache: istiocsr.NewCacheBuilder,
+		Logger:   ctrl.Log.WithName("operator-manager"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create manager: %w", err)
