@@ -39,8 +39,22 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
@@ -111,6 +125,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -131,17 +148,42 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
 			},
 		},
 		{
 			name: "deployment reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch obj.(type) {
+					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						return false, testError
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 			},
 			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr deployment resource already exists: test client error`,
@@ -160,6 +202,17 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
@@ -190,6 +243,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -281,6 +337,17 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch o := obj.(type) {
@@ -469,6 +536,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -502,6 +572,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -526,6 +599,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})

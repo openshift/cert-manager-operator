@@ -44,6 +44,12 @@ func TestReconcile(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -52,6 +58,9 @@ func TestReconcile(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
 				})
@@ -121,6 +130,12 @@ func TestReconcile(t *testing.T) {
 					case *corev1.ServiceAccount:
 						serviceAccount := testServiceAccount()
 						serviceAccount.DeepCopyInto(o)
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -139,6 +154,9 @@ func TestReconcile(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
 				})
@@ -208,6 +226,12 @@ func TestReconcile(t *testing.T) {
 					case *corev1.ServiceAccount:
 						serviceAccount := testServiceAccount()
 						serviceAccount.DeepCopyInto(o)
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -215,6 +239,8 @@ func TestReconcile(t *testing.T) {
 					switch obj.(type) {
 					case *appsv1.Deployment:
 						return false, nil
+					case *corev1.ConfigMap:
+						return true, nil
 					}
 					return true, nil
 				})
@@ -438,6 +464,12 @@ func TestProcessReconcileRequest(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -446,6 +478,9 @@ func TestProcessReconcileRequest(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
 				})
@@ -490,6 +525,12 @@ func TestProcessReconcileRequest(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -498,6 +539,9 @@ func TestProcessReconcileRequest(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
 				})

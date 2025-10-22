@@ -240,6 +240,24 @@ func testConfigMap() *corev1.ConfigMap {
 	}
 }
 
+func testSecret() *corev1.Secret {
+	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
+		func(cert *x509.Certificate) {
+			cert.IsCA = true
+			cert.KeyUsage |= x509.KeyUsageCertSign
+		},
+	)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testResourcesName,
+			Namespace: testIstiodNamespace,
+		},
+		Data: map[string][]byte{
+			IstiocsrCAKeyName: []byte(caPEM),
+		},
+	}
+}
+
 // testCACertificateConfigMap creates a ConfigMap with a CA certificate
 func testCACertificateConfigMap() *corev1.ConfigMap {
 	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
