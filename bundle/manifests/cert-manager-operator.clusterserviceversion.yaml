@@ -277,10 +277,27 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - kind: CertificateRequest
+    - description: |-
+        A CertificateRequest is used to request a signed certificate from one of the
+        configured issuers.
+
+        All fields within the CertificateRequest's `spec` are immutable after creation.
+        A CertificateRequest will either succeed or fail, as denoted by its `Ready` status
+        condition and its `status.failureTime` field.
+
+        A CertificateRequest is a one-shot resource, meaning it represents a single
+        point in time request for a certificate and cannot be re-used.
+      displayName: CertificateRequest
+      kind: CertificateRequest
       name: certificaterequests.cert-manager.io
       version: v1
-    - kind: Certificate
+    - description: |-
+        A Certificate resource should be created to ensure an up to date and signed
+        X.509 certificate is stored in the Kubernetes Secret resource named in `spec.secretName`.
+
+        The stored certificate will be renewed before it expires (as configured by `spec.renewBefore`).
+      displayName: Certificate
+      kind: Certificate
       name: certificates.cert-manager.io
       version: v1
     - description: CertManager is the Schema for the certmanagers API
@@ -288,19 +305,43 @@ spec:
       kind: CertManager
       name: certmanagers.operator.openshift.io
       version: v1alpha1
-    - kind: Challenge
+    - description: Challenge is a type to represent a Challenge request with an ACME
+        server
+      displayName: Challenge
+      kind: Challenge
       name: challenges.acme.cert-manager.io
       version: v1
-    - kind: ClusterIssuer
+    - description: |-
+        A ClusterIssuer represents a certificate issuing authority which can be
+        referenced as part of `issuerRef` fields.
+        It is similar to an Issuer, however it is cluster-scoped and therefore can
+        be referenced by resources that exist in *any* namespace, not just the same
+        namespace as the referent.
+      displayName: ClusterIssuer
+      kind: ClusterIssuer
       name: clusterissuers.cert-manager.io
       version: v1
-    - kind: Issuer
+    - description: |-
+        An Issuer represents a certificate issuing authority which can be
+        referenced as part of `issuerRef` fields.
+        It is scoped to a single namespace and can therefore only be referenced by
+        resources within the same namespace.
+      displayName: Issuer
+      kind: Issuer
       name: issuers.cert-manager.io
       version: v1
-    - kind: IstioCSR
+    - description: |-
+        IstioCSR describes the configuration and information about the managed istio-csr agent.
+        The name must be `default` to make IstioCSR a singleton that is, to allow only one instance of IstioCSR per namespace.
+
+        When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR-created namespace.
+      displayName: IstioCSR
+      kind: IstioCSR
       name: istiocsrs.operator.openshift.io
       version: v1alpha1
-    - kind: Order
+    - description: Order is a type to represent an Order with an ACME server
+      displayName: Order
+      kind: Order
       name: orders.acme.cert-manager.io
       version: v1
   description: |
@@ -760,6 +801,7 @@ spec:
   - certificates
   - security
   - TLS
+  - istio-csr
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
