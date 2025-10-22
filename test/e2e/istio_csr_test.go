@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path/filepath"
 
+	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -187,8 +188,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					IstioCSRStatus:            istioCSRStatus,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
-			policy := metav1.DeletePropagationBackground
-			defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			DeferCleanup(func() {
+				policy := metav1.DeletePropagationBackground
+				clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			})
 
 			By("waiting for the job to be completed")
 			err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
@@ -262,8 +265,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					JobName:                   grpcAppName,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job_with_cluster_id.yaml"), ns.Name)
-			policy := metav1.DeletePropagationBackground
-			defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			DeferCleanup(func() {
+				policy := metav1.DeletePropagationBackground
+				clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			})
 
 			By("waiting for the job to be completed")
 			err = pollTillJobCompleted(ctx, clientset, ns.Name, grpcAppName)
@@ -330,8 +335,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					JobName:                   grpcAppName,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job_with_cluster_id.yaml"), ns.Name)
-			policy := metav1.DeletePropagationBackground
-			defer clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			DeferCleanup(func() {
+				policy := metav1.DeletePropagationBackground
+				clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+			})
 
 			By("waiting for the job to fail or timeout")
 			// This job should fail because clusterID doesn't match
@@ -493,6 +500,381 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				}
 			}
 			Expect(configMapCount).Should(Equal(3), "ConfigMap should exist in all 3 test namespaces when no selector is configured")
+		})
+	})
+
+	Context("with CA Certificate ConfigMap", func() {
+
+		const (
+			configMapRefName = "test-ca-certificate"
+			configMapRefKey  = "ca-cert.pem"
+		)
+
+		type istioCSRTemplateData struct {
+			CustomNamespace string
+			ConfigMapName   string
+			ConfigMapKey    string
+		}
+
+		// Helper functions for CA ConfigMap verification
+		verifyConfigMapHasWatchLabel := func(namespace, configMapName string) {
+			By(fmt.Sprintf("Verifying watch label on ConfigMap %s in namespace %s", configMapName, namespace))
+			Eventually(func() bool {
+				configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				_, hasWatchLabel := configMap.Labels[testutils.IstiocsrResourceWatchLabelName]
+				return hasWatchLabel
+			}, "1m", "5s").Should(BeTrue(), fmt.Sprintf("ConfigMap %s should have watch label", configMapName))
+		}
+
+		verifyConfigMapCopied := func(sourceNamespace, sourceConfigMapName, sourceKey, destNamespace string) {
+			By(fmt.Sprintf("Verifying ConfigMap %s from namespace %s is copied to namespace %s", sourceConfigMapName, sourceNamespace, destNamespace))
+			Eventually(func() bool {
+				// Get the source ConfigMap data
+				sourceConfigMap, err := clientset.CoreV1().ConfigMaps(sourceNamespace).Get(ctx, sourceConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				sourceCertData := sourceConfigMap.Data[sourceKey]
+
+				// Check if the copied ConfigMap exists and has the same data
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(destNamespace).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				copiedCertData := copiedConfigMap.Data[testutils.IstiocsrCAKeyName]
+
+				return sourceCertData != "" && copiedCertData != "" && copiedCertData == sourceCertData
+			}, "2m", "5s").Should(BeTrue(), "CA certificate should be copied with identical content")
+		}
+
+		verifyConfigMapMountedInPod := func(namespace string) {
+			By("Verifying ConfigMap is mounted correctly in the pod")
+			Eventually(func() error {
+				pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+					LabelSelector: "app.kubernetes.io/name=cert-manager-istio-csr",
+				})
+				if err != nil {
+					return err
+				}
+				if len(pods.Items) == 0 {
+					return fmt.Errorf("no istio-csr pods found")
+				}
+
+				// Get the first running pod
+				var runningPod *corev1.Pod
+				for i := range pods.Items {
+					if pods.Items[i].Status.Phase == corev1.PodRunning {
+						runningPod = &pods.Items[i]
+						break
+					}
+				}
+				if runningPod == nil {
+					return fmt.Errorf("no running istio-csr pod found")
+				}
+
+				// Verify volume is configured
+				volumeFound := false
+				for _, vol := range runningPod.Spec.Volumes {
+					if vol.Name == "root-ca" {
+						if vol.ConfigMap == nil {
+							return fmt.Errorf("volume root-ca is not a ConfigMap volume")
+						}
+						if vol.ConfigMap.Name != testutils.IstiocsrCAConfigMapName {
+							return fmt.Errorf("volume root-ca references wrong ConfigMap: got %s, want %s",
+								vol.ConfigMap.Name, testutils.IstiocsrCAConfigMapName)
+						}
+						volumeFound = true
+						break
+					}
+				}
+				if !volumeFound {
+					return fmt.Errorf("volume root-ca not found in pod spec")
+				}
+
+				// Verify volume mount in container
+				for _, container := range runningPod.Spec.Containers {
+					if container.Name == "cert-manager-istio-csr" {
+						volumeMountFound := false
+						for _, vm := range container.VolumeMounts {
+							if vm.Name == "root-ca" {
+								if vm.MountPath != "/var/run/configmaps/istio-csr" {
+									return fmt.Errorf("volume mount root-ca has wrong path: got %s, want /var/run/configmaps/istio-csr",
+										vm.MountPath)
+								}
+								if !vm.ReadOnly {
+									return fmt.Errorf("volume mount root-ca should be read-only")
+								}
+								volumeMountFound = true
+								break
+							}
+						}
+						if !volumeMountFound {
+							return fmt.Errorf("volume mount root-ca not found in container cert-manager-istio-csr")
+						}
+						return nil
+					}
+				}
+				return fmt.Errorf("container cert-manager-istio-csr not found in pod")
+			}, "2m", "10s").Should(Succeed(), "ConfigMap should be correctly mounted in the pod")
+		}
+
+		It("should successfully use CA certificate from ConfigMap in same namespace", func() {
+			By("Creating a CA certificate ConfigMap")
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name, // same namespace as IstioCSR
+				},
+				Data: map[string]string{
+					configMapRefKey: testutils.GenerateCertificate("Test CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+						cert.IsCA = true
+						cert.KeyUsage |= x509.KeyUsageCertSign
+					}),
+				},
+			}
+			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Creating IstioCSR resource")
+			templateData := istioCSRTemplateData{
+				CustomNamespace: "", // Empty string for same namespace
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			By("waiting for IstioCSR to be ready and deployment to be created")
+			istioCSRStatus := waitForIstioCSRReady(ns)
+			log.Printf("IstioCSR status: %+v", istioCSRStatus)
+
+			// Verify that the source ConfigMap data is copied to the operator-managed ConfigMap
+			verifyConfigMapCopied(caCertConfigMap.Namespace, caCertConfigMap.Name, configMapRefKey, ns.Name)
+			// Verify that the source ConfigMap has a watch label to trigger reconciliation on changes
+			verifyConfigMapHasWatchLabel(caCertConfigMap.Namespace, caCertConfigMap.Name)
+			// Verify that the certificate is correctly mounted in the istio-csr pod
+			verifyConfigMapMountedInPod(ns.Name)
+		})
+
+		It("should fail when CA certificate is not actually a CA certificate", func() {
+			By("Creating a ConfigMap with a non-CA certificate")
+			nonCACertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name, // same namespace as IstioCSR
+				},
+				Data: map[string]string{
+					configMapRefKey: testutils.GenerateCertificate("Test Non-CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+						cert.IsCA = false
+					}),
+				},
+			}
+			_, err := clientset.CoreV1().ConfigMaps(nonCACertConfigMap.Namespace).Create(ctx, nonCACertConfigMap, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Creating IstioCSR resource")
+			templateData := istioCSRTemplateData{
+				CustomNamespace: "", // Empty string for same namespace
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			By("Verifying that IstioCSR deployment fails due to non-CA certificate")
+			// The deployment should fail and not become ready due to certificate validation
+			Consistently(func() error {
+				_, err := pollTillIstioCSRAvailable(ctx, loader, ns.Name, "default")
+				return err
+			}, "30s", "5s").Should(HaveOccurred(), "IstioCSR should fail to become ready due to non-CA certificate")
+		})
+
+		It("should successfully use CA certificate from ConfigMap in custom namespace", func() {
+			By("Creating a custom namespace for the source ConfigMap")
+			customNamespace, err := loader.CreateTestingNS("custom-ca-ns", false)
+			Expect(err).ShouldNot(HaveOccurred())
+			DeferCleanup(func() {
+				loader.DeleteTestingNS(customNamespace.Name, func() bool { return false })
+			})
+
+			By("Creating a CA certificate ConfigMap in the custom namespace")
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: customNamespace.Name,
+				},
+				Data: map[string]string{
+					configMapRefKey: testutils.GenerateCertificate("Custom Namespace CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+						cert.IsCA = true
+						cert.KeyUsage |= x509.KeyUsageCertSign
+					}),
+				},
+			}
+			_, err = clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Creating IstioCSR resource with custom namespace reference")
+			templateData := istioCSRTemplateData{
+				CustomNamespace: customNamespace.Name,
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			By("waiting for IstioCSR to be ready and deployment to be created")
+			istioCSRStatus := waitForIstioCSRReady(ns)
+			log.Printf("IstioCSR status: %+v", istioCSRStatus)
+
+			// Verify that the source ConfigMap data is copied from custom namespace to the operator-managed ConfigMap
+			verifyConfigMapCopied(customNamespace.Name, caCertConfigMap.Name, configMapRefKey, ns.Name)
+			// Verify that the source ConfigMap in custom namespace has a watch label to trigger reconciliation on changes
+			verifyConfigMapHasWatchLabel(customNamespace.Name, caCertConfigMap.Name)
+			// Verify that the certificate from custom namespace is correctly mounted in the istio-csr pod
+			verifyConfigMapMountedInPod(ns.Name)
+		})
+
+		It("should reconcile copied ConfigMap when manually modified", func() {
+			By("Creating initial CA certificate ConfigMap")
+			initialCert := testutils.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+				cert.IsCA = true
+				cert.KeyUsage |= x509.KeyUsageCertSign
+			})
+
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name,
+				},
+				Data: map[string]string{
+					configMapRefKey: initialCert,
+				},
+			}
+			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Creating IstioCSR resource")
+			templateData := istioCSRTemplateData{
+				CustomNamespace: "",
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			By("Waiting for IstioCSR to be ready")
+			_ = waitForIstioCSRReady(ns)
+
+			By("Verifying initial ConfigMap is copied")
+			Eventually(func() bool {
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+			}, "2m", "5s").Should(BeTrue(), "Initial CA certificate should be copied")
+
+			By("Manually modifying the copied ConfigMap")
+			tamperedCert := "-----BEGIN CERTIFICATE-----\nTAMPERED DATA\n-----END CERTIFICATE-----"
+			copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			copiedConfigMap.Data[testutils.IstiocsrCAKeyName] = tamperedCert
+			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Update(ctx, copiedConfigMap, metav1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Verifying operator automatically reconciles the copied ConfigMap back to the desired state")
+			Eventually(func() bool {
+				reconciledConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				// Should be reconciled back to match the source ConfigMap, not the tampered data
+				return reconciledConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+			}, "2m", "5s").Should(BeTrue(), "Copied ConfigMap should be reconciled back to match source ConfigMap")
+
+			By("Verifying the ConfigMap volume mount is still correctly configured")
+			verifyConfigMapMountedInPod(ns.Name)
+		})
+
+		It("should update mounted CA certificate when source ConfigMap is modified", func() {
+			By("Creating initial CA certificate ConfigMap")
+			initialCert := testutils.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+				cert.IsCA = true
+				cert.KeyUsage |= x509.KeyUsageCertSign
+			})
+
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name,
+				},
+				Data: map[string]string{
+					configMapRefKey: initialCert,
+				},
+			}
+			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Creating IstioCSR resource")
+			templateData := istioCSRTemplateData{
+				CustomNamespace: "",
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			By("Waiting for IstioCSR to be ready")
+			_ = waitForIstioCSRReady(ns)
+
+			By("Verifying initial ConfigMap is copied and mounted")
+			Eventually(func() bool {
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+			}, "2m", "5s").Should(BeTrue(), "Initial CA certificate should be copied")
+
+			// Verify that the ConfigMap volume mount is correctly configured
+			verifyConfigMapMountedInPod(ns.Name)
+
+			By("Updating the source ConfigMap with new CA certificate")
+			updatedCert := testutils.GenerateCertificate("Updated CA E2E", []string{"cert-manager-operator-updated"}, func(cert *x509.Certificate) {
+				cert.IsCA = true
+				cert.KeyUsage |= x509.KeyUsageCertSign
+			})
+
+			sourceConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, configMapRefName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			sourceConfigMap.Data[configMapRefKey] = updatedCert
+			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Update(ctx, sourceConfigMap, metav1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("Verifying copied ConfigMap is updated with new certificate")
+			Eventually(func() bool {
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == updatedCert
+			}, "2m", "5s").Should(BeTrue(), "Updated CA certificate should be copied")
+
+			// Verify that the ConfigMap volume mount is still correctly configured
+			verifyConfigMapMountedInPod(ns.Name)
 		})
 	})
 })

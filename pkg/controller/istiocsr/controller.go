@@ -135,13 +135,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
 					return true
 				}
-				value := objLabels[istiocsrResourceWatchLabelName]
+				value := objLabels[IstiocsrResourceWatchLabelName]
 				if value == "" {
 					return false
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", istiocsrResourceWatchLabelName, value, obj.GetName())
+					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}
 				namespace = key[0]
@@ -172,12 +172,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// predicate function to filter events for objects which controller is interested in, but
 	// not managed or created by controller.
 	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[istiocsrResourceWatchLabelName] != ""
+		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	})
+
+	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		if object.GetLabels() == nil {
+			return false
+		}
+		// Accept if it's a managed ConfigMap OR a watched ConfigMap
+		return object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue ||
+			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
 	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
 	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
+	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
@@ -190,6 +200,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
 		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Complete(r)
 }
