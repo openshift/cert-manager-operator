@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -39,6 +40,17 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		{
 			name: "istiocsr reconciliation with user labels successful",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
 				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:

@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -38,8 +39,22 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
 						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
@@ -110,6 +125,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -130,17 +148,42 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
 			},
 		},
 		{
 			name: "deployment reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch obj.(type) {
+					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						return false, testError
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 			},
 			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr deployment resource already exists: test client error`,
@@ -159,6 +202,17 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
@@ -189,6 +243,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -280,6 +337,17 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 						configmap.DeepCopyInto(o)
 					}
 					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
 				})
 				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 					switch o := obj.(type) {
@@ -448,7 +516,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update  secret with custom watch label: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update  resource with watch label: no access`,
 		},
 		{
 			name: "deployment reconciliation fails while checking configmap exists",
@@ -468,6 +536,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -501,6 +572,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -525,6 +599,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
 						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
 					}
 					return nil
 				})
@@ -710,6 +787,281 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource for containers]`,
 		},
+		{
+			name: "deployment reconciliation successful with CA certificate ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						// Return false for the copied ConfigMap to simulate creation
+						return false, nil
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-cert-test" {
+							configMap := testCACertificateConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+				m.UpdateWithRetryReturns(nil)
+				m.CreateReturns(nil)
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+		},
+		{
+			name: "deployment reconciliation successful with CA certificate ConfigMap in custom namespace",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-cert-test" && ns.Namespace == "custom-namespace" {
+							configMap := testCACertificateConfigMap()
+							configMap.Namespace = "custom-namespace"
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+				m.UpdateWithRetryReturns(nil)
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name:      "ca-cert-test",
+					Namespace: "custom-namespace",
+					Key:       "ca-cert.pem",
+				}
+			},
+		},
+		{
+			name: "deployment reconciliation fails with missing CA certificate ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-cert-test" {
+							return apierrors.NewNotFound(corev1.Resource("configmaps"), "ca-cert-test")
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to fetch CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: configmaps "ca-cert-test" not found`,
+		},
+		{
+			name: "deployment reconciliation fails with missing key in CA certificate ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-cert-test" {
+							configMap := testCACertificateConfigMap()
+							// Remove the expected key
+							delete(configMap.Data, "ca-cert.pem")
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test`,
+		},
+		{
+			name: "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-cert-test" {
+							configMap := testCACertificateConfigMap()
+							// Set invalid PEM data
+							configMap.Data["ca-cert.pem"] = "invalid-pem-data"
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-cert-test key "ca-cert.pem": no valid PEM data found`,
+		},
+
+		{
+			name: "deployment reconciliation fails while updating watch label on CA certificate ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						// Return false for the copied ConfigMap to simulate creation
+						return false, nil
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "watch-label-fail-test" {
+							configMap := testCACertificateConfigMap()
+							configMap.Name = "watch-label-fail-test"
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *corev1.ConfigMap:
+						// Fail when trying to update the source ConfigMap with watch label
+						if obj.GetName() == "watch-label-fail-test" {
+							return apierrors.NewUnauthorized("no access to update watch label")
+						}
+					}
+					return nil
+				})
+				m.CreateReturns(nil)
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "watch-label-fail-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to update watch label on CA certificate ConfigMap istiocsr-test-ns/watch-label-fail-test: failed to update watch-label-fail-test resource with watch label: no access to update watch label`,
+		},
+
+		{
+			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "non-ca-cert-test" {
+							configMap := testNonCACertificateConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "non-ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
+		},
+
+		{
+			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-without-certsign-test" {
+							configMap := testCertificateWithoutCertSignConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-without-certsign-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -842,4 +1194,121 @@ func TestUpdateArgList(t *testing.T) {
 // containsArg checks if the given argument is present in the args list
 func containsArg(args []string, targetArg string) bool {
 	return slices.Contains(args, targetArg)
+}
+
+func TestUpdateVolumeWithIssuerCA(t *testing.T) {
+	defaultMode := int32(420)
+	expectedCAVolume := corev1.Volume{
+		Name: "root-ca",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "cert-manager-istio-csr-issuer-ca-copy",
+				},
+				Items: []corev1.KeyToPath{
+					{
+						Key:  "ca.crt",
+						Path: "ca.crt",
+						Mode: &defaultMode,
+					},
+				},
+				DefaultMode: &defaultMode,
+			},
+		},
+	}
+	expectedCAMount := corev1.VolumeMount{
+		Name:      "root-ca",
+		MountPath: "/var/run/configmaps/istio-csr",
+		ReadOnly:  true,
+	}
+
+	tests := []struct {
+		name                 string
+		existingVolumes      []corev1.Volume
+		existingVolumeMounts []corev1.VolumeMount
+		expectedVolumes      []corev1.Volume
+		expectedMounts       []corev1.VolumeMount
+	}{
+		{
+			name:            "add CA volume when no volumes exist",
+			expectedVolumes: []corev1.Volume{expectedCAVolume},
+			expectedMounts:  []corev1.VolumeMount{expectedCAMount},
+		},
+		{
+			name: "add CA volume preserving other volumes",
+			existingVolumes: []corev1.Volume{
+				{Name: "other-volume", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "other-volume", MountPath: "/other"},
+			},
+			expectedVolumes: []corev1.Volume{
+				{Name: "other-volume", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				expectedCAVolume,
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "other-volume", MountPath: "/other"},
+				expectedCAMount,
+			},
+		},
+		{
+			name: "update CA volume preserving others",
+			existingVolumes: []corev1.Volume{
+				{Name: "volume-1", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "root-ca", VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "old-configmap"},
+					},
+				}},
+			},
+			existingVolumeMounts: []corev1.VolumeMount{
+				{Name: "volume-1", MountPath: "/path1"},
+				{Name: "root-ca", MountPath: "/old/path"},
+			},
+			expectedVolumes: []corev1.Volume{
+				{Name: "volume-1", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				expectedCAVolume,
+			},
+			expectedMounts: []corev1.VolumeMount{
+				{Name: "volume-1", MountPath: "/path1"},
+				expectedCAMount,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := testDeployment()
+			deployment.Spec.Template.Spec.Volumes = tt.existingVolumes
+
+			// Set existing volume mounts on istio-csr container
+			for i, container := range deployment.Spec.Template.Spec.Containers {
+				if container.Name == istiocsrContainerName {
+					deployment.Spec.Template.Spec.Containers[i].VolumeMounts = tt.existingVolumeMounts
+					break
+				}
+			}
+
+			updateVolumeWithIssuerCA(deployment)
+
+			// Verify volumes match expected
+			if !reflect.DeepEqual(deployment.Spec.Template.Spec.Volumes, tt.expectedVolumes) {
+				t.Errorf("volumes mismatch:\ngot: %+v\nwant: %+v", deployment.Spec.Template.Spec.Volumes, tt.expectedVolumes)
+			}
+
+			// Find istio-csr container and verify mounts
+			var containerMounts []corev1.VolumeMount
+			for _, container := range deployment.Spec.Template.Spec.Containers {
+				if container.Name == istiocsrContainerName {
+					containerMounts = container.VolumeMounts
+					break
+				}
+			}
+
+			// Verify mounts match expected
+			if !reflect.DeepEqual(containerMounts, tt.expectedMounts) {
+				t.Errorf("volume mounts mismatch:\ngot: %+v\nwant: %+v", containerMounts, tt.expectedMounts)
+			}
+		})
+	}
 }
