@@ -417,7 +417,7 @@ func TestReconcile(t *testing.T) {
 			}
 			r.ctrlClient = mock
 			istiocsr := testIstioCSR()
-			result, err := r.Reconcile(context.Background(),
+			result, err := r.Reconcile(context.TODO(),
 				ctrl.Request{
 					NamespacedName: types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()},
 				},
