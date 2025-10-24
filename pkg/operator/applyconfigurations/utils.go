@@ -48,6 +48,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.IstioCSRStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IstiodTLSConfig"):
 		return &operatorv1alpha1.IstiodTLSConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkPolicy"):
+		return &operatorv1alpha1.NetworkPolicyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ServerConfig"):
 		return &operatorv1alpha1.ServerConfigApplyConfiguration{}
 

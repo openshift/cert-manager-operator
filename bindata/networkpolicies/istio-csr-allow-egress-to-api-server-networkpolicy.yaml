@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-allow-egress-to-api-server
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 6443

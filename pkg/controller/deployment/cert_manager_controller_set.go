@@ -16,12 +16,14 @@ import (
 )
 
 type CertManagerControllerSet struct {
-	certManagerControllerStaticResourcesController factory.Controller
-	certManagerControllerDeploymentController      factory.Controller
-	certManagerWebhookStaticResourcesController    factory.Controller
-	certManagerWebhookDeploymentController         factory.Controller
-	certManagerCAInjectorStaticResourcesController factory.Controller
-	certManagerCAInjectorDeploymentController      factory.Controller
+	certManagerControllerStaticResourcesController    factory.Controller
+	certManagerControllerDeploymentController         factory.Controller
+	certManagerWebhookStaticResourcesController       factory.Controller
+	certManagerWebhookDeploymentController            factory.Controller
+	certManagerCAInjectorStaticResourcesController    factory.Controller
+	certManagerCAInjectorDeploymentController         factory.Controller
+	certManagerNetworkPolicyStaticResourcesController factory.Controller
+	certManagerNetworkPolicyUserDefinedController     factory.Controller
 }
 
 func NewCertManagerControllerSet(
@@ -39,12 +41,14 @@ func NewCertManagerControllerSet(
 	cloudCredentialsSecretName string,
 ) *CertManagerControllerSet {
 	return &CertManagerControllerSet{
-		certManagerControllerStaticResourcesController: NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
-		certManagerControllerDeploymentController:      NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
-		certManagerWebhookStaticResourcesController:    NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
-		certManagerWebhookDeploymentController:         NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
-		certManagerCAInjectorStaticResourcesController: NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
-		certManagerCAInjectorDeploymentController:      NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
+		certManagerControllerStaticResourcesController:    NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerControllerDeploymentController:         NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
+		certManagerWebhookStaticResourcesController:       NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerWebhookDeploymentController:            NewCertManagerWebhookDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
+		certManagerCAInjectorStaticResourcesController:    NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
+		certManagerCAInjectorDeploymentController:         NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
+		certManagerNetworkPolicyStaticResourcesController: NewCertManagerNetworkPolicyStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, certManagerOperatorInformers, eventRecorder),
+		certManagerNetworkPolicyUserDefinedController:     NewCertManagerNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, eventRecorder),
 	}
 }
 
@@ -56,5 +60,7 @@ func (c *CertManagerControllerSet) ToArray() []factory.Controller {
 		c.certManagerWebhookDeploymentController,
 		c.certManagerCAInjectorStaticResourcesController,
 		c.certManagerCAInjectorDeploymentController,
+		c.certManagerNetworkPolicyStaticResourcesController,
+		c.certManagerNetworkPolicyUserDefinedController,
 	}
 }

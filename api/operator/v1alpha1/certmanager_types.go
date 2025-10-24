@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	apiv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -59,6 +60,50 @@ type CertManagerSpec struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	CAInjectorConfig *DeploymentConfig `json:"cainjectorConfig,omitempty"`
+
+	// DefaultNetworkPolicy enables the default network policy for cert-manager components.
+	// When set to "true", the operator will create default network policies to secure
+	// communication between cert-manager controller, webhook, and cainjector components.
+	// When set to "false" or empty, no default network policies are created.
+	// Valid values are: "true", "false", or empty (default: false).
+	//
+	// This field is immutable once set to "true" for security reasons. Network policies
+	// cannot be disabled once enabled to prevent accidental security degradation.
+	// Users should carefully plan their network policy requirements before enabling this field.
+	//
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum:="true";"false";""
+	// +kubebuilder:validation:XValidation:rule="oldSelf != 'true' || self == 'true'",message="defaultNetworkPolicy cannot be changed from 'true' to 'false' once set"
+	// +optional
+	DefaultNetworkPolicy string `json:"defaultNetworkPolicy,omitempty"`
+
+	// NetworkPolicies specifies the egress network policy configuration to be applied to cert-manager
+	// pods/operands when DefaultNetworkPolicy is "true". By default, enabling network policies
+	// creates a deny-all policy that blocks all outgoing traffic from cert-manager components.
+	// Ingress rules are automatically handled by the operator based on the current running ports.
+	// Use this field to provide the necessary egress policy rules that allow required outbound traffic
+	// for cert-manager to function properly (e.g., API server communication, external issuer access, etc.).
+	//
+	// Each NetworkPolicy in this slice will be created as a separate Kubernetes NetworkPolicy
+	// resource. Multiple policies can be defined to organize egress rules logically (e.g., separate
+	// policies for different types of outbound traffic or different security zones).
+	//
+	// This field is only effective when DefaultNetworkPolicy is set to "true".
+	// If DefaultNetworkPolicy is "true" but this field is not provided, cert-manager
+	// components will be isolated with deny-all egress policies.
+	//
+	// This field is immutable once DefaultNetworkPolicy is set to "true" for security reasons.
+	//
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="oldSelf.all(op, self.exists(p, p.name == op.name && p.componentName == op.componentName))",message="name and componentName fields in networkPolicies are immutable"
+	// +kubebuilder:validation:MinItems:=0
+	// +kubebuilder:validation:MaxItems:=50
+	// +kubebuilder:validation:Optional
+	// +listType=map
+	// +listMapKey=name
+	// +listMapKey=componentName
+	// +optional
+	NetworkPolicies []NetworkPolicy `json:"networkPolicies,omitempty"`
 }
 
 // DeploymentConfig defines the schema for
@@ -179,6 +224,49 @@ type CertManagerList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []CertManager `json:"items"`
+}
+
+// ComponentName represents the different cert-manager components that can have network policies applied.
+type ComponentName string
+
+const (
+	// CAInjector represents the cert-manager CA injector component
+	CAInjector ComponentName = "CAInjector"
+
+	// CoreController represents the cert-manager core controller component
+	CoreController ComponentName = "CoreController"
+
+	// Webhook represents the cert-manager webhook component
+	Webhook ComponentName = "Webhook"
+)
+
+// NetworkPolicy represents a custom network policy configuration for operator-managed components.
+// It includes a name for identification and the network policy rules to be enforced.
+type NetworkPolicy struct {
+	// Name is a unique identifier for this network policy configuration.
+	// This name will be used as part of the generated NetworkPolicy resource name.
+	// +kubebuilder:validation:MinLength:=1
+	// +kubebuilder:validation:MaxLength:=253
+	// +kubebuilder:validation:Required
+	// +required
+	Name string `json:"name"`
+
+	// ComponentName represents the different cert-manager components that can have network policies applied.
+	// +kubebuilder:validation:Enum=CAInjector;CoreController;Webhook
+	// +kubebuilder:validation:Required
+	// +required
+	ComponentName ComponentName `json:"componentName"`
+
+	// egress is a list of egress rules to be applied to the selected pods. Outgoing traffic
+	// is allowed if there are no NetworkPolicies selecting the pod (and cluster policy
+	// otherwise allows the traffic), OR if the traffic matches at least one egress rule
+	// across all of the NetworkPolicy objects whose podSelector matches the pod. If
+	// this field is empty then this NetworkPolicy limits all outgoing traffic (and serves
+	// solely to ensure that the pods it selects are isolated by default).
+	// The operator will automatically handle ingress rules based on the current running ports.
+	// +optional
+	// +listType=atomic
+	Egress []networkingv1.NetworkPolicyEgressRule `json:"egress,omitempty" protobuf:"bytes,3,rep,name=egress"`
 }
 
 func init() {
