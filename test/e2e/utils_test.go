@@ -27,6 +27,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -36,10 +37,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -985,5 +988,108 @@ func VerifyContainerResources(pod corev1.Pod, containerName string, expectedReso
 			}
 		}
 	}
+	return nil
+}
+
+// resetCertManagerNetworkPolicyState resets the CertManager to have defaultNetworkPolicy="true"
+func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset, loader library.DynamicResourceLoader) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var operatorState *v1alpha1.CertManager
+		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+
+			operatorState = operator
+			return true, nil
+		})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operatorState.DeepCopy()
+
+		// Set defaultNetworkPolicy to "true" to enable default network policies
+		updatedOperator.Spec.DefaultNetworkPolicy = "true"
+
+		// Clear custom network policies to start with only default ones
+		updatedOperator.Spec.NetworkPolicies = []v1alpha1.NetworkPolicy{
+			{
+				Name:          "allow-egress-to-acme-server",
+				ComponentName: "CoreController",
+				Egress: []networkingv1.NetworkPolicyEgressRule{
+					{
+						Ports: []networkingv1.NetworkPolicyPort{
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(80)),
+							},
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(443)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Name:          "allow-egress-to-dns-service",
+				ComponentName: "CoreController",
+				Egress: []networkingv1.NetworkPolicyEgressRule{
+					{
+						Ports: []networkingv1.NetworkPolicyPort{
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(53)),
+							},
+							{
+								Protocol: ptr.To(corev1.ProtocolUDP),
+								Port:     ptr.To(intstr.FromInt32(53)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Name:          "allow-egress-to-proxy",
+				ComponentName: "CoreController",
+				Egress: []networkingv1.NetworkPolicyEgressRule{
+					{
+						Ports: []networkingv1.NetworkPolicyPort{
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(3128)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Name:          "allow-egress-to-vault",
+				ComponentName: "CoreController",
+				Egress: []networkingv1.NetworkPolicyEgressRule{
+					{
+						Ports: []networkingv1.NetworkPolicyPort{
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(8200)),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

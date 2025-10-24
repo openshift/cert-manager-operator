@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-csr-allow-ingress-to-grpc
+  labels:
+    istiocsr.operator.openshift.io/owned-by: istio-csr
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-istio-csr
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 6443
