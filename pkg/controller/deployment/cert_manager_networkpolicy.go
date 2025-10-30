@@ -7,6 +7,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/openshift/library-go/pkg/controller/factory"
@@ -83,6 +84,7 @@ type CertManagerNetworkPolicyUserDefinedController struct {
 	operatorClient               v1helpers.OperatorClient
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory
 	kubeClient                   kubernetes.Interface
+	kubeInformersForNamespaces   v1helpers.KubeInformersForNamespaces
 	eventRecorder                events.Recorder
 	resourceCache                resourceapply.ResourceCache
 }
@@ -91,12 +93,14 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 	operatorClient v1helpers.OperatorClient,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
+	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	eventRecorder events.Recorder,
 ) factory.Controller {
 	c := &CertManagerNetworkPolicyUserDefinedController{
 		operatorClient:               operatorClient,
 		certManagerOperatorInformers: certManagerOperatorInformers,
 		kubeClient:                   kubeClient,
+		kubeInformersForNamespaces:   kubeInformersForNamespaces,
 		eventRecorder:                eventRecorder.WithComponentSuffix("cert-manager-networkpolicy-user-defined"),
 		resourceCache:                resourceapply.NewResourceCache(),
 	}
@@ -105,6 +109,14 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 		WithInformers(
 			operatorClient.Informer(),
 			certManagerOperatorInformers.Operator().V1alpha1().CertManagers().Informer(),
+		).
+		WithInformersQueueKeyFunc(
+			// Watch NetworkPolicy resources in cert-manager namespace
+			// Always queue reconciliation for the singleton "cluster" CertManager CR
+			func(obj runtime.Object) string {
+				return "cluster"
+			},
+			kubeInformersForNamespaces.InformersFor(certManagerNamespace).Networking().V1().NetworkPolicies().Informer(),
 		).
 		WithSync(c.sync).
 		ToController(certManagerNetworkPolicyUserDefinedControllerName, c.eventRecorder)

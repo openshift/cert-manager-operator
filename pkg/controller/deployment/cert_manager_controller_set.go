@@ -48,7 +48,7 @@ func NewCertManagerControllerSet(
 		certManagerCAInjectorStaticResourcesController:    NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerCAInjectorDeploymentController:         NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerNetworkPolicyStaticResourcesController: NewCertManagerNetworkPolicyStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, certManagerOperatorInformers, eventRecorder),
-		certManagerNetworkPolicyUserDefinedController:     NewCertManagerNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, eventRecorder),
+		certManagerNetworkPolicyUserDefinedController:     NewCertManagerNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForNamespaces, eventRecorder),
 	}
 }
 
