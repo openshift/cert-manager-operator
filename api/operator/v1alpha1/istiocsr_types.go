@@ -194,7 +194,6 @@ type IstiodTLSConfig struct {
 	// This field can have a maximum of 63 characters.
 	// +kubebuilder:validation:MinLength:=1
 	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:validation:XValidation:rule="!format.dns1123Subdomain().validate(self).hasValue()",message="trustDomain must consist of lowercase alphanumeric characters, hyphens ('-'), and periods ('.'). Each block, separated by periods, must start and end with an alphanumeric character. Hyphens are not allowed at the start or end of a block, and consecutive periods are not permitted."
 	// +kubebuilder:validation:Required
 	// +required
 	TrustDomain string `json:"trustDomain"`
@@ -289,7 +288,6 @@ type IstioConfig struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable once set"
 	// +kubebuilder:validation:MinLength:=1
 	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:validation:XValidation:rule=`!format.dns1123Label().validate(self).hasValue()`,message="namespace must consist of only lowercase alphanumeric characters and hyphens, and must start with an alphabetic character and end with an alphanumeric character."
 	// +kubebuilder:validation:Required
 	// +required
 	Namespace string `json:"namespace"`

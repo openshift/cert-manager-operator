@@ -1051,14 +1051,6 @@ spec:
                             maxLength: 253
                             minLength: 1
                             type: string
-                            x-kubernetes-validations:
-                            - message: name must consist of lowercase alphanumeric
-                                characters, hyphens ('-'), and periods ('.'). Each
-                                block, separated by periods, must start and end with
-                                an alphanumeric character. Hyphens are not allowed
-                                at the start or end of a block, and consecutive periods
-                                are not permitted.
-                              rule: '!format.dns1123Subdomain().validate(self).hasValue()'
                           namespace:
                             description: namespace in which the ConfigMap exists.
                               If empty, ConfigMap will be looked up in IstioCSR created
@@ -1066,11 +1058,6 @@ spec:
                             maxLength: 63
                             minLength: 0
                             type: string
-                            x-kubernetes-validations:
-                            - message: namespace must consist of only lowercase alphanumeric
-                                characters and hyphens, and must start with an alphabetic
-                                character and end with an alphanumeric character.
-                              rule: size(self) == 0 || !format.dns1123Label().validate(self).hasValue()
                         required:
                         - key
                         - name
@@ -1095,10 +1082,6 @@ spec:
                         x-kubernetes-validations:
                         - message: namespace is immutable once set
                           rule: self == oldSelf
-                        - message: namespace must consist of only lowercase alphanumeric
-                            characters and hyphens, and must start with an alphabetic
-                            character and end with an alphanumeric character.
-                          rule: '!format.dns1123Label().validate(self).hasValue()'
                       revisions:
                         default:
                         - default
@@ -1201,13 +1184,6 @@ spec:
                         maxLength: 63
                         minLength: 1
                         type: string
-                        x-kubernetes-validations:
-                        - message: trustDomain must consist of lowercase alphanumeric
-                            characters, hyphens ('-'), and periods ('.'). Each block,
-                            separated by periods, must start and end with an alphanumeric
-                            character. Hyphens are not allowed at the start or end
-                            of a block, and consecutive periods are not permitted.
-                          rule: '!format.dns1123Subdomain().validate(self).hasValue()'
                     required:
                     - trustDomain
                     type: object
