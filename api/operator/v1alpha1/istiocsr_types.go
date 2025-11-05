@@ -28,7 +28,7 @@ type IstioCSRList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=istiocsrs,scope=Namespaced,categories={cert-manager-operator, istio-csr, istiocsr},shortName=istiocsr;icsr
+// +kubebuilder:resource:path=istiocsrs,scope=Namespaced,categories={cert-manager-operator, istio-csr, istiocsr}
 // +kubebuilder:printcolumn:name="GRPC Endpoint",type="string",JSONPath=".status.istioCSRGRPCEndpoint"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
