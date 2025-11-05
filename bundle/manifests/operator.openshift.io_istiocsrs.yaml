@@ -18,9 +18,6 @@ spec:
     kind: IstioCSR
     listKind: IstioCSRList
     plural: istiocsrs
-    shortNames:
-    - istiocsr
-    - icsr
     singular: istiocsr
   scope: Namespaced
   versions:
