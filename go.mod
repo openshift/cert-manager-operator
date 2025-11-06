@@ -5,7 +5,6 @@ go 1.24.4
 require (
 	github.com/cert-manager/cert-manager v1.18.3
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
-	github.com/go-logr/logr v1.4.2
 	github.com/golangci/golangci-lint v1.50.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-jsonnet v0.17.0
@@ -90,6 +89,7 @@ require (
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/go-critic/go-critic v0.6.5 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
