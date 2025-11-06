@@ -719,7 +719,7 @@ spec:
                 - name: CLOUD_CREDENTIALS_SECRET_NAME
                 - name: UNSUPPORTED_ADDON_FEATURES
                 image: openshift.io/cert-manager-operator:latest
-                imagePullPolicy: IfNotPresent
+                imagePullPolicy: Always
                 name: cert-manager-operator
                 ports:
                 - containerPort: 8443
