@@ -583,9 +583,7 @@ spec:
                       description: ComponentName represents the different cert-manager
                         components that can have network policies applied.
                       enum:
-                      - CAInjector
                       - CoreController
-                      - Webhook
                       type: string
                     egress:
                       description: |-
