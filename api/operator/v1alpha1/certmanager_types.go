@@ -252,7 +252,7 @@ type NetworkPolicy struct {
 	Name string `json:"name"`
 
 	// ComponentName represents the different cert-manager components that can have network policies applied.
-	// +kubebuilder:validation:Enum=CAInjector;CoreController;Webhook
+	// +kubebuilder:validation:Enum=CoreController
 	// +kubebuilder:validation:Required
 	// +required
 	ComponentName ComponentName `json:"componentName"`

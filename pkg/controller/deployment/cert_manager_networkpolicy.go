@@ -173,7 +173,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) validateNetworkPolicyCon
 
 func (c *CertManagerNetworkPolicyUserDefinedController) validateComponentName(componentName v1alpha1.ComponentName) error {
 	switch componentName {
-	case v1alpha1.CAInjector, v1alpha1.CoreController, v1alpha1.Webhook:
+	case v1alpha1.CoreController, v1alpha1.CAInjector, v1alpha1.Webhook:
 		return nil
 	default:
 		return fmt.Errorf("unsupported component name: %s", componentName)
@@ -215,16 +215,16 @@ func (c *CertManagerNetworkPolicyUserDefinedController) createUserNetworkPolicy(
 
 func (c *CertManagerNetworkPolicyUserDefinedController) getPodSelectorForComponent(component v1alpha1.ComponentName) metav1.LabelSelector {
 	switch component {
-	case v1alpha1.CAInjector:
-		return metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				"app": "cainjector",
-			},
-		}
 	case v1alpha1.CoreController:
 		return metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": "cert-manager",
+			},
+		}
+	case v1alpha1.CAInjector:
+		return metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app": "cainjector",
 			},
 		}
 	case v1alpha1.Webhook:
