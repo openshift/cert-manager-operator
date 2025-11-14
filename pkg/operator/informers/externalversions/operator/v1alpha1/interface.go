@@ -10,6 +10,8 @@ import (
 type Interface interface {
 	// CertManagers returns a CertManagerInformer.
 	CertManagers() CertManagerInformer
+	// HTTP01Proxies returns a HTTP01ProxyInformer.
+	HTTP01Proxies() HTTP01ProxyInformer
 	// IstioCSRs returns a IstioCSRInformer.
 	IstioCSRs() IstioCSRInformer
 }
@@ -28,6 +30,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // CertManagers returns a CertManagerInformer.
 func (v *version) CertManagers() CertManagerInformer {
 	return &certManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// HTTP01Proxies returns a HTTP01ProxyInformer.
+func (v *version) HTTP01Proxies() HTTP01ProxyInformer {
+	return &hTTP01ProxyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // IstioCSRs returns a IstioCSRInformer.

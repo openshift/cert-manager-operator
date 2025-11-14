@@ -20,6 +20,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/http01proxy"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/pkg/version"
 )
@@ -68,6 +69,15 @@ func NewControllerManager() (*Manager, error) {
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		return nil, fmt.Errorf("failed to create %s controller: %w", istiocsr.ControllerName, err)
+	}
+
+	// http01proxy controller
+	rh, err := http01proxy.New(mgr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s reconciler object: %w", http01proxy.ControllerName, err)
+	}
+	if err := rh.SetupWithManager(mgr); err != nil {
+		return nil, fmt.Errorf("failed to create %s controller: %w", http01proxy.ControllerName, err)
 	}
 	// +kubebuilder:scaffold:builder
 
