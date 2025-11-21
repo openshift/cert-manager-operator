@@ -132,4 +132,8 @@ var _ = BeforeSuite(func() {
 	By("creating cert-manager client")
 	certmanagerClient, err = certmanagerclientset.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
+
+	By("setting defaultNetworkPolicy to true")
+	err = resetCertManagerNetworkPolicyState(context.TODO(), certmanageroperatorclient, loader)
+	Expect(err).NotTo(HaveOccurred())
 })

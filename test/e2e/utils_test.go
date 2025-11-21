@@ -11,14 +11,17 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
+	"github.com/tidwall/gjson"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
@@ -28,6 +31,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -41,6 +45,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 )
@@ -660,6 +667,24 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 	return err
 }
 
+// waitForIssuerReadiness waits for an Issuer to become Ready
+func waitForIssuerReadiness(ctx context.Context, issuerName, namespace string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+		func(context.Context) (bool, error) {
+			iss, err := certmanagerClient.CertmanagerV1().Issuers(namespace).Get(ctx, issuerName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			for _, cond := range iss.Status.Conditions {
+				if cond.Type == cmv1.IssuerConditionReady {
+					return cond.Status == cmmetav1.ConditionTrue, nil
+				}
+			}
+			return false, nil
+		},
+	)
+}
+
 // waitForCertificateReadiness polls the status of the Certificate object and returns non-nil error
 // once the Ready condition is true, otherwise should return a time-out error
 func waitForCertificateReadiness(ctx context.Context, certName, namespace string) error {
@@ -1092,4 +1117,451 @@ func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoper
 	}
 
 	return nil
+}
+
+// execInPod executes a command in a specific container of a pod and returns the output.
+func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, command ...string) (string, error) {
+	req := kubeClient.CoreV1().RESTClient().
+		Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: containerName,
+			Command:   command,
+			Stdout:    true,
+			Stderr:    true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %w, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// createCertificateForVaultServer creates a self-signed certificate for Vault HTTPS server.
+func createCertificateForVaultServer(ctx context.Context, certmanagerClient *certmanagerclientset.Clientset, namespace, vaultServiceName string) error {
+	// Create self-signed ClusterIssuer for Vault
+	clusterIssuerName := "vault-selfsigned-issuer"
+	clusterIssuer := &cmv1.ClusterIssuer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterIssuerName,
+		},
+		Spec: cmv1.IssuerSpec{
+			IssuerConfig: cmv1.IssuerConfig{
+				SelfSigned: &cmv1.SelfSignedIssuer{},
+			},
+		},
+	}
+	_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create ClusterIssuer: %w", err)
+	}
+
+	// Wait for ClusterIssuer to become ready
+	err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+		func(context.Context) (bool, error) {
+			issuer, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Get(ctx, clusterIssuerName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			for _, cond := range issuer.Status.Conditions {
+				if cond.Type == cmv1.IssuerConditionReady {
+					return cond.Status == cmmetav1.ConditionTrue, nil
+				}
+			}
+			return false, nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("ClusterIssuer not ready: %w", err)
+	}
+
+	// Create certificate for Vault server
+	certName := "vault-server-cert"
+	cert := &cmv1.Certificate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      certName,
+			Namespace: namespace,
+		},
+		Spec: cmv1.CertificateSpec{
+			SecretName: "vault-server-tls",
+			CommonName: vaultServiceName,
+			DNSNames: []string{
+				"vault",
+				fmt.Sprintf("%s.%s.svc", vaultServiceName, namespace),
+				fmt.Sprintf("%s.%s.svc.cluster.local", vaultServiceName, namespace),
+			},
+			IPAddresses: []string{
+				"127.0.0.1",
+			},
+			IssuerRef: cmmetav1.ObjectReference{
+				Name: clusterIssuerName,
+				Kind: "ClusterIssuer",
+			},
+		},
+	}
+	_, err = certmanagerClient.CertmanagerV1().Certificates(namespace).Create(ctx, cert, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create Certificate: %w", err)
+	}
+
+	// Wait for certificate to become ready
+	err = wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true,
+		func(context.Context) (bool, error) {
+			certificate, err := certmanagerClient.CertmanagerV1().Certificates(namespace).Get(ctx, certName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			for _, cond := range certificate.Status.Conditions {
+				if cond.Type == cmv1.CertificateConditionReady {
+					return cond.Status == cmmetav1.ConditionTrue, nil
+				}
+			}
+			return false, nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("Certificate not ready: %w", err)
+	}
+
+	return nil
+}
+
+// configureVaultPKI configures Vault PKI secrets engine for certificate issuance.
+func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, namespace, vaultPodName, rootToken string) error {
+	kubeClient := loader.KubeClient
+
+	// Set VAULT_TOKEN environment variable for subsequent commands
+	tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", rootToken)
+
+	// Enable and configure root PKI engine
+	commands := []struct {
+		description string
+		cmd         string
+	}{
+		{
+			"enable PKI secrets engine",
+			tokenEnv + " && vault secrets enable pki",
+		},
+		{
+			"tune PKI max lease TTL",
+			tokenEnv + " && vault secrets tune -max-lease-ttl=8760h pki",
+		},
+		{
+			"generate root CA",
+			tokenEnv + " && vault write pki/root/generate/internal common_name=cluster.local ttl=8760h",
+		},
+		{
+			"configure CA and CRL URLs",
+			tokenEnv + " && vault write pki/config/urls issuing_certificates=\"https://vault:8200/v1/pki/ca\" crl_distribution_points=\"https://vault:8200/v1/pki/crl\"",
+		},
+		{
+			"enable intermediate PKI",
+			tokenEnv + " && vault secrets enable -path=pki_int pki",
+		},
+		{
+			"tune intermediate PKI max lease TTL",
+			tokenEnv + " && vault secrets tune -max-lease-ttl=4380h pki_int",
+		},
+	}
+
+	for _, cmdInfo := range commands {
+		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", cmdInfo.cmd)
+		if err != nil {
+			return fmt.Errorf("failed to %s: %w", cmdInfo.description, err)
+		}
+	}
+
+	// Generate intermediate CSR
+	csrOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
+		tokenEnv+` && vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`)
+	if err != nil {
+		return fmt.Errorf("failed to generate intermediate CSR: %w", err)
+	}
+	csr := gjson.Get(csrOutput, "data.csr").String()
+	if csr == "" {
+		return fmt.Errorf("failed to extract CSR from output")
+	}
+
+	// Sign intermediate with root CA - use heredoc to properly handle multi-line CSR
+	signCmd := tokenEnv + ` && vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
+` + csr + `
+EOF`
+	certOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", signCmd)
+	if err != nil {
+		return fmt.Errorf("failed to sign intermediate certificate: %w", err)
+	}
+	signedCert := gjson.Get(certOutput, "data.certificate").String()
+	if signedCert == "" {
+		return fmt.Errorf("failed to extract signed certificate from output")
+	}
+
+	// Set signed certificate - use heredoc to properly handle multi-line certificate
+	setSignedCmd := tokenEnv + ` && vault write pki_int/intermediate/set-signed certificate=- <<EOF
+` + signedCert + `
+EOF`
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", setSignedCmd)
+	if err != nil {
+		return fmt.Errorf("failed to set signed intermediate certificate: %w", err)
+	}
+
+	// Create role for cert-manager
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
+		tokenEnv+` && vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`)
+	if err != nil {
+		return fmt.Errorf("failed to create PKI role: %w", err)
+	}
+
+	// Create policy for cert-manager
+	policyCmd := tokenEnv + ` && vault policy write cert-manager - <<EOF
+path "pki_int/sign/cluster-dot-local" {
+  capabilities = ["create", "update"]
+}
+path "pki_int/issue/cluster-dot-local" {
+  capabilities = ["create", "update"]
+}
+EOF`
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
+	if err != nil {
+		return fmt.Errorf("failed to create cert-manager policy: %w", err)
+	}
+
+	log.Printf("Vault PKI configuration completed successfully")
+	return nil
+}
+
+// setupVaultServer deploys and initializes a Vault server using Helm.
+// This is more maintainable than custom StatefulSet logic.
+// It returns the pod name, root token, ClusterRoleBinding name, and any error encountered.
+// The caller is responsible for cleaning up the ClusterRoleBinding using the returned name.
+func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, certmanagerClient *certmanagerclientset.Clientset, namespace, releaseName string) (string, string, string, error) {
+	kubeClient := loader.KubeClient
+	vaultPodLabel := "app.kubernetes.io/name=vault"
+
+	log.Printf("Creating TLS certificate for Vault server")
+	err := createCertificateForVaultServer(ctx, certmanagerClient, namespace, releaseName)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to create Vault TLS certificate: %w", err)
+	}
+
+	// Load Helm values from embedded file
+	helmValuesBytes, err := testassets.ReadFile("testdata/vault/helm-values.yaml")
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to read Vault Helm values: %w", err)
+	}
+	helmValues := string(helmValuesBytes)
+
+	// Create ConfigMap with Helm values
+	helmConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vault-helm-config",
+			Namespace: namespace,
+		},
+		Data: map[string]string{
+			"custom-values.yaml": helmValues,
+		},
+	}
+	_, err = kubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, helmConfigMap, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", "", "", fmt.Errorf("failed to create Helm config ConfigMap for Vault %s in namespace %s: %w", releaseName, namespace, err)
+	}
+
+	// Create ServiceAccount for Helm installer
+	serviceAccountName := "vault-installer-sa"
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceAccountName,
+			Namespace: namespace,
+		},
+	}
+	_, err = kubeClient.CoreV1().ServiceAccounts(namespace).Create(ctx, serviceAccount, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", "", "", fmt.Errorf("failed to create ServiceAccount: %w", err)
+	}
+
+	// Create ClusterRoleBinding for Helm installer
+	clusterRoleBindingName := fmt.Sprintf("vault-installer-binding-%s", namespace)
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterRoleBindingName,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "cluster-admin",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccountName,
+				Namespace: namespace,
+			},
+		},
+	}
+	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", "", "", fmt.Errorf("failed to create ClusterRoleBinding: %w", err)
+	}
+
+	// Create Helm installer pod
+	helmCmd := fmt.Sprintf("helm install %s ./vault -n %s --values /helm/custom-values.yaml", releaseName, namespace)
+
+	privileged := true
+	installerPodName := "vault-installer"
+	helmPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      installerPodName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			ServiceAccountName: serviceAccountName,
+			RestartPolicy:      corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:            "helm",
+					Image:           "quay.io/openshifttest/helm:3.17.0",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         []string{"sh", "-c", helmCmd},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "values-volume",
+							MountPath: "/helm",
+						},
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged: &privileged,
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "values-volume",
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "vault-helm-config",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err = kubeClient.CoreV1().Pods(namespace).Create(ctx, helmPod, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", "", "", fmt.Errorf("failed to create Helm installer pod: %w", err)
+	}
+
+	// Wait for Helm installer pod to complete
+	log.Printf("Waiting for Helm installer pod to complete...")
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true,
+		func(context.Context) (bool, error) {
+			pod, err := kubeClient.CoreV1().Pods(namespace).Get(ctx, installerPodName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			if pod.Status.Phase == corev1.PodSucceeded {
+				log.Printf("Helm installer pod completed successfully")
+				return true, nil
+			}
+			if pod.Status.Phase == corev1.PodFailed {
+				// Get logs for debugging
+				logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(20))}).DoRaw(ctx)
+				return false, fmt.Errorf("Helm installer pod failed: %s", string(logs))
+			}
+			return false, nil
+		},
+	)
+	if err != nil {
+		// Try to get logs for debugging
+		logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(50))}).DoRaw(ctx)
+		return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w, logs: %s", err, string(logs))
+	}
+
+	// Wait for Vault pod to be running
+	log.Printf("Waiting for Vault pod to start...")
+	var vaultPodName string
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 3*time.Minute, true,
+		func(context.Context) (bool, error) {
+			pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+				LabelSelector: vaultPodLabel,
+			})
+			if err != nil {
+				return false, nil
+			}
+			if len(pods.Items) == 0 {
+				return false, nil
+			}
+			pod := pods.Items[0]
+			vaultPodName = pod.Name
+			if pod.Status.Phase == corev1.PodRunning {
+				// Check if container is running (not ready, since Vault needs to be unsealed)
+				for _, cs := range pod.Status.ContainerStatuses {
+					if cs.Name == "vault" && cs.State.Running != nil {
+						log.Printf("Vault pod %s is running", vaultPodName)
+						return true, nil
+					}
+				}
+			}
+			return false, nil
+		},
+	)
+	if err != nil {
+		return "", "", "", fmt.Errorf("timeout waiting for Vault pod to start: %w", err)
+	}
+
+	// Initialize and unseal Vault
+	log.Printf("Initializing Vault...")
+	initOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "init", "-key-shares=1", "-key-threshold=1", "-format=json")
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to initialize Vault: %w", err)
+	}
+
+	unsealKey := gjson.Get(initOutput, "unseal_keys_b64.0").String()
+	rootToken := gjson.Get(initOutput, "root_token").String()
+	if unsealKey == "" || rootToken == "" {
+		return "", "", "", fmt.Errorf("failed to extract unseal key or root token from init output")
+	}
+
+	log.Printf("Unsealing Vault...")
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "unseal", unsealKey)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to unseal Vault: %w", err)
+	}
+
+	// Wait for Vault to become ready (sealed=false)
+	log.Printf("Waiting for Vault to become ready...")
+	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, true,
+		func(context.Context) (bool, error) {
+			output, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "status", "-format=json")
+			if err != nil {
+				// vault status returns non-zero when sealed, so we check the output
+				if strings.Contains(output, `"sealed":false`) {
+					return true, nil
+				}
+				return false, nil
+			}
+			sealed := gjson.Get(output, "sealed").String()
+			return sealed == "false", nil
+		},
+	)
+	if err != nil {
+		return "", "", "", fmt.Errorf("timeout waiting for Vault to become unsealed: %w", err)
+	}
+
+	log.Printf("Vault server setup completed successfully")
+	return vaultPodName, rootToken, clusterRoleBindingName, nil
 }
