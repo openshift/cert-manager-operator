@@ -698,11 +698,11 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:latest
+                  value: quay.io/jetstack/cert-manager-webhook:v1.18.3
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:latest
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.18.3
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:latest
+                  value: quay.io/jetstack/cert-manager-controller:v1.18.3
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
                   value: quay.io/jetstack/cert-manager-acmesolver:v1.18.3
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
@@ -814,11 +814,11 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:latest
+  - image: quay.io/jetstack/cert-manager-webhook:v1.18.3
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:latest
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.18.3
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:latest
+  - image: quay.io/jetstack/cert-manager-controller:v1.18.3
     name: cert-manager-controller
   - image: quay.io/jetstack/cert-manager-acmesolver:v1.18.3
     name: cert-manager-acmesolver
