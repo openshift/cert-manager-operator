@@ -107,7 +107,7 @@ GOBUILD_VERSION_ARGS = -ldflags "-X $(PACKAGE)/pkg/version.SHORTCOMMIT=$(SHORTCO
 E2E_TIMEOUT ?= 1h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests. See
 # https://onsi.github.io/ginkgo/#spec-labels. The default is to run tests on the AWS platform.
-E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS}"
+E2E_GINKGO_LABEL_FILTER ?= "Platform: isSubsetOf {AWS} && CredentialsMode: isSubsetOf {Mint}"
 
 MANIFEST_SOURCE = https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
 

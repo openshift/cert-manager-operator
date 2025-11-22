@@ -21,6 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
+	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	"github.com/tidwall/gjson"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -667,6 +669,58 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 	return err
 }
 
+// waitForDeploymentRollout waits for a deployment to complete its rollout
+// This checks that the deployment's observed generation matches its generation
+// and that all replicas are available
+func waitForDeploymentRollout(ctx context.Context, namespace, deploymentName string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		// Default desired replicas to 1 when unset, as elsewhere in this file.
+		desired := int32(1)
+		if deployment.Spec.Replicas != nil {
+			desired = *deployment.Spec.Replicas
+		}
+
+		// Check if rollout is complete
+		if deployment.Generation != deployment.Status.ObservedGeneration {
+			return false, nil
+		}
+		if deployment.Status.UpdatedReplicas < desired {
+			return false, nil
+		}
+		if deployment.Status.AvailableReplicas < desired {
+			return false, nil
+		}
+
+		return true, nil
+	})
+}
+
+// waitForClusterIssuerReadiness waits for a ClusterIssuer to become Ready
+func waitForClusterIssuerReadiness(ctx context.Context, clusterIssuerName string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+		func(context.Context) (bool, error) {
+			clusterIss, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Get(ctx, clusterIssuerName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			for _, cond := range clusterIss.Status.Conditions {
+				if cond.Type == cmv1.IssuerConditionReady {
+					return cond.Status == cmmetav1.ConditionTrue, nil
+				}
+			}
+			return false, nil
+		},
+	)
+}
+
 // waitForIssuerReadiness waits for an Issuer to become Ready
 func waitForIssuerReadiness(ctx context.Context, issuerName, namespace string) error {
 	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
@@ -1149,6 +1203,30 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	}
 
 	return stdout.String(), nil
+}
+
+// isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
+// by checking if the serviceAccountIssuer is configured in the cluster's Authentication config
+func isSTSCluster(ctx context.Context, opClient operatorv1.OperatorV1Interface, configClient configv1.ConfigV1Interface) (bool, error) {
+	credConfig, err := opClient.CloudCredentials().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if credConfig.Spec.CredentialsMode != opv1.CloudCredentialsModeManual {
+		return false, nil
+	}
+
+	authConfig, err := configClient.Authentications().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if len(authConfig.Spec.ServiceAccountIssuer) == 0 || authConfig.Spec.ServiceAccountIssuer == "https://kubernetes.default.svc" {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // createCertificateForVaultServer creates a self-signed certificate for Vault HTTPS server.
