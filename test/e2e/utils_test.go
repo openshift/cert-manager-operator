@@ -21,6 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	opv1 "github.com/openshift/api/operator/v1"
+	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	"github.com/tidwall/gjson"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -1201,6 +1203,30 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	}
 
 	return stdout.String(), nil
+}
+
+// isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
+// by checking if the serviceAccountIssuer is configured in the cluster's Authentication config
+func isSTSCluster(ctx context.Context, opClient operatorv1.OperatorV1Interface, configClient configv1.ConfigV1Interface) (bool, error) {
+	credConfig, err := opClient.CloudCredentials().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if credConfig.Spec.CredentialsMode != opv1.CloudCredentialsModeManual {
+		return false, nil
+	}
+
+	authConfig, err := configClient.Authentications().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if len(authConfig.Spec.ServiceAccountIssuer) == 0 || authConfig.Spec.ServiceAccountIssuer == "https://kubernetes.default.svc" {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // createCertificateForVaultServer creates a self-signed certificate for Vault HTTPS server.

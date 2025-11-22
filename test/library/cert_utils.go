@@ -99,9 +99,24 @@ func VerifyCertificate(secret *corev1.Secret, commonName string) (bool, error) {
 		return false, fmt.Errorf("certificate has expired at %v", cert.NotAfter)
 	}
 
-	// check certificate subject CN
-	if cert.Subject.CommonName != commonName {
-		return false, fmt.Errorf("incorrect subject CN: %v found in issued certificate", cert.Subject.CommonName)
+	// Skip identity verification if commonName is empty
+	if commonName == "" {
+		return true, nil
+	}
+
+	// Check certificate subject CN or DNS names (Subject Alternative Names)
+	cnMatches := cert.Subject.CommonName == commonName
+	dnsMatches := false
+	for _, dns := range cert.DNSNames {
+		if dns == commonName {
+			dnsMatches = true
+			break
+		}
+	}
+
+	if !cnMatches && !dnsMatches {
+		return false, fmt.Errorf("commonName '%s' not found in certificate CN (%s) or DNSNames %v",
+			commonName, cert.Subject.CommonName, cert.DNSNames)
 	}
 
 	return true, nil
