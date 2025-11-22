@@ -667,6 +667,58 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 	return err
 }
 
+// waitForDeploymentRollout waits for a deployment to complete its rollout
+// This checks that the deployment's observed generation matches its generation
+// and that all replicas are available
+func waitForDeploymentRollout(ctx context.Context, namespace, deploymentName string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		// Default desired replicas to 1 when unset, as elsewhere in this file.
+		desired := int32(1)
+		if deployment.Spec.Replicas != nil {
+			desired = *deployment.Spec.Replicas
+		}
+
+		// Check if rollout is complete
+		if deployment.Generation != deployment.Status.ObservedGeneration {
+			return false, nil
+		}
+		if deployment.Status.UpdatedReplicas < desired {
+			return false, nil
+		}
+		if deployment.Status.AvailableReplicas < desired {
+			return false, nil
+		}
+
+		return true, nil
+	})
+}
+
+// waitForClusterIssuerReadiness waits for a ClusterIssuer to become Ready
+func waitForClusterIssuerReadiness(ctx context.Context, clusterIssuerName string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+		func(context.Context) (bool, error) {
+			clusterIss, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Get(ctx, clusterIssuerName, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
+			for _, cond := range clusterIss.Status.Conditions {
+				if cond.Type == cmv1.IssuerConditionReady {
+					return cond.Status == cmmetav1.ConditionTrue, nil
+				}
+			}
+			return false, nil
+		},
+	)
+}
+
 // waitForIssuerReadiness waits for an Issuer to become Ready
 func waitForIssuerReadiness(ctx context.Context, issuerName, namespace string) error {
 	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
