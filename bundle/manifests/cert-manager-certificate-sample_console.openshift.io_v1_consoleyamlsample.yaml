@@ -1,0 +1,24 @@
+apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-certificate-sample
+spec:
+  description: A simple Certificate example
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+  title: Example Certificate
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: example-cert
+      namespace: default
+    spec:
+      secretName: example-tls
+      commonName: example.com
+      dnsNames:
+        - example.com
+      issuerRef:
+        name: selfsigned-issuer
+        kind: Issuer

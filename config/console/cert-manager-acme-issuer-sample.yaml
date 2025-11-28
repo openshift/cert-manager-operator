@@ -1,0 +1,25 @@
+apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-acme-issuer-sample
+spec:
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+  title: Example ACME Issuer (Let's Encrypt)
+  description: An example ACME Issuer for Let's Encrypt production certificates with HTTP-01 challenge
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: letsencrypt-prod
+      namespace: default
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: letsencrypt-prod-account-key
+        solvers:
+        - http01:
+            ingress:
+              ingressClassName: openshift-default

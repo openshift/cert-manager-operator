@@ -1,0 +1,18 @@
+apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-issuer-sample
+spec:
+  description: A simple self-signed Issuer for development and testing
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+  title: Example Self-Signed Issuer
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: selfsigned-issuer
+      namespace: default
+    spec:
+      selfSigned: {}
