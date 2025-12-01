@@ -81,21 +81,24 @@ func FromError(err error, message string, args ...any) *ReconcileError {
 }
 
 func IsIrrecoverableError(err error) bool {
-	if rerr, ok := err.(*ReconcileError); ok || errors.As(err, &rerr) {
+	rerr := &ReconcileError{}
+	if errors.As(err, &rerr) {
 		return rerr.Reason == IrrecoverableError
 	}
 	return false
 }
 
 func IsRetryRequiredError(err error) bool {
-	if rerr, ok := err.(*ReconcileError); ok || errors.As(err, &rerr) {
+	rerr := &ReconcileError{}
+	if errors.As(err, &rerr) {
 		return rerr.Reason == RetryRequiredError
 	}
 	return false
 }
 
 func IsMultipleInstanceError(err error) bool {
-	if rerr, ok := err.(*ReconcileError); ok || errors.As(err, &rerr) {
+	rerr := &ReconcileError{}
+	if errors.As(err, &rerr) {
 		return rerr.Reason == MultipleInstanceError
 	}
 	return false

@@ -44,7 +44,7 @@ var (
 	requestEnqueueLabelValue = "cert-manager-istio-csr"
 )
 
-// Reconciler reconciles a IstioCSR object
+// Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
 	ctrlClient
 

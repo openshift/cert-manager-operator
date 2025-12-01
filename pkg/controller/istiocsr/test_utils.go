@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -140,9 +141,7 @@ func testCertificate() *certmanagerv1.Certificate {
 	cert := decodeCertificateObjBytes(assets.MustAsset(certificateAssetName))
 	cert.SetNamespace(testIstiodNamespace)
 	labels := make(map[string]string)
-	for k, v := range controllerDefaultResourceLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, controllerDefaultResourceLabels)
 	labels[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
 	cert.SetLabels(labels)
 	cert.Spec.CommonName = fmt.Sprintf("istiod.%s.svc", testIstiodNamespace)
@@ -258,7 +257,7 @@ func testSecret() *corev1.Secret {
 	}
 }
 
-// testCACertificateConfigMap creates a ConfigMap with a CA certificate
+// testCACertificateConfigMap creates a ConfigMap with a CA certificate.
 func testCACertificateConfigMap() *corev1.ConfigMap {
 	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
@@ -269,7 +268,7 @@ func testCACertificateConfigMap() *corev1.ConfigMap {
 	return createCertificateConfigMap("ca-cert-test", testIstioCSRNamespace, caPEM)
 }
 
-// testNonCACertificateConfigMap creates a ConfigMap with a non-CA certificate
+// testNonCACertificateConfigMap creates a ConfigMap with a non-CA certificate.
 func testNonCACertificateConfigMap() *corev1.ConfigMap {
 	certPEM := GenerateCertificate("Test non-CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
@@ -279,7 +278,7 @@ func testNonCACertificateConfigMap() *corev1.ConfigMap {
 	return createCertificateConfigMap("non-ca-cert-test", testIstioCSRNamespace, certPEM)
 }
 
-// testCertificateWithoutCertSignConfigMap creates a ConfigMap with a CA certificate missing CertSign
+// testCertificateWithoutCertSignConfigMap creates a ConfigMap with a CA certificate missing CertSign.
 func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
 	certPEM := GenerateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
@@ -289,7 +288,7 @@ func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
 	return createCertificateConfigMap("ca-without-certsign-test", testIstioCSRNamespace, certPEM)
 }
 
-// GenerateCertificate creates a certificate with specified tweaks
+// GenerateCertificate creates a certificate with specified tweaks.
 func GenerateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
 	// Generate RSA private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)

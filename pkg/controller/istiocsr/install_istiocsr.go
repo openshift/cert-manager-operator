@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
@@ -15,13 +16,9 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 	// merge it with the controller's own default labels.
 	resourceLabels := make(map[string]string)
 	if istiocsr.Spec.ControllerConfig != nil && len(istiocsr.Spec.ControllerConfig.Labels) != 0 {
-		for k, v := range istiocsr.Spec.ControllerConfig.Labels {
-			resourceLabels[k] = v
-		}
+		maps.Copy(resourceLabels, istiocsr.Spec.ControllerConfig.Labels)
 	}
-	for k, v := range controllerDefaultResourceLabels {
-		resourceLabels[k] = v
-	}
+	maps.Copy(resourceLabels, controllerDefaultResourceLabels)
 
 	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile network policy resources")

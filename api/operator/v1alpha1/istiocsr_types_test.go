@@ -18,7 +18,7 @@ const (
 // TestIstioCSRStatusDefault verifies that the istiocsr CR status does not have default value
 // The admission code under https://github.com/openshift/kubernetes/pull/877 is expecting that the istiocsr status
 // field will not have a default value.
-// It allows separating between clean installation and the roll-back to the previous version of the cluster
+// It allows separating between clean installation and the roll-back to the previous version of the cluster.
 func TestIstioCSRStatusDefault(t *testing.T) {
 	filepath := path.Join(istiocsrCRDFilePath, istiocsrCRDFile)
 	istiocsrCRDBytes, err := os.ReadFile(filepath)
@@ -26,14 +26,14 @@ func TestIstioCSRStatusDefault(t *testing.T) {
 		t.Fatalf("failed to read istiocsr CRD file %q: %v", filepath, err)
 	}
 
-	var istiocsrCRD map[string]interface{}
+	var istiocsrCRD map[string]any
 	if err := yaml.Unmarshal(istiocsrCRDBytes, &istiocsrCRD); err != nil {
 		t.Fatalf("failed to unmarshal istiocsr CRD: %v", err)
 	}
-	istiocsrCRDSpec := istiocsrCRD["spec"].(map[string]interface{})
-	istiocsrCRDVersions := istiocsrCRDSpec["versions"].([]interface{})
+	istiocsrCRDSpec := istiocsrCRD["spec"].(map[string]any)
+	istiocsrCRDVersions := istiocsrCRDSpec["versions"].([]any)
 	for _, v := range istiocsrCRDVersions {
-		istiocsrCRDVersion := v.(map[string]interface{})
+		istiocsrCRDVersion := v.(map[string]any)
 		status, exists, err := unstructured.NestedMap(istiocsrCRDVersion, "schema", "openAPIV3Schema", "properties", "status")
 		if err != nil {
 			t.Fatalf("failed to get nested map: %v", err)

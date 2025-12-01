@@ -30,7 +30,7 @@ const (
 	defaultCABundleKey = "ca-bundle.crt"
 
 	// boundSA is the openshift service account
-	// containing bound token
+	// containing bound token.
 	boundSATokenVolumeName = "bound-sa-token"
 	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount"
 	boundSAAudience        = "openshift"
@@ -38,7 +38,7 @@ const (
 	boundSAExpirySec       = 3600
 
 	// upstreamACMESolverImage is the upstream that needs to be overridden
-	// within the cert-manager controller deployment
+	// within the cert-manager controller deployment.
 	upstreamACMESolverImage = "quay.io/jetstack/cert-manager-acmesolver"
 )
 
@@ -118,7 +118,6 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 		if overrideEnv != nil && len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
 			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
 				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv)
-
 		}
 		return nil
 	}
@@ -190,14 +189,13 @@ func withProxyEnv(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Depl
 // ca bundle as a volume. This is set when a trusted ca configmap is provided.
 func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deployment *appsv1.Deployment, trustedCAConfigmapName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-
 		if len(trustedCAConfigmapName) == 0 {
 			return nil
 		}
 
 		_, err := configmapinformer.Lister().ConfigMaps(operatorclient.TargetNamespace).Get(trustedCAConfigmapName)
 		if err != nil && apierrors.IsNotFound(err) {
-			return fmt.Errorf("(Retrying) trusted CA config map %q doesn't exist due to %v", trustedCAConfigmapName, err)
+			return fmt.Errorf("(Retrying) trusted CA config map %q doesn't exist due to %w", trustedCAConfigmapName, err)
 		} else if err != nil {
 			return err
 		}
@@ -225,7 +223,7 @@ func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deploy
 	}
 }
 
-// withPodLabels patches the operand deployment to include custom pod labels
+// withPodLabels patches the operand deployment to include custom pod labels.
 func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideLabelsFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideLabels, err := fn(certmanagerinformer, deploymentName)

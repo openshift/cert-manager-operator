@@ -30,7 +30,7 @@ func createFakeClient(isResourcePresent bool) *fake.Clientset {
 
 	// the fake client set does not populate API resource list by default
 	// which is required to make a fake discovery call
-	fakeClient.Fake.Resources = []*metav1.APIResourceList{
+	fakeClient.Resources = []*metav1.APIResourceList{
 		{
 			GroupVersion: operatorv1alpha1.SchemeGroupVersion.String(),
 			APIResources: []metav1.APIResource{
@@ -54,7 +54,7 @@ type alwaysErrorFakeDiscovery struct {
 	fakediscovery.FakeDiscovery
 }
 
-// ServerResourcesForGroupVersion is the only func that OptionalInformer's discovery client calls
+// ServerResourcesForGroupVersion is the only func that OptionalInformer's discovery client calls.
 func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
 	return nil, fmt.Errorf("expected foo error")
 }

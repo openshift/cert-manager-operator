@@ -25,10 +25,10 @@ import (
 )
 
 var (
-	// SchemeGroupVersion is group version used to register these objects
+	// SchemeGroupVersion is group version used to register these objects.
 	SchemeGroupVersion = schema.GroupVersion{Group: "operator.openshift.io", Version: "v1alpha1"}
 
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
+	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 
 	// AddToScheme adds the types in this group-version to the given scheme.
@@ -36,7 +36,7 @@ var (
 )
 
 // Manually added to conform to k8s code-generator lister-gen.
-// Resource takes an unqualified resource and returns a Group qualified GroupResource
+// Resource takes an unqualified resource and returns a Group qualified GroupResource.
 func Resource(resource string) schema.GroupResource {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }

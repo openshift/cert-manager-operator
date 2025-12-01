@@ -19,7 +19,7 @@ const argKeyValSeparator = "="
 
 // mergeContainerArgs merges the source args with override values
 // using a map that tracks unique keys for each arg containing a
-// key value pair of form `key[=value]`
+// key value pair of form `key[=value]`.
 func mergeContainerArgs(sourceArgs []string, overrideArgs []string) (destArgs []string) {
 	destArgMap := map[string]string{}
 	parseArgMap(destArgMap, sourceArgs)
@@ -67,7 +67,7 @@ func parseEnvMap(envMap map[string]corev1.EnvVar, envs []corev1.EnvVar) {
 
 // parseArgMap adds new entries to the map using keys
 // parsed from each arg (of the form `key=[value]`) from the
-// list of args
+// list of args.
 func parseArgMap(argMap map[string]string, args []string) {
 	for _, arg := range args {
 		splitted := strings.Split(arg, argKeyValSeparator)
@@ -137,7 +137,7 @@ func mergePodScheduling(sourceScheduling v1alpha1.CertManagerScheduling, overrid
 func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) ([]string, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return nil, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -164,7 +164,7 @@ func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInfor
 func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) ([]corev1.EnvVar, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return nil, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -191,7 +191,7 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (map[string]string, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return nil, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -211,7 +211,6 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return nil, nil
-
 }
 
 // getOverrideReplicasFor is a helper function that returns the OverrideReplicas provided
@@ -219,7 +218,7 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (*int32, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return nil, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -246,7 +245,7 @@ func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerI
 func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (v1alpha1.CertManagerResourceRequirements, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {
@@ -273,7 +272,7 @@ func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManager
 func getOverrideSchedulingFor(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) (v1alpha1.CertManagerScheduling, error) {
 	certmanager, err := certmanagerinformer.Lister().Get("cluster")
 	if err != nil {
-		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("failed to get certmanager %q due to %v", "cluster", err)
+		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 	}
 
 	switch deploymentName {

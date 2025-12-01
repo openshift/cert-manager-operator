@@ -11,11 +11,11 @@ var (
 	// versionFromGit is a constant representing the version tag that
 	// generated this build. It should be set during build via -ldflags.
 	versionFromGit string
-	// major version
+	// major version.
 	majorFromGit string
-	// minor version
+	// minor version.
 	minorFromGit string
-	// build date in ISO8601 format, output of $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+	// build date in ISO8601 format, output of $(date -u +'%Y-%m-%dT%H:%M:%SZ').
 	buildDate string
 )
 

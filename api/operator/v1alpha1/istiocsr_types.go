@@ -21,7 +21,8 @@ type IstioCSRList struct {
 	// metadata is the standard list's metadata.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ListMeta `json:"metadata"`
-	Items           []IstioCSR `json:"items"`
+
+	Items []IstioCSR `json:"items"`
 }
 
 // +genclient

@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -335,8 +334,7 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create channel to know when the watch has started.
 	watcherStarted := make(chan struct{})
@@ -363,12 +361,12 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 	// Add event handlers to the informer to write the cert manager objects to
 	// the channel received during the add and the delete events.
 	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj added: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj
@@ -857,8 +855,7 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create channel to know when the watch has started.
 	watcherStarted := make(chan struct{})
@@ -885,12 +882,12 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 	// Add event handlers to the informer to write the cert manager objects to
 	// the channel received during the add and the delete events.
 	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj added: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj
@@ -1059,8 +1056,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create channel to know when the watch has started.
 	watcherStarted := make(chan struct{})
@@ -1087,12 +1083,12 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 	// Add event handlers to the informer to write the cert manager objects to
 	// the channel received during the add and the delete events.
 	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj added: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			certManagerObj := obj.(*v1alpha1.CertManager)
 			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
 			certManagerChan <- certManagerObj

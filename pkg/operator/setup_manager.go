@@ -42,7 +42,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-// Manager holds the manager resource for the istio-csr controller
+// Manager holds the manager resource for the istio-csr controller.
 type Manager struct {
 	manager manager.Manager
 }

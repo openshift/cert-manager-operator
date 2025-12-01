@@ -297,7 +297,6 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s reconciled back to desired state", roleBindingName)
 	} else {
 		r.log.V(4).Info("rolebinding resource already exists and is in expected state", "name", roleBindingName)
-
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {

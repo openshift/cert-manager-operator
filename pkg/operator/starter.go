@@ -36,7 +36,7 @@ const (
 var TrustedCAConfigMapName string
 
 // CloudSecretName is the name of the cloud secret to be
-// used in ambient credentials mode, and is provided as a runtime arg
+// used in ambient credentials mode, and is provided as a runtime arg.
 var CloudCredentialSecret string
 
 // UnsupportedAddonFeatures is the user-specific list of unsupported addon features
