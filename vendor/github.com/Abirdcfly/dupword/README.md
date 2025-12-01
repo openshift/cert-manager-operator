@@ -101,18 +101,24 @@ Flags:
         no effect (deprecated)
   -c int
         display offending line with this many lines of context (default -1)
+  -comments-only
+        check only comments, skip strings
   -cpuprofile string
         write CPU profile to this file
   -debug string
         debug flags, any subset of "fpstv"
+  -diff
+        with -fix, don't update the files, but print a unified diff
   -fix
         apply all suggested fixes
   -flags
         print analyzer flags in JSON
+  -ignore value
+        ignore words
   -json
         emit JSON output
   -keyword value
-        key words for detecting duplicate words
+        keywords for detecting duplicate words
   -memprofile string
         write memory profile to this file
   -source
@@ -128,7 +134,7 @@ Flags:
 
 ### 5. my advice
 
-use `--keyword=the,and,a` and `-fix` together. I personally think that specifying only common repeated prepositions can effectively avoid false positives. 
+use `--keyword=the,and,a` and `-fix` together. I think that specifying only commonly repeated prepositions can effectively avoid false positives.
 
 see [dupword#4](https://github.com/Abirdcfly/dupword/issues/4) for real code example.
 
@@ -138,7 +144,7 @@ $ dupword --keyword=the,and,a -fix ./...
 
 ## TODO
 
-- [ ] add this linter to golangci-lint
+- [x] add this linter to golangci-lint
 - [ ] rewrite the detection logic to make it more efficient
 
 ## Limitation

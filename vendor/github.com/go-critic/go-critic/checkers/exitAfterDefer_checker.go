@@ -4,7 +4,8 @@ import (
 	"go/ast"
 
 	"github.com/go-critic/go-critic/checkers/internal/astwalk"
-	"github.com/go-critic/go-critic/framework/linter"
+	"github.com/go-critic/go-critic/linter"
+
 	"github.com/go-toolsmith/astfmt"
 	"github.com/go-toolsmith/astp"
 	"golang.org/x/tools/go/ast/astutil"
@@ -13,7 +14,7 @@ import (
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "exitAfterDefer"
-	info.Tags = []string{"diagnostic"}
+	info.Tags = []string{linter.DiagnosticTag}
 	info.Summary = "Detects calls to exit/fatal inside functions that use defer"
 	info.Before = `
 defer os.Remove(filename)
@@ -44,6 +45,12 @@ func (c *exitAfterDeferChecker) VisitFuncDecl(fn *ast.FuncDecl) {
 
 	var deferStmt *ast.DeferStmt
 	pre := func(cur *astutil.Cursor) bool {
+		// If we found a defer statement in the function post traversal.
+		// and are looking at the Else branch during a pre traversal, stop seeking as it could be false positive.
+		if deferStmt != nil && cur.Name() == "Else" {
+			return false
+		}
+
 		// Don't recurse into local anonymous functions.
 		return !astp.IsFuncLit(cur.Node())
 	}

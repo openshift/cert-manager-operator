@@ -7,7 +7,6 @@ import (
 	"go/constant"
 	"net/http"
 	"net/rpc"
-	"os"
 	"strconv"
 	"time"
 )
@@ -162,10 +161,9 @@ var TimeLayout = map[string]string{
 	time.StampMilli:  "time.StampMilli",
 	time.StampMicro:  "time.StampMicro",
 	time.StampNano:   "time.StampNano",
-}
-
-var OSDevNull = map[string]string{
-	os.DevNull: "os.DevNull",
+	time.DateTime:    "time.DateTime",
+	time.DateOnly:    "time.DateOnly",
+	time.TimeOnly:    "time.TimeOnly",
 }
 
 var SQLIsolationLevel = map[string]string{
@@ -201,4 +199,19 @@ var ConstantKind = map[string]string{
 	constant.Int.String():     "constant.Int.String()",
 	constant.Float.String():   "constant.Float.String()",
 	constant.Complex.String(): "constant.Complex.String()",
+}
+
+var TimeDateMonth = map[string]string{
+	"1":  "time.January",
+	"2":  "time.February",
+	"3":  "time.March",
+	"4":  "time.April",
+	"5":  "time.May",
+	"6":  "time.June",
+	"7":  "time.July",
+	"8":  "time.August",
+	"9":  "time.September",
+	"10": "time.October",
+	"11": "time.November",
+	"12": "time.December",
 }

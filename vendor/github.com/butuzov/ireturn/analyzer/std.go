@@ -183,4 +183,32 @@ var std = map[string]struct{}{
 	"runtime/metrics":     {},
 	"testing/fstest":      {},
 	// added in Go v1.17 in compare to v1.16 (docker image)
+	// added in Go v1.18 in compare to v1.17 (docker image)
+	"debug/buildinfo": {},
+	"net/netip":       {},
+	// added in Go v1.19 in compare to v1.18 (docker image)
+	"go/doc/comment": {},
+	// added in Go v1.20 in compare to v1.19 (docker image)
+	"crypto/ecdh":      {},
+	"runtime/coverage": {},
+	// added in Go v1.21 in compare to v1.20 (docker image)
+	"cmp":              {},
+	"log/slog":         {},
+	"maps":             {},
+	"slices":           {},
+	"testing/slogtest": {},
+	// added in Go v1.22 in compare to v1.21 (docker image)
+	"go/version":   {},
+	"math/rand/v2": {},
+	// added in Go v1.23 in compare to v1.22 (docker image)
+	"iter":    {},
+	"structs": {},
+	"unique":  {},
+	// added in Go v1.24 in compare to v1.23 (docker image)
+	"crypto/fips140": {},
+	"crypto/hkdf":    {},
+	"crypto/mlkem":   {},
+	"crypto/pbkdf2":  {},
+	"crypto/sha3":    {},
+	"weak":           {},
 }

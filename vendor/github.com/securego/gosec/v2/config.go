@@ -29,7 +29,14 @@ const (
 	ExcludeRules GlobalOption = "exclude"
 	// IncludeRules global option for  should be load
 	IncludeRules GlobalOption = "include"
+	// SSA global option to enable go analysis framework with SSA support
+	SSA GlobalOption = "ssa"
 )
+
+// NoSecTag returns the tag used to disable gosec for a line of code.
+func NoSecTag(tag string) string {
+	return fmt.Sprintf("%s%s", "#", tag)
+}
 
 // Config is used to provide configuration and customization to each of the rules.
 type Config map[string]interface{}
@@ -88,7 +95,7 @@ func (c Config) WriteTo(w io.Writer) (int64, error) {
 func (c Config) Get(section string) (interface{}, error) {
 	settings, found := c[section]
 	if !found {
-		return nil, fmt.Errorf("Section %s not in configuration", section)
+		return nil, fmt.Errorf("section %s not in configuration", section)
 	}
 	return settings, nil
 }

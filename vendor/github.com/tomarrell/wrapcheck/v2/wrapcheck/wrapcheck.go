@@ -16,6 +16,7 @@ var DefaultIgnoreSigs = []string{
 	".Errorf(",
 	"errors.New(",
 	"errors.Unwrap(",
+	"errors.Join(",
 	".Wrap(",
 	".Wrapf(",
 	".WithMessage(",
@@ -42,6 +43,10 @@ type WrapcheckConfig struct {
 	// sigs. To achieve the same behaviour as default, you should add the default
 	// list to your config.
 	IgnoreSigs []string `mapstructure:"ignoreSigs" yaml:"ignoreSigs"`
+
+	// ExtraIgnoreSigs defines an additional list of signatures to ignore, on
+	// top of IgnoreSigs.
+	ExtraIgnoreSigs []string `mapstructure:"extraIgnoreSigs" yaml:"extraIgnoreSigs"`
 
 	// IgnoreSigRegexps defines a list of regular expressions which if matched
 	// to the signature of the function call returning the error, will be ignored. This
@@ -78,6 +83,10 @@ type WrapcheckConfig struct {
 	// returned from any function whose call is defined on a interface named 'Transactor'
 	// or 'Transaction' due to the name matching the regular expression `Transac(tor|tion)`.
 	IgnoreInterfaceRegexps []string `mapstructure:"ignoreInterfaceRegexps" yaml:"ignoreInterfaceRegexps"`
+
+	// ReportInternalErrors determines whether wrapcheck should report errors returned
+	// from inside the package.
+	ReportInternalErrors bool `mapstructure:"reportInternalErrors" yaml:"reportInternalErrors"`
 }
 
 func NewDefaultConfig() WrapcheckConfig {
@@ -120,7 +129,20 @@ func run(cfg WrapcheckConfig) func(*analysis.Pass) (interface{}, error) {
 		}
 
 		for _, file := range pass.Files {
+			// Keep track of parents so that can can traverse upwards to check for
+			// FuncDecls and FuncLits.
+			var parents []ast.Node
+
 			ast.Inspect(file, func(n ast.Node) bool {
+				if n == nil {
+					// Pop, since we're done with this node and its children.
+					parents = parents[:len(parents)-1]
+				} else {
+					// Push this node on the stack, since its children will be visited
+					// next.
+					parents = append(parents, n)
+				}
+
 				ret, ok := n.(*ast.ReturnStmt)
 				if !ok {
 					return true
@@ -136,6 +158,17 @@ func run(cfg WrapcheckConfig) func(*analysis.Pass) (interface{}, error) {
 					// to handle it by checking the return params of the function.
 					retFn, ok := expr.(*ast.CallExpr)
 					if ok {
+						// If you go up, and the parent is a FuncLit, then don't report an
+						// error as you are in an anonymous function. If you are inside a
+						// FuncDecl, then continue as normal.
+						for i := len(parents) - 1; i > 0; i-- {
+							if _, ok := parents[i].(*ast.FuncLit); ok {
+								return true
+							} else if _, ok := parents[i].(*ast.FuncDecl); ok {
+								break
+							}
+						}
+
 						// If the return type of the function is a single error. This will not
 						// match an error within multiple return values, for that, the below
 						// tuple check is required.
@@ -244,23 +277,38 @@ func reportUnwrapped(
 	pkgGlobs []glob.Glob,
 ) {
 
+	if cfg.ReportInternalErrors {
+		// Check if the call is package-internal function
+		fnIdent, ok := call.Fun.(*ast.Ident)
+		if ok {
+			fnSig := pass.TypesInfo.ObjectOf(fnIdent).String()
+
+			// Check for ignored signatures
+			if checkSignature(cfg, regexpsSig, fnSig) {
+				return
+			}
+
+			pass.Reportf(tokenPos, "package-internal error should be wrapped: sig: %s", fnSig)
+			return
+		}
+	}
+
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return
 	}
 
-	// Check for ignored signatures
 	fnSig := pass.TypesInfo.ObjectOf(sel.Sel).String()
-	if contains(cfg.IgnoreSigs, fnSig) {
-		return
-	} else if containsMatch(regexpsSig, fnSig) {
+
+	// Check for ignored signatures
+	if checkSignature(cfg, regexpsSig, fnSig) {
 		return
 	}
 
 	// Check if the underlying type of the "x" in x.y.z is an interface, as
-	// errors returned from interface types should be wrapped, unless ignored
-	// as per `ignoreInterfaceRegexps`
-	if isInterface(pass, sel) {
+	// errors returned from exported interface types should be wrapped, unless
+	// ignored as per `ignoreInterfaceRegexps`
+	if sel.Sel.IsExported() && isInterface(pass, sel) {
 		pkgPath := pass.TypesInfo.ObjectOf(sel.Sel).Pkg().Path()
 		name := types.TypeString(pass.TypesInfo.TypeOf(sel.X), func(p *types.Package) string { return p.Name() })
 		if !containsMatch(regexpsInter, name) && !containsMatchGlob(pkgGlobs, pkgPath) {
@@ -276,6 +324,17 @@ func reportUnwrapped(
 		pass.Reportf(tokenPos, "error returned from external package is unwrapped: sig: %s", fnSig)
 		return
 	}
+
+	// If `ReportInternalErrors` is true, report package-internal errors
+	if cfg.ReportInternalErrors {
+		pass.Reportf(tokenPos, "package-internal error should be wrapped: sig: %s", fnSig)
+		return
+	}
+}
+
+// checkSignature returns whether the function should be ignored.
+func checkSignature(cfg WrapcheckConfig, regexpsSig []*regexp.Regexp, fnSig string) bool {
+	return contains(cfg.IgnoreSigs, fnSig) || contains(cfg.ExtraIgnoreSigs, fnSig) || containsMatch(regexpsSig, fnSig)
 }
 
 // isInterface returns whether the function call is one defined on an interface.

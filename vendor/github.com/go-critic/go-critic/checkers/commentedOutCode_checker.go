@@ -6,17 +6,25 @@ import (
 	"go/token"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-critic/go-critic/checkers/internal/astwalk"
-	"github.com/go-critic/go-critic/framework/linter"
+	"github.com/go-critic/go-critic/linter"
+
 	"github.com/go-toolsmith/strparse"
 )
 
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "commentedOutCode"
-	info.Tags = []string{"diagnostic", "experimental"}
+	info.Tags = []string{linter.DiagnosticTag, linter.ExperimentalTag}
 	info.Summary = "Detects commented-out code inside function bodies"
+	info.Params = linter.CheckerParams{
+		"minLength": {
+			Value: 15,
+			Usage: "min length of the comment that triggers a warning",
+		},
+	}
 	info.Before = `
 // fmt.Println("Debugging hard")
 foo(1, 2)`
@@ -26,6 +34,7 @@ foo(1, 2)`
 		return astwalk.WalkerForLocalComment(&commentedOutCodeChecker{
 			ctx:              ctx,
 			notQuiteFuncCall: regexp.MustCompile(`\w+\s+\([^)]*\)\s*$`),
+			minLength:        info.Params.Int("minLength"),
 		}), nil
 	})
 }
@@ -36,6 +45,7 @@ type commentedOutCodeChecker struct {
 	fn  *ast.FuncDecl
 
 	notQuiteFuncCall *regexp.Regexp
+	minLength        int
 }
 
 func (c *commentedOutCodeChecker) EnterFunc(fn *ast.FuncDecl) bool {
@@ -68,7 +78,7 @@ func (c *commentedOutCodeChecker) VisitLocalComment(cg *ast.CommentGroup) {
 	// Some very short comment that can be skipped.
 	// Usually triggering on these results in false positive.
 	// Unless there is a very popular call like print/println.
-	cond := len(s) < len("quite too short") &&
+	cond := utf8.RuneCountInString(s) < c.minLength &&
 		!strings.Contains(s, "print") &&
 		!strings.Contains(s, "fmt.") &&
 		!strings.Contains(s, "log.")
@@ -80,6 +90,10 @@ func (c *commentedOutCodeChecker) VisitLocalComment(cg *ast.CommentGroup) {
 	// but there is a whitespace between function name and
 	// parameters list. Skip these to avoid false positives.
 	if c.notQuiteFuncCall.MatchString(s) {
+		return
+	}
+
+	if c.isExampleOutputComment(s) {
 		return
 	}
 
@@ -99,11 +113,6 @@ func (c *commentedOutCodeChecker) VisitLocalComment(cg *ast.CommentGroup) {
 		return
 	}
 
-	// Some attempts to avoid false positives.
-	if c.skipBlock(s) {
-		return
-	}
-
 	// Add braces to make block statement from
 	// multiple statements.
 	stmt = strparse.Stmt(fmt.Sprintf("{ %s }", s))
@@ -113,15 +122,18 @@ func (c *commentedOutCodeChecker) VisitLocalComment(cg *ast.CommentGroup) {
 	}
 }
 
-func (c *commentedOutCodeChecker) skipBlock(s string) bool {
-	lines := strings.Split(s, "\n") // There is at least 1 line, that's invariant
-
-	// Special example test block.
-	if isExampleTestFunc(c.fn) && strings.Contains(lines[0], "Output:") {
-		return true
-	}
-
-	return false
+// An example output comment can be one of the following:
+//
+//	Output: some output
+//
+// or
+//
+//	Output:
+//	some output
+//
+// See https://go.dev/blog/examples
+func (c *commentedOutCodeChecker) isExampleOutputComment(s string) bool {
+	return isExampleTestFunc(c.fn) && strings.Contains(s, "Output:")
 }
 
 func (c *commentedOutCodeChecker) isPermittedStmt(stmt ast.Stmt) bool {

@@ -7,7 +7,8 @@ import (
 
 	"github.com/go-critic/go-critic/checkers/internal/astwalk"
 	"github.com/go-critic/go-critic/checkers/internal/lintutil"
-	"github.com/go-critic/go-critic/framework/linter"
+	"github.com/go-critic/go-critic/linter"
+
 	"github.com/go-toolsmith/astcast"
 	"github.com/go-toolsmith/astcopy"
 	"github.com/go-toolsmith/astequal"
@@ -18,7 +19,7 @@ import (
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "badCond"
-	info.Tags = []string{"diagnostic"}
+	info.Tags = []string{linter.DiagnosticTag}
 	info.Summary = "Detects suspicious condition expressions"
 	info.Before = `
 for i := 0; i > n; i++ {
@@ -86,7 +87,8 @@ func (c *badCondChecker) checkExpr(expr ast.Expr) {
 
 func (c *badCondChecker) equalToBoth(lhs, rhs *ast.BinaryExpr) bool {
 	return lhs.Op == token.EQL && rhs.Op == token.EQL &&
-		astequal.Expr(lhs.X, rhs.X)
+		astequal.Expr(lhs.X, rhs.X) &&
+		typep.SideEffectFree(c.ctx.TypesInfo, lhs.Y) && typep.SideEffectFree(c.ctx.TypesInfo, rhs.Y)
 }
 
 func (c *badCondChecker) lessAndGreater(lhs, rhs *ast.BinaryExpr) bool {
@@ -114,30 +116,43 @@ func (c *badCondChecker) checkForStmt(stmt *ast.ForStmt) {
 
 	iter := astcast.ToIdent(init.Lhs[0])
 	cond := astcast.ToBinaryExpr(stmt.Cond)
-	if cond.Op != token.GTR || !astequal.Expr(iter, cond.X) {
+
+	var i, n ast.Expr
+	var op token.Token
+	switch {
+	case cond.Op == token.GTR && astequal.Expr(iter, cond.X):
+		i = cond.X
+		n = cond.Y
+		op = token.LSS
+	case cond.Op == token.LSS && astequal.Expr(iter, cond.Y):
+		i = cond.Y
+		n = cond.X
+		op = token.GTR
+	default:
 		return
 	}
-	if !typep.SideEffectFree(c.ctx.TypesInfo, cond.Y) {
+
+	if !typep.SideEffectFree(c.ctx.TypesInfo, n) {
 		return
 	}
 
 	post := astcast.ToIncDecStmt(stmt.Post)
-	if post.Tok != token.INC || !astequal.Expr(iter, post.X) {
+	if post.Tok != token.INC || !astequal.Expr(iter, i) {
 		return
 	}
 
-	mutated := lintutil.CouldBeMutated(c.ctx.TypesInfo, stmt.Body, cond.Y) ||
+	mutated := lintutil.CouldBeMutated(c.ctx.TypesInfo, stmt.Body, n) ||
 		lintutil.CouldBeMutated(c.ctx.TypesInfo, stmt.Body, iter)
 	if mutated {
 		return
 	}
 
-	c.warnForStmt(stmt, cond)
+	c.warnForStmt(stmt, op, cond)
 }
 
-func (c *badCondChecker) warnForStmt(cause ast.Node, cond *ast.BinaryExpr) {
+func (c *badCondChecker) warnForStmt(cause ast.Node, op token.Token, cond *ast.BinaryExpr) {
 	suggest := astcopy.BinaryExpr(cond)
-	suggest.Op = token.LSS
+	suggest.Op = op
 	c.ctx.Warn(cause, "`%s` in loop; probably meant `%s`?",
 		cond, suggest)
 }

@@ -3,7 +3,7 @@ package formatter
 import (
 	"bytes"
 	"encoding/xml"
-	plainTemplate "text/template"
+	plain "text/template"
 
 	"github.com/mgechev/revive/lint"
 )
@@ -14,7 +14,7 @@ type Checkstyle struct {
 	Metadata lint.FormatterMetadata
 }
 
-// Name returns the name of the formatter
+// Name returns the name of the formatter.
 func (*Checkstyle) Name() string {
 	return "checkstyle"
 }
@@ -43,14 +43,14 @@ func (*Checkstyle) Format(failures <-chan lint.Failure, config lint.Config) (str
 			Severity:   severity(config, failure),
 			RuleName:   failure.RuleName,
 		}
-		fn := failure.GetFilename()
+		fn := failure.Filename()
 		if issues[fn] == nil {
-			issues[fn] = make([]issue, 0)
+			issues[fn] = []issue{}
 		}
 		issues[fn] = append(issues[fn], iss)
 	}
 
-	t, err := plainTemplate.New("revive").Parse(checkstyleTemplate)
+	t, err := plain.New("revive").Parse(checkstyleTemplate)
 	if err != nil {
 		return "", err
 	}

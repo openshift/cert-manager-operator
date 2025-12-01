@@ -3,10 +3,10 @@
 package godot
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/token"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"sort"
@@ -25,37 +25,21 @@ type Issue struct {
 	Replacement string
 }
 
-// position is a position inside a comment (might be multiline comment).
-type position struct {
-	line   int // starts at 1
-	column int // starts at 1, byte count
-}
-
-// comment is an internal representation of AST comment entity with additional
-// data attached. The latter is used for creating a full replacement for
-// the line with issues.
-type comment struct {
-	lines []string       // unmodified lines from file
-	text  string         // concatenated `lines` with special parts excluded
-	start token.Position // position of the first symbol in comment
-	decl  bool           // whether comment is a declaration comment
-}
-
 // Run runs this linter on the provided code.
 func Run(file *ast.File, fset *token.FileSet, settings Settings) ([]Issue, error) {
 	pf, err := newParsedFile(file, fset)
-	if err == errEmptyInput || err == errUnsuitableInput {
+	if errors.Is(err, errEmptyInput) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("parse input file: %v", err)
+		return nil, fmt.Errorf("parse input file: %w", err)
 	}
 
 	exclude := make([]*regexp.Regexp, len(settings.Exclude))
 	for i := 0; i < len(settings.Exclude); i++ {
 		exclude[i], err = regexp.Compile(settings.Exclude[i])
 		if err != nil {
-			return nil, fmt.Errorf("invalid regexp: %v", err)
+			return nil, fmt.Errorf("invalid regexp: %w", err)
 		}
 	}
 
@@ -69,9 +53,9 @@ func Run(file *ast.File, fset *token.FileSet, settings Settings) ([]Issue, error
 // Fix fixes all issues and returns new version of file content.
 func Fix(path string, file *ast.File, fset *token.FileSet, settings Settings) ([]byte, error) {
 	// Read file
-	content, err := ioutil.ReadFile(path) // nolint: gosec
+	content, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
-		return nil, fmt.Errorf("read file: %v", err)
+		return nil, fmt.Errorf("read file: %w", err)
 	}
 	if len(content) == 0 {
 		return nil, nil
@@ -79,7 +63,7 @@ func Fix(path string, file *ast.File, fset *token.FileSet, settings Settings) ([
 
 	issues, err := Run(file, fset, settings)
 	if err != nil {
-		return nil, fmt.Errorf("run linter: %v", err)
+		return nil, fmt.Errorf("run linter: %w", err)
 	}
 
 	// slice -> map
@@ -102,21 +86,21 @@ func Fix(path string, file *ast.File, fset *token.FileSet, settings Settings) ([
 	return fixed, nil
 }
 
-// Replace rewrites original file with it's fixed version.
+// Replace rewrites original file with its fixed version.
 func Replace(path string, file *ast.File, fset *token.FileSet, settings Settings) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("check file: %v", err)
+		return fmt.Errorf("check file: %w", err)
 	}
 	mode := info.Mode()
 
 	fixed, err := Fix(path, file, fset, settings)
 	if err != nil {
-		return fmt.Errorf("fix issues: %v", err)
+		return fmt.Errorf("fix issues: %w", err)
 	}
 
-	if err := ioutil.WriteFile(path, fixed, mode); err != nil {
-		return fmt.Errorf("write file: %v", err)
+	if err := os.WriteFile(path, fixed, mode); err != nil {
+		return fmt.Errorf("write file: %w", err)
 	}
 	return nil
 }

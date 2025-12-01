@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"errors"
 	"flag"
 	"go/ast"
 	"go/types"
@@ -30,7 +31,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	reportErrorInDefer := pass.Analyzer.Flags.Lookup(FlagReportErrorInDefer).Value.String() == "true"
 	errorType := types.Universe.Lookup("error").Type()
 
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	inspector, ok := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	if !ok {
+		return nil, errors.New("failed to get inspector")
+	}
 
 	// only filter function defintions
 	nodeFilter := []ast.Node{
@@ -50,6 +54,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			funcResults = n.Type.Results
 			funcBody = n.Body
 		default:
+			return
+		}
+
+		// Function without body, ex: https://github.com/golang/go/blob/master/src/internal/syscall/unix/net.go
+		if funcBody == nil {
 			return
 		}
 
@@ -82,7 +91,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	})
 
-	return nil, nil
+	return nil, nil // nolint:nilnil
 }
 
 func findDeferWithVariableAssignment(body *ast.BlockStmt, info *types.Info, variable types.Object) bool {

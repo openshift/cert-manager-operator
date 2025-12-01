@@ -1,7 +1,7 @@
 # gomodguard
 [![License](https://img.shields.io/github/license/ryancurrah/gomodguard?style=flat-square)](/LICENSE)
 [![Codecov](https://img.shields.io/codecov/c/gh/ryancurrah/gomodguard?style=flat-square)](https://codecov.io/gh/ryancurrah/gomodguard)
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ryancurrah/gomodguard/Go?logo=Go&style=flat-square)](https://github.com/ryancurrah/gomodguard/actions?query=workflow%3AGo)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/ryancurrah/gomodguard/go.yml?branch=main&logo=Go&style=flat-square)](https://github.com/ryancurrah/gomodguard/actions?query=workflow%3AGo)
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/ryancurrah/gomodguard?style=flat-square)](https://github.com/ryancurrah/gomodguard/releases/latest)
 [![Docker](https://img.shields.io/docker/pulls/ryancurrah/gomodguard?style=flat-square)](https://hub.docker.com/r/ryancurrah/gomodguard)
 [![Github Releases Stats of golangci-lint](https://img.shields.io/github/downloads/ryancurrah/gomodguard/total.svg?logo=github&style=flat-square)](https://somsubhra.com/github-release-stats/?username=ryancurrah&repository=gomodguard)
@@ -37,7 +37,7 @@ Results can be exported to different report formats. Which can be imported into 
 ```yaml
 allowed:
   modules:                                                      # List of allowed modules
-    - gopkg.in/yaml.v2
+    - gopkg.in/yaml.v3
     - github.com/go-xmlfmt/xmlfmt
     - github.com/phayes/checkstyle
     - github.com/mitchellh/go-homedir
@@ -88,7 +88,7 @@ Flags:
 ```
 ╰─ ./gomodguard -r checkstyle -f gomodguard-checkstyle.xml ./...
 
-info: allowed modules, [gopkg.in/yaml.v2 github.com/go-xmlfmt/xmlfmt github.com/phayes/checkstyle github.com/mitchellh/go-homedir]
+info: allowed modules, [gopkg.in/yaml.v3 github.com/go-xmlfmt/xmlfmt github.com/phayes/checkstyle github.com/mitchellh/go-homedir]
 info: allowed module domains, [golang.org]
 info: blocked modules, [github.com/uudashr/go-module]
 info: found `2` blocked modules in the go.mod file, [github.com/gofrs/uuid github.com/uudashr/go-module]
@@ -115,7 +115,7 @@ Resulting checkstyle file
 ## Install
 
 ```
-go get -u github.com/ryancurrah/gomodguard/cmd/gomodguard
+go install github.com/ryancurrah/gomodguard/cmd/gomodguard
 ```
 
 ## Develop

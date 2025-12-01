@@ -5,21 +5,26 @@ import (
 	"go/ast"
 	"go/token"
 	"sort"
-	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
 
+var checkEscapingErrors bool
+
 // Analyzer is the ineffassign analysis.Analyzer instance.
 var Analyzer = &analysis.Analyzer{
 	Name: "ineffassign",
-	Doc:  "detect ineffectual assignments in Go code",
+	Doc:  "detects when assignments to existing variables are not used",
 	Run:  checkPath,
+}
+
+func init() {
+	Analyzer.Flags.BoolVar(&checkEscapingErrors, "check-escaping-errors", false, "check escaping variables of type error, may cause false positives")
 }
 
 func checkPath(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
-		if isGenerated(file) {
+		if ast.IsGenerated(file) {
 			continue
 		}
 
@@ -35,6 +40,7 @@ func checkPath(pass *analysis.Pass) (interface{}, error) {
 		for _, id := range chk.ineff {
 			pass.Report(analysis.Diagnostic{
 				Pos:     id.Pos(),
+				End:     id.End(),
 				Message: fmt.Sprintf("ineffectual assignment to %s", id.Name),
 			})
 		}
@@ -43,23 +49,12 @@ func checkPath(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func isGenerated(file *ast.File) bool {
-	for _, cg := range file.Comments {
-		for _, c := range cg.List {
-			if strings.HasPrefix(c.Text, "// Code generated ") && strings.HasSuffix(c.Text, " DO NOT EDIT.") {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 type builder struct {
 	roots     []*block
 	block     *block
 	vars      map[*ast.Object]*variable
 	results   []*ast.FieldList
+	defers    []bool
 	breaks    branchStack
 	continues branchStack
 	gotos     branchStack
@@ -95,10 +90,10 @@ func (bld *builder) Visit(n ast.Node) ast.Visitor {
 	switch n := n.(type) {
 	case *ast.FuncDecl:
 		if n.Body != nil {
-			bld.fun(n.Type, n.Body)
+			bld.fun(n.Recv, n.Type, n.Body)
 		}
 	case *ast.FuncLit:
-		bld.fun(n.Type, n.Body)
+		bld.fun(nil, n.Type, n.Body)
 	case *ast.IfStmt:
 		bld.walk(n.Init)
 		bld.walk(n.Cond)
@@ -181,6 +176,12 @@ func (bld *builder) Visit(n ast.Node) ast.Visitor {
 		}
 		brek.setDestination(bld.newBlock(exits...))
 		bld.breaks.pop()
+	case *ast.DeferStmt:
+		bld.walk(n.Call.Fun)
+		for _, a := range n.Call.Args {
+			bld.walk(a)
+		}
+		bld.defers[len(bld.defers)-1] = true
 	case *ast.LabeledStmt:
 		bld.gotos.get(n.Label).setDestination(bld.newBlock(bld.block))
 		bld.labelStmt = n
@@ -283,9 +284,7 @@ func (bld *builder) Visit(n ast.Node) ast.Visitor {
 			id, ok = ident(ix.X)
 		}
 		if ok && n.Op == token.AND {
-			if v, ok := bld.vars[id.Obj]; ok {
-				v.escapes = true
-			}
+			bld.escape(id)
 		}
 		return bld
 	case *ast.SelectorExpr:
@@ -294,18 +293,14 @@ func (bld *builder) Visit(n ast.Node) ast.Visitor {
 		// the address of its receiver, causing it to escape.
 		// We can't do any better here without knowing the variable's type.
 		if id, ok := ident(n.X); ok {
-			if v, ok := bld.vars[id.Obj]; ok {
-				v.escapes = true
-			}
+			bld.escape(id)
 		}
 		return bld
 	case *ast.SliceExpr:
 		bld.maybePanic()
 		// We don't care about slicing into slices, but without type information we can do no better.
 		if id, ok := ident(n.X); ok {
-			if v, ok := bld.vars[id.Obj]; ok {
-				v.escapes = true
-			}
+			bld.escape(id)
 		}
 		return bld
 	case *ast.StarExpr:
@@ -319,6 +314,21 @@ func (bld *builder) Visit(n ast.Node) ast.Visitor {
 		return bld
 	}
 	return nil
+}
+
+func (bld *builder) escape(id *ast.Ident) {
+	if checkEscapingErrors && id.Obj != nil {
+		if d, ok := id.Obj.Decl.(*ast.ValueSpec); ok {
+			if t, ok := d.Type.(*ast.Ident); ok {
+				if t.Name == "error" {
+					return
+				}
+			}
+		}
+	}
+	if v, ok := bld.vars[id.Obj]; ok {
+		v.escapes = true
+	}
 }
 
 func isZeroInitializer(x ast.Expr) bool {
@@ -355,20 +365,25 @@ func isZeroInitializer(x ast.Expr) bool {
 	return false
 }
 
-func (bld *builder) fun(typ *ast.FuncType, body *ast.BlockStmt) {
+func (bld *builder) fun(recv *ast.FieldList, typ *ast.FuncType, body *ast.BlockStmt) {
 	for _, v := range bld.vars {
 		v.fundept++
 	}
 	bld.results = append(bld.results, typ.Results)
+	bld.defers = append(bld.defers, false)
 
 	b := bld.block
 	bld.newBlock()
 	bld.roots = append(bld.roots, bld.block)
+	if recv != nil {
+		bld.walk(recv)
+	}
 	bld.walk(typ)
 	bld.walk(body)
 	bld.block = b
 
 	bld.results = bld.results[:len(bld.results)-1]
+	bld.defers = bld.defers[:len(bld.defers)-1]
 	for _, v := range bld.vars {
 		v.fundept--
 	}
@@ -422,8 +437,11 @@ func (bld *builder) swtch(stmt ast.Stmt, cases []ast.Stmt) {
 	bld.breaks.pop()
 }
 
-// An operation that might panic marks named function results as used.
+// If an operation might panic and be recovered, mark named function results as used.
 func (bld *builder) maybePanic() {
+	if len(bld.defers) == 0 || !bld.defers[len(bld.defers)-1] {
+		return
+	}
 	if len(bld.results) == 0 {
 		return
 	}
