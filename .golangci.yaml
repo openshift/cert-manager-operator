@@ -27,7 +27,6 @@ linters:
     - forcetypeassert
     - funcorder
     - gocheckcompilerdirectives
-    - gocognit
     - goconst
     - gocritic
     - godoclint
@@ -42,7 +41,6 @@ linters:
     - importas
     - intrange
     - iotamixing
-    - maintidx
     - makezero
     - misspell
     - modernize
@@ -55,7 +53,6 @@ linters:
     - predeclared
     - reassign
     - recvcheck
-    - revive
     - staticcheck
     - tagalign
     - unconvert

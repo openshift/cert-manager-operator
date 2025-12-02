@@ -306,8 +306,8 @@ test-e2e-debug-cluster:
 	@echo "---- /Debugging the current state ----"
  
 .PHONY: lint
-lint: 
-	$(GOLANGCI_LINT) run --config .golangci.yaml
+lint:
+	$(GOLANGCI_LINT) run --verbose --config .golangci.yaml
 
 .PHONY: lint-fix
 lint-fix:
