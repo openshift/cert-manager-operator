@@ -11,18 +11,25 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/internal"
 )
 
-func New(settings *config.PreallocSettings) *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name: "prealloc",
-			Doc:  "Find slice declarations that could potentially be pre-allocated",
-			Run: func(pass *analysis.Pass) (any, error) {
-				runPreAlloc(pass, settings)
+const linterName = "prealloc"
 
-				return nil, nil
-			},
-		}).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+func New(settings *config.PreallocSettings) *goanalysis.Linter {
+	analyzer := &analysis.Analyzer{
+		Name: linterName,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run: func(pass *analysis.Pass) (any, error) {
+			runPreAlloc(pass, settings)
+
+			return nil, nil
+		},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		"Finds slice declarations that could potentially be pre-allocated",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
 func runPreAlloc(pass *analysis.Pass, settings *config.PreallocSettings) {
@@ -31,7 +38,7 @@ func runPreAlloc(pass *analysis.Pass, settings *config.PreallocSettings) {
 	for _, hint := range hints {
 		pass.Report(analysis.Diagnostic{
 			Pos:     hint.Pos,
-			Message: fmt.Sprintf("Consider pre-allocating %s", internal.FormatCode(hint.DeclaredSliceName)),
+			Message: fmt.Sprintf("Consider pre-allocating %s", internal.FormatCode(hint.DeclaredSliceName, nil)),
 		})
 	}
 }

@@ -250,7 +250,10 @@ func ExtractDiagnosticFromPatch(
 }
 
 func toDiagnostic(ft *token.File, change Change, adjLine int) analysis.Diagnostic {
-	from := min(change.From+adjLine, ft.LineCount())
+	from := change.From + adjLine
+	if from > ft.LineCount() {
+		from = ft.LineCount()
+	}
 
 	start := ft.LineStart(from)
 

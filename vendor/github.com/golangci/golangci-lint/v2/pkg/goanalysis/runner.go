@@ -5,7 +5,6 @@
 package goanalysis
 
 import (
-	"context"
 	"encoding/gob"
 	"fmt"
 	"go/token"
@@ -77,7 +76,7 @@ func newRunner(prefix string, logger logutils.Log, pkgCache *cache.Cache, loadGu
 // It provides most of the logic for the main functions of both the
 // singlechecker and the multi-analysis commands.
 // It returns the appropriate exit code.
-func (r *runner) run(analyzers []*analysis.Analyzer, initialPackages []*packages.Package) ([]*Diagnostic,
+func (r *runner) run(analyzers []*analysis.Analyzer, initialPackages []*packages.Package) ([]Diagnostic,
 	[]error, map[*analysis.Pass]*packages.Package,
 ) {
 	debugf("Analyzing %d packages on load mode %s", len(initialPackages), r.loadMode)
@@ -258,34 +257,25 @@ func (r *runner) analyze(pkgs []*packages.Package, analyzers []*analysis.Analyze
 	// Limit memory and IO usage.
 	gomaxprocs := runtime.GOMAXPROCS(-1)
 	debugf("Analyzing at most %d packages in parallel", gomaxprocs)
-
 	loadSem := make(chan struct{}, gomaxprocs)
 
-	debugf("There are %d initial and %d total packages", len(initialPkgs), len(loadingPackages))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	var wg sync.WaitGroup
-
+	debugf("There are %d initial and %d total packages", len(initialPkgs), len(loadingPackages))
 	for _, lp := range loadingPackages {
 		if lp.isInitial {
 			wg.Add(1)
-
 			go func(lp *loadingPackage) {
-				lp.analyzeRecursive(ctx, cancel, r.loadMode, loadSem)
-
+				lp.analyzeRecursive(r.loadMode, loadSem)
 				wg.Done()
 			}(lp)
 		}
 	}
-
 	wg.Wait()
 
 	return rootActions
 }
 
-func extractDiagnostics(roots []*action) (retDiags []*Diagnostic, retErrors []error) {
+func extractDiagnostics(roots []*action) (retDiags []Diagnostic, retErrors []error) {
 	extracted := make(map[*action]bool)
 	var extract func(*action)
 	var visitAll func(actions []*action)
@@ -332,7 +322,7 @@ func extractDiagnostics(roots []*action) (retDiags []*Diagnostic, retErrors []er
 				}
 				seen[k] = true
 
-				retDiag := &Diagnostic{
+				retDiag := Diagnostic{
 					File:       file,
 					Diagnostic: diag,
 					Analyzer:   act.Analyzer,

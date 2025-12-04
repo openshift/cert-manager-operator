@@ -2,22 +2,18 @@ package ineffassign
 
 import (
 	"github.com/gordonklaus/ineffassign/pkg/ineffassign"
+	"golang.org/x/tools/go/analysis"
 
-	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
-func New(settings *config.IneffassignSettings) *goanalysis.Linter {
-	var cfg map[string]any
+func New() *goanalysis.Linter {
+	a := ineffassign.Analyzer
 
-	if settings != nil {
-		cfg = map[string]any{
-			"check-escaping-errors": settings.CheckEscapingErrors,
-		}
-	}
-
-	return goanalysis.
-		NewLinterFromAnalyzer(ineffassign.Analyzer).
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	return goanalysis.NewLinter(
+		a.Name,
+		"Detects when assignments to existing variables are not used",
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

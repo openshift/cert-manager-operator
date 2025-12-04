@@ -115,9 +115,6 @@ func setupLogger(logger logutils.Log) error {
 		logger.Fatalf("invalid value %q for --color; must be 'always', 'auto', or 'never'", opts.Color)
 	}
 
-	// For log level colors (mainly for verbose output)
-	logutils.DisableColors(color.NoColor)
-
 	return nil
 }
 
@@ -127,7 +124,7 @@ func forceRootParsePersistentFlags() (*rootOptions, error) {
 	fs := pflag.NewFlagSet("config flag set", pflag.ContinueOnError)
 
 	// Ignore unknown flags because we will parse the command flags later.
-	fs.ParseErrorsAllowlist = pflag.ParseErrorsAllowlist{UnknownFlags: true}
+	fs.ParseErrorsWhitelist = pflag.ParseErrorsWhitelist{UnknownFlags: true}
 
 	opts := &rootOptions{}
 

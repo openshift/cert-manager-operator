@@ -998,8 +998,8 @@ func toWrapcheckSettings(old versionone.WrapcheckSettings) versiontwo.WrapcheckS
 	}
 }
 
-func toWSLSettings(old versionone.WSLSettings) versiontwo.WSLv4Settings {
-	return versiontwo.WSLv4Settings{
+func toWSLSettings(old versionone.WSLSettings) versiontwo.WSLSettings {
+	return versiontwo.WSLSettings{
 		StrictAppend:                     old.StrictAppend,
 		AllowAssignAndCallCuddle:         old.AllowAssignAndCallCuddle,
 		AllowAssignAndAnythingCuddle:     old.AllowAssignAndAnythingCuddle,

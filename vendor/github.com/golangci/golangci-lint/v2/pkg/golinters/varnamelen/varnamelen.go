@@ -5,16 +5,18 @@ import (
 	"strings"
 
 	"github.com/blizzy78/varnamelen"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.VarnamelenSettings) *goanalysis.Linter {
-	var cfg map[string]any
+	analyzer := varnamelen.NewAnalyzer()
+	cfg := map[string]map[string]any{}
 
 	if settings != nil {
-		cfg = map[string]any{
+		vnlCfg := map[string]any{
 			"checkReceiver":      strconv.FormatBool(settings.CheckReceiver),
 			"checkReturn":        strconv.FormatBool(settings.CheckReturn),
 			"checkTypeParam":     strconv.FormatBool(settings.CheckTypeParam),
@@ -26,17 +28,19 @@ func New(settings *config.VarnamelenSettings) *goanalysis.Linter {
 		}
 
 		if settings.MaxDistance > 0 {
-			cfg["maxDistance"] = strconv.Itoa(settings.MaxDistance)
+			vnlCfg["maxDistance"] = strconv.Itoa(settings.MaxDistance)
+		}
+		if settings.MinNameLength > 0 {
+			vnlCfg["minNameLength"] = strconv.Itoa(settings.MinNameLength)
 		}
 
-		if settings.MinNameLength > 0 {
-			cfg["minNameLength"] = strconv.Itoa(settings.MinNameLength)
-		}
+		cfg[analyzer.Name] = vnlCfg
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(varnamelen.NewAnalyzer()).
-		WithDesc("checks that the length of a variable's name matches its scope").
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	return goanalysis.NewLinter(
+		analyzer.Name,
+		"checks that the length of a variable's name matches its scope",
+		[]*analysis.Analyzer{analyzer},
+		cfg,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"go/types"
-	"os"
 	"reflect"
 	"time"
 
@@ -161,7 +160,7 @@ func (act *action) analyze() {
 		AllObjectFacts:    act.AllObjectFacts,
 		AllPackageFacts:   act.AllPackageFacts,
 	}
-	pass.ReadFile = analysisinternal.CheckedReadFile(pass, os.ReadFile)
+	pass.ReadFile = analysisinternal.MakeReadFile(pass)
 	act.pass = pass
 
 	act.runner.passToPkgGuard.Lock()

@@ -18,37 +18,41 @@ const linterName = "gochecksumtype"
 
 func New(settings *config.GoChecksumTypeSettings) *goanalysis.Linter {
 	var mu sync.Mutex
-	var resIssues []*goanalysis.Issue
+	var resIssues []goanalysis.Issue
 
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name: linterName,
-			Doc:  `Run exhaustiveness checks on Go "sum types"`,
-			Run: func(pass *analysis.Pass) (any, error) {
-				issues, err := runGoCheckSumType(pass, settings)
-				if err != nil {
-					return nil, err
-				}
+	analyzer := &analysis.Analyzer{
+		Name: linterName,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run: func(pass *analysis.Pass) (any, error) {
+			issues, err := runGoCheckSumType(pass, settings)
+			if err != nil {
+				return nil, err
+			}
 
-				if len(issues) == 0 {
-					return nil, nil
-				}
-
-				mu.Lock()
-				resIssues = append(resIssues, issues...)
-				mu.Unlock()
-
+			if len(issues) == 0 {
 				return nil, nil
-			},
-		}).
-		WithIssuesReporter(func(_ *linter.Context) []*goanalysis.Issue {
-			return resIssues
-		}).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+			}
+
+			mu.Lock()
+			resIssues = append(resIssues, issues...)
+			mu.Unlock()
+
+			return nil, nil
+		},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		`Run exhaustiveness checks on Go "sum types"`,
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithIssuesReporter(func(_ *linter.Context) []goanalysis.Issue {
+		return resIssues
+	}).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }
 
-func runGoCheckSumType(pass *analysis.Pass, settings *config.GoChecksumTypeSettings) ([]*goanalysis.Issue, error) {
-	var resIssues []*goanalysis.Issue
+func runGoCheckSumType(pass *analysis.Pass, settings *config.GoChecksumTypeSettings) ([]goanalysis.Issue, error) {
+	var resIssues []goanalysis.Issue
 
 	pkg := &packages.Package{
 		Fset:      pass.Fset,

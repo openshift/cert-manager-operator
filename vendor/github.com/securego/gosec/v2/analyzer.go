@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -414,17 +413,7 @@ func (gosec *Analyzer) CheckRules(pkg *packages.Package) {
 func (gosec *Analyzer) CheckAnalyzers(pkg *packages.Package) {
 	ssaResult, err := gosec.buildSSA(pkg)
 	if err != nil || ssaResult == nil {
-		errMessage := "Error building the SSA representation of the package " + pkg.Name + ": "
-		if err != nil {
-			errMessage += err.Error()
-		}
-		if ssaResult == nil {
-			if err != nil {
-				errMessage += ", "
-			}
-			errMessage += "no ssa result"
-		}
-		gosec.logger.Print(errMessage)
+		gosec.logger.Printf("Error building the SSA representation of the package %q: %s", pkg.Name, err)
 		return
 	}
 
@@ -496,10 +485,7 @@ func (gosec *Analyzer) generatedFiles(pkg *packages.Package) map[string]bool {
 func (gosec *Analyzer) buildSSA(pkg *packages.Package) (interface{}, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			gosec.logger.Printf(
-				"Panic when running SSA analyzer on package: %s. Panic: %v\nStack trace:\n%s",
-				pkg.Name, r, debug.Stack(),
-			)
+			gosec.logger.Printf("Panic when running SSA analyser on package: %s", pkg.Name)
 		}
 	}()
 	ssaPass := &analysis.Pass{

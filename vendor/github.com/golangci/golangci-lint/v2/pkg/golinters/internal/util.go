@@ -6,10 +6,11 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 
+	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
-func FormatCode(code string) string {
+func FormatCode(code string, _ *config.Config) string {
 	if strings.Contains(code, "`") {
 		return code // TODO: properly escape or remove
 	}

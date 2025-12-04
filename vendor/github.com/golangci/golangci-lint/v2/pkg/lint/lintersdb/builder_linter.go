@@ -3,7 +3,6 @@ package lintersdb
 import (
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/arangolint"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/asasalint"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/asciicheck"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/bidichk"
@@ -19,7 +18,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/dupl"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/dupword"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/durationcheck"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/embeddedstructfieldcheck"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/err113"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/errcheck"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/errchkjson"
@@ -43,7 +41,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/goconst"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/gocritic"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/gocyclo"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/godoclint"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/godot"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/godox"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/gofmt"
@@ -64,7 +61,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/ineffassign"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/interfacebloat"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/intrange"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/iotamixing"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/ireturn"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/lll"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/loggercheck"
@@ -73,7 +69,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/mirror"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/misspell"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/mnd"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/modernize"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/musttag"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nakedret"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nestif"
@@ -82,7 +77,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nilnil"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nlreturn"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/noctx"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/noinlineerr"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nolintlint"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nonamedreturns"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/nosprintfhostport"
@@ -100,7 +94,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/spancheck"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/sqlclosecheck"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/staticcheck"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/swaggo"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/tagalign"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/tagliatelle"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/testableexamples"
@@ -110,7 +103,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/tparallel"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/unconvert"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/unparam"
-	"github.com/golangci/golangci-lint/v2/pkg/golinters/unqueryvet"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/unused"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/usestdlibvars"
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/usetesting"
@@ -143,11 +135,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 	// The linters are sorted in the alphabetical order (case-insensitive).
 	// When a new linter is added the version in `WithSince(...)` must be the next minor version of golangci-lint.
 	return []*linter.Config{
-		linter.NewConfig(arangolint.New()).
-			WithSince("v2.2.0").
-			WithLoadForGoAnalysis().
-			WithURL("https://github.com/Crocmagnon/arangolint"),
-
 		linter.NewConfig(asasalint.New(&cfg.Linters.Settings.Asasalint)).
 			WithSince("v1.47.0").
 			WithLoadForGoAnalysis().
@@ -155,7 +142,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 
 		linter.NewConfig(asciicheck.New()).
 			WithSince("v1.26.0").
-			WithURL("https://github.com/golangci/asciicheck"),
+			WithURL("https://github.com/tdakkota/asciicheck"),
 
 		linter.NewConfig(bidichk.New(&cfg.Linters.Settings.BiDiChk)).
 			WithSince("v1.43.0").
@@ -218,10 +205,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithLoadForGoAnalysis().
 			WithURL("https://github.com/charithe/durationcheck"),
 
-		linter.NewConfig(embeddedstructfieldcheck.New(&cfg.Linters.Settings.EmbeddedStructFieldCheck)).
-			WithSince("v2.2.0").
-			WithURL("https://github.com/manuelarte/embeddedstructfieldcheck"),
-
 		linter.NewConfig(errcheck.New(&cfg.Linters.Settings.Errcheck)).
 			WithGroups(config.GroupStandard).
 			WithSince("v1.0.0").
@@ -245,7 +228,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithURL("https://github.com/polyfloyd/go-errorlint"),
 
 		linter.NewConfig(exhaustive.New(&cfg.Linters.Settings.Exhaustive)).
-			WithSince("v1.28.0").
+			WithSince(" v1.28.0").
 			WithLoadForGoAnalysis().
 			WithURL("https://github.com/nishanths/exhaustive"),
 
@@ -335,10 +318,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithSince("v1.0.0").
 			WithURL("https://github.com/fzipp/gocyclo"),
 
-		linter.NewConfig(godoclint.New(&cfg.Linters.Settings.Godoclint)).
-			WithSince("v2.5.0").
-			WithURL("https://github.com/godoc-lint/godoc-lint"),
-
 		linter.NewConfig(godot.New(&cfg.Linters.Settings.Godot)).
 			WithSince("v1.25.0").
 			WithAutoFix().
@@ -382,11 +361,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 		linter.NewConfig(mnd.New(&cfg.Linters.Settings.Mnd)).
 			WithSince("v1.22.0").
 			WithURL("https://github.com/tommy-muehle/go-mnd"),
-
-		linter.NewConfig(modernize.New(&cfg.Linters.Settings.Modernize)).
-			WithSince("v2.6.0").
-			WithLoadForGoAnalysis().
-			WithURL("https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize"),
 
 		linter.NewConfig(gomoddirectives.New(&cfg.Linters.Settings.GoModDirectives)).
 			WithSince("v1.39.0").
@@ -437,7 +411,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithSince("v1.55.0").
 			WithURL("https://github.com/macabu/inamedparam"),
 
-		linter.NewConfig(ineffassign.New(&cfg.Linters.Settings.Ineffassign)).
+		linter.NewConfig(ineffassign.New()).
 			WithGroups(config.GroupStandard).
 			WithSince("v1.0.0").
 			WithURL("https://github.com/gordonklaus/ineffassign"),
@@ -452,10 +426,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithAutoFix().
 			WithURL("https://github.com/ckaznocha/intrange").
 			WithNoopFallback(cfg, linter.IsGoLowerThanGo122()),
-
-		linter.NewConfig(iotamixing.New(&cfg.Linters.Settings.IotaMixing)).
-			WithSince("v2.5.0").
-			WithURL("https://github.com/AdminBenni/iota-mixing"),
 
 		linter.NewConfig(ireturn.New(&cfg.Linters.Settings.Ireturn)).
 			WithSince("v1.43.0").
@@ -528,11 +498,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithSince("v1.28.0").
 			WithLoadForGoAnalysis().
 			WithURL("https://github.com/sonatard/noctx"),
-
-		linter.NewConfig(noinlineerr.New()).
-			WithSince("v2.2.0").
-			WithLoadForGoAnalysis().
-			WithURL("https://github.com/AlwxSin/noinlineerr"),
 
 		linter.NewConfig(nonamedreturns.New(&cfg.Linters.Settings.NoNamedReturns)).
 			WithSince("v1.46.0").
@@ -614,12 +579,7 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithSince("v1.0.0").
 			WithLoadForGoAnalysis().
 			WithAutoFix().
-			WithURL("https://github.com/dominikh/go-tools"),
-
-		linter.NewConfig(swaggo.New()).
-			WithSince("v2.2.0").
-			WithAutoFix().
-			WithURL("https://github.com/swaggo/swaggo"),
+			WithURL("https://staticcheck.dev/"),
 
 		linter.NewConfig(tagalign.New(&cfg.Linters.Settings.TagAlign)).
 			WithSince("v1.53.0").
@@ -669,10 +629,6 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithLoadForGoAnalysis().
 			WithURL("https://github.com/mvdan/unparam"),
 
-		linter.NewConfig(unqueryvet.New(&cfg.Linters.Settings.Unqueryvet)).
-			WithSince("v2.5.0").
-			WithURL("https://github.com/MirrexOne/unqueryvet"),
-
 		linter.NewConfig(unused.New(&cfg.Linters.Settings.Unused)).
 			WithGroups(config.GroupStandard).
 			WithSince("v1.20.0").
@@ -712,16 +668,8 @@ func (LinterBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 			WithLoadForGoAnalysis().
 			WithURL("https://github.com/tomarrell/wrapcheck"),
 
-		linter.NewConfig(wsl.NewV4(&cfg.Linters.Settings.WSL)).
-			DeprecatedWarning("new major version.", "v2.2.0",
-				linter.Replacement("wsl_v5", wsl.Migration, &cfg.Linters.Settings.WSL)).
+		linter.NewConfig(wsl.New(&cfg.Linters.Settings.WSL)).
 			WithSince("v1.20.0").
-			WithAutoFix().
-			WithURL("https://github.com/bombsimon/wsl"),
-
-		linter.NewConfig(wsl.NewV5(&cfg.Linters.Settings.WSLv5)).
-			WithSince("v2.2.0").
-			WithLoadForGoAnalysis().
 			WithAutoFix().
 			WithURL("https://github.com/bombsimon/wsl"),
 

@@ -3,7 +3,6 @@ package goanalysis
 import (
 	"fmt"
 	"go/token"
-	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -21,11 +20,11 @@ type runAnalyzersConfig interface {
 	getLinterNameForDiagnostic(*Diagnostic) string
 	getAnalyzers() []*analysis.Analyzer
 	useOriginalPackages() bool
-	reportIssues(*linter.Context) []*Issue
+	reportIssues(*linter.Context) []Issue
 	getLoadMode() LoadMode
 }
 
-func runAnalyzers(cfg runAnalyzersConfig, lintCtx *linter.Context) ([]*result.Issue, error) {
+func runAnalyzers(cfg runAnalyzersConfig, lintCtx *linter.Context) ([]result.Issue, error) {
 	log := lintCtx.Log.Child(logutils.DebugKeyGoAnalysis)
 	sw := timeutils.NewStopwatch("analyzers", log)
 
@@ -57,19 +56,18 @@ func runAnalyzers(cfg runAnalyzersConfig, lintCtx *linter.Context) ([]*result.Is
 		}
 	}()
 
-	buildAllIssues := func() []*result.Issue {
-		var retIssues []*result.Issue
-
+	buildAllIssues := func() []result.Issue {
+		var retIssues []result.Issue
 		reportedIssues := cfg.reportIssues(lintCtx)
-		for _, reportedIssue := range reportedIssues {
-			if reportedIssue.Pkg == nil {
-				reportedIssue.Pkg = passToPkg[reportedIssue.Pass]
+		for i := range reportedIssues {
+			issue := &reportedIssues[i].Issue
+			if issue.Pkg == nil {
+				issue.Pkg = passToPkg[reportedIssues[i].Pass]
 			}
-
-			retIssues = append(retIssues, reportedIssue.Issue)
+			retIssues = append(retIssues, *issue)
 		}
-
-		return slices.Concat(retIssues, buildIssues(diags, cfg.getLinterNameForDiagnostic))
+		retIssues = append(retIssues, buildIssues(diags, cfg.getLinterNameForDiagnostic)...)
+		return retIssues
 	}
 
 	errIssues, err := pkgerrors.BuildIssuesFromIllTypedError(errs, lintCtx)
@@ -83,10 +81,11 @@ func runAnalyzers(cfg runAnalyzersConfig, lintCtx *linter.Context) ([]*result.Is
 	return issues, nil
 }
 
-func buildIssues(diags []*Diagnostic, linterNameBuilder func(diag *Diagnostic) string) []*result.Issue {
-	var issues []*result.Issue
+func buildIssues(diags []Diagnostic, linterNameBuilder func(diag *Diagnostic) string) []result.Issue {
+	var issues []result.Issue
 
-	for _, diag := range diags {
+	for i := range diags {
+		diag := &diags[i]
 		linterName := linterNameBuilder(diag)
 
 		var text string
@@ -127,7 +126,7 @@ func buildIssues(diags []*Diagnostic, linterNameBuilder func(diag *Diagnostic) s
 			suggestedFixes = append(suggestedFixes, nsf)
 		}
 
-		issues = append(issues, &result.Issue{
+		issues = append(issues, result.Issue{
 			FromLinter:     linterName,
 			Text:           text,
 			Pos:            diag.Position,
@@ -143,7 +142,7 @@ func buildIssues(diags []*Diagnostic, linterNameBuilder func(diag *Diagnostic) s
 					relatedPos = diag.Position
 				}
 
-				issues = append(issues, &result.Issue{
+				issues = append(issues, result.Issue{
 					FromLinter: linterName,
 					Text:       fmt.Sprintf("%s(related information): %s", diag.Analyzer.Name, info.Message),
 					Pos:        relatedPos,

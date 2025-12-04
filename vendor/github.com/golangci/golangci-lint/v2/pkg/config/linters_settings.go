@@ -24,9 +24,6 @@ var defaultLintersSettings = LintersSettings{
 	Dupl: DuplSettings{
 		Threshold: 150,
 	},
-	EmbeddedStructFieldCheck: EmbeddedStructFieldCheckSettings{
-		EmptyLine: true,
-	},
 	ErrorLint: ErrorLintSettings{
 		Errorf:      true,
 		ErrorfMulti: true,
@@ -131,7 +128,6 @@ var defaultLintersSettings = LintersSettings{
 		StrConcat:     true,
 		BoolFormat:    true,
 		HexFormat:     true,
-		ConcatLoop:    true,
 	},
 	Prealloc: PreallocSettings{
 		Simple:     true,
@@ -163,9 +159,6 @@ var defaultLintersSettings = LintersSettings{
 		SkipRegexp:    `(export|internal)_test\.go`,
 		AllowPackages: []string{"main"},
 	},
-	Unqueryvet: UnqueryvetSettings{
-		CheckSQLBuilders: true,
-	},
 	Unused: UnusedSettings{
 		FieldWritesAreUses:     true,
 		PostStatementsAreReads: false,
@@ -179,8 +172,8 @@ var defaultLintersSettings = LintersSettings{
 		HTTPStatusCode: true,
 	},
 	UseTesting: UseTestingSettings{
-		ContextBackground: false,
-		ContextTodo:       false,
+		ContextBackground: true,
+		ContextTodo:       true,
 		OSChdir:           true,
 		OSMkdirTemp:       true,
 		OSSetenv:          true,
@@ -191,7 +184,7 @@ var defaultLintersSettings = LintersSettings{
 		MaxDistance:   5,
 		MinNameLength: 3,
 	},
-	WSL: WSLv4Settings{
+	WSL: WSLSettings{
 		StrictAppend:                     true,
 		AllowAssignAndCallCuddle:         true,
 		AllowAssignAndAnythingCuddle:     false,
@@ -207,105 +200,89 @@ var defaultLintersSettings = LintersSettings{
 		ErrorVariableNames:               []string{"err"},
 		ForceExclusiveShortDeclarations:  false,
 	},
-	WSLv5: WSLv5Settings{
-		AllowFirstInBlock: true,
-		AllowWholeBlock:   false,
-		BranchMaxLines:    2,
-		CaseMaxLines:      0,
-		Default:           "default",
-		Enable:            nil,
-		Disable:           nil,
-	},
 }
 
 type LintersSettings struct {
 	FormatterSettings `mapstructure:"-"`
 
-	Asasalint                AsasalintSettings                `mapstructure:"asasalint"`
-	BiDiChk                  BiDiChkSettings                  `mapstructure:"bidichk"`
-	CopyLoopVar              CopyLoopVarSettings              `mapstructure:"copyloopvar"`
-	Cyclop                   CyclopSettings                   `mapstructure:"cyclop"`
-	Decorder                 DecorderSettings                 `mapstructure:"decorder"`
-	Depguard                 DepGuardSettings                 `mapstructure:"depguard"`
-	Dogsled                  DogsledSettings                  `mapstructure:"dogsled"`
-	Dupl                     DuplSettings                     `mapstructure:"dupl"`
-	DupWord                  DupWordSettings                  `mapstructure:"dupword"`
-	EmbeddedStructFieldCheck EmbeddedStructFieldCheckSettings `mapstructure:"embeddedstructfieldcheck"`
-	Errcheck                 ErrcheckSettings                 `mapstructure:"errcheck"`
-	ErrChkJSON               ErrChkJSONSettings               `mapstructure:"errchkjson"`
-	ErrorLint                ErrorLintSettings                `mapstructure:"errorlint"`
-	Exhaustive               ExhaustiveSettings               `mapstructure:"exhaustive"`
-	Exhaustruct              ExhaustructSettings              `mapstructure:"exhaustruct"`
-	Fatcontext               FatcontextSettings               `mapstructure:"fatcontext"`
-	Forbidigo                ForbidigoSettings                `mapstructure:"forbidigo"`
-	FuncOrder                FuncOrderSettings                `mapstructure:"funcorder"`
-	Funlen                   FunlenSettings                   `mapstructure:"funlen"`
-	GinkgoLinter             GinkgoLinterSettings             `mapstructure:"ginkgolinter"`
-	Gocognit                 GocognitSettings                 `mapstructure:"gocognit"`
-	GoChecksumType           GoChecksumTypeSettings           `mapstructure:"gochecksumtype"`
-	Goconst                  GoConstSettings                  `mapstructure:"goconst"`
-	Gocritic                 GoCriticSettings                 `mapstructure:"gocritic"`
-	Gocyclo                  GoCycloSettings                  `mapstructure:"gocyclo"`
-	Godoclint                GodoclintSettings                `mapstructure:"godoclint"`
-	Godot                    GodotSettings                    `mapstructure:"godot"`
-	Godox                    GodoxSettings                    `mapstructure:"godox"`
-	Goheader                 GoHeaderSettings                 `mapstructure:"goheader"`
-	GoModDirectives          GoModDirectivesSettings          `mapstructure:"gomoddirectives"`
-	Gomodguard               GoModGuardSettings               `mapstructure:"gomodguard"`
-	Gosec                    GoSecSettings                    `mapstructure:"gosec"`
-	Gosmopolitan             GosmopolitanSettings             `mapstructure:"gosmopolitan"`
-	Unqueryvet               UnqueryvetSettings               `mapstructure:"unqueryvet"`
-	Govet                    GovetSettings                    `mapstructure:"govet"`
-	Grouper                  GrouperSettings                  `mapstructure:"grouper"`
-	Iface                    IfaceSettings                    `mapstructure:"iface"`
-	ImportAs                 ImportAsSettings                 `mapstructure:"importas"`
-	Inamedparam              INamedParamSettings              `mapstructure:"inamedparam"`
-	Ineffassign              IneffassignSettings              `mapstructure:"ineffassign"`
-	InterfaceBloat           InterfaceBloatSettings           `mapstructure:"interfacebloat"`
-	IotaMixing               IotaMixingSettings               `mapstructure:"iotamixing"`
-	Ireturn                  IreturnSettings                  `mapstructure:"ireturn"`
-	Lll                      LllSettings                      `mapstructure:"lll"`
-	LoggerCheck              LoggerCheckSettings              `mapstructure:"loggercheck"`
-	MaintIdx                 MaintIdxSettings                 `mapstructure:"maintidx"`
-	Makezero                 MakezeroSettings                 `mapstructure:"makezero"`
-	Misspell                 MisspellSettings                 `mapstructure:"misspell"`
-	Mnd                      MndSettings                      `mapstructure:"mnd"`
-	Modernize                ModernizeSettings                `mapstructure:"modernize"`
-	MustTag                  MustTagSettings                  `mapstructure:"musttag"`
-	Nakedret                 NakedretSettings                 `mapstructure:"nakedret"`
-	Nestif                   NestifSettings                   `mapstructure:"nestif"`
-	NilNil                   NilNilSettings                   `mapstructure:"nilnil"`
-	Nlreturn                 NlreturnSettings                 `mapstructure:"nlreturn"`
-	NoLintLint               NoLintLintSettings               `mapstructure:"nolintlint"`
-	NoNamedReturns           NoNamedReturnsSettings           `mapstructure:"nonamedreturns"`
-	ParallelTest             ParallelTestSettings             `mapstructure:"paralleltest"`
-	PerfSprint               PerfSprintSettings               `mapstructure:"perfsprint"`
-	Prealloc                 PreallocSettings                 `mapstructure:"prealloc"`
-	Predeclared              PredeclaredSettings              `mapstructure:"predeclared"`
-	Promlinter               PromlinterSettings               `mapstructure:"promlinter"`
-	ProtoGetter              ProtoGetterSettings              `mapstructure:"protogetter"`
-	Reassign                 ReassignSettings                 `mapstructure:"reassign"`
-	Recvcheck                RecvcheckSettings                `mapstructure:"recvcheck"`
-	Revive                   ReviveSettings                   `mapstructure:"revive"`
-	RowsErrCheck             RowsErrCheckSettings             `mapstructure:"rowserrcheck"`
-	SlogLint                 SlogLintSettings                 `mapstructure:"sloglint"`
-	Spancheck                SpancheckSettings                `mapstructure:"spancheck"`
-	Staticcheck              StaticCheckSettings              `mapstructure:"staticcheck"`
-	TagAlign                 TagAlignSettings                 `mapstructure:"tagalign"`
-	Tagliatelle              TagliatelleSettings              `mapstructure:"tagliatelle"`
-	Testifylint              TestifylintSettings              `mapstructure:"testifylint"`
-	Testpackage              TestpackageSettings              `mapstructure:"testpackage"`
-	Thelper                  ThelperSettings                  `mapstructure:"thelper"`
-	Unconvert                UnconvertSettings                `mapstructure:"unconvert"`
-	Unparam                  UnparamSettings                  `mapstructure:"unparam"`
-	Unused                   UnusedSettings                   `mapstructure:"unused"`
-	UseStdlibVars            UseStdlibVarsSettings            `mapstructure:"usestdlibvars"`
-	UseTesting               UseTestingSettings               `mapstructure:"usetesting"`
-	Varnamelen               VarnamelenSettings               `mapstructure:"varnamelen"`
-	Whitespace               WhitespaceSettings               `mapstructure:"whitespace"`
-	Wrapcheck                WrapcheckSettings                `mapstructure:"wrapcheck"`
-	WSL                      WSLv4Settings                    `mapstructure:"wsl"` // Deprecated: use WSLv5 instead.
-	WSLv5                    WSLv5Settings                    `mapstructure:"wsl_v5"`
+	Asasalint       AsasalintSettings       `mapstructure:"asasalint"`
+	BiDiChk         BiDiChkSettings         `mapstructure:"bidichk"`
+	CopyLoopVar     CopyLoopVarSettings     `mapstructure:"copyloopvar"`
+	Cyclop          CyclopSettings          `mapstructure:"cyclop"`
+	Decorder        DecorderSettings        `mapstructure:"decorder"`
+	Depguard        DepGuardSettings        `mapstructure:"depguard"`
+	Dogsled         DogsledSettings         `mapstructure:"dogsled"`
+	Dupl            DuplSettings            `mapstructure:"dupl"`
+	DupWord         DupWordSettings         `mapstructure:"dupword"`
+	Errcheck        ErrcheckSettings        `mapstructure:"errcheck"`
+	ErrChkJSON      ErrChkJSONSettings      `mapstructure:"errchkjson"`
+	ErrorLint       ErrorLintSettings       `mapstructure:"errorlint"`
+	Exhaustive      ExhaustiveSettings      `mapstructure:"exhaustive"`
+	Exhaustruct     ExhaustructSettings     `mapstructure:"exhaustruct"`
+	Fatcontext      FatcontextSettings      `mapstructure:"fatcontext"`
+	Forbidigo       ForbidigoSettings       `mapstructure:"forbidigo"`
+	FuncOrder       FuncOrderSettings       `mapstructure:"funcorder"`
+	Funlen          FunlenSettings          `mapstructure:"funlen"`
+	GinkgoLinter    GinkgoLinterSettings    `mapstructure:"ginkgolinter"`
+	Gocognit        GocognitSettings        `mapstructure:"gocognit"`
+	GoChecksumType  GoChecksumTypeSettings  `mapstructure:"gochecksumtype"`
+	Goconst         GoConstSettings         `mapstructure:"goconst"`
+	Gocritic        GoCriticSettings        `mapstructure:"gocritic"`
+	Gocyclo         GoCycloSettings         `mapstructure:"gocyclo"`
+	Godot           GodotSettings           `mapstructure:"godot"`
+	Godox           GodoxSettings           `mapstructure:"godox"`
+	Goheader        GoHeaderSettings        `mapstructure:"goheader"`
+	GoModDirectives GoModDirectivesSettings `mapstructure:"gomoddirectives"`
+	Gomodguard      GoModGuardSettings      `mapstructure:"gomodguard"`
+	Gosec           GoSecSettings           `mapstructure:"gosec"`
+	Gosmopolitan    GosmopolitanSettings    `mapstructure:"gosmopolitan"`
+	Govet           GovetSettings           `mapstructure:"govet"`
+	Grouper         GrouperSettings         `mapstructure:"grouper"`
+	Iface           IfaceSettings           `mapstructure:"iface"`
+	ImportAs        ImportAsSettings        `mapstructure:"importas"`
+	Inamedparam     INamedParamSettings     `mapstructure:"inamedparam"`
+	InterfaceBloat  InterfaceBloatSettings  `mapstructure:"interfacebloat"`
+	Ireturn         IreturnSettings         `mapstructure:"ireturn"`
+	Lll             LllSettings             `mapstructure:"lll"`
+	LoggerCheck     LoggerCheckSettings     `mapstructure:"loggercheck"`
+	MaintIdx        MaintIdxSettings        `mapstructure:"maintidx"`
+	Makezero        MakezeroSettings        `mapstructure:"makezero"`
+	Misspell        MisspellSettings        `mapstructure:"misspell"`
+	Mnd             MndSettings             `mapstructure:"mnd"`
+	MustTag         MustTagSettings         `mapstructure:"musttag"`
+	Nakedret        NakedretSettings        `mapstructure:"nakedret"`
+	Nestif          NestifSettings          `mapstructure:"nestif"`
+	NilNil          NilNilSettings          `mapstructure:"nilnil"`
+	Nlreturn        NlreturnSettings        `mapstructure:"nlreturn"`
+	NoLintLint      NoLintLintSettings      `mapstructure:"nolintlint"`
+	NoNamedReturns  NoNamedReturnsSettings  `mapstructure:"nonamedreturns"`
+	ParallelTest    ParallelTestSettings    `mapstructure:"paralleltest"`
+	PerfSprint      PerfSprintSettings      `mapstructure:"perfsprint"`
+	Prealloc        PreallocSettings        `mapstructure:"prealloc"`
+	Predeclared     PredeclaredSettings     `mapstructure:"predeclared"`
+	Promlinter      PromlinterSettings      `mapstructure:"promlinter"`
+	ProtoGetter     ProtoGetterSettings     `mapstructure:"protogetter"`
+	Reassign        ReassignSettings        `mapstructure:"reassign"`
+	Recvcheck       RecvcheckSettings       `mapstructure:"recvcheck"`
+	Revive          ReviveSettings          `mapstructure:"revive"`
+	RowsErrCheck    RowsErrCheckSettings    `mapstructure:"rowserrcheck"`
+	SlogLint        SlogLintSettings        `mapstructure:"sloglint"`
+	Spancheck       SpancheckSettings       `mapstructure:"spancheck"`
+	Staticcheck     StaticCheckSettings     `mapstructure:"staticcheck"`
+	TagAlign        TagAlignSettings        `mapstructure:"tagalign"`
+	Tagliatelle     TagliatelleSettings     `mapstructure:"tagliatelle"`
+	Testifylint     TestifylintSettings     `mapstructure:"testifylint"`
+	Testpackage     TestpackageSettings     `mapstructure:"testpackage"`
+	Thelper         ThelperSettings         `mapstructure:"thelper"`
+	Unconvert       UnconvertSettings       `mapstructure:"unconvert"`
+	Unparam         UnparamSettings         `mapstructure:"unparam"`
+	Unused          UnusedSettings          `mapstructure:"unused"`
+	UseStdlibVars   UseStdlibVarsSettings   `mapstructure:"usestdlibvars"`
+	UseTesting      UseTestingSettings      `mapstructure:"usetesting"`
+	Varnamelen      VarnamelenSettings      `mapstructure:"varnamelen"`
+	Whitespace      WhitespaceSettings      `mapstructure:"whitespace"`
+	Wrapcheck       WrapcheckSettings       `mapstructure:"wrapcheck"`
+	WSL             WSLSettings             `mapstructure:"wsl"`
 
 	Custom map[string]CustomLinterSettings `mapstructure:"custom"`
 }
@@ -386,14 +363,8 @@ type DuplSettings struct {
 }
 
 type DupWordSettings struct {
-	Keywords     []string `mapstructure:"keywords"`
-	Ignore       []string `mapstructure:"ignore"`
-	CommentsOnly bool     `mapstructure:"comments-only"`
-}
-
-type EmbeddedStructFieldCheckSettings struct {
-	ForbidMutex bool `mapstructure:"forbid-mutex"`
-	EmptyLine   bool `mapstructure:"empty-line"`
+	Keywords []string `mapstructure:"keywords"`
+	Ignore   []string `mapstructure:"ignore"`
 }
 
 type ErrcheckSettings struct {
@@ -401,7 +372,6 @@ type ErrcheckSettings struct {
 	CheckTypeAssertions      bool     `mapstructure:"check-type-assertions"`
 	CheckAssignToBlank       bool     `mapstructure:"check-blank"`
 	ExcludeFunctions         []string `mapstructure:"exclude-functions"`
-	Verbose                  bool     `mapstructure:"verbose"`
 }
 
 type ErrChkJSONSettings struct {
@@ -435,12 +405,8 @@ type ExhaustiveSettings struct {
 }
 
 type ExhaustructSettings struct {
-	Include                []string `mapstructure:"include"`
-	Exclude                []string `mapstructure:"exclude"`
-	AllowEmpty             bool     `mapstructure:"allow-empty"`
-	AllowEmptyRx           []string `mapstructure:"allow-empty-rx"`
-	AllowEmptyReturns      bool     `mapstructure:"allow-empty-returns"`
-	AllowEmptyDeclarations bool     `mapstructure:"allow-empty-declarations"`
+	Include []string `mapstructure:"include"`
+	Exclude []string `mapstructure:"exclude"`
 }
 
 type FatcontextSettings struct {
@@ -462,7 +428,6 @@ type ForbidigoPattern struct {
 type FuncOrderSettings struct {
 	Constructor  bool `mapstructure:"constructor,omitempty"`
 	StructMethod bool `mapstructure:"struct-method,omitempty"`
-	Alphabetical bool `mapstructure:"alphabetical,omitempty"`
 }
 
 type FunlenSettings struct {
@@ -484,8 +449,6 @@ type GinkgoLinterSettings struct {
 	ValidateAsyncIntervals     bool `mapstructure:"validate-async-intervals"`
 	ForbidSpecPollution        bool `mapstructure:"forbid-spec-pollution"`
 	ForceSucceedForFuncs       bool `mapstructure:"force-succeed"`
-	ForceAssertionDescription  bool `mapstructure:"force-assertion-description"`
-	ForeToNot                  bool `mapstructure:"force-tonot"`
 }
 
 type GoChecksumTypeSettings struct {
@@ -528,24 +491,6 @@ type GoCriticCheckSettings map[string]any
 
 type GoCycloSettings struct {
 	MinComplexity int `mapstructure:"min-complexity"`
-}
-
-type GodoclintSettings struct {
-	Default *string  `mapstructure:"default"`
-	Enable  []string `mapstructure:"enable"`
-	Disable []string `mapstructure:"disable"`
-	Options struct {
-		MaxLen struct {
-			Length *uint `mapstructure:"length"`
-		} `mapstructure:"max-len"`
-		RequireDoc struct {
-			IgnoreExported   *bool `mapstructure:"ignore-exported"`
-			IgnoreUnexported *bool `mapstructure:"ignore-unexported"`
-		} `mapstructure:"require-doc"`
-		StartWithName struct {
-			IncludeUnexported *bool `mapstructure:"include-unexported"`
-		} `mapstructure:"start-with-name"`
-	} `mapstructure:"options"`
 }
 
 type GodotSettings struct {
@@ -673,16 +618,8 @@ type INamedParamSettings struct {
 	SkipSingleParam bool `mapstructure:"skip-single-param"`
 }
 
-type IneffassignSettings struct {
-	CheckEscapingErrors bool `mapstructure:"check-escaping-errors"`
-}
-
 type InterfaceBloatSettings struct {
 	Max int `mapstructure:"max"`
-}
-
-type IotaMixingSettings struct {
-	ReportIndividual bool `mapstructure:"report-individual"`
 }
 
 type IreturnSettings struct {
@@ -761,10 +698,6 @@ type MndSettings struct {
 	IgnoredFunctions []string `mapstructure:"ignored-functions"`
 }
 
-type ModernizeSettings struct {
-	Disable []string `mapstructure:"disable"`
-}
-
 type NoLintLintSettings struct {
 	RequireExplanation bool     `mapstructure:"require-explanation"`
 	RequireSpecific    bool     `mapstructure:"require-specific"`
@@ -796,9 +729,6 @@ type PerfSprintSettings struct {
 
 	BoolFormat bool `mapstructure:"bool-format"`
 	HexFormat  bool `mapstructure:"hex-format"`
-
-	ConcatLoop   bool `mapstructure:"concat-loop"`
-	LoopOtherOps bool `mapstructure:"loop-other-ops"`
 }
 
 type PreallocSettings struct {
@@ -890,7 +820,7 @@ type StaticCheckSettings struct {
 }
 
 func (s *StaticCheckSettings) HasConfiguration() bool {
-	return s.Initialisms == nil || s.HTTPStatusCodeWhitelist == nil || s.DotImportWhitelist == nil || s.Checks == nil
+	return len(s.Initialisms) > 0 || len(s.HTTPStatusCodeWhitelist) > 0 || len(s.DotImportWhitelist) > 0 || len(s.Checks) > 0
 }
 
 type TagAlignSettings struct {
@@ -997,7 +927,6 @@ type UseStdlibVarsSettings struct {
 	SQLIsolationLevel  bool `mapstructure:"sql-isolation-level"`
 	TLSSignatureScheme bool `mapstructure:"tls-signature-scheme"`
 	ConstantKind       bool `mapstructure:"constant-kind"`
-	TimeDateMonth      bool `mapstructure:"time-date-month"`
 }
 
 type UseTestingSettings struct {
@@ -1017,11 +946,6 @@ type UnconvertSettings struct {
 
 type UnparamSettings struct {
 	CheckExported bool `mapstructure:"check-exported"`
-}
-
-type UnqueryvetSettings struct {
-	CheckSQLBuilders bool     `mapstructure:"check-sql-builders"`
-	AllowedPatterns  []string `mapstructure:"allowed-patterns"`
 }
 
 type UnusedSettings struct {
@@ -1060,8 +984,7 @@ type WrapcheckSettings struct {
 	ReportInternalErrors   bool     `mapstructure:"report-internal-errors"`
 }
 
-// Deprecated: use WSLv5Settings instead.
-type WSLv4Settings struct {
+type WSLSettings struct {
 	StrictAppend                     bool     `mapstructure:"strict-append"`
 	AllowAssignAndCallCuddle         bool     `mapstructure:"allow-assign-and-call"`
 	AllowAssignAndAnythingCuddle     bool     `mapstructure:"allow-assign-and-anything"`
@@ -1076,16 +999,6 @@ type WSLv4Settings struct {
 	ForceCuddleErrCheckAndAssign     bool     `mapstructure:"force-err-cuddling"`
 	ErrorVariableNames               []string `mapstructure:"error-variable-names"`
 	ForceExclusiveShortDeclarations  bool     `mapstructure:"force-short-decl-cuddling"`
-}
-
-type WSLv5Settings struct {
-	AllowFirstInBlock bool     `mapstructure:"allow-first-in-block"`
-	AllowWholeBlock   bool     `mapstructure:"allow-whole-block"`
-	BranchMaxLines    int      `mapstructure:"branch-max-lines"`
-	CaseMaxLines      int      `mapstructure:"case-max-lines"`
-	Default           string   `mapstructure:"default"`
-	Enable            []string `mapstructure:"enable"`
-	Disable           []string `mapstructure:"disable"`
 }
 
 // CustomLinterSettings encapsulates the meta-data of a private linter.

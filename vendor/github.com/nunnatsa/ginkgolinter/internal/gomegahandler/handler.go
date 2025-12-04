@@ -38,12 +38,12 @@ func GetGomegaHandler(file *ast.File, pass *analysis.Pass) Handler {
 			continue
 		}
 
-		switch name := imp.Name.String(); name {
-		case ".":
+		switch name := imp.Name.String(); {
+		case name == ".":
 			return &dotHandler{
 				pass: pass,
 			}
-		case "<nil>": // import with no local name
+		case name == "<nil>": // import with no local name
 			return &nameHandler{name: "gomega", pass: pass}
 		default:
 			return &nameHandler{name: name, pass: pass}

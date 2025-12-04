@@ -2,16 +2,18 @@ package grouper
 
 import (
 	grouper "github.com/leonklingele/grouper/pkg/analyzer"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.GrouperSettings) *goanalysis.Linter {
-	var cfg map[string]any
+	a := grouper.New()
 
+	cfg := map[string]map[string]any{}
 	if settings != nil {
-		cfg = map[string]any{
+		cfg[a.Name] = map[string]any{
 			"const-require-single-const":   settings.ConstRequireSingleConst,
 			"const-require-grouping":       settings.ConstRequireGrouping,
 			"import-require-single-import": settings.ImportRequireSingleImport,
@@ -22,9 +24,11 @@ func New(settings *config.GrouperSettings) *goanalysis.Linter {
 			"var-require-grouping":         settings.VarRequireGrouping,
 		}
 	}
-	return goanalysis.
-		NewLinterFromAnalyzer(grouper.New()).
-		WithDesc("Analyze expression groups.").
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+
+	return goanalysis.NewLinter(
+		a.Name,
+		"Analyze expression groups.",
+		[]*analysis.Analyzer{a},
+		cfg,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

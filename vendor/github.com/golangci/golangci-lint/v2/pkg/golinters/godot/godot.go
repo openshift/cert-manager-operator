@@ -10,6 +10,8 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
+const linterName = "godot"
+
 func New(settings *config.GodotSettings) *goanalysis.Linter {
 	var dotSettings godot.Settings
 
@@ -24,20 +26,25 @@ func New(settings *config.GodotSettings) *goanalysis.Linter {
 
 	dotSettings.Scope = cmp.Or(dotSettings.Scope, godot.DeclScope)
 
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name: "godot",
-			Doc:  "Check if comments end in a period",
-			Run: func(pass *analysis.Pass) (any, error) {
-				err := runGodot(pass, dotSettings)
-				if err != nil {
-					return nil, err
-				}
+	analyzer := &analysis.Analyzer{
+		Name: linterName,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run: func(pass *analysis.Pass) (any, error) {
+			err := runGodot(pass, dotSettings)
+			if err != nil {
+				return nil, err
+			}
 
-				return nil, nil
-			},
-		}).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+			return nil, nil
+		},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		"Check if comments end in a period",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
 func runGodot(pass *analysis.Pass, settings godot.Settings) error {

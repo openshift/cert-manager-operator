@@ -4,14 +4,16 @@ import (
 	"strings"
 
 	"github.com/breml/bidichk/pkg/bidichk"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.BiDiChkSettings) *goanalysis.Linter {
-	var cfg map[string]any
+	a := bidichk.NewAnalyzer()
 
+	cfg := map[string]map[string]any{}
 	if settings != nil {
 		var opts []string
 
@@ -43,13 +45,15 @@ func New(settings *config.BiDiChkSettings) *goanalysis.Linter {
 			opts = append(opts, "POP-DIRECTIONAL-ISOLATE")
 		}
 
-		cfg = map[string]any{
+		cfg[a.Name] = map[string]any{
 			"disallowed-runes": strings.Join(opts, ","),
 		}
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(bidichk.NewAnalyzer()).
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	return goanalysis.NewLinter(
+		a.Name,
+		"Checks for dangerous unicode character sequences",
+		[]*analysis.Analyzer{a},
+		cfg,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

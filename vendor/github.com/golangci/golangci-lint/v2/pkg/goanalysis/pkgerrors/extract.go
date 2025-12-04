@@ -2,7 +2,6 @@ package pkgerrors
 
 import (
 	"fmt"
-	"maps"
 	"regexp"
 	"strings"
 
@@ -19,9 +18,7 @@ func extractErrors(pkg *packages.Package) []packages.Error {
 		return errors
 	}
 
-	skippedErrors := map[string]packages.Error{}
 	seenErrors := map[string]bool{}
-
 	var uniqErrors []packages.Error
 	for _, err := range errors {
 		msg := stackCrusher(err.Error())
@@ -29,33 +26,13 @@ func extractErrors(pkg *packages.Package) []packages.Error {
 			continue
 		}
 
-		// This `if` is important to avoid duplicate errors.
-		// The goal is to keep the most relevant error.
 		if msg != err.Error() {
-			prev, alreadySkip := skippedErrors[msg]
-			if !alreadySkip {
-				skippedErrors[msg] = err
-				continue
-			}
-
-			if len(err.Error()) < len(prev.Error()) {
-				skippedErrors[msg] = err
-			}
-
 			continue
 		}
-
-		delete(skippedErrors, msg)
 
 		seenErrors[msg] = true
 
 		uniqErrors = append(uniqErrors, err)
-	}
-
-	// In some cases, the error stack doesn't contain the tip error.
-	// We must keep at least one of the original errors that contain the specific message.
-	for skippedError := range maps.Values(skippedErrors) {
-		uniqErrors = append(uniqErrors, skippedError)
 	}
 
 	if len(pkg.GoFiles) != 0 {

@@ -749,8 +749,11 @@ func allEnabled(old versionone.Linters, linters []LinterInfo) []LinterInfo {
 	var results []LinterInfo
 
 	for _, linter := range linters {
-		if slices.ContainsFunc(old.Enable, linter.isName) {
-			results = append(results, linter)
+		for _, name := range old.Enable {
+			if linter.isName(name) {
+				results = append(results, linter)
+				break
+			}
 		}
 	}
 
@@ -761,8 +764,11 @@ func allDisabled(old versionone.Linters, linters []LinterInfo) []LinterInfo {
 	var results []LinterInfo
 
 	for _, linter := range linters {
-		if slices.ContainsFunc(old.Disable, linter.isName) {
-			results = append(results, linter)
+		for _, name := range old.Disable {
+			if linter.isName(name) {
+				results = append(results, linter)
+				break
+			}
 		}
 	}
 

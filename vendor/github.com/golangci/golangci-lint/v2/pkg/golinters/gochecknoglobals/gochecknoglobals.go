@@ -2,13 +2,18 @@ package gochecknoglobals
 
 import (
 	"4d63.com/gochecknoglobals/checknoglobals"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New() *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(checknoglobals.Analyzer()).
-		WithDesc("Check that no global variables exist.").
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	a := checknoglobals.Analyzer()
+
+	return goanalysis.NewLinter(
+		a.Name,
+		"Check that no global variables exist.",
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

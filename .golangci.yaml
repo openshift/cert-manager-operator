@@ -16,8 +16,7 @@ linters:
     - copyloopvar
     - decorder
     - depguard
-    - dupword
-    - embeddedstructfieldcheck
+    - dupword    
     - errcheck
     - errchkjson
     - errname
@@ -29,7 +28,6 @@ linters:
     - gocheckcompilerdirectives
     - goconst
     - gocritic
-    - godoclint
     - godot
     - goheader
     - goprintffuncname
@@ -40,10 +38,8 @@ linters:
     - iface
     - importas
     - intrange
-    - iotamixing
     - makezero
     - misspell
-    - modernize
     - musttag
     - nakedret
     - nestif
@@ -62,6 +58,7 @@ linters:
     - whitespace
     - wrapcheck
   disable:
+    # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - dupl
     - cyclop
     - gocyclo
@@ -70,6 +67,11 @@ linters:
     - revive
     - maintidx
     - mnd
+    # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.
+    #- embeddedstructfieldcheck
+    #- godoclint
+    #- iotamixing
+    #- modernize
     
   exclusions:
     # Mode of the generated files analysis.

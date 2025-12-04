@@ -2,28 +2,33 @@ package paralleltest
 
 import (
 	"github.com/kunwardeep/paralleltest/pkg/paralleltest"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.ParallelTestSettings) *goanalysis.Linter {
-	var cfg map[string]any
+	a := paralleltest.NewAnalyzer()
 
+	var cfg map[string]map[string]any
 	if settings != nil {
-		cfg = map[string]any{
+		d := map[string]any{
 			"i":                     settings.IgnoreMissing,
 			"ignoremissingsubtests": settings.IgnoreMissingSubtests,
 		}
 
 		if config.IsGoGreaterThanOrEqual(settings.Go, "1.22") {
-			cfg["ignoreloopVar"] = true
+			d["ignoreloopVar"] = true
 		}
+
+		cfg = map[string]map[string]any{a.Name: d}
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(paralleltest.NewAnalyzer()).
-		WithDesc("Detects missing usage of t.Parallel() method in your Go test").
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	return goanalysis.NewLinter(
+		a.Name,
+		"Detects missing usage of t.Parallel() method in your Go test",
+		[]*analysis.Analyzer{a},
+		cfg,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

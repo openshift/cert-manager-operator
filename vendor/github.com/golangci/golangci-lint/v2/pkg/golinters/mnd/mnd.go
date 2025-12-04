@@ -2,15 +2,18 @@ package mnd
 
 import (
 	mnd "github.com/tommy-muehle/go-mnd/v2"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.MndSettings) *goanalysis.Linter {
-	cfg := map[string]any{}
+	a := mnd.Analyzer
 
+	var linterCfg map[string]map[string]any
 	if settings != nil {
+		cfg := make(map[string]any)
 		if len(settings.Checks) > 0 {
 			cfg["checks"] = settings.Checks
 		}
@@ -23,11 +26,16 @@ func New(settings *config.MndSettings) *goanalysis.Linter {
 		if len(settings.IgnoredFunctions) > 0 {
 			cfg["ignored-functions"] = settings.IgnoredFunctions
 		}
+
+		linterCfg = map[string]map[string]any{
+			a.Name: cfg,
+		}
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(mnd.Analyzer).
-		WithDesc("An analyzer to detect magic numbers.").
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	return goanalysis.NewLinter(
+		a.Name,
+		"An analyzer to detect magic numbers.",
+		[]*analysis.Analyzer{a},
+		linterCfg,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

@@ -27,30 +27,31 @@ func NewJUnitXML(w io.Writer, extended bool) *JUnitXML {
 	}
 }
 
-func (p JUnitXML) Print(issues []*result.Issue) error {
+func (p JUnitXML) Print(issues []result.Issue) error {
 	suites := make(map[string]testSuiteXML) // use a map to group by file
 
-	for _, issue := range issues {
-		suiteName := issue.FilePath()
+	for ind := range issues {
+		i := &issues[ind]
+		suiteName := i.FilePath()
 		testSuite := suites[suiteName]
-		testSuite.Suite = issue.FilePath()
+		testSuite.Suite = i.FilePath()
 		testSuite.Tests++
 		testSuite.Failures++
 
 		tc := testCaseXML{
-			Name:      issue.FromLinter,
-			ClassName: issue.Pos.String(),
+			Name:      i.FromLinter,
+			ClassName: i.Pos.String(),
 			Failure: failureXML{
-				Type:    issue.Severity,
-				Message: issue.Pos.String() + ": " + issue.Text,
+				Type:    i.Severity,
+				Message: i.Pos.String() + ": " + i.Text,
 				Content: fmt.Sprintf("%s: %s\nCategory: %s\nFile: %s\nLine: %d\nDetails: %s",
-					issue.Severity, issue.Text, issue.FromLinter, issue.Pos.Filename, issue.Pos.Line, strings.Join(issue.SourceLines, "\n")),
+					i.Severity, i.Text, i.FromLinter, i.Pos.Filename, i.Pos.Line, strings.Join(i.SourceLines, "\n")),
 			},
 		}
 
 		if p.extended {
-			tc.File = issue.Pos.Filename
-			tc.Line = issue.Pos.Line
+			tc.File = i.Pos.Filename
+			tc.Line = i.Pos.Line
 		}
 
 		testSuite.TestCases = append(testSuite.TestCases, tc)

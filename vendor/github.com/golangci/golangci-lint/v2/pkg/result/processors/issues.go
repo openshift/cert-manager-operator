@@ -6,62 +6,62 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/result"
 )
 
-func filterIssues(issues []*result.Issue, filter func(issue *result.Issue) bool) []*result.Issue {
-	retIssues := make([]*result.Issue, 0, len(issues))
-	for _, issue := range issues {
-		if issue.FromLinter == typeCheckName {
+func filterIssues(issues []result.Issue, filter func(issue *result.Issue) bool) []result.Issue {
+	retIssues := make([]result.Issue, 0, len(issues))
+	for i := range issues {
+		if issues[i].FromLinter == typeCheckName {
 			// don't hide typechecking errors in generated files: users expect to see why the project isn't compiling
-			retIssues = append(retIssues, issue)
+			retIssues = append(retIssues, issues[i])
 			continue
 		}
 
-		if filter(issue) {
-			retIssues = append(retIssues, issue)
+		if filter(&issues[i]) {
+			retIssues = append(retIssues, issues[i])
 		}
 	}
 
 	return retIssues
 }
 
-func filterIssuesUnsafe(issues []*result.Issue, filter func(issue *result.Issue) bool) []*result.Issue {
-	retIssues := make([]*result.Issue, 0, len(issues))
-	for _, issue := range issues {
-		if filter(issue) {
-			retIssues = append(retIssues, issue)
+func filterIssuesUnsafe(issues []result.Issue, filter func(issue *result.Issue) bool) []result.Issue {
+	retIssues := make([]result.Issue, 0, len(issues))
+	for i := range issues {
+		if filter(&issues[i]) {
+			retIssues = append(retIssues, issues[i])
 		}
 	}
 
 	return retIssues
 }
 
-func filterIssuesErr(issues []*result.Issue, filter func(issue *result.Issue) (bool, error)) ([]*result.Issue, error) {
-	retIssues := make([]*result.Issue, 0, len(issues))
-	for _, issue := range issues {
-		if issue.FromLinter == typeCheckName {
+func filterIssuesErr(issues []result.Issue, filter func(issue *result.Issue) (bool, error)) ([]result.Issue, error) {
+	retIssues := make([]result.Issue, 0, len(issues))
+	for i := range issues {
+		if issues[i].FromLinter == typeCheckName {
 			// don't hide typechecking errors in generated files: users expect to see why the project isn't compiling
-			retIssues = append(retIssues, issue)
+			retIssues = append(retIssues, issues[i])
 			continue
 		}
 
-		ok, err := filter(issue)
+		ok, err := filter(&issues[i])
 		if err != nil {
-			return nil, fmt.Errorf("can't filter issue %#v: %w", issue, err)
+			return nil, fmt.Errorf("can't filter issue %#v: %w", issues[i], err)
 		}
 
 		if ok {
-			retIssues = append(retIssues, issue)
+			retIssues = append(retIssues, issues[i])
 		}
 	}
 
 	return retIssues, nil
 }
 
-func transformIssues(issues []*result.Issue, transform func(issue *result.Issue) *result.Issue) []*result.Issue {
-	retIssues := make([]*result.Issue, 0, len(issues))
-	for _, issue := range issues {
-		newIssue := transform(issue)
+func transformIssues(issues []result.Issue, transform func(issue *result.Issue) *result.Issue) []result.Issue {
+	retIssues := make([]result.Issue, 0, len(issues))
+	for i := range issues {
+		newIssue := transform(&issues[i])
 		if newIssue != nil {
-			retIssues = append(retIssues, newIssue)
+			retIssues = append(retIssues, *newIssue)
 		}
 	}
 

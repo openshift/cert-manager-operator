@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 
 	"github.com/nunnatsa/ginkgolinter/internal/expression/value"
-	"github.com/nunnatsa/ginkgolinter/internal/typecheck"
+	"github.com/nunnatsa/ginkgolinter/internal/interfaces"
 )
 
 type HaveOccurredMatcher struct{}
@@ -155,7 +155,7 @@ func newMatchErrorMatcher(args []ast.Expr, pass *analysis.Pass) MatchErrorMatche
 		return &MatchErrorMatcherWithString{numArgs: numArgs}
 	}
 
-	if typecheck.ImplementsGomegaMatcher(t) {
+	if interfaces.ImplementsGomegaMatcher(t) {
 		return &MatchErrorMatcherWithMatcher{numArgs: numArgs}
 	}
 
@@ -186,7 +186,7 @@ func isFuncErrBool(t gotypes.Type) bool {
 		return false
 	}
 
-	if !typecheck.ImplementsError(sig.Params().At(0).Type()) {
+	if !interfaces.ImplementsError(sig.Params().At(0).Type()) {
 		return false
 	}
 

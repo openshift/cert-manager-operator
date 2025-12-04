@@ -2,6 +2,7 @@ package rowserrcheck
 
 import (
 	"github.com/jingyugao/rowserrcheck/passes/rowserr"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
@@ -9,13 +10,16 @@ import (
 
 func New(settings *config.RowsErrCheckSettings) *goanalysis.Linter {
 	var pkgs []string
-
 	if settings != nil {
 		pkgs = settings.Packages
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(rowserr.NewAnalyzer(pkgs...)).
-		WithDesc("checks whether Rows.Err of rows is checked successfully").
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	a := rowserr.NewAnalyzer(pkgs...)
+
+	return goanalysis.NewLinter(
+		a.Name,
+		"checks whether Rows.Err of rows is checked successfully",
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

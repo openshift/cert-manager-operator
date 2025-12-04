@@ -15,23 +15,30 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
+const linterName = "lll"
+
 const goCommentDirectivePrefix = "//go:"
 
 func New(settings *config.LllSettings) *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name: "lll",
-			Doc:  "Reports long lines",
-			Run: func(pass *analysis.Pass) (any, error) {
-				err := runLll(pass, settings)
-				if err != nil {
-					return nil, err
-				}
+	analyzer := &analysis.Analyzer{
+		Name: linterName,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run: func(pass *analysis.Pass) (any, error) {
+			err := runLll(pass, settings)
+			if err != nil {
+				return nil, err
+			}
 
-				return nil, nil
-			},
-		}).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+			return nil, nil
+		},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		"Reports long lines",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
 func runLll(pass *analysis.Pass, settings *config.LllSettings) error {

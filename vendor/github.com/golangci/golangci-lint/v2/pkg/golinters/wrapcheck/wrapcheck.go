@@ -2,6 +2,7 @@ package wrapcheck
 
 import (
 	"github.com/tomarrell/wrapcheck/v2/wrapcheck"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
@@ -28,7 +29,12 @@ func New(settings *config.WrapcheckSettings) *goanalysis.Linter {
 		}
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(wrapcheck.NewAnalyzer(cfg)).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	a := wrapcheck.NewAnalyzer(cfg)
+
+	return goanalysis.NewLinter(
+		a.Name,
+		a.Doc,
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

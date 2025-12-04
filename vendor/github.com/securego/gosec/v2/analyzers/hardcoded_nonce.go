@@ -197,20 +197,12 @@ func isFuncContainsCryptoRand(funcCall *ssa.Function) (bool, error) {
 }
 
 func addToVarsMap(value ssa.Value, mapToAddTo map[string]*ssa.Value) {
-	var parent string
-	if value.Parent() != nil {
-		parent = value.Parent().String()
-	}
-	key := value.Name() + value.Type().String() + value.String() + parent
+	key := value.Name() + value.Type().String() + value.String() + value.Parent().String()
 	mapToAddTo[key] = &value
 }
 
 func isContainedInMap(value ssa.Value, mapToCheck map[string]*ssa.Value) bool {
-	var parent string
-	if value.Parent() != nil {
-		parent = value.Parent().String()
-	}
-	key := value.Name() + value.Type().String() + value.String() + parent
+	key := value.Name() + value.Type().String() + value.String() + value.Parent().String()
 	_, contained := mapToCheck[key]
 	return contained
 }

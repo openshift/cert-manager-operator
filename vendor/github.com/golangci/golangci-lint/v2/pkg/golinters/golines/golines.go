@@ -1,6 +1,8 @@
 package golines
 
 import (
+	"golang.org/x/tools/go/analysis"
+
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 	"github.com/golangci/golangci-lint/v2/pkg/goformatters"
@@ -8,14 +10,19 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/internal"
 )
 
+const linterName = "golines"
+
 func New(settings *config.GoLinesSettings) *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(
-			goformatters.NewAnalyzer(
-				internal.LinterLogger.Child(golinesbase.Name),
-				"Checks if code is formatted, and fixes long lines",
-				golinesbase.New(settings),
-			),
-		).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	a := goformatters.NewAnalyzer(
+		internal.LinterLogger.Child(linterName),
+		"Checks if code is formatted, and fixes long lines",
+		golinesbase.New(settings),
+	)
+
+	return goanalysis.NewLinter(
+		a.Name,
+		a.Doc,
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

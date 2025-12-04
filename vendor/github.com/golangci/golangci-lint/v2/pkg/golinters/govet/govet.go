@@ -24,7 +24,6 @@ import (
 	"golang.org/x/tools/go/analysis/passes/fieldalignment"
 	"golang.org/x/tools/go/analysis/passes/findcall"
 	"golang.org/x/tools/go/analysis/passes/framepointer"
-	"golang.org/x/tools/go/analysis/passes/hostport"
 	"golang.org/x/tools/go/analysis/passes/httpmux"
 	"golang.org/x/tools/go/analysis/passes/httpresponse"
 	"golang.org/x/tools/go/analysis/passes/ifaceassert"
@@ -79,7 +78,6 @@ var (
 		fieldalignment.Analyzer,
 		findcall.Analyzer,
 		framepointer.Analyzer,
-		hostport.Analyzer,
 		httpmux.Analyzer,
 		httpresponse.Analyzer,
 		ifaceassert.Analyzer,
@@ -109,7 +107,7 @@ var (
 		waitgroup.Analyzer,
 	}
 
-	// https://github.com/golang/go/blob/go1.25.2/src/cmd/vet/main.go#L57-L91
+	// https://github.com/golang/go/blob/go1.23.0/src/cmd/vet/main.go#L55-L87
 	defaultAnalyzers = []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,
@@ -124,7 +122,6 @@ var (
 		directive.Analyzer,
 		errorsas.Analyzer,
 		framepointer.Analyzer,
-		hostport.Analyzer,
 		httpresponse.Analyzer,
 		ifaceassert.Analyzer,
 		loopclosure.Analyzer,
@@ -145,7 +142,6 @@ var (
 		unreachable.Analyzer,
 		unsafeptr.Analyzer,
 		unusedresult.Analyzer,
-		waitgroup.Analyzer,
 	}
 )
 

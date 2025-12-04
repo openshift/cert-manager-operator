@@ -11,17 +11,24 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
+const linterName = "dogsled"
+
 func New(settings *config.DogsledSettings) *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name: "dogsled",
-			Doc:  "Checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())",
-			Run: func(pass *analysis.Pass) (any, error) {
-				return run(pass, settings.MaxBlankIdentifiers)
-			},
-			Requires: []*analysis.Analyzer{inspect.Analyzer},
-		}).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	analyzer := &analysis.Analyzer{
+		Name: linterName,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run: func(pass *analysis.Pass) (any, error) {
+			return run(pass, settings.MaxBlankIdentifiers)
+		},
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		"Checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
 func run(pass *analysis.Pass, maxBlanks int) (any, error) {
@@ -30,14 +37,18 @@ func run(pass *analysis.Pass, maxBlanks int) (any, error) {
 		return nil, nil
 	}
 
-	for node := range insp.PreorderSeq((*ast.FuncDecl)(nil)) {
+	nodeFilter := []ast.Node{
+		(*ast.FuncDecl)(nil),
+	}
+
+	insp.Preorder(nodeFilter, func(node ast.Node) {
 		funcDecl, ok := node.(*ast.FuncDecl)
 		if !ok {
-			continue
+			return
 		}
 
 		if funcDecl.Body == nil {
-			continue
+			return
 		}
 
 		for _, expr := range funcDecl.Body.List {
@@ -61,7 +72,7 @@ func run(pass *analysis.Pass, maxBlanks int) (any, error) {
 				pass.Reportf(assgnStmt.Pos(), "declaration has %v blank identifiers", numBlank)
 			}
 		}
-	}
+	})
 
 	return nil, nil
 }

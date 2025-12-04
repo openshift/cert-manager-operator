@@ -12,7 +12,6 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/goformatters/gofumpt"
 	"github.com/golangci/golangci-lint/v2/pkg/goformatters/goimports"
 	"github.com/golangci/golangci-lint/v2/pkg/goformatters/golines"
-	"github.com/golangci/golangci-lint/v2/pkg/goformatters/swaggo"
 	"github.com/golangci/golangci-lint/v2/pkg/logutils"
 )
 
@@ -40,10 +39,6 @@ func NewMetaFormatter(log logutils.Log, cfg *config.Formatters, runCfg *config.R
 
 	if slices.Contains(cfg.Enable, goimports.Name) {
 		m.formatters = append(m.formatters, goimports.New(&cfg.Settings.GoImports))
-	}
-
-	if slices.Contains(cfg.Enable, swaggo.Name) {
-		m.formatters = append(m.formatters, swaggo.New())
 	}
 
 	// gci is a last because the only goal of gci is to handle imports.
@@ -91,5 +86,5 @@ func (m *MetaFormatter) Format(filename string, src []byte) []byte {
 }
 
 func IsFormatter(name string) bool {
-	return slices.Contains([]string{gofmt.Name, gofumpt.Name, goimports.Name, gci.Name, golines.Name, swaggo.Name}, name)
+	return slices.Contains([]string{gofmt.Name, gofumpt.Name, goimports.Name, gci.Name, golines.Name}, name)
 }

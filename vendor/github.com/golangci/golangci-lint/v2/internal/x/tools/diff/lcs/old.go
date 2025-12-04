@@ -105,7 +105,7 @@ func forward(e *editGraph) lcs {
 		return ans
 	}
 	// from D to D+1
-	for D := range e.limit {
+	for D := 0; D < e.limit; D++ {
 		e.setForward(D+1, -(D + 1), e.getForward(D, -D))
 		if ok, ans := e.fdone(D+1, -(D + 1)); ok {
 			return ans
@@ -199,14 +199,13 @@ func (e *editGraph) bdone(D, k int) (bool, lcs) {
 }
 
 // run the backward algorithm, until success or up to the limit on D.
-// (used only by tests)
 func backward(e *editGraph) lcs {
 	e.setBackward(0, 0, e.ux)
 	if ok, ans := e.bdone(0, 0); ok {
 		return ans
 	}
 	// from D to D+1
-	for D := range e.limit {
+	for D := 0; D < e.limit; D++ {
 		e.setBackward(D+1, -(D + 1), e.getBackward(D, -D)-1)
 		if ok, ans := e.bdone(D+1, -(D + 1)); ok {
 			return ans
@@ -300,7 +299,7 @@ func twosided(e *editGraph) lcs {
 	e.setBackward(0, 0, e.ux)
 
 	// from D to D+1
-	for D := range e.limit {
+	for D := 0; D < e.limit; D++ {
 		// just finished a backwards pass, so check
 		if got, ok := e.twoDone(D, D); ok {
 			return e.twolcs(D, D, got)
@@ -377,7 +376,10 @@ func (e *editGraph) twoDone(df, db int) (int, bool) {
 	if (df+db+e.delta)%2 != 0 {
 		return 0, false // diagonals cannot overlap
 	}
-	kmin := max(-df, -db+e.delta)
+	kmin := -db + e.delta
+	if -df > kmin {
+		kmin = -df
+	}
 	kmax := db + e.delta
 	if df < kmax {
 		kmax = df

@@ -31,7 +31,7 @@ func newHelpCommand(logger logutils.Log) *helpCommand {
 
 	helpCmd := &cobra.Command{
 		Use:   "help",
-		Short: "Display extra help",
+		Short: "Help",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -40,7 +40,7 @@ func newHelpCommand(logger logutils.Log) *helpCommand {
 
 	lintersCmd := &cobra.Command{
 		Use:               "linters",
-		Short:             "Display help for linters.",
+		Short:             "Help about linters",
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		RunE:              c.lintersExecute,
@@ -56,7 +56,7 @@ func newHelpCommand(logger logutils.Log) *helpCommand {
 
 	formattersCmd := &cobra.Command{
 		Use:               "formatters",
-		Short:             "Display help for formatters.",
+		Short:             "Help about formatters",
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		RunE:              c.formattersExecute,

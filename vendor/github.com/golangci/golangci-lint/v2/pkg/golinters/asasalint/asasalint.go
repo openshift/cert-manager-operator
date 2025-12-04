@@ -2,6 +2,7 @@ package asasalint
 
 import (
 	"github.com/alingse/asasalint"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
@@ -18,12 +19,15 @@ func New(settings *config.AsasalintSettings) *goanalysis.Linter {
 		cfg.IgnoreTest = false
 	}
 
-	analyzer, err := asasalint.NewAnalyzer(cfg)
+	a, err := asasalint.NewAnalyzer(cfg)
 	if err != nil {
 		internal.LinterLogger.Fatalf("asasalint: create analyzer: %v", err)
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(analyzer).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	return goanalysis.NewLinter(
+		a.Name,
+		a.Doc,
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

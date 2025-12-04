@@ -2,7 +2,6 @@ package gci
 
 import (
 	"context"
-	"go/format"
 
 	gcicfg "github.com/daixiang0/gci/pkg/config"
 	"github.com/daixiang0/gci/pkg/gci"
@@ -61,14 +60,5 @@ func (*Formatter) Name() string {
 
 func (f *Formatter) Format(filename string, src []byte) ([]byte, error) {
 	_, formatted, err := gci.LoadFormat(src, filename, *f.config)
-	if err != nil {
-		return nil, err
-	}
-
-	// gci format the code only when the imports are modified,
-	// this produced inconsistencies.
-	// To be always consistent, the code should always be formatted.
-	// https://github.com/daixiang0/gci/blob/c4f689991095c0e54843dca76fb9c3bad58ec5c7/pkg/gci/gci.go#L148-L151
-	// https://github.com/daixiang0/gci/blob/c4f689991095c0e54843dca76fb9c3bad58ec5c7/pkg/gci/gci.go#L215
-	return format.Source(formatted)
+	return formatted, err
 }

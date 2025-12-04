@@ -48,10 +48,12 @@ func NewTeamCity(log logutils.Log, w io.Writer) *TeamCity {
 	}
 }
 
-func (p *TeamCity) Print(issues []*result.Issue) error {
+func (p *TeamCity) Print(issues []result.Issue) error {
 	uniqLinters := map[string]struct{}{}
 
-	for _, issue := range issues {
+	for i := range issues {
+		issue := issues[i]
+
 		_, ok := uniqLinters[issue.FromLinter]
 		if !ok {
 			inspectionType := InspectionType{

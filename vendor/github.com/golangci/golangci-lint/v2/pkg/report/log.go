@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/golangci/golangci-lint/v2/pkg/logutils"
@@ -51,7 +50,7 @@ func (lw LogWrapper) Infof(format string, args ...any) {
 func (lw LogWrapper) Child(name string) logutils.Log {
 	c := lw
 	c.origLog = lw.origLog.Child(name)
-	c.tags = slices.Clone(lw.tags)
+	c.tags = append([]string{}, lw.tags...)
 	c.tags = append(c.tags, name)
 	return c
 }

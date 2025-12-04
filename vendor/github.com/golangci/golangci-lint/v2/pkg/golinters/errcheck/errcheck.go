@@ -21,42 +21,43 @@ const linterName = "errcheck"
 
 func New(settings *config.ErrcheckSettings) *goanalysis.Linter {
 	var mu sync.Mutex
-	var resIssues []*goanalysis.Issue
+	var resIssues []goanalysis.Issue
 
 	analyzer := &analysis.Analyzer{
 		Name: linterName,
-		Doc: "errcheck is a program for checking for unchecked errors in Go code. " +
-			"These unchecked errors can be critical bugs in some cases",
-		Run: goanalysis.DummyRun,
+		Doc:  goanalysis.TheOnlyanalyzerDoc,
+		Run:  goanalysis.DummyRun,
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(analyzer).
-		WithContextSetter(func(lintCtx *linter.Context) {
-			checker := getChecker(settings)
-			checker.Tags = lintCtx.Cfg.Run.BuildTags
+	return goanalysis.NewLinter(
+		linterName,
+		"errcheck is a program for checking for unchecked errors in Go code. "+
+			"These unchecked errors can be critical bugs in some cases",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithContextSetter(func(lintCtx *linter.Context) {
+		checker := getChecker(settings)
+		checker.Tags = lintCtx.Cfg.Run.BuildTags
 
-			analyzer.Run = func(pass *analysis.Pass) (any, error) {
-				issues := runErrCheck(pass, checker, settings.Verbose)
+		analyzer.Run = func(pass *analysis.Pass) (any, error) {
+			issues := runErrCheck(lintCtx, pass, checker)
 
-				if len(issues) == 0 {
-					return nil, nil
-				}
-
-				mu.Lock()
-				resIssues = append(resIssues, issues...)
-				mu.Unlock()
-
+			if len(issues) == 0 {
 				return nil, nil
 			}
-		}).
-		WithIssuesReporter(func(*linter.Context) []*goanalysis.Issue {
-			return resIssues
-		}).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+
+			mu.Lock()
+			resIssues = append(resIssues, issues...)
+			mu.Unlock()
+
+			return nil, nil
+		}
+	}).WithIssuesReporter(func(*linter.Context) []goanalysis.Issue {
+		return resIssues
+	}).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }
 
-func runErrCheck(pass *analysis.Pass, checker *errcheck.Checker, verbose bool) []*goanalysis.Issue {
+func runErrCheck(lintCtx *linter.Context, pass *analysis.Pass, checker *errcheck.Checker) []goanalysis.Issue {
 	pkg := &packages.Package{
 		Fset:      pass.Fset,
 		Syntax:    pass.Files,
@@ -69,18 +70,15 @@ func runErrCheck(pass *analysis.Pass, checker *errcheck.Checker, verbose bool) [
 		return nil
 	}
 
-	issues := make([]*goanalysis.Issue, len(lintIssues.UncheckedErrors))
+	issues := make([]goanalysis.Issue, len(lintIssues.UncheckedErrors))
 
 	for i, err := range lintIssues.UncheckedErrors {
 		text := "Error return value is not checked"
 
 		if err.FuncName != "" {
 			code := cmp.Or(err.SelectorName, err.FuncName)
-			if verbose {
-				code = err.FuncName
-			}
 
-			text = fmt.Sprintf("Error return value of %s is not checked", internal.FormatCode(code))
+			text = fmt.Sprintf("Error return value of %s is not checked", internal.FormatCode(code, lintCtx.Cfg))
 		}
 
 		issues[i] = goanalysis.NewIssue(

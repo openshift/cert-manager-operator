@@ -11,15 +11,22 @@ import (
 	"github.com/golangci/golangci-lint/v2/pkg/golinters/internal"
 )
 
+const linterName = "gochecknoinits"
+
 func New() *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(&analysis.Analyzer{
-			Name:     "gochecknoinits",
-			Doc:      "Checks that no init functions are present in Go code",
-			Run:      run,
-			Requires: []*analysis.Analyzer{inspect.Analyzer},
-		}).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	analyzer := &analysis.Analyzer{
+		Name:     linterName,
+		Doc:      goanalysis.TheOnlyanalyzerDoc,
+		Run:      run,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	}
+
+	return goanalysis.NewLinter(
+		linterName,
+		"Checks that no init functions are present in Go code",
+		[]*analysis.Analyzer{analyzer},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
 func run(pass *analysis.Pass) (any, error) {
@@ -28,17 +35,21 @@ func run(pass *analysis.Pass) (any, error) {
 		return nil, nil
 	}
 
-	for node := range insp.PreorderSeq((*ast.FuncDecl)(nil)) {
-		funcDecl, ok := node.(*ast.FuncDecl)
+	nodeFilter := []ast.Node{
+		(*ast.FuncDecl)(nil),
+	}
+
+	insp.Preorder(nodeFilter, func(decl ast.Node) {
+		funcDecl, ok := decl.(*ast.FuncDecl)
 		if !ok {
-			continue
+			return
 		}
 
 		fnName := funcDecl.Name.Name
 		if fnName == "init" && funcDecl.Recv.NumFields() == 0 {
-			pass.Reportf(funcDecl.Pos(), "don't use %s function", internal.FormatCode(fnName))
+			pass.Reportf(funcDecl.Pos(), "don't use %s function", internal.FormatCode(fnName, nil))
 		}
-	}
+	})
 
 	return nil, nil
 }

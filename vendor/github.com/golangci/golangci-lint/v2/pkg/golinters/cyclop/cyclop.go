@@ -2,29 +2,37 @@ package cyclop
 
 import (
 	"github.com/bkielbasa/cyclop/pkg/analyzer"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/config"
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New(settings *config.CyclopSettings) *goanalysis.Linter {
-	cfg := map[string]any{}
+	a := analyzer.NewAnalyzer()
 
+	var cfg map[string]map[string]any
 	if settings != nil {
-		// Should be managed with `linters.exclusions.rules`.
-		cfg["skipTests"] = false
+		d := map[string]any{
+			// Should be managed with `linters.exclusions.rules`.
+			"skipTests": false,
+		}
 
 		if settings.MaxComplexity != 0 {
-			cfg["maxComplexity"] = settings.MaxComplexity
+			d["maxComplexity"] = settings.MaxComplexity
 		}
 
 		if settings.PackageAverage != 0 {
-			cfg["packageAverage"] = settings.PackageAverage
+			d["packageAverage"] = settings.PackageAverage
 		}
+
+		cfg = map[string]map[string]any{a.Name: d}
 	}
 
-	return goanalysis.
-		NewLinterFromAnalyzer(analyzer.NewAnalyzer()).
-		WithConfig(cfg).
-		WithLoadMode(goanalysis.LoadModeSyntax)
+	return goanalysis.NewLinter(
+		a.Name,
+		a.Doc,
+		[]*analysis.Analyzer{a},
+		cfg,
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

@@ -2,12 +2,18 @@ package errname
 
 import (
 	"github.com/Antonboom/errname/pkg/analyzer"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/golangci/golangci-lint/v2/pkg/goanalysis"
 )
 
 func New() *goanalysis.Linter {
-	return goanalysis.
-		NewLinterFromAnalyzer(analyzer.New()).
-		WithLoadMode(goanalysis.LoadModeTypesInfo)
+	a := analyzer.New()
+
+	return goanalysis.NewLinter(
+		a.Name,
+		a.Doc,
+		[]*analysis.Analyzer{a},
+		nil,
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

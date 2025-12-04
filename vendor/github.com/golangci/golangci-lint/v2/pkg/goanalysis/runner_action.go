@@ -1,7 +1,6 @@
 package goanalysis
 
 import (
-	"context"
 	"fmt"
 	"runtime/debug"
 
@@ -29,14 +28,10 @@ func (actAlloc *actionAllocator) alloc() *action {
 	return act
 }
 
-func (act *action) waitUntilDependingAnalyzersWorked(ctx context.Context) {
+func (act *action) waitUntilDependingAnalyzersWorked() {
 	for _, dep := range act.Deps {
 		if dep.Package == act.Package {
-			select {
-			case <-ctx.Done():
-				return
-			case <-dep.analysisDoneCh:
-			}
+			<-dep.analysisDoneCh
 		}
 	}
 }
