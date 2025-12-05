@@ -124,7 +124,7 @@ formatters:
       sections:
         - standard # Standard section: captures all standard packages.
         - default # Default section: contains all imports that could not be matched to another section type.
-        - prefix(github.com/org/project) # Custom section: groups all imports with the specified Prefix.
+        - prefix(github.com/openshift/cert-manager-operator) # Custom section: groups all imports with the specified Prefix.
         - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
         - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
         - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
@@ -157,7 +157,7 @@ formatters:
     gofumpt:
       # Module path which contains the source code being formatted.
       # Default: ""
-      module-path: github.com/org/project
+      module-path: github.com/openshift/cert-manager-operator
       # Choose whether to use the extra rules.
       # Default: false
       extra-rules: true
@@ -166,7 +166,7 @@ formatters:
       # with the given prefixes are grouped after 3rd-party packages.
       # Default: []
       local-prefixes:
-        - github.com/org/project
+        - github.com/openshift/cert-manager-operator
     golines:
       # Target maximum line length.
       # Default: 100
