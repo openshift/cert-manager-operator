@@ -6,11 +6,14 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +89,12 @@ var istiocsrSchema = schema.GroupVersionResource{
 	Group:    "operator.openshift.io",
 	Version:  "v1alpha1",
 	Resource: "istiocsrs",
+}
+
+var serviceMonitorGVR = schema.GroupVersionResource{
+	Group:    "monitoring.coreos.com",
+	Version:  "v1",
+	Resource: "servicemonitors",
 }
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
@@ -1203,6 +1212,49 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	}
 
 	return stdout.String(), nil
+}
+
+// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate
+func httpsGetCallWithCA(url string, caCertPEM []byte) error {
+	// Create a certificate pool and add the CA cert
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCertPEM) {
+		return fmt.Errorf("failed to parse CA certificate")
+	}
+
+	// Create TLS config with custom CA
+	tlsConfig := &tls.Config{
+		RootCAs:    caCertPool,
+		MinVersion: tls.VersionTLS13,
+	}
+
+	// Create HTTP client with custom TLS config
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+		Timeout: 30 * time.Second, // Avoid indefinitely hanging requests
+	}
+
+	// Create a new GET request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check if the status code is 200 OK
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("http status code %v", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
