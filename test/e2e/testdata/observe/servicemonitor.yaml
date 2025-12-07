@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+  labels:
+    app: cert-manager
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: {{ .AppName }}
+spec:
+  endpoints:
+  - targetPort: 9402
+    path: /metrics
+    interval: 60s
+    scrapeTimeout: 30s
+    honorLabels: false
+  namespaceSelector:
+    matchNames:
+    - {{ .Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .AppName }}
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: {{ .ComponentName }}

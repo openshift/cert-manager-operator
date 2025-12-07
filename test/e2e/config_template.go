@@ -29,6 +29,14 @@ type IstioCSRGRPCurlJobConfig struct {
 	JobName                   string
 }
 
+// ServiceMonitorConfig customizes fields in the ServiceMonitor spec
+type ServiceMonitorConfig struct {
+	Name          string
+	Namespace     string
+	AppName       string
+	ComponentName string
+}
+
 // replaceWithTemplate puts field values from a template struct
 func replaceWithTemplate(sourceFileContents string, templatedValues any) ([]byte, error) {
 	tmpl, err := template.New("template").Option("missingkey=error").Parse(sourceFileContents)
