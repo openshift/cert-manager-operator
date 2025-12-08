@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -107,7 +106,7 @@ func (w lintDeferRule) Visit(node ast.Node) ast.Visitor {
 			w.newFailure("return in a defer function has no effect", n, 1.0, lint.FailureCategoryLogic, deferOptionReturn)
 		}
 	case *ast.CallExpr:
-		isCallToRecover := astutils.IsIdent(n.Fun, "recover")
+		isCallToRecover := isIdent(n.Fun, "recover")
 		switch {
 		case !w.inADefer && isCallToRecover:
 			// func fn() { recover() }
@@ -123,7 +122,7 @@ func (w lintDeferRule) Visit(node ast.Node) ast.Visitor {
 		}
 		return nil // no need to analyze the arguments of the function call
 	case *ast.DeferStmt:
-		if astutils.IsIdent(n.Call.Fun, "recover") {
+		if isIdent(n.Call.Fun, "recover") {
 			// defer recover()
 			//
 			// confidence is not truly 1 because this could be in a correctly-deferred func,

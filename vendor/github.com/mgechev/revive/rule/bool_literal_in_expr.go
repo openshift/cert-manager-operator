@@ -36,7 +36,8 @@ type lintBoolLiteral struct {
 }
 
 func (w *lintBoolLiteral) Visit(node ast.Node) ast.Visitor {
-	if n, ok := node.(*ast.BinaryExpr); ok {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
 		if !isBoolOp(n.Op) {
 			return w
 		}

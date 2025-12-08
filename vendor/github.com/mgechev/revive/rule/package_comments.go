@@ -143,7 +143,7 @@ func (l *lintPackageComments) Visit(_ ast.Node) ast.Visitor {
 		}
 	}
 
-	if isEmptyDoc(l.fileAst.Doc) {
+	if l.fileAst.Doc == nil {
 		for _, failure := range l.checkPackageComment() {
 			l.onFailure(failure)
 		}
@@ -161,8 +161,4 @@ func (l *lintPackageComments) Visit(_ ast.Node) ast.Visitor {
 		})
 	}
 	return nil
-}
-
-func isEmptyDoc(commentGroup *ast.CommentGroup) bool {
-	return commentGroup == nil || commentGroup.Text() == ""
 }

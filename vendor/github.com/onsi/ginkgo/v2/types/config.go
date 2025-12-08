@@ -24,7 +24,6 @@ type SuiteConfig struct {
 	FocusFiles            []string
 	SkipFiles             []string
 	LabelFilter           string
-	SemVerFilter          string
 	FailOnPending         bool
 	FailOnEmpty           bool
 	FailFast              bool
@@ -96,7 +95,6 @@ type ReporterConfig struct {
 	ForceNewlines  bool
 
 	JSONReport     string
-	GoJSONReport   string
 	JUnitReport    string
 	TeamcityReport string
 }
@@ -113,7 +111,7 @@ func (rc ReporterConfig) Verbosity() VerbosityLevel {
 }
 
 func (rc ReporterConfig) WillGenerateReport() bool {
-	return rc.JSONReport != "" || rc.GoJSONReport != "" || rc.JUnitReport != "" || rc.TeamcityReport != ""
+	return rc.JSONReport != "" || rc.JUnitReport != "" || rc.TeamcityReport != ""
 }
 
 func NewDefaultReporterConfig() ReporterConfig {
@@ -161,7 +159,7 @@ func (g CLIConfig) ComputedProcs() int {
 
 	n := 1
 	if g.Parallel {
-		n = runtime.GOMAXPROCS(-1)
+		n = runtime.NumCPU()
 		if n > 4 {
 			n = n - 1
 		}
@@ -174,7 +172,7 @@ func (g CLIConfig) ComputedNumCompilers() int {
 		return g.NumCompilers
 	}
 
-	return runtime.GOMAXPROCS(-1)
+	return runtime.NumCPU()
 }
 
 // Configuration for the Ginkgo CLI capturing available go flags
@@ -310,8 +308,6 @@ var SuiteConfigFlags = GinkgoFlags{
 
 	{KeyPath: "S.LabelFilter", Name: "label-filter", SectionKey: "filter", UsageArgument: "expression",
 		Usage: "If set, ginkgo will only run specs with labels that match the label-filter.  The passed-in expression can include boolean operations (!, &&, ||, ','), groupings via '()', and regular expressions '/regexp/'.  e.g. '(cat || dog) && !fruit'"},
-	{KeyPath: "S.SemVerFilter", Name: "sem-ver-filter", SectionKey: "filter", UsageArgument: "version",
-		Usage: "If set, ginkgo will only run specs with semantic version constraints that are satisfied by the provided version. e.g. '2.1.0'"},
 	{KeyPath: "S.FocusStrings", Name: "focus", SectionKey: "filter",
 		Usage: "If set, ginkgo will only run specs that match this regular expression. Can be specified multiple times, values are ORed."},
 	{KeyPath: "S.SkipStrings", Name: "skip", SectionKey: "filter",
@@ -360,8 +356,6 @@ var ReporterConfigFlags = GinkgoFlags{
 
 	{KeyPath: "R.JSONReport", Name: "json-report", UsageArgument: "filename.json", SectionKey: "output",
 		Usage: "If set, Ginkgo will generate a JSON-formatted test report at the specified location."},
-	{KeyPath: "R.GoJSONReport", Name: "gojson-report", UsageArgument: "filename.json", SectionKey: "output",
-		Usage: "If set, Ginkgo will generate a Go JSON-formatted test report at the specified location."},
 	{KeyPath: "R.JUnitReport", Name: "junit-report", UsageArgument: "filename.xml", SectionKey: "output", DeprecatedName: "reportFile", DeprecatedDocLink: "improved-reporting-infrastructure",
 		Usage: "If set, Ginkgo will generate a conformant junit test report in the specified file."},
 	{KeyPath: "R.TeamcityReport", Name: "teamcity-report", UsageArgument: "filename", SectionKey: "output",
@@ -449,13 +443,6 @@ func VetConfig(flagSet GinkgoFlagSet, suiteConfig SuiteConfig, reporterConfig Re
 		}
 	}
 
-	if suiteConfig.SemVerFilter != "" {
-		_, err := ParseSemVerFilter(suiteConfig.SemVerFilter)
-		if err != nil {
-			errors = append(errors, err)
-		}
-	}
-
 	switch strings.ToLower(suiteConfig.OutputInterceptorMode) {
 	case "", "dup", "swap", "none":
 	default:
@@ -536,7 +523,7 @@ var GoBuildFlags = GinkgoFlags{
 	{KeyPath: "Go.Race", Name: "race", SectionKey: "code-and-coverage-analysis",
 		Usage: "enable data race detection. Supported on linux/amd64, linux/ppc64le, linux/arm64, linux/s390x, freebsd/amd64, netbsd/amd64, darwin/amd64, darwin/arm64, and windows/amd64."},
 	{KeyPath: "Go.Vet", Name: "vet", UsageArgument: "list", SectionKey: "code-and-coverage-analysis",
-		Usage: `Configure the invocation of "go vet" during "go test" to use the comma-separated list of vet checks.  If list is empty (by explicitly passing --vet=""), "go test" runs "go vet" with a curated list of checks believed to be always worth addressing.  If list is "off", "go test" does not run "go vet" at all.  Available checks can be found by running 'go doc cmd/vet'`},
+		Usage: `Configure the invocation of "go vet" during "go test" to use the comma-separated list of vet checks.  If list is empty, "go test" runs "go vet" with a curated list of checks believed to be always worth addressing.  If list is "off", "go test" does not run "go vet" at all.  Available checks can be found by running 'go doc cmd/vet'`},
 	{KeyPath: "Go.Cover", Name: "cover", SectionKey: "code-and-coverage-analysis",
 		Usage: "Enable coverage analysis.	Note that because coverage works by annotating the source code before compilation, compilation and test failures with coverage enabled may report line numbers that don't correspond to the original sources."},
 	{KeyPath: "Go.CoverMode", Name: "covermode", UsageArgument: "set,count,atomic", SectionKey: "code-and-coverage-analysis",
@@ -586,9 +573,6 @@ var GoBuildFlags = GinkgoFlags{
 		Usage: "print the name of the temporary work directory and do not delete it when exiting."},
 	{KeyPath: "Go.X", Name: "x", SectionKey: "go-build",
 		Usage: "print the commands."},
-}
-
-var GoBuildOFlags = GinkgoFlags{
 	{KeyPath: "Go.O", Name: "o", SectionKey: "go-build",
 		Usage: "output binary path (including name)."},
 }
@@ -689,7 +673,7 @@ func GenerateGoTestCompileArgs(goFlagsConfig GoFlagsConfig, packageToBuild strin
 
 	args := []string{"test", "-c", packageToBuild}
 	goArgs, err := GenerateFlagArgs(
-		GoBuildFlags.CopyAppend(GoBuildOFlags...),
+		GoBuildFlags,
 		map[string]any{
 			"Go": &goFlagsConfig,
 		},
@@ -779,7 +763,6 @@ func BuildWatchCommandFlagSet(suiteConfig *SuiteConfig, reporterConfig *Reporter
 func BuildBuildCommandFlagSet(cliConfig *CLIConfig, goFlagsConfig *GoFlagsConfig) (GinkgoFlagSet, error) {
 	flags := GinkgoCLISharedFlags
 	flags = flags.CopyAppend(GoBuildFlags...)
-	flags = flags.CopyAppend(GoBuildOFlags...)
 
 	bindings := map[string]any{
 		"C":  cliConfig,

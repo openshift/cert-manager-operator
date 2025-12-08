@@ -43,17 +43,9 @@ func (checker EqualValues) Check(pass *analysis.Pass, call *CallMeta) *analysis.
 	}
 
 	ft, st := pass.TypesInfo.TypeOf(first), pass.TypesInfo.TypeOf(second)
-	if !types.Identical(ft, st) {
-		return nil
+	if types.Identical(ft, st) {
+		proposed := strings.TrimSuffix(assrn, "Values")
+		return newUseFunctionDiagnostic(checker.Name(), call, proposed)
 	}
-
-	// Type of one of arguments is equivalent to any.
-	if isEmptyInterfaceType(ft) || isEmptyInterfaceType(st) {
-		// EqualValues is ok here.
-		// Equal would check their types and would fail.
-		return nil
-	}
-
-	proposed := strings.TrimSuffix(assrn, "Values")
-	return newUseFunctionDiagnostic(checker.Name(), call, proposed)
+	return nil
 }

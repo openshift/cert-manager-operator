@@ -1,43 +1,38 @@
-version: "2"
-
-formatters:
-  enable:
-    - gofumpt
-    - goimports
-
-
 linters:
-  default: all
+  enable-all: true
   disable:
-    - exhaustruct
+    - execinquery # deprecated
+    - exportloopref # deprecated
+    - gomnd # deprecated
     - gochecknoglobals
-    - gocognit
-    - lll
+    - exhaustruct
     - mnd
+    - gocognit
     - nestif
     - nilnil
     - paralleltest
     - varnamelen
 
-  settings:
-    depguard:
-      rules:
-        main:
-          deny:
-            - pkg: github.com/instana/testify
-              desc: not allowed
-            - pkg: github.com/pkg/errors
-              desc: Should be replaced by standard lib errors package
-    govet:
-      enable-all: true
-    perfsprint:
-      err-error: true
-      errorf: true
-      sprintf1: true
-      strconcat: false
+linters-settings:
+  govet:
+     enable-all: true
+  perfsprint:
+    err-error: true
+    errorf: true
+    sprintf1: true
+    strconcat: false
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: "github.com/instana/testify"
+            desc: not allowed
+          - pkg: "github.com/pkg/errors"
+            desc: Should be replaced by standard lib errors package
 
-  exclusions:
-    presets:
-      - comments
-      - common-false-positives
-      - std-error-handling
+output:
+  show-stats: true
+  sort-results: true
+  sort-order:
+    - linter
+    - file

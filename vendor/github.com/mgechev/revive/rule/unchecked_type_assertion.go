@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/ast"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -71,7 +70,12 @@ type lintUncheckedTypeAssertion struct {
 }
 
 func isIgnored(e ast.Expr) bool {
-	return astutils.IsIdent(e, "_")
+	ident, ok := e.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	return ident.Name == "_"
 }
 
 func isTypeSwitch(e *ast.TypeAssertExpr) bool {
@@ -136,7 +140,7 @@ func (w *lintUncheckedTypeAssertion) handleAssignment(n *ast.AssignStmt) {
 	}
 }
 
-// handles "return foo(.*bar)" - one of them is enough to fail as golang does not forward the type cast tuples in return statements.
+// handles "return foo(.*bar)" - one of them is enough to fail as golang does not forward the type cast tuples in return statements
 func (w *lintUncheckedTypeAssertion) handleReturn(n *ast.ReturnStmt) {
 	for _, r := range n.Results {
 		w.requireNoTypeAssert(r)
@@ -173,7 +177,7 @@ func (w *lintUncheckedTypeAssertion) Visit(node ast.Node) ast.Visitor {
 }
 
 func (w *lintUncheckedTypeAssertion) addFailure(n *ast.TypeAssertExpr, why string) {
-	s := fmt.Sprintf("type cast result is unchecked in %v - %s", astutils.GoFmt(n), why)
+	s := fmt.Sprintf("type cast result is unchecked in %v - %s", gofmt(n), why)
 	w.onFailure(lint.Failure{
 		Category:   lint.FailureCategoryBadPractice,
 		Confidence: 1,

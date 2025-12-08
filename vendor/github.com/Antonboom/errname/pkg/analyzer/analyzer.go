@@ -21,7 +21,7 @@ func New() *analysis.Analyzer {
 	}
 }
 
-func run(pass *analysis.Pass) (any, error) {
+func run(pass *analysis.Pass) (interface{}, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	insp.Nodes([]ast.Node{
@@ -72,12 +72,12 @@ func run(pass *analysis.Pass) (any, error) {
 		return true
 	})
 
-	return nil, nil //nolint:nilnil // Integration interface of analysis.Analyzer.
+	return nil, nil //nolint:nilnil
 }
 
 func reportAboutErrorType(pass *analysis.Pass, typePos token.Pos, typeName string) {
 	var form string
-	if startsWithLower(typeName) {
+	if unicode.IsLower([]rune(typeName)[0]) {
 		form = "xxxError"
 	} else {
 		form = "XxxError"
@@ -88,7 +88,7 @@ func reportAboutErrorType(pass *analysis.Pass, typePos token.Pos, typeName strin
 
 func reportAboutArrayErrorType(pass *analysis.Pass, typePos token.Pos, typeName string) {
 	var forms string
-	if startsWithLower(typeName) {
+	if unicode.IsLower([]rune(typeName)[0]) {
 		forms = "`xxxErrors` or `xxxError`"
 	} else {
 		forms = "`XxxErrors` or `XxxError`"
@@ -99,14 +99,10 @@ func reportAboutArrayErrorType(pass *analysis.Pass, typePos token.Pos, typeName 
 
 func reportAboutSentinelError(pass *analysis.Pass, pos token.Pos, varName string) {
 	var form string
-	if startsWithLower(varName) {
+	if unicode.IsLower([]rune(varName)[0]) {
 		form = "errXxx"
 	} else {
 		form = "ErrXxx"
 	}
 	pass.Reportf(pos, "the sentinel error name `%s` should conform to the `%s` format", varName, form)
-}
-
-func startsWithLower(n string) bool {
-	return unicode.IsLower([]rune(n)[0]) //nolint:gocritic // Source code is Unicode text encoded in UTF-8.
 }

@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -36,12 +35,13 @@ type lintConstantLogicalExpr struct {
 }
 
 func (w *lintConstantLogicalExpr) Visit(node ast.Node) ast.Visitor {
-	if n, ok := node.(*ast.BinaryExpr); ok {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
 		if !w.isOperatorWithLogicalResult(n.Op) {
 			return w
 		}
 
-		subExpressionsAreNotEqual := astutils.GoFmt(n.X) != astutils.GoFmt(n.Y)
+		subExpressionsAreNotEqual := gofmt(n.X) != gofmt(n.Y)
 		if subExpressionsAreNotEqual {
 			return w // nothing to say
 		}

@@ -36,7 +36,8 @@ type lintElseError struct {
 }
 
 func (w *lintElseError) Visit(node ast.Node) ast.Visitor {
-	if v, ok := node.(*ast.BlockStmt); ok {
+	switch v := node.(type) {
+	case *ast.BlockStmt:
 		for i := range len(v.List) - 1 {
 			// if var := whatever; var != nil { return var }
 			s, ok := v.List[i].(*ast.IfStmt)
@@ -44,7 +45,6 @@ func (w *lintElseError) Visit(node ast.Node) ast.Visitor {
 				continue
 			}
 			assign, ok := s.Init.(*ast.AssignStmt)
-			//nolint:staticcheck // QF1001: it's readable enough
 			if !ok || len(assign.Lhs) != 1 || !(assign.Tok == token.DEFINE || assign.Tok == token.ASSIGN) {
 				continue
 			}

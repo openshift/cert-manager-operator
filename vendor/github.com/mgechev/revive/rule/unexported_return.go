@@ -14,12 +14,6 @@ type UnexportedReturnRule struct{}
 
 // Apply applies the rule to given file.
 func (*UnexportedReturnRule) Apply(file *lint.File, _ lint.Arguments) []lint.Failure {
-	if !file.IsImportable() {
-		// Symbols defined in such files cannot be used in other packages.
-		// Therefore, we don't need to check for unexported return types.
-		return nil
-	}
-
 	var failures []lint.Failure
 
 	file.Pkg.TypeCheck()
@@ -78,18 +72,7 @@ func (*UnexportedReturnRule) Name() string {
 // It is imprecise, and will err on the side of returning true,
 // such as for composite types.
 func exportedType(typ types.Type) bool {
-	switch t := typ.(type) {
-	case *types.Alias:
-		obj := t.Obj()
-		switch {
-		// Builtin types have no package.
-		case obj.Pkg() == nil:
-		case obj.Exported():
-		default:
-			_, ok := t.Underlying().(*types.Interface)
-			return ok
-		}
-		return true
+	switch t := types.Unalias(typ).(type) {
 	case *types.Named:
 		obj := t.Obj()
 		switch {

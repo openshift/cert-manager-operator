@@ -5,7 +5,6 @@ package trace // import "go.opentelemetry.io/otel/sdk/trace"
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -202,9 +201,10 @@ func (bsp *batchSpanProcessor) ForceFlush(ctx context.Context) error {
 			}
 		}
 
-		wait := make(chan error, 1)
+		wait := make(chan error)
 		go func() {
 			wait <- bsp.exportSpans(ctx)
+			close(wait)
 		}()
 		// Wait until the export is finished or the context is cancelled/timed out
 		select {
@@ -268,7 +268,7 @@ func (bsp *batchSpanProcessor) exportSpans(ctx context.Context) error {
 
 	if bsp.o.ExportTimeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, bsp.o.ExportTimeout, errors.New("processor export timeout"))
+		ctx, cancel = context.WithTimeout(ctx, bsp.o.ExportTimeout)
 		defer cancel()
 	}
 

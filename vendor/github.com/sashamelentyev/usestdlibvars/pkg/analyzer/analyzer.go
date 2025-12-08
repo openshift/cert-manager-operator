@@ -27,7 +27,6 @@ const (
 	TLSSignatureSchemeFlag = "tls-signature-scheme"
 	ConstantKindFlag       = "constant-kind"
 	SyslogPriorityFlag     = "syslog-priority"
-	TimeDateMonthFlag      = "time-date-month"
 )
 
 // New returns new usestdlibvars analyzer.
@@ -55,7 +54,6 @@ func flags() flag.FlagSet {
 	flags.Bool(TLSSignatureSchemeFlag, false, "suggest the use of tls.SignatureScheme.String()")
 	flags.Bool(ConstantKindFlag, false, "suggest the use of constant.Kind.String()")
 	flags.Bool(SyslogPriorityFlag, false, "[DEPRECATED] suggest the use of syslog.Priority")
-	flags.Bool(TimeDateMonthFlag, false, "suggest the use of time.Month in time.Date")
 	return *flags
 }
 
@@ -244,18 +242,6 @@ func funArgs(pass *analysis.Pass, x *ast.Ident, fun *ast.SelectorExpr, args []as
 				checkSyslogPriority(pass, basicLit)
 			}
 		}
-	case "time":
-		if !lookupFlag(pass, TimeDateMonthFlag) {
-			return
-		}
-
-		// time.Date(2023, time.January, 2, 3, 4, 5, 0, time.UTC)
-		if fun.Sel.Name == "Date" {
-			if basicLit := getBasicLitFromArgs(args, 8, 1, token.INT); basicLit != nil {
-				checkTimeDateMonth(pass, basicLit)
-			}
-		}
-
 	default:
 		// w.WriteHeader(http.StatusOk)
 		if fun.Sel.Name == "WriteHeader" {
@@ -458,14 +444,6 @@ func checkConstantKind(pass *analysis.Pass, basicLit *ast.BasicLit) {
 }
 
 func checkSyslogPriority(pass *analysis.Pass, basicLit *ast.BasicLit) {}
-
-func checkTimeDateMonth(pass *analysis.Pass, basicLit *ast.BasicLit) {
-	currentVal := getBasicLitValue(basicLit)
-
-	if newVal, ok := mapping.TimeDateMonth[currentVal]; ok {
-		report(pass, basicLit, currentVal, newVal)
-	}
-}
 
 // getBasicLitFromArgs gets the *ast.BasicLit of a function argument.
 //

@@ -15,7 +15,6 @@ type ImportAliasNamingRule struct {
 
 const defaultImportAliasNamingAllowRule = "^[a-z][a-z0-9]{0,}$"
 
-//nolint:gocritic // regexpSimplify: backward compatibility
 var defaultImportAliasNamingAllowRegexp = regexp.MustCompile(defaultImportAliasNamingAllowRule)
 
 // Configure validates the rule configuration, and configures the rule accordingly.

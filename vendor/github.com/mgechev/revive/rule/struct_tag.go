@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/fatih/structtag"
-
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -30,7 +28,6 @@ const (
 	keyProperties   tagKey = "properties"
 	keyProtobuf     tagKey = "protobuf"
 	keyRequired     tagKey = "required"
-	keySpanner      tagKey = "spanner"
 	keyTOML         tagKey = "toml"
 	keyURL          tagKey = "url"
 	keyValidate     tagKey = "validate"
@@ -40,6 +37,7 @@ const (
 
 type tagChecker func(checkCtx *checkContext, tag *structtag.Tag, fieldType ast.Expr) (message string, succeeded bool)
 
+// populate tag checkers map
 var tagCheckers = map[tagKey]tagChecker{
 	keyASN1:         checkASN1Tag,
 	keyBSON:         checkBSONTag,
@@ -50,7 +48,6 @@ var tagCheckers = map[tagKey]tagChecker{
 	keyProperties:   checkPropertiesTag,
 	keyProtobuf:     checkProtobufTag,
 	keyRequired:     checkRequiredTag,
-	keySpanner:      checkSpannerTag,
 	keyTOML:         checkTOMLTag,
 	keyURL:          checkURLTag,
 	keyValidate:     checkValidateTag,
@@ -139,7 +136,8 @@ type lintStructTagRule struct {
 }
 
 func (w lintStructTagRule) Visit(node ast.Node) ast.Visitor {
-	if n, ok := node.(*ast.StructType); ok {
+	switch n := node.(type) {
+	case *ast.StructType:
 		isEmptyStruct := n.Fields == nil || n.Fields.NumFields() < 1
 		if isEmptyStruct {
 			return nil // skip empty structs
@@ -180,10 +178,6 @@ func (w lintStructTagRule) checkTaggedField(checkCtx *checkContext, f *ast.Field
 			w.addFailureWithTagKey(f.Tag, msg, tag.Key)
 		}
 
-		if msg, ok := checkOptionsOnIgnoredField(tag); !ok {
-			w.addFailureWithTagKey(f.Tag, msg, tag.Key)
-		}
-
 		checker, ok := w.tagCheckers[tagKey(tag.Key)]
 		if !ok {
 			continue // we don't have a checker for the tag
@@ -204,7 +198,7 @@ func (w lintStructTagRule) checkTagNameIfNeed(checkCtx *checkContext, tag *struc
 
 	key := tagKey(tag.Key)
 	switch key {
-	case keyBSON, keyJSON, keyXML, keyYAML, keyProtobuf, keySpanner:
+	case keyBSON, keyJSON, keyXML, keyYAML, keyProtobuf:
 	default:
 		return "", true
 	}
@@ -242,7 +236,7 @@ func (lintStructTagRule) getTagName(tag *structtag.Tag) string {
 }
 
 func checkASN1Tag(checkCtx *checkContext, tag *structtag.Tag, fieldType ast.Expr) (message string, succeeded bool) {
-	checkList := slices.Concat(tag.Options, []string{tag.Name})
+	checkList := append(tag.Options, tag.Name)
 	for _, opt := range checkList {
 		switch opt {
 		case "application", "explicit", "generalized", "ia5", "omitempty", "optional", "set", "utf8":
@@ -397,7 +391,7 @@ func checkCompoundPropertiesOption(key, value string, fieldType ast.Expr, seenOp
 			return msgTypeMismatch, false
 		}
 	case "layout":
-		if astutils.GoFmt(fieldType) != "time.Time" {
+		if gofmt(fieldType) != "time.Time" {
 			return "layout option is only applicable to fields of type time.Time", false
 		}
 	}
@@ -486,8 +480,8 @@ func checkURLTag(checkCtx *checkContext, tag *structtag.Tag, _ ast.Expr) (messag
 	var delimiter = ""
 	for _, opt := range tag.Options {
 		switch opt {
-		case "int", "omitempty", "numbered", "brackets",
-			"unix", "unixmilli", "unixnano": // TODO : check that the field is of type time.Time
+		case "int", "omitempty", "numbered", "brackets":
+		case "unix", "unixmilli", "unixnano": // TODO : check that the field is of type time.Time
 		case "comma", "semicolon", "space":
 			if delimiter == "" {
 				delimiter = opt
@@ -564,38 +558,6 @@ func checkYAMLTag(checkCtx *checkContext, tag *structtag.Tag, _ ast.Expr) (messa
 	return "", true
 }
 
-func checkSpannerTag(checkCtx *checkContext, tag *structtag.Tag, _ ast.Expr) (message string, succeeded bool) {
-	for _, opt := range tag.Options {
-		if !checkCtx.isUserDefined(keySpanner, opt) {
-			return fmt.Sprintf(msgUnknownOption, opt), false
-		}
-	}
-
-	return "", true
-}
-
-// checkOptionsOnIgnoredField checks if an ignored struct field (tag name "-") has any options specified.
-// It returns a message and false if there are useless options present, or an empty message and true if valid.
-func checkOptionsOnIgnoredField(tag *structtag.Tag) (message string, succeeded bool) {
-	if tag.Name != "-" {
-		return "", true
-	}
-
-	switch len(tag.Options) {
-	case 0:
-		return "", true
-	case 1:
-		opt := strings.TrimSpace(tag.Options[0])
-		if opt == "" {
-			return "", true // accept "-," as options
-		}
-
-		return fmt.Sprintf("useless option %s for ignored field", opt), false
-	default:
-		return fmt.Sprintf("useless options %s for ignored field", strings.Join(tag.Options, ",")), false
-	}
-}
-
 func checkValidateOptionsAlternatives(checkCtx *checkContext, alternatives []string) (message string, succeeded bool) {
 	for _, alternative := range alternatives {
 		alternative := strings.TrimSpace(alternative)
@@ -635,14 +597,16 @@ func typeValueMatch(t ast.Expr, val string) bool {
 	case "int":
 		_, err := strconv.ParseInt(val, 10, 64)
 		typeMatches = err == nil
-	default: // "string", "nil", ...
+	case "string":
+	case "nil":
+	default:
 		// unchecked type
 	}
 
 	return typeMatches
 }
 
-func (w lintStructTagRule) addFailureWithTagKey(n ast.Node, msg, tagKey string) {
+func (w lintStructTagRule) addFailureWithTagKey(n ast.Node, msg string, tagKey string) {
 	w.addFailuref(n, "%s in %s tag", msg, tagKey)
 }
 
@@ -674,128 +638,101 @@ const (
 )
 
 var validateSingleOptions = map[string]struct{}{
-	"alpha":                         {},
-	"alphanum":                      {},
-	"alphanumunicode":               {},
-	"alphaunicode":                  {},
-	"ascii":                         {},
-	"base32":                        {},
-	"base64":                        {},
-	"base64rawurl":                  {},
-	"base64url":                     {},
-	"bcp47_language_tag":            {},
-	"bic":                           {},
-	"boolean":                       {},
-	"btc_addr":                      {},
-	"btc_addr_bech32":               {},
-	"cidr":                          {},
-	"cidrv4":                        {},
-	"cidrv6":                        {},
-	"credit_card":                   {},
-	"cron":                          {},
-	"cve":                           {},
-	"datauri":                       {},
-	"dir":                           {},
-	"dirpath":                       {},
-	"dive":                          {},
-	"dns_rfc1035_label":             {},
-	"e164":                          {},
-	"ein":                           {},
-	"email":                         {},
-	"eth_addr":                      {},
-	"eth_addr_checksum":             {},
-	"file":                          {},
-	"filepath":                      {},
-	"fqdn":                          {},
-	"hexadecimal":                   {},
-	"hexcolor":                      {},
-	"hostname":                      {},
-	"hostname_port":                 {},
-	"hostname_rfc1123":              {},
-	"hsl":                           {},
-	"hsla":                          {},
-	"html":                          {},
-	"html_encoded":                  {},
-	"http_url":                      {},
-	"image":                         {},
-	"ip":                            {},
-	"ip_addr":                       {},
-	"ip4_addr":                      {},
-	"ip6_addr":                      {},
-	"ipv4":                          {},
-	"ipv6":                          {},
-	"isbn":                          {},
-	"isbn10":                        {},
-	"isbn13":                        {},
-	"isdefault":                     {},
-	"iso3166_1_alpha_numeric":       {},
-	"iso3166_1_alpha_numeric_eu":    {},
-	"iso3166_1_alpha2":              {},
-	"iso3166_1_alpha2_eu":           {},
-	"iso3166_1_alpha3":              {},
-	"iso3166_1_alpha3_eu":           {},
-	"iso3166_2":                     {},
-	"iso4217":                       {},
-	"iso4217_numeric":               {},
-	"issn":                          {},
-	"json":                          {},
-	"jwt":                           {},
-	"latitude":                      {},
-	"longitude":                     {},
-	"lowercase":                     {},
-	"luhn_checksum":                 {},
-	"mac":                           {},
-	"md4":                           {},
-	"md5":                           {},
-	"mongodb":                       {},
-	"mongodb_connection_string":     {},
-	"multibyte":                     {},
-	"number":                        {},
-	"numeric":                       {},
-	"port":                          {},
-	"postcode_iso3166_alpha2":       {},
-	"postcode_iso3166_alpha2_field": {},
-	"printascii":                    {},
-	"required":                      {},
-	"rgb":                           {},
-	"rgba":                          {},
-	"ripemd128":                     {},
-	"ripemd160":                     {},
-	"semver":                        {},
-	"sha256":                        {},
-	"sha384":                        {},
-	"sha512":                        {},
-	"ssn":                           {},
-	"tcp_addr":                      {},
-	"tcp4_addr":                     {},
-	"tcp6_addr":                     {},
-	"tiger128":                      {},
-	"tiger160":                      {},
-	"tiger192":                      {},
-	"timezone":                      {},
-	"udp_addr":                      {},
-	"udp4_addr":                     {},
-	"udp6_addr":                     {},
-	"ulid":                          {},
-	"unix_addr":                     {},
-	"uppercase":                     {},
-	"uri":                           {},
-	"url":                           {},
-	"url_encoded":                   {},
-	"urn_rfc2141":                   {},
-	"uuid":                          {},
-	"uuid_rfc4122":                  {},
-	"uuid3":                         {},
-	"uuid3_rfc4122":                 {},
-	"uuid4":                         {},
-	"uuid4_rfc4122":                 {},
-	"uuid5":                         {},
-	"uuid5_rfc4122":                 {},
+	"alpha":                     {},
+	"alphanum":                  {},
+	"alphanumunicode":           {},
+	"alphaunicode":              {},
+	"ascii":                     {},
+	"base32":                    {},
+	"base64":                    {},
+	"base64url":                 {},
+	"bcp47_language_tag":        {},
+	"boolean":                   {},
+	"bic":                       {},
+	"btc_addr":                  {},
+	"btc_addr_bech32":           {},
+	"cidr":                      {},
+	"cidrv4":                    {},
+	"cidrv6":                    {},
+	"country_code":              {},
+	"credit_card":               {},
+	"cron":                      {},
+	"cve":                       {},
+	"datauri":                   {},
+	"dir":                       {},
+	"dirpath":                   {},
+	"dive":                      {},
+	"dns_rfc1035_label":         {},
+	"e164":                      {},
+	"email":                     {},
+	"eth_addr":                  {},
+	"file":                      {},
+	"filepath":                  {},
+	"fqdn":                      {},
+	"hexadecimal":               {},
+	"hexcolor":                  {},
+	"hostname":                  {},
+	"hostname_port":             {},
+	"hostname_rfc1123":          {},
+	"hsl":                       {},
+	"hsla":                      {},
+	"html":                      {},
+	"html_encoded":              {},
+	"image":                     {},
+	"ip":                        {},
+	"ip4_addr":                  {},
+	"ip6_addr":                  {},
+	"ip_addr":                   {},
+	"ipv4":                      {},
+	"ipv6":                      {},
+	"isbn":                      {},
+	"isbn10":                    {},
+	"isbn13":                    {},
+	"isdefault":                 {},
+	"iso3166_1_alpha2":          {},
+	"iso3166_1_alpha3":          {},
+	"iscolor":                   {},
+	"json":                      {},
+	"jwt":                       {},
+	"latitude":                  {},
+	"longitude":                 {},
+	"lowercase":                 {},
+	"luhn_checksum":             {},
+	"mac":                       {},
+	"mongodb":                   {},
+	"mongodb_connection_string": {},
+	"multibyte":                 {},
+	"nostructlevel":             {},
+	"number":                    {},
+	"numeric":                   {},
+	"omitempty":                 {},
+	"printascii":                {},
+	"required":                  {},
+	"rgb":                       {},
+	"rgba":                      {},
+	"semver":                    {},
+	"ssn":                       {},
+	"structonly":                {},
+	"tcp_addr":                  {},
+	"tcp4_addr":                 {},
+	"tcp6_addr":                 {},
+	"timezone":                  {},
+	"udp4_addr":                 {},
+	"udp6_addr":                 {},
+	"ulid":                      {},
+	"unique":                    {},
+	"unix_addr":                 {},
+	"uppercase":                 {},
+	"uri":                       {},
+	"url":                       {},
+	"url_encoded":               {},
+	"urn_rfc2141":               {},
+	"uuid":                      {},
+	"uuid3":                     {},
+	"uuid4":                     {},
+	"uuid5":                     {},
 }
 
-// These are options that are used in expressions of the form:
-//
-//	<option> = <RHS>
 var validateLHS = map[string]struct{}{
 	"contains":             {},
 	"containsany":          {},
@@ -805,40 +742,26 @@ var validateLHS = map[string]struct{}{
 	"endsnotwith":          {},
 	"endswith":             {},
 	"eq":                   {},
-	"eq_ignore_case":       {},
-	"eqcsfield":            {},
 	"eqfield":              {},
+	"eqcsfield":            {},
 	"excluded_if":          {},
 	"excluded_unless":      {},
-	"excluded_with":        {},
-	"excluded_with_all":    {},
-	"excluded_without":     {},
-	"excluded_without_all": {},
 	"excludes":             {},
 	"excludesall":          {},
 	"excludesfield":        {},
 	"excludesrune":         {},
-	"fieldcontains":        {},
-	"fieldexcludes":        {},
 	"gt":                   {},
 	"gtcsfield":            {},
-	"gte":                  {},
 	"gtecsfield":           {},
-	"gtefield":             {},
-	"gtfield":              {},
 	"len":                  {},
 	"lt":                   {},
-	"ltcsfield":            {},
 	"lte":                  {},
+	"ltcsfield":            {},
 	"ltecsfield":           {},
-	"ltefield":             {},
-	"ltfield":              {},
 	"max":                  {},
 	"min":                  {},
 	"ne":                   {},
-	"ne_ignore_case":       {},
 	"necsfield":            {},
-	"nefield":              {},
 	"oneof":                {},
 	"oneofci":              {},
 	"required_if":          {},
@@ -847,10 +770,8 @@ var validateLHS = map[string]struct{}{
 	"required_with_all":    {},
 	"required_without":     {},
 	"required_without_all": {},
-	"skip_unless":          {},
 	"spicedb":              {},
 	"startsnotwith":        {},
 	"startswith":           {},
 	"unique":               {},
-	"validateFn":           {},
 }

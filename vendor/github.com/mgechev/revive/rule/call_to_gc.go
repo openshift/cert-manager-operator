@@ -3,7 +3,6 @@ package rule
 import (
 	"go/ast"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -17,7 +16,11 @@ func (*CallToGCRule) Apply(file *lint.File, _ lint.Arguments) []lint.Failure {
 		failures = append(failures, failure)
 	}
 
-	w := lintCallToGC{onFailure}
+	gcTriggeringFunctions := map[string]map[string]bool{
+		"runtime": {"GC": true},
+	}
+
+	w := lintCallToGC{onFailure, gcTriggeringFunctions}
 	ast.Walk(w, file.AST)
 
 	return failures
@@ -29,17 +32,31 @@ func (*CallToGCRule) Name() string {
 }
 
 type lintCallToGC struct {
-	onFailure func(lint.Failure)
+	onFailure             func(lint.Failure)
+	gcTriggeringFunctions map[string]map[string]bool
 }
 
 func (w lintCallToGC) Visit(node ast.Node) ast.Visitor {
 	ce, ok := node.(*ast.CallExpr)
 	if !ok {
-		return w // nothing to do, the node is not a function call
+		return w // nothing to do, the node is not a call
 	}
 
-	if !astutils.IsPkgDotName(ce.Fun, "runtime", "GC") {
-		return nil // nothing to do, the call is not a call to the Garbage Collector
+	fc, ok := ce.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil // nothing to do, the call is not of the form pkg.func(...)
+	}
+
+	id, ok := fc.X.(*ast.Ident)
+
+	if !ok {
+		return nil // in case X is not an id (it should be!)
+	}
+
+	fn := fc.Sel.Name
+	pkg := id.Name
+	if !w.gcTriggeringFunctions[pkg][fn] {
+		return nil // it isn't a call to a GC triggering function
 	}
 
 	w.onFailure(lint.Failure{

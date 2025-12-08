@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -44,7 +43,7 @@ func (ps *packages) methodNames(lp *lint.Package) pkgMethods {
 
 var allPkgs = packages{pkgs: make([]pkgMethods, 1)}
 
-// ConfusingNamingRule lints method names that differ only by capitalization.
+// ConfusingNamingRule lints method names that differ only by capitalization
 type ConfusingNamingRule struct{}
 
 // Apply applies the rule to given file.
@@ -113,6 +112,9 @@ func checkMethodName(holder string, id *ast.Ident, w *lintConfusingNames) {
 	}
 
 	// update the block list
+	if pkgm.methods[holder] == nil {
+		println("no entry for '", holder, "'")
+	}
 	pkgm.methods[holder][name] = &referenceMethod{fileName: w.fileName, id: id}
 }
 
@@ -124,7 +126,7 @@ type lintConfusingNames struct {
 
 const defaultStructName = "_" // used to map functions
 
-// getStructName of a function receiver. Defaults to defaultStructName.
+// getStructName of a function receiver. Defaults to defaultStructName
 func getStructName(r *ast.FieldList) string {
 	result := defaultStructName
 
@@ -157,7 +159,8 @@ func extractFromStarExpr(expr *ast.StarExpr) string {
 }
 
 func extractFromIndexExpr(expr *ast.IndexExpr) string {
-	if v, ok := expr.X.(*ast.Ident); ok {
+	switch v := expr.X.(type) {
+	case *ast.Ident:
 		return v.Name
 	}
 	return defaultStructName
@@ -188,7 +191,7 @@ func (w *lintConfusingNames) Visit(n ast.Node) ast.Visitor {
 		// Exclude naming warnings for functions that are exported to C but
 		// not exported in the Go API.
 		// See https://github.com/golang/lint/issues/144.
-		if ast.IsExported(v.Name.Name) || !astutils.IsCgoExported(v) {
+		if ast.IsExported(v.Name.Name) || !isCgoExported(v) {
 			checkMethodName(getStructName(v.Recv), v.Name, w)
 		}
 	case *ast.TypeSpec:

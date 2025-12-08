@@ -2,7 +2,6 @@ package ginkgo
 
 import (
 	"context"
-	"io"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2/internal/testingtproxy"
@@ -70,8 +69,6 @@ type GinkgoTInterface interface {
 	Skipf(format string, args ...any)
 	Skipped() bool
 	TempDir() string
-	Attr(key, value string)
-	Output() io.Writer
 }
 
 /*

@@ -73,7 +73,6 @@ func (checker ExpectedActual) Check(pass *analysis.Pass, call *CallMeta) *analys
 		"InDeltaSlice",
 		"InEpsilon",
 		"InEpsilonSlice",
-		"IsNotType",
 		"IsType",
 		"JSONEq",
 		"NotEqual",
@@ -121,9 +120,7 @@ func (checker ExpectedActual) isExpectedValueCandidate(pass *analysis.Pass, expr
 		return checker.isExpectedValueCandidate(pass, v.X)
 
 	case *ast.UnaryExpr:
-		if v.Op == token.AND || v.Op == token.SUB { // &value, -value
-			return checker.isExpectedValueCandidate(pass, v.X)
-		}
+		return (v.Op == token.AND) && checker.isExpectedValueCandidate(pass, v.X) // &value
 
 	case *ast.CompositeLit:
 		return true

@@ -1,16 +1,18 @@
-.PHONY: all fmt test lint build
+.PHONY: all imports test lint build
 
-build:
-	go build -ldflags "-s -w" -trimpath ./cmd/noctx/
+all: imports test lint build
 
-fmt:
-	golangci-lint fmt ./...
-
-lint:
-	golangci-lint run ./...
+imports:
+	goimports -w ./
 
 test:
 	go test -race ./...
 
 test_coverage:
 	go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+lint:
+	golangci-lint run ./...
+
+build:
+	go build -ldflags "-s -w" -trimpath ./cmd/noctx/

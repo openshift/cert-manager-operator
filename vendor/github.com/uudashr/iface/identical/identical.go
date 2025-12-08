@@ -6,8 +6,6 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
-	"slices"
-	"strings"
 
 	"github.com/uudashr/iface/internal/directive"
 	"golang.org/x/tools/go/analysis"
@@ -15,7 +13,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// Analyzer is the analysis pass for detecting identical interfaces.
+// Analyzer is the duplicate interface analyzer.
 var Analyzer = newAnalyzer()
 
 func newAnalyzer() *analysis.Analyzer {
@@ -23,13 +21,13 @@ func newAnalyzer() *analysis.Analyzer {
 
 	analyzer := &analysis.Analyzer{
 		Name:     "identical",
-		Doc:      "Detects interfaces within the same package that have identical methods or type constraints.",
-		URL:      "https://pkg.go.dev/github.com/uudashr/iface/identical",
+		Doc:      "Identifies interfaces in the same package that have identical method sets",
+		URL:      "https://pkg.go.dev/github.com/uudashr/iface/duplicate",
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 		Run:      r.run,
 	}
 
-	analyzer.Flags.BoolVar(&r.debug, "nerd", false, "enable nerd mode")
+	analyzer.Flags.BoolVar(&r.debug, "debug", false, "enable debug mode")
 
 	return analyzer
 }
@@ -115,8 +113,7 @@ func (r *runner) run(pass *analysis.Pass) (interface{}, error) {
 		}
 	})
 
-	identicals := make(map[string][]string)
-
+Loop:
 	for name, typ := range ifaceTypes {
 		for otherName, otherTyp := range ifaceTypes {
 			if name == otherName {
@@ -127,23 +124,15 @@ func (r *runner) run(pass *analysis.Pass) (interface{}, error) {
 				continue
 			}
 
-			r.debugln("Identical interface:", name, "and", otherName)
+			if r.debug {
+				fmt.Println("Identical interface:", name, "and", otherName)
+			}
 
-			identicals[name] = append(identicals[name], otherName)
+			pass.Reportf(ifaceDecls[name], "interface %s contains identical methods or type constraints from another interface, causing redundancy", name)
+
+			continue Loop
 		}
 	}
 
-	for name, others := range identicals {
-		slices.Sort(others)
-		otherNames := strings.Join(others, ", ")
-		pass.Reportf(ifaceDecls[name], "interface '%s' contains identical methods or type constraints with another interface, causing redundancy (see: %s)", name, otherNames)
-	}
-
 	return nil, nil
-}
-
-func (r *runner) debugln(a ...any) {
-	if r.debug {
-		fmt.Println(a...)
-	}
 }

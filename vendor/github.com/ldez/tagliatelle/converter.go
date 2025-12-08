@@ -2,7 +2,6 @@ package tagliatelle
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/ettle/strcase"
@@ -64,19 +63,17 @@ func toHeader(s string) string {
 }
 
 func ruleToConverter(rule ExtendedRule) (Converter, error) {
-	initialismOverrides := maps.Clone(rule.InitialismOverrides)
-
 	if rule.ExtraInitialisms {
 		for k, v := range staticcheckInitialisms {
-			if _, found := initialismOverrides[k]; found {
+			if _, found := rule.InitialismOverrides[k]; found {
 				continue
 			}
 
-			initialismOverrides[k] = v
+			rule.InitialismOverrides[k] = v
 		}
 	}
 
-	caser := strcase.NewCaser(strings.HasPrefix(rule.Case, "go"), initialismOverrides, nil)
+	caser := strcase.NewCaser(strings.HasPrefix(rule.Case, "go"), rule.InitialismOverrides, nil)
 
 	switch strings.ToLower(strings.TrimPrefix(rule.Case, "go")) {
 	case "camel":

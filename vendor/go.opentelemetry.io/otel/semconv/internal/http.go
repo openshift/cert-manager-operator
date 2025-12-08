@@ -1,7 +1,6 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package internal provides common semconv functionality.
 package internal // import "go.opentelemetry.io/otel/semconv/internal"
 
 import (
@@ -50,10 +49,7 @@ type SemanticConventions struct {
 // namespace as specified by the OpenTelemetry specification for a
 // span.  The network parameter is a string that net.Dial function
 // from standard library can understand.
-func (sc *SemanticConventions) NetAttributesFromHTTPRequest(
-	network string,
-	request *http.Request,
-) []attribute.KeyValue {
+func (sc *SemanticConventions) NetAttributesFromHTTPRequest(network string, request *http.Request) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{}
 
 	switch network {
@@ -182,10 +178,9 @@ func (sc *SemanticConventions) httpBasicAttributesFromHTTPRequest(request *http.
 	}
 
 	flavor := ""
-	switch request.ProtoMajor {
-	case 1:
+	if request.ProtoMajor == 1 {
 		flavor = fmt.Sprintf("1.%d", request.ProtoMinor)
-	case 2:
+	} else if request.ProtoMajor == 2 {
 		flavor = "2"
 	}
 	if flavor != "" {
@@ -203,10 +198,7 @@ func (sc *SemanticConventions) httpBasicAttributesFromHTTPRequest(request *http.
 
 // HTTPServerMetricAttributesFromHTTPRequest generates low-cardinality attributes
 // to be used with server-side HTTP metrics.
-func (sc *SemanticConventions) HTTPServerMetricAttributesFromHTTPRequest(
-	serverName string,
-	request *http.Request,
-) []attribute.KeyValue {
+func (sc *SemanticConventions) HTTPServerMetricAttributesFromHTTPRequest(serverName string, request *http.Request) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{}
 	if serverName != "" {
 		attrs = append(attrs, sc.HTTPServerNameKey.String(serverName))
@@ -218,10 +210,7 @@ func (sc *SemanticConventions) HTTPServerMetricAttributesFromHTTPRequest(
 // http namespace as specified by the OpenTelemetry specification for
 // a span on the server side. Currently, only basic authentication is
 // supported.
-func (sc *SemanticConventions) HTTPServerAttributesFromHTTPRequest(
-	serverName, route string,
-	request *http.Request,
-) []attribute.KeyValue {
+func (sc *SemanticConventions) HTTPServerAttributesFromHTTPRequest(serverName, route string, request *http.Request) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		sc.HTTPTargetKey.String(request.RequestURI),
 	}

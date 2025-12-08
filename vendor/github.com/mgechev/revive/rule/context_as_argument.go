@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"strings"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -29,7 +28,7 @@ func (r *ContextAsArgumentRule) Apply(file *lint.File, _ lint.Arguments) []lint.
 		// Flag any that show up after the first.
 		isCtxStillAllowed := true
 		for _, arg := range fnArgs {
-			argIsCtx := astutils.IsPkgDotName(arg.Type, "context", "Context")
+			argIsCtx := isPkgDot(arg.Type, "context", "Context")
 			if argIsCtx && !isCtxStillAllowed {
 				failures = append(failures, lint.Failure{
 					Node:       arg,
@@ -41,7 +40,7 @@ func (r *ContextAsArgumentRule) Apply(file *lint.File, _ lint.Arguments) []lint.
 				break // only flag one
 			}
 
-			typeName := astutils.GoFmt(arg.Type)
+			typeName := gofmt(arg.Type)
 			// a parameter of type context.Context is still allowed if the current arg type is in the allow types LookUpTable
 			_, isCtxStillAllowed = r.allowTypes[typeName]
 		}

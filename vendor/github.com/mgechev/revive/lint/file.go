@@ -24,29 +24,12 @@ type File struct {
 // IsTest returns if the file contains tests.
 func (f *File) IsTest() bool { return strings.HasSuffix(f.Name, "_test.go") }
 
-// IsImportable returns if the symbols defined in this file can be imported in other packages.
-//
-// Symbols from the package `main` or test files are not exported, so they cannot be imported.
-func (f *File) IsImportable() bool {
-	if f.IsTest() {
-		// Test files cannot be imported.
-		return false
-	}
-
-	if f.Pkg.IsMain() {
-		// The package `main` cannot be imported.
-		return false
-	}
-
-	return true
-}
-
 // Content returns the file's content.
 func (f *File) Content() []byte {
 	return f.content
 }
 
-// NewFile creates a new file.
+// NewFile creates a new file
 func NewFile(name string, content []byte, pkg *Package) (*File, error) {
 	f, err := parser.ParseFile(pkg.fset, name, content, parser.ParseComments)
 	if err != nil {
@@ -90,7 +73,7 @@ var basicTypeKinds = map[types.BasicKind]string{
 
 // IsUntypedConst reports whether expr is an untyped constant,
 // and indicates what its default type is.
-// Scope may be nil.
+// scope may be nil.
 func (f *File) IsUntypedConst(expr ast.Expr) (defType string, ok bool) {
 	// Re-evaluate expr outside its context to see if it's untyped.
 	// (An expr evaluated within, for example, an assignment context will get the type of the LHS.)
@@ -239,7 +222,7 @@ func (f *File) disabledIntervals(rules []Rule, mustSpecifyDisableReason bool, fa
 
 			for _, name := range tempNames {
 				name = strings.Trim(name, "\n")
-				if name != "" {
+				if len(name) > 0 {
 					ruleNames = append(ruleNames, name)
 				}
 			}

@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -57,22 +56,11 @@ func (w lintErrors) Visit(_ ast.Node) ast.Visitor {
 			if !ok {
 				continue
 			}
-			if !astutils.IsPkgDotName(ce.Fun, "errors", "New") && !astutils.IsPkgDotName(ce.Fun, "fmt", "Errorf") {
+			if !isPkgDot(ce.Fun, "errors", "New") && !isPkgDot(ce.Fun, "fmt", "Errorf") {
 				continue
 			}
 
 			id := spec.Names[0]
-			if id.Name == "_" {
-				// avoid false positive for blank identifier
-
-				// The fact that the error variable is not used
-				// is out of the scope of the rule
-
-				// This pattern that can be found in benchmarks and examples
-				// should be allowed.
-				continue
-			}
-
 			prefix := "err"
 			if id.IsExported() {
 				prefix = "Err"

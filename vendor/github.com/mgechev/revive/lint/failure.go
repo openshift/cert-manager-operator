@@ -53,7 +53,7 @@ const (
 type FailureCategory string
 
 const (
-	// SeverityWarning declares failures of type warning.
+	// SeverityWarning declares failures of type warning
 	SeverityWarning = "warning"
 	// SeverityError declares failures of type error.
 	SeverityError = "error"
@@ -62,33 +62,26 @@ const (
 // Severity is the type for the failure types.
 type Severity string
 
-// FailurePosition returns the failure position.
+// FailurePosition returns the failure position
 type FailurePosition struct {
-	Start token.Position `json:"Start"`
-	End   token.Position `json:"End"`
+	Start token.Position
+	End   token.Position
 }
 
 // Failure defines a struct for a linting failure.
 type Failure struct {
-	Failure    string          `json:"Failure"`
-	RuleName   string          `json:"RuleName"`
-	Category   FailureCategory `json:"Category"`
-	Position   FailurePosition `json:"Position"`
-	Node       ast.Node        `json:"-"`
-	Confidence float64         `json:"Confidence"`
+	Failure    string
+	RuleName   string
+	Category   FailureCategory
+	Position   FailurePosition
+	Node       ast.Node `json:"-"`
+	Confidence float64
 	// For future use
-	ReplacementLine string `json:"ReplacementLine"`
+	ReplacementLine string
 }
 
 // GetFilename returns the filename.
-//
-// Deprecated: Use [Filename].
 func (f *Failure) GetFilename() string {
-	return f.Filename()
-}
-
-// Filename returns the filename.
-func (f *Failure) Filename() string {
 	return f.Position.Start.Filename
 }
 

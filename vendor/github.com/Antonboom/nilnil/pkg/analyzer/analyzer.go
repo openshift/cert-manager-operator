@@ -58,7 +58,7 @@ var funcAndReturns = []ast.Node{
 	(*ast.ReturnStmt)(nil),
 }
 
-func (n *nilNil) run(pass *analysis.Pass) (any, error) {
+func (n *nilNil) run(pass *analysis.Pass) (interface{}, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	var fs funcTypeStack
@@ -128,7 +128,7 @@ func (n *nilNil) run(pass *analysis.Pass) (any, error) {
 		return true
 	})
 
-	return nil, nil //nolint:nilnil // Integration interface of analysis.Analyzer.
+	return nil, nil //nolint:nilnil
 }
 
 type zeroValue int

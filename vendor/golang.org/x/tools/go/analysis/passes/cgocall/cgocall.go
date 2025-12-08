@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/internal/typesinternal"
+	"golang.org/x/tools/internal/analysisinternal"
 )
 
 const debug = false
@@ -41,7 +41,7 @@ var Analyzer = &analysis.Analyzer{
 }
 
 func run(pass *analysis.Pass) (any, error) {
-	if !typesinternal.Imports(pass.Pkg, "runtime/cgo") {
+	if !analysisinternal.Imports(pass.Pkg, "runtime/cgo") {
 		return nil, nil // doesn't use cgo
 	}
 

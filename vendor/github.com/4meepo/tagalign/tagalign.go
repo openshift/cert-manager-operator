@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alfatraining/structtag"
+	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/analysis"
 )
 

@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"regexp"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -83,8 +82,9 @@ func (r *UnusedReceiverRule) Apply(file *lint.File, _ lint.Arguments) []lint.Fai
 
 			return isAnID && ident.Obj == recID.Obj
 		}
-		receiverUse := astutils.SeekNode[ast.Node](funcDecl.Body, selectReceiverUses)
-		if receiverUse != nil {
+		receiverUses := pick(funcDecl.Body, selectReceiverUses)
+
+		if len(receiverUses) > 0 {
 			continue // the receiver is referenced in the func body
 		}
 

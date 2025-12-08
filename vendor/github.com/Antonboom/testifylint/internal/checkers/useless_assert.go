@@ -146,7 +146,6 @@ func (checker UselessAssert) checkSameVars(pass *analysis.Pass, call *CallMeta) 
 		"InDeltaSlice",
 		"InEpsilon",
 		"InEpsilonSlice",
-		"IsNotType",
 		"IsType",
 		"JSONEq",
 		"Less",

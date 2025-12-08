@@ -16,7 +16,6 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        go = pkgs.go_1_24;
         buildInputs = with pkgs; [
           go
           coreutils
@@ -36,7 +35,7 @@
           export FLAKE_ROOT="$(nix flake metadata | grep 'Resolved URL' | awk '{print $3}' | sed 's/^path://' | sed 's/^git+file:\/\///')"
           export HISTFILE="$FLAKE_ROOT/.nix_bash_history"
 
-          export GOROOT="${go}/share/go"
+          export GOROOT="${pkgs.go}/share/go"
         '';
       in
       {
@@ -58,7 +57,7 @@
                 cd "$FLAKE_ROOT"
 
                 echo "Replace GOPATH"
-                xmlstarlet ed -L -u '//project/component[@name="GOROOT"]/@url' -v 'file://${go}/share/go' .idea/workspace.xml
+                xmlstarlet ed -L -u '//project/component[@name="GOROOT"]/@url' -v 'file://${pkgs.go}/share/go' .idea/workspace.xml
 
                 exit 0
               ''

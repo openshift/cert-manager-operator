@@ -4,12 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
-
-//nolint:staticcheck // TODO: ast.Object is deprecated
-type nodeUID *ast.Object // type of the unique id for AST nodes
 
 // DataRaceRule lints assignments to value method-receivers.
 type DataRaceRule struct{}
@@ -26,7 +22,8 @@ func (r *DataRaceRule) Apply(file *lint.File, _ lint.Arguments) []lint.Failure {
 
 		funcResults := funcDecl.Type.Results
 
-		returnIDs := map[nodeUID]struct{}{}
+		// TODO: ast.Object is deprecated
+		returnIDs := map[*ast.Object]struct{}{}
 		if funcResults != nil {
 			returnIDs = r.extractReturnIDs(funcResults.List)
 		}
@@ -38,7 +35,7 @@ func (r *DataRaceRule) Apply(file *lint.File, _ lint.Arguments) []lint.Failure {
 		fl := &lintFunctionForDataRaces{
 			onFailure: onFailure,
 			returnIDs: returnIDs,
-			rangeIDs:  map[nodeUID]struct{}{},
+			rangeIDs:  map[*ast.Object]struct{}{}, // TODO: ast.Object is deprecated
 			go122for:  isGo122,
 		}
 
@@ -53,8 +50,9 @@ func (*DataRaceRule) Name() string {
 	return "datarace"
 }
 
-func (*DataRaceRule) extractReturnIDs(fields []*ast.Field) map[nodeUID]struct{} {
-	r := map[nodeUID]struct{}{}
+// TODO: ast.Object is deprecated
+func (*DataRaceRule) extractReturnIDs(fields []*ast.Field) map[*ast.Object]struct{} {
+	r := map[*ast.Object]struct{}{}
 	for _, f := range fields {
 		for _, id := range f.Names {
 			r[id.Obj] = struct{}{}
@@ -67,8 +65,8 @@ func (*DataRaceRule) extractReturnIDs(fields []*ast.Field) map[nodeUID]struct{} 
 type lintFunctionForDataRaces struct {
 	_         struct{}
 	onFailure func(failure lint.Failure)
-	returnIDs map[nodeUID]struct{}
-	rangeIDs  map[nodeUID]struct{}
+	returnIDs map[*ast.Object]struct{} // TODO: ast.Object is deprecated
+	rangeIDs  map[*ast.Object]struct{} // TODO: ast.Object is deprecated
 
 	go122for bool
 }
@@ -113,7 +111,7 @@ func (w lintFunctionForDataRaces) Visit(node ast.Node) ast.Visitor {
 			return ok
 		}
 
-		ids := astutils.PickNodes(funcLit.Body, selectIDs)
+		ids := pick(funcLit.Body, selectIDs)
 		for _, id := range ids {
 			id := id.(*ast.Ident)
 			_, isRangeID := w.rangeIDs[id.Obj]

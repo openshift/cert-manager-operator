@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"regexp"
 
-	"github.com/mgechev/revive/internal/astutils"
 	"github.com/mgechev/revive/lint"
 )
 
@@ -123,7 +122,7 @@ func (w lintUnusedParamRule) Visit(node ast.Node) ast.Visitor {
 
 		return false
 	}
-	_ = astutils.PickNodes(funcBody, fselect)
+	_ = pick(funcBody, fselect)
 
 	for _, p := range funcType.Params.List {
 		for _, n := range p.Names {
@@ -144,7 +143,7 @@ func (w lintUnusedParamRule) Visit(node ast.Node) ast.Visitor {
 	return w // full method body was inspected
 }
 
-//nolint:staticcheck // TODO: ast.Object is deprecated
+// TODO: ast.Object is deprecated
 func retrieveNamedParams(params *ast.FieldList) map[*ast.Object]bool {
 	result := map[*ast.Object]bool{}
 	if params.List == nil {

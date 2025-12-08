@@ -2,10 +2,10 @@ package testpackage
 
 import (
 	"flag"
-	"go/ast"
 	"regexp"
-	"slices"
 	"strings"
+
+	"go/ast"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -25,8 +25,10 @@ const (
 func processTestFile(pass *analysis.Pass, f *ast.File, allowedPackages []string) {
 	packageName := f.Name.Name
 
-	if slices.Contains(allowedPackages, packageName) {
-		return
+	for _, p := range allowedPackages {
+		if p == packageName {
+			return
+		}
 	}
 
 	if !strings.HasSuffix(packageName, "_test") {
@@ -49,7 +51,7 @@ func NewAnalyzer() *analysis.Analyzer {
 		Name:  "testpackage",
 		Doc:   "linter that makes you use a separate _test package",
 		Flags: fs,
-		Run: func(pass *analysis.Pass) (any, error) {
+		Run: func(pass *analysis.Pass) (interface{}, error) {
 			allowedPackages := strings.Split(allowPackagesStr, ",")
 			skipFile, err := regexp.Compile(skipFileRegexp)
 			if err != nil {
