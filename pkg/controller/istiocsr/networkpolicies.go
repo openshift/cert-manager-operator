@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -52,9 +53,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 	if policy.Labels == nil {
 		policy.Labels = make(map[string]string)
 	}
-	for k, v := range resourceLabels {
-		policy.Labels[k] = v
-	}
+	maps.Copy(policy.Labels, resourceLabels)
 
 	return policy, nil
 }

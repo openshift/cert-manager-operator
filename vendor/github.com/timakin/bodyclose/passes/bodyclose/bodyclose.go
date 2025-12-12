@@ -23,7 +23,7 @@ var Analyzer = &analysis.Analyzer{
 }
 
 const (
-	Doc = "bodyclose checks whether HTTP response body is closed successfully"
+	Doc = "checks whether HTTP response body is closed successfully"
 
 	nethttpPath = "net/http"
 	closeMethod = "Close"
@@ -64,6 +64,8 @@ func (r runner) run(pass *analysis.Pass) (interface{}, error) {
 		field := resStruct.Field(i)
 		if field.Id() == "Body" {
 			r.bodyObj = field
+
+			break
 		}
 	}
 	if r.bodyObj == nil {
@@ -75,20 +77,19 @@ func (r runner) run(pass *analysis.Pass) (interface{}, error) {
 		bmthd := bodyItrf.Method(i)
 		if bmthd.Id() == closeMethod {
 			r.closeMthd = bmthd
+
+			break
 		}
 	}
 
 	r.skipFile = map[*ast.File]bool{}
+FuncLoop:
 	for _, f := range funcs {
 		// skip if the function is just referenced
-		var isreffunc bool
 		for i := 0; i < f.Signature.Results().Len(); i++ {
 			if f.Signature.Results().At(i).Type().String() == r.resTyp.String() {
-				isreffunc = true
+				continue FuncLoop
 			}
-		}
-		if isreffunc {
-			continue
 		}
 
 		for _, b := range f.Blocks {
@@ -113,6 +114,18 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 	if len(*call.Referrers()) == 0 {
 		return true
 	}
+
+	if instr, ok := b.Instrs[i].(*ssa.Call); ok {
+		//  httptest.ResponseRecorder is not needed closing the response body because no-op.
+		if callee := instr.Call.StaticCallee(); callee != nil && callee.Name() == "Result" {
+			if callee.Pkg != nil && callee.Pkg.Pkg.Name() == "httptest" {
+				if recv := callee.Signature.Recv(); recv != nil && recv.Type().String() == "*net/http/httptest.ResponseRecorder" {
+					return false
+				}
+			}
+		}
+	}
+
 	cRefs := *call.Referrers()
 	for _, cRef := range cRefs {
 		val, ok := r.getResVal(cRef)
@@ -126,7 +139,12 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 		resRefs := *val.Referrers()
 		for _, resRef := range resRefs {
 			switch resRef := resRef.(type) {
-			case *ssa.Store: // Call in Closure function
+			case *ssa.Store: // Call in Closure function / Response is global variable
+				if _, ok := resRef.Addr.(*ssa.Global); ok {
+					// Referrers for globals are always nil, so skip.
+					return false
+				}
+
 				if len(*resRef.Addr.Referrers()) == 0 {
 					return true
 				}
@@ -143,12 +161,43 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 						return r.calledInFunc(f, called)
 					}
 
+					// Case when calling Close() from struct field or method
+					if s, ok := aref.(*ssa.Store); ok {
+						if f, ok := s.Addr.(*ssa.FieldAddr); ok {
+							for _, bRef := range f.Block().Instrs {
+								bOp, ok := r.getBodyOp(bRef)
+								if !ok {
+									continue
+								}
+								for _, ccall := range *bOp.Referrers() {
+									if r.isCloseCall(ccall) {
+										return false
+									}
+								}
+							}
+						}
+					}
 				}
-			case *ssa.Call: // Indirect function call
-				if f, ok := resRef.Call.Value.(*ssa.Function); ok {
+			case *ssa.Call, *ssa.Defer: // Indirect function call
+				// Hacky way to extract CommonCall
+				var call ssa.CallCommon
+				switch rr := resRef.(type) {
+				case *ssa.Call:
+					call = rr.Call
+				case *ssa.Defer:
+					call = rr.Call
+				}
+
+				if f, ok := call.Value.(*ssa.Function); ok {
 					for _, b := range f.Blocks {
-						for i := range b.Instrs {
-							return r.isopen(b, i)
+						for i, bi := range b.Instrs {
+							if r.isCloseCall(bi) {
+								return false
+							}
+
+							if r.isopen(b, i) {
+								return true
+							}
 						}
 					}
 				}
@@ -174,6 +223,34 @@ func (r *runner) isopen(b *ssa.BasicBlock, i int) bool {
 						}
 					}
 				}
+			case *ssa.Phi: // Called in the higher-level block
+				if resRef.Referrers() == nil {
+					return true
+				}
+
+				bRefs := *resRef.Referrers()
+
+				for _, bRef := range bRefs {
+					switch instr := bRef.(type) {
+					case *ssa.FieldAddr:
+						bRefs := *instr.Referrers()
+						for _, bRef := range bRefs {
+							bOp, ok := r.getBodyOp(bRef)
+							if !ok {
+								continue
+							}
+							if len(*bOp.Referrers()) == 0 {
+								return true
+							}
+							ccalls := *bOp.Referrers()
+							for _, ccall := range ccalls {
+								if r.isCloseCall(ccall) {
+									return false
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -186,7 +263,9 @@ func (r *runner) getReqCall(instr ssa.Instruction) (*ssa.Call, bool) {
 	if !ok {
 		return nil, false
 	}
-	if !strings.Contains(call.Type().String(), r.resTyp.String()) {
+	callType := call.Type().String()
+	if !strings.Contains(callType, r.resTyp.String()) ||
+		strings.Contains(callType, "net/http.ResponseController") {
 		return nil, false
 	}
 	return call, true
@@ -201,6 +280,10 @@ func (r *runner) getResVal(instr ssa.Instruction) (ssa.Value, bool) {
 	case ssa.Value:
 		if instr.Type().String() == r.resTyp.String() {
 			return instr, true
+		}
+	case *ssa.Store:
+		if instr.Val.Type().String() == r.resTyp.String() {
+			return instr.Val, true
 		}
 	}
 	return nil, false

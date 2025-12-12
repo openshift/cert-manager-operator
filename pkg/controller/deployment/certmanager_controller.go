@@ -30,9 +30,10 @@ import (
 // TODO: This is just a placeholder controller to contain all the required rbac
 // in a single place. Needs to be deleted later.
 
-// CertManagerReconciler reconciles a CertManager object
+// CertManagerReconciler reconciles a CertManager object.
 type CertManagerReconciler struct {
 	client.Client
+
 	Scheme *runtime.Scheme
 }
 

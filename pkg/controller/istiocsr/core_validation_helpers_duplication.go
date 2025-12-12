@@ -15,7 +15,7 @@ import (
  * TODO: Remove this source file when validateAffinity method is made public.
  */
 
-// validateAffinity checks if given affinities are valid
+// validateAffinity checks if given affinities are valid.
 func validateAffinity(affinity *core.Affinity, opts corevalidation.PodValidationOptions, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -34,7 +34,7 @@ func validateAffinity(affinity *core.Affinity, opts corevalidation.PodValidation
 	return allErrs
 }
 
-// validateNodeAffinity tests that the specified nodeAffinity fields have valid data
+// validateNodeAffinity tests that the specified nodeAffinity fields have valid data.
 func validateNodeAffinity(na *core.NodeAffinity, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// TODO: Uncomment the next three lines once RequiredDuringSchedulingRequiredDuringExecution is implemented.
@@ -50,7 +50,7 @@ func validateNodeAffinity(na *core.NodeAffinity, fldPath *field.Path) field.Erro
 	return allErrs
 }
 
-// validatePodAffinity tests that the specified podAffinity fields have valid data
+// validatePodAffinity tests that the specified podAffinity fields have valid data.
 func validatePodAffinity(podAffinity *core.PodAffinity, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// TODO:Uncomment below code once RequiredDuringSchedulingRequiredDuringExecution is implemented.
@@ -69,7 +69,7 @@ func validatePodAffinity(podAffinity *core.PodAffinity, allowInvalidLabelValueIn
 	return allErrs
 }
 
-// validatePodAntiAffinity tests that the specified podAntiAffinity fields have valid data
+// validatePodAntiAffinity tests that the specified podAntiAffinity fields have valid data.
 func validatePodAntiAffinity(podAntiAffinity *core.PodAntiAffinity, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// TODO:Uncomment below code once RequiredDuringSchedulingRequiredDuringExecution is implemented.
@@ -88,7 +88,7 @@ func validatePodAntiAffinity(podAntiAffinity *core.PodAntiAffinity, allowInvalid
 	return allErrs
 }
 
-// validatePodAffinityTerms tests that the specified podAffinityTerms fields have valid data
+// validatePodAffinityTerms tests that the specified podAffinityTerms fields have valid data.
 func validatePodAffinityTerms(podAffinityTerms []core.PodAffinityTerm, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for i, podAffinityTerm := range podAffinityTerms {
@@ -97,7 +97,7 @@ func validatePodAffinityTerms(podAffinityTerms []core.PodAffinityTerm, allowInva
 	return allErrs
 }
 
-// validatePodAffinityTerm tests that the specified podAffinityTerm fields have valid data
+// validatePodAffinityTerm tests that the specified podAffinityTerm fields have valid data.
 func validatePodAffinityTerm(podAffinityTerm core.PodAffinityTerm, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -114,7 +114,7 @@ func validatePodAffinityTerm(podAffinityTerm core.PodAffinityTerm, allowInvalidL
 	return append(allErrs, metav1validation.ValidateLabelName(podAffinityTerm.TopologyKey, fldPath.Child("topologyKey"))...)
 }
 
-// validateWeightedPodAffinityTerms tests that the specified weightedPodAffinityTerms fields have valid data
+// validateWeightedPodAffinityTerms tests that the specified weightedPodAffinityTerms fields have valid data.
 func validateWeightedPodAffinityTerms(weightedPodAffinityTerms []core.WeightedPodAffinityTerm, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for j, weightedTerm := range weightedPodAffinityTerms {

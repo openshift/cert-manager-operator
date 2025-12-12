@@ -70,7 +70,7 @@ const (
 	IstiocsrResourceWatchLabelName = "istiocsr.openshift.operator.io/watched-by"
 
 	// istiocsrResourceWatchLabelName is the value format assigned to istiocsrResourceWatchLabelName label, which
-	// will be of the form <istiocsr_namespace>/<istiocsr_instance-Name>
+	// will be of the form <istiocsr_namespace>/<istiocsr_instance-Name>.
 	istiocsrResourceWatchLabelValueFmt = "%s_%s"
 
 	// IstiocsrCAConfigMapName is the name o the configmap which is mounted in istiocsr container, containing the

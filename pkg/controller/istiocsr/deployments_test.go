@@ -1191,7 +1191,7 @@ func TestUpdateArgList(t *testing.T) {
 	}
 }
 
-// containsArg checks if the given argument is present in the args list
+// containsArg checks if the given argument is present in the args list.
 func containsArg(args []string, targetArg string) bool {
 	return slices.Contains(args, targetArg)
 }

@@ -2,6 +2,9 @@ package analyzer
 
 import (
 	"go/ast"
+	"go/token"
+	"go/types"
+	"strconv"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -12,7 +15,8 @@ const (
 	name = "nilnil"
 	doc  = "Checks that there is no simultaneous return of `nil` error and an invalid value."
 
-	reportMsg = "return both the `nil` error and invalid value: use a sentinel error instead"
+	nilNilReportMsg       = "return both a `nil` error and an invalid value: use a sentinel error instead"
+	notNilNotNilReportMsg = "return both a non-nil error and a valid value: use separate returns instead"
 )
 
 // New returns new nilnil analyzer.
@@ -25,41 +29,37 @@ func New() *analysis.Analyzer {
 		Run:      n.run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	}
-	a.Flags.Var(&n.checkedTypes, "checked-types", "coma separated list")
+	a.Flags.Var(&n.checkedTypes, "checked-types", "comma separated list of return types to check")
+	a.Flags.BoolVar(&n.detectOpposite, "detect-opposite", false,
+		"in addition, to detect opposite situation (simultaneous return of non-nil error and valid value)")
+	a.Flags.BoolVar(&n.onlyTwo, "only-two", true,
+		"to check functions with only two return values")
 
 	return a
 }
 
 type nilNil struct {
-	checkedTypes checkedTypes
+	checkedTypes   checkedTypes
+	detectOpposite bool
+	onlyTwo        bool
 }
 
 func newNilNil() *nilNil {
 	return &nilNil{
-		checkedTypes: newDefaultCheckedTypes(),
+		checkedTypes:   newDefaultCheckedTypes(),
+		detectOpposite: false,
+		onlyTwo:        true,
 	}
 }
 
-var (
-	types = []ast.Node{(*ast.TypeSpec)(nil)}
-
-	funcAndReturns = []ast.Node{
-		(*ast.FuncDecl)(nil),
-		(*ast.FuncLit)(nil),
-		(*ast.ReturnStmt)(nil),
-	}
-)
-
-type typeSpecByName map[string]*ast.TypeSpec
+var funcAndReturns = []ast.Node{
+	(*ast.FuncDecl)(nil),
+	(*ast.FuncLit)(nil),
+	(*ast.ReturnStmt)(nil),
+}
 
 func (n *nilNil) run(pass *analysis.Pass) (interface{}, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-
-	typeSpecs := typeSpecByName{}
-	insp.Preorder(types, func(node ast.Node) {
-		t := node.(*ast.TypeSpec)
-		typeSpecs[t.Name.Name] = t
-	})
 
 	var fs funcTypeStack
 	insp.Nodes(funcAndReturns, func(node ast.Node, push bool) (proceed bool) {
@@ -81,18 +81,47 @@ func (n *nilNil) run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.ReturnStmt:
 			ft := fs.Top() // Current function.
 
-			if !push || len(v.Results) != 2 || ft == nil || ft.Results == nil || len(ft.Results.List) != 2 {
+			if !push {
+				return false
+			}
+			if len(v.Results) < 2 {
+				return false
+			}
+			if (ft == nil) || (ft.Results == nil) || (len(ft.Results.List) != len(v.Results)) {
+				// Unreachable.
 				return false
 			}
 
-			fRes1, fRes2 := ft.Results.List[0], ft.Results.List[1]
-			if !(n.isDangerNilField(fRes1, typeSpecs) && n.isErrorField(fRes2)) {
-				return
+			lastIdx := len(ft.Results.List) - 1
+			if n.onlyTwo {
+				lastIdx = 1
 			}
 
-			rRes1, rRes2 := v.Results[0], v.Results[1]
-			if isNil(rRes1) && isNil(rRes2) {
-				pass.Reportf(v.Pos(), reportMsg)
+			lastFtRes := ft.Results.List[lastIdx]
+			if !implementsError(pass.TypesInfo.TypeOf(lastFtRes.Type)) {
+				return false
+			}
+
+			retErr := v.Results[lastIdx]
+			for i := range lastIdx {
+				retVal := v.Results[i]
+
+				zv, ok := n.isDangerNilType(pass.TypesInfo.TypeOf(ft.Results.List[i].Type))
+				if !ok {
+					continue
+				}
+
+				if ((zv == zeroValueNil) && isNil(pass, retVal) && isNil(pass, retErr)) ||
+					((zv == zeroValueZero) && isZero(retVal) && isNil(pass, retErr)) {
+					pass.Reportf(v.Pos(), nilNilReportMsg)
+					return false
+				}
+
+				if n.detectOpposite && (((zv == zeroValueNil) && !isNil(pass, retVal) && !isNil(pass, retErr)) ||
+					((zv == zeroValueZero) && !isZero(retVal) && !isNil(pass, retErr))) {
+					pass.Reportf(v.Pos(), notNilNotNilReportMsg)
+					return false
+				}
 			}
 		}
 
@@ -102,47 +131,73 @@ func (n *nilNil) run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil //nolint:nilnil
 }
 
-func (n *nilNil) isDangerNilField(f *ast.Field, typeSpecs typeSpecByName) bool {
-	return n.isDangerNilType(f.Type, typeSpecs)
-}
+type zeroValue int
 
-func (n *nilNil) isDangerNilType(t ast.Expr, typeSpecs typeSpecByName) bool {
-	switch v := t.(type) {
-	case *ast.StarExpr:
-		return n.checkedTypes.Contains(ptrType)
+const (
+	zeroValueNil = iota + 1
+	zeroValueZero
+)
 
-	case *ast.FuncType:
-		return n.checkedTypes.Contains(funcType)
+func (n *nilNil) isDangerNilType(t types.Type) (zeroValue, bool) {
+	switch v := types.Unalias(t).(type) {
+	case *types.Pointer:
+		return zeroValueNil, n.checkedTypes.Contains(ptrType)
 
-	case *ast.InterfaceType:
-		return n.checkedTypes.Contains(ifaceType)
+	case *types.Signature:
+		return zeroValueNil, n.checkedTypes.Contains(funcType)
 
-	case *ast.MapType:
-		return n.checkedTypes.Contains(mapType)
+	case *types.Interface:
+		return zeroValueNil, n.checkedTypes.Contains(ifaceType)
 
-	case *ast.ChanType:
-		return n.checkedTypes.Contains(chanType)
+	case *types.Map:
+		return zeroValueNil, n.checkedTypes.Contains(mapType)
 
-	case *ast.Ident:
-		if t, ok := typeSpecs[v.Name]; ok {
-			return n.isDangerNilType(t.Type, nil)
+	case *types.Chan:
+		return zeroValueNil, n.checkedTypes.Contains(chanType)
+
+	case *types.Basic:
+		if v.Kind() == types.Uintptr {
+			return zeroValueZero, n.checkedTypes.Contains(uintptrType)
 		}
+		if v.Kind() == types.UnsafePointer {
+			return zeroValueNil, n.checkedTypes.Contains(unsafeptrType)
+		}
+
+	case *types.Named:
+		return n.isDangerNilType(v.Underlying())
 	}
-	return false
+	return 0, false
 }
 
-func (n *nilNil) isErrorField(f *ast.Field) bool {
-	return isIdent(f.Type, "error")
+var errorIface = types.Universe.Lookup("error").Type().Underlying().(*types.Interface)
+
+func implementsError(t types.Type) bool {
+	_, ok := t.Underlying().(*types.Interface)
+	return ok && types.Implements(t, errorIface)
 }
 
-func isNil(e ast.Expr) bool {
-	return isIdent(e, "nil")
-}
-
-func isIdent(n ast.Node, name string) bool {
-	i, ok := n.(*ast.Ident)
+func isNil(pass *analysis.Pass, e ast.Expr) bool {
+	i, ok := e.(*ast.Ident)
 	if !ok {
 		return false
 	}
-	return i.Name == name
+
+	_, ok = pass.TypesInfo.ObjectOf(i).(*types.Nil)
+	return ok
+}
+
+func isZero(e ast.Expr) bool {
+	bl, ok := e.(*ast.BasicLit)
+	if !ok {
+		return false
+	}
+	if bl.Kind != token.INT {
+		return false
+	}
+
+	v, err := strconv.ParseInt(bl.Value, 0, 64)
+	if err != nil {
+		return false
+	}
+	return v == 0
 }

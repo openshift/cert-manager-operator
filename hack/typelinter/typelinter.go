@@ -39,8 +39,7 @@ var (
 // structName is the name of s in format `example.com/package.TypeName`.
 func validStruct(structName string, s *types.Struct) bool {
 	valid := true
-	for i := 0; i < s.NumFields(); i++ {
-		field := s.Field(i)
+	for field := range s.Fields() {
 		fieldName := fmt.Sprintf("%s:%s", structName, field.Name())
 		if _, ok := excludedFields[fieldName]; ok {
 			continue

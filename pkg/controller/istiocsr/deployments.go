@@ -350,7 +350,7 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 	return nil
 }
 
-// handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting
+// handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
 func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	var (
 		issuerConfig certmanagerv1.IssuerConfig
@@ -527,7 +527,7 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
 }
 
-// createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data
+// createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data.
 func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
 	if certData == "" {
 		return fmt.Errorf("failed to find CA certificate")
@@ -610,7 +610,7 @@ func (r *Reconciler) validatePEMData(pemData string) error {
 	return nil
 }
 
-// updateWatchLabel adds a watch label to any Kubernetes object that supports labels
+// updateWatchLabel adds a watch label to any Kubernetes object that supports labels.
 func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
 	labels := obj.GetLabels()
 	if labels == nil {

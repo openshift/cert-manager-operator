@@ -196,7 +196,6 @@ func TestValidateScheduling(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			err := validateScheduling(tc.scheduling, field.NewPath("overridesScheduling"))
 			if tc.errorExpected {
 				assert.Error(t, err)

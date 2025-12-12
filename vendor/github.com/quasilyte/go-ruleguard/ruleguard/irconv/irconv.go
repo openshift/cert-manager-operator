@@ -618,8 +618,7 @@ func (conv *converter) convertFilterExprImpl(e ast.Expr) ir.FilterExpr {
 	case *ast.UnaryExpr:
 		x := conv.convertFilterExpr(e.X)
 		args := []ir.FilterExpr{x}
-		switch e.Op {
-		case token.NOT:
+		if e.Op == token.NOT {
 			return ir.FilterExpr{Op: ir.FilterNotOp, Args: args}
 		}
 
@@ -746,6 +745,8 @@ func (conv *converter) convertFilterExprImpl(e ast.Expr) ir.FilterExpr {
 			return ir.FilterExpr{Op: ir.FilterVarObjectIsOp, Value: op.varName, Args: args}
 		case "Object.IsGlobal":
 			return ir.FilterExpr{Op: ir.FilterVarObjectIsGlobalOp, Value: op.varName}
+		case "Object.IsVariadicParam":
+			return ir.FilterExpr{Op: ir.FilterVarObjectIsVariadicParamOp, Value: op.varName}
 		case "SinkType.Is":
 			if op.varName != "$$" {
 				// TODO: remove this restriction.

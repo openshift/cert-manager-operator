@@ -7,7 +7,6 @@ import (
 	"go/constant"
 	"net/http"
 	"net/rpc"
-	"os"
 	"strconv"
 	"time"
 )
@@ -162,10 +161,9 @@ var TimeLayout = map[string]string{
 	time.StampMilli:  "time.StampMilli",
 	time.StampMicro:  "time.StampMicro",
 	time.StampNano:   "time.StampNano",
-}
-
-var OSDevNull = map[string]string{
-	os.DevNull: "os.DevNull",
+	time.DateTime:    "time.DateTime",
+	time.DateOnly:    "time.DateOnly",
+	time.TimeOnly:    "time.TimeOnly",
 }
 
 var SQLIsolationLevel = map[string]string{

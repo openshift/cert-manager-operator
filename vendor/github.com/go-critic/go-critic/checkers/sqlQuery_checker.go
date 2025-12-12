@@ -5,14 +5,15 @@ import (
 	"go/types"
 
 	"github.com/go-critic/go-critic/checkers/internal/astwalk"
-	"github.com/go-critic/go-critic/framework/linter"
+	"github.com/go-critic/go-critic/linter"
+
 	"github.com/go-toolsmith/astcast"
 )
 
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "sqlQuery"
-	info.Tags = []string{"diagnostic", "experimental"}
+	info.Tags = []string{linter.DiagnosticTag, linter.ExperimentalTag}
 	info.Summary = "Detects issue in Query() and Exec() calls"
 	info.Before = `_, err := db.Query("UPDATE ...")`
 	info.After = `_, err := db.Exec("UPDATE ...")`
@@ -123,6 +124,13 @@ func (c *sqlQueryChecker) typeHasExecMethod(typ types.Type) bool {
 			if c.typeHasExecMethod(typ.Field(i).Type()) {
 				return true
 			}
+		}
+	case *types.Alias:
+		switch typ := typ.Underlying().(type) {
+		case *types.Interface:
+			return c.typeHasExecMethod(typ)
+		default:
+			// TODO(cristaloleg): is there something else to handle?
 		}
 	case *types.Interface:
 		for i := 0; i < typ.NumMethods(); i++ {

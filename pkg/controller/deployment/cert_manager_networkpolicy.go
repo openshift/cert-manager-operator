@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	// Static network policy asset files for default policies
+	// Static network policy asset files for default policies.
 	certManagerNetworkPolicyAssetFiles = []string{
 		"networkpolicies/cert-manager-deny-all-networkpolicy.yaml",
 		"networkpolicies/cert-manager-allow-egress-to-api-server-networkpolicy.yaml",
@@ -48,7 +48,6 @@ func NewCertManagerNetworkPolicyStaticResourcesController(operatorClient v1helpe
 	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	eventsRecorder events.Recorder) factory.Controller {
-
 	// Create conditional function to check if network policies should be applied
 	shouldApplyNetworkPolicies := func() bool {
 		certManager, err := certManagerOperatorInformers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
@@ -79,7 +78,7 @@ func NewCertManagerNetworkPolicyStaticResourcesController(operatorClient v1helpe
 // USER-DEFINED CONTROLLER - for user-configured network policies from API
 // ============================================================================
 
-// CertManagerNetworkPolicyUserDefinedController manages user-defined NetworkPolicy resources
+// CertManagerNetworkPolicyUserDefinedController manages user-defined NetworkPolicy resources.
 type CertManagerNetworkPolicyUserDefinedController struct {
 	operatorClient               v1helpers.OperatorClient
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory

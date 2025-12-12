@@ -16,16 +16,16 @@ import (
 )
 
 const (
-	// credentials for AWS
+	// credentials for AWS.
 	awsCredentialsDir = "/.aws"
 
-	// credentials for GCP
+	// credentials for GCP.
 	gcpCredentialsDir       = "/.config/gcloud"
 	gcpCredentialsFileName  = "application_default_credentials.json"
 	gcpCredentialsSecretKey = "service_account.json"
 
 	// cloudCredentialsVolumeName is the volume name for mounting
-	// service account (gcp) or credentials (aws) file
+	// service account (gcp) or credentials (aws) file.
 	cloudCredentialsVolumeName = "cloud-credentials"
 )
 
@@ -45,7 +45,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 
 		_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
 		if err != nil && apierrors.IsNotFound(err) {
-			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %v", secretName, err)
+			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
 		} else if err != nil {
 			return err
 		}

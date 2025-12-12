@@ -14,7 +14,7 @@ var logLevels = map[operatorv1.LogLevel]string{
 }
 
 // withLogLevel sets the values of verbosity --v arg using
-// logLevel specified in spec
+// logLevel specified in spec.
 func withLogLevel(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	verbosityArg := logLevels[operatorSpec.LogLevel]
 	if verbosityArg == "" {

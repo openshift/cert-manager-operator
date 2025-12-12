@@ -39,12 +39,12 @@ func NewOptionalInformer[groupInformer any](
 	return o, nil
 }
 
-// Applicable determines if an active informer was successfully created
+// Applicable determines if an active informer was successfully created.
 func (o *OptionalInformer[GroupInformer]) Applicable() bool {
 	return o.InformerFactory != nil
 }
 
-// Discover returns if the required CRD is present on the cluster or not
+// Discover returns if the required CRD is present on the cluster or not.
 func (o *OptionalInformer[GroupInformer]) Discover() (bool, error) {
 	_ = o.gvr.GroupVersion().String()
 	resources, err := o.discoveryClient.ServerResourcesForGroupVersion(o.gvr.GroupVersion().String())

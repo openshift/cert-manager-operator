@@ -63,7 +63,7 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/cmd/golangci-lint
+GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
 
@@ -306,8 +306,12 @@ test-e2e-debug-cluster:
 	@echo "---- /Debugging the current state ----"
  
 .PHONY: lint
-lint: 
-	$(GOLANGCI_LINT) run --config .golangci.yaml
+lint:
+	$(GOLANGCI_LINT) run --verbose --config .golangci.yaml
+
+.PHONY: lint-fix
+lint-fix:
+	$(GOLANGCI_LINT) run --config .golangci.yaml --fix
 
 $(GOLANGCI_LINT_BIN):
 	mkdir -p $(BIN_DIR)

@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -154,9 +155,7 @@ func updateResourceLabels(obj client.Object, labels map[string]string) {
 
 func updateResourceLabelsWithIstioMapperLabels(obj client.Object, istiocsrNamespace string, labels map[string]string) {
 	l := make(map[string]string, len(labels)+1)
-	for k, v := range labels {
-		l[k] = v
-	}
+	maps.Copy(l, labels)
 	l[istiocsrNamespaceMappingLabelName] = istiocsrNamespace
 	obj.SetLabels(l)
 }
@@ -409,7 +408,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
 		// ensure status is updated.
 		var updateErr error
-		if istiocsr.Status.ConditionalStatus.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
 		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
@@ -441,7 +440,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 
 	if ignoreProcessing {
 		var condUpdateErr, annUpdateErr error
-		if istiocsr.Status.ConditionalStatus.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			condUpdateErr = r.updateCondition(istiocsr, nil)
 		}
 		if addProcessingRejectedAnnotation(istiocsr) {

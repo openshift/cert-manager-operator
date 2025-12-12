@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -24,13 +25,9 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 
 	istiocsr := testIstioCSR()
 	labels := make(map[string]string)
-	for k, v := range controllerDefaultResourceLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, controllerDefaultResourceLabels)
 	// add user labels
-	for k, v := range istiocsr.Spec.ControllerConfig.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, istiocsr.Spec.ControllerConfig.Labels)
 
 	tests := []struct {
 		name    string
@@ -59,9 +56,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 						}
 					case *certmanagerv1.Certificate, *rbacv1.Role, *rbacv1.RoleBinding, *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
 						l := make(map[string]string)
-						for k, v := range labels {
-							l[k] = v
-						}
+						maps.Copy(l, labels)
 						l[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
 						if !reflect.DeepEqual(o.GetLabels(), l) {
 							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), l)

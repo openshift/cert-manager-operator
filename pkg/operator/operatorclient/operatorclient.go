@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -42,7 +43,6 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 	desired := applyconfig.CertManager("cluster")
 	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	switch {
-
 	// no certmanager.operator/cluster resource found, proceed with apply by setting Conditions[*].LastTransitionTime
 	case apierrors.IsNotFound(err):
 		v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
@@ -74,7 +74,6 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 		}
 
 		switch {
-
 		// the conditions from the applied status is not nil AND existing operator status is also not nil
 		case desiredConfiguration.Conditions != nil && operatorStatus != nil:
 			v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, operatorStatus.Conditions)
@@ -205,10 +204,8 @@ func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) e
 	}
 
 	finalizers := instance.GetFinalizers()
-	for _, f := range finalizers {
-		if f == finalizer {
-			return nil
-		}
+	if slices.Contains(finalizers, finalizer) {
+		return nil
 	}
 
 	// updating finalizers
