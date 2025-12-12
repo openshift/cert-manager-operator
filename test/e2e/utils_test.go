@@ -6,11 +6,14 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +33,7 @@ import (
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	appsv1 "k8s.io/api/apps/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -86,6 +90,12 @@ var istiocsrSchema = schema.GroupVersionResource{
 	Group:    "operator.openshift.io",
 	Version:  "v1alpha1",
 	Resource: "istiocsrs",
+}
+
+var serviceMonitorGVR = schema.GroupVersionResource{
+	Group:    "monitoring.coreos.com",
+	Version:  "v1",
+	Resource: "servicemonitors",
 }
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
@@ -669,10 +679,24 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 	return err
 }
 
-// waitForDeploymentRollout waits for a deployment to complete its rollout
-// This checks that the deployment's observed generation matches its generation
-// and that all replicas are available
-func waitForDeploymentRollout(ctx context.Context, namespace, deploymentName string, timeout time.Duration) error {
+// isDeploymentRolledOut checks if a deployment has completed its rollout.
+// It verifies the observed generation matches, and all replicas are updated and available.
+func isDeploymentRolledOut(deployment *appsv1.Deployment) bool {
+	// Default desired replicas to 1 when unset, as elsewhere in this file.
+	desired := int32(1)
+	if deployment.Spec.Replicas != nil {
+		desired = *deployment.Spec.Replicas
+	}
+
+	return deployment.Generation == deployment.Status.ObservedGeneration &&
+		deployment.Status.UpdatedReplicas == desired &&
+		deployment.Status.AvailableReplicas == desired &&
+		deployment.Status.Replicas == desired
+}
+
+// waitForDeploymentConditionAndRollout waits for a deployment to satisfy a custom condition
+// and for the rollout to complete. If condition is nil, only rollout completion is checked.
+func waitForDeploymentConditionAndRollout(ctx context.Context, namespace, deploymentName string, condition func(*appsv1.Deployment) bool, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
@@ -682,25 +706,54 @@ func waitForDeploymentRollout(ctx context.Context, namespace, deploymentName str
 			return false, err
 		}
 
-		// Default desired replicas to 1 when unset, as elsewhere in this file.
-		desired := int32(1)
-		if deployment.Spec.Replicas != nil {
-			desired = *deployment.Spec.Replicas
-		}
-
-		// Check if rollout is complete
-		if deployment.Generation != deployment.Status.ObservedGeneration {
-			return false, nil
-		}
-		if deployment.Status.UpdatedReplicas < desired {
-			return false, nil
-		}
-		if deployment.Status.AvailableReplicas < desired {
+		// First check the custom condition if provided
+		if condition != nil && !condition(deployment) {
 			return false, nil
 		}
 
-		return true, nil
+		return isDeploymentRolledOut(deployment), nil
 	})
+}
+
+// waitForDeploymentRollout waits for a deployment to complete its rollout.
+// This checks that the deployment's observed generation matches its generation
+// and that all replicas are available.
+func waitForDeploymentRollout(ctx context.Context, namespace, deploymentName string, timeout time.Duration) error {
+	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, nil, timeout)
+}
+
+// waitForDeploymentEnvVarAndRollout waits for a deployment to have a specific
+// environment variable set and for the rollout to complete. This is useful when
+// waiting for external changes (like subscription updates) to propagate to deployments,
+// as it ensures the expected change has been applied before checking rollout status.
+func waitForDeploymentEnvVarAndRollout(ctx context.Context, namespace, deploymentName, envName, envValue string, timeout time.Duration) error {
+	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, func(deployment *appsv1.Deployment) bool {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			for _, env := range container.Env {
+				if env.Name == envName && env.Value == envValue {
+					return true
+				}
+			}
+		}
+		return false
+	}, timeout)
+}
+
+// waitForDeploymentArgAndRollout waits for a deployment to have a specific
+// argument in any container and for the rollout to complete. This is useful when
+// waiting for operator-driven changes to propagate to operand deployments,
+// as it ensures the expected change has been applied before checking rollout status.
+func waitForDeploymentArgAndRollout(ctx context.Context, namespace, deploymentName, expectedArg string, timeout time.Duration) error {
+	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, func(deployment *appsv1.Deployment) bool {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			for _, arg := range container.Args {
+				if arg == expectedArg {
+					return true
+				}
+			}
+		}
+		return false
+	}, timeout)
 }
 
 // waitForClusterIssuerReadiness waits for a ClusterIssuer to become Ready
@@ -1205,6 +1258,66 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	return stdout.String(), nil
 }
 
+// isPodReady returns true if the pod is running and has the Ready condition set to true.
+// It returns false for pods that are being deleted.
+func isPodReady(pod *corev1.Pod) bool {
+	if pod.DeletionTimestamp != nil {
+		return false
+	}
+	if pod.Status.Phase != corev1.PodRunning {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate
+func httpsGetCallWithCA(url string, caCertPEM []byte) error {
+	// Create a certificate pool and add the CA cert
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCertPEM) {
+		return fmt.Errorf("failed to parse CA certificate")
+	}
+
+	// Create TLS config with custom CA
+	tlsConfig := &tls.Config{
+		RootCAs:    caCertPool,
+		MinVersion: tls.VersionTLS13,
+	}
+
+	// Create HTTP client with custom TLS config
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+		Timeout: 30 * time.Second, // Avoid indefinitely hanging requests
+	}
+
+	// Create a new GET request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check if the status code is 200 OK
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("http status code %v", resp.StatusCode)
+	}
+
+	return nil
+}
+
 // isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
 // by checking if the serviceAccountIssuer is configured in the cluster's Authentication config
 func isSTSCluster(ctx context.Context, opClient operatorv1.OperatorV1Interface, configClient configv1.ConfigV1Interface) (bool, error) {
@@ -1642,4 +1755,18 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 
 	log.Printf("Vault server setup completed successfully")
 	return vaultPodName, rootToken, clusterRoleBindingName, nil
+}
+
+// getSAToken creates and returns a token for the specified service account using the TokenRequest API.
+func getSAToken(ctx context.Context, saName, namespace string) (string, error) {
+	tokenRequest := &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{},
+	}
+
+	result, err := k8sClientSet.CoreV1().ServiceAccounts(namespace).CreateToken(ctx, saName, tokenRequest, metav1.CreateOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to create token for service account %s/%s: %w", namespace, saName, err)
+	}
+
+	return result.Status.Token, nil
 }
