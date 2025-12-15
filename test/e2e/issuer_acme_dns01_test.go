@@ -493,9 +493,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 			By("calculating parent domain from base domain")
 			parts := strings.Split(baseDomain, ".")
-			if len(parts) <= 1 {
-				Skip("Cannot derive parent domain from base domain: " + baseDomain)
-			}
+			Expect(len(parts)).To(BeNumerically(">", 1), "cannot derive parent domain from base domain")
 			parentDomain := strings.Join(parts[1:], ".")
 
 			By("getting Route53 hosted zone ID from DNS object")
@@ -598,7 +596,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			isSTS, err := isSTSCluster(ctx, oseOperatorClient, configClient)
 			Expect(err).NotTo(HaveOccurred())
 			if !isSTS {
-				Skip("Tests requires AWS Security Token Service enabled")
+				Skip("Test requires AWS Security Token Service enabled")
+			}
+
+			By("setting up AWS authentication environment variable from credentials file")
+			if os.Getenv("OPENSHIFT_CI") == "true" {
+				clusterProfileDir := os.Getenv("CLUSTER_PROFILE_DIR")
+				Expect(clusterProfileDir).NotTo(BeEmpty(), "CLUSTER_PROFILE_DIR should exist when running in OpenShift CI")
+				os.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(clusterProfileDir, ".awscred"))
+			} else {
+				Expect(os.Getenv("AWS_SHARED_CREDENTIALS_FILE")).NotTo(BeEmpty(), "AWS_SHARED_CREDENTIALS_FILE must be set when running locally")
 			}
 
 			// Get AWS region and determinate partition
@@ -948,7 +955,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			isSTS, err := isSTSCluster(ctx, oseOperatorClient, configClient)
 			Expect(err).NotTo(HaveOccurred())
 			if !isSTS {
-				Skip("Cluster is not workload identity enabled, skipping test")
+				Skip("Test requires GCP Workload Identity enabled")
+			}
+
+			By("setting up GCP authentication environment variable from credentials file")
+			if os.Getenv("OPENSHIFT_CI") == "true" {
+				clusterProfileDir := os.Getenv("CLUSTER_PROFILE_DIR")
+				Expect(clusterProfileDir).NotTo(BeEmpty(), "CLUSTER_PROFILE_DIR should exist when running in OpenShift CI")
+				os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(clusterProfileDir, "gce.json"))
+			} else {
+				Expect(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")).NotTo(BeEmpty(), "GOOGLE_APPLICATION_CREDENTIALS must be set when running locally")
 			}
 
 			By("creating GCP IAM and CloudResourceManager clients")
@@ -1131,7 +1147,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 					Fail("cisCRN is required for IBM Cloud platform")
 				}
 			} else {
-				Skip("skipping as the cluster does not use IBM Cloud CIS")
+				Skip("Test requires IBM Cloud CIS enabled")
 			}
 
 			By("creating ClusterIssuer with IBM Cloud CIS webhook solver")
