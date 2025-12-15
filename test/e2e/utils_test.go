@@ -850,7 +850,7 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 		}
 
 		// checks if expiry time was updated
-		if *initExpiryTime == cert.NotAfter {
+		if (*initExpiryTime).Equal(cert.NotAfter) {
 			return false, nil
 		}
 
@@ -1124,7 +1124,7 @@ func VerifyContainerResources(pod corev1.Pod, containerName string, expectedReso
 }
 
 // resetCertManagerNetworkPolicyState resets the CertManager to have defaultNetworkPolicy="true"
-func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset, loader library.DynamicResourceLoader) error {
+func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
 		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {

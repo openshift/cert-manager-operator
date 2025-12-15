@@ -26,9 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// backOffLimit is the max retries for the Job
-const backOffLimit int32 = 10
-
 // istioCSRProtoURL links to proto for istio-csr API spec
 const istioCSRProtoURL = "https://raw.githubusercontent.com/istio/api/v1.24.1/security/v1alpha1/ca.proto"
 
