@@ -1770,3 +1770,14 @@ func getSAToken(ctx context.Context, saName, namespace string) (string, error) {
 
 	return result.Status.Token, nil
 }
+
+// getClusterProxyConfig retrieves the cluster-wide proxy configuration
+// Returns httpProxy, httpsProxy, noProxy values from the cluster Proxy resource
+func getClusterProxyConfig(ctx context.Context, client configv1.ConfigV1Interface) (httpProxy, httpsProxy, noProxy string, err error) {
+	proxy, err := client.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to get cluster proxy config: %w", err)
+	}
+
+	return proxy.Status.HTTPProxy, proxy.Status.HTTPSProxy, proxy.Status.NoProxy, nil
+}
