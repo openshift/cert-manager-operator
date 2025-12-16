@@ -17,10 +17,10 @@ require (
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
 	github.com/onsi/ginkgo/v2 v2.25.1
 	github.com/onsi/gomega v1.38.1
-	github.com/openshift/api v0.0.0-20250710004639-926605d3338b
+	github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b
 	github.com/openshift/build-machinery-go v0.0.0-20250530140348-dc5b2804eeee
-	github.com/openshift/client-go v0.0.0-20250710075018-396b36f983ee
-	github.com/openshift/library-go v0.0.0-20251029113212-a7eec173a623
+	github.com/openshift/client-go v0.0.0-20251205093018-96a6cbc1420c
+	github.com/openshift/library-go v0.0.0-20251205073205-ab8d51820e0b
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
@@ -35,13 +35,13 @@ require (
 	k8s.io/code-generator v0.34.1
 	k8s.io/component-base v0.34.1
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubernetes v1.33.2
+	k8s.io/kubernetes v1.34.1
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
 	sigs.k8s.io/controller-runtime v0.22.3
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433
 	sigs.k8s.io/controller-tools v0.19.0
-	sigs.k8s.io/kustomize/kustomize/v5 v5.6.0
-	sigs.k8s.io/structured-merge-diff/v4 v4.6.0
+	sigs.k8s.io/kustomize/kustomize/v5 v5.7.1
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -162,7 +162,6 @@ require (
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
@@ -346,11 +345,10 @@ require (
 	sigs.k8s.io/gateway-api v1.4.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
-	sigs.k8s.io/kustomize/api v0.19.0 // indirect
-	sigs.k8s.io/kustomize/cmd/config v0.19.0 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.19.0 // indirect
+	sigs.k8s.io/kustomize/api v0.20.1 // indirect
+	sigs.k8s.io/kustomize/cmd/config v0.20.1 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
 replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.2
