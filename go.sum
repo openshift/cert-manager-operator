@@ -492,8 +492,6 @@ github.com/openshift/client-go v0.0.0-20250710075018-396b36f983ee h1:tOtrrxfDEW8
 github.com/openshift/client-go v0.0.0-20250710075018-396b36f983ee/go.mod h1:zhRiYyNMk89llof2qEuGPWPD+joQPhCRUc2IK0SB510=
 github.com/openshift/jetstack-cert-manager v1.18.3 h1:vstk4lB/CCO7diQ+kMaVgcHh5WQsOWVxjuizdbOJv6E=
 github.com/openshift/jetstack-cert-manager v1.18.3/go.mod h1:icDJx4kG9BCNpGjBvrmsFd99d+lXUvWdkkcrSSQdIiw=
-github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc h1:kZVhTvUPWGX+K5hA1LPjxXqQH+mwW3ZthsNKzw6tEgk=
-github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc/go.mod h1:80xsUppuf2iNgiThH2bzDIN5204p5E93z+YtNnAJlHA=
 github.com/openshift/library-go v0.0.0-20251029113212-a7eec173a623 h1:e9XIhyMfnPgGhUefEJ1sAP/+ARXlRYE67hlY2QIWxxY=
 github.com/openshift/library-go v0.0.0-20251029113212-a7eec173a623/go.mod h1:tptKNust9MdRI0p90DoBSPHIrBa9oh+Rok59tF0vT8c=
 github.com/operator-framework/operator-lib v0.11.0 h1:eYzqpiOfq9WBI4Trddisiq/X9BwCisZd3rIzmHRC9Z8=
@@ -958,6 +956,8 @@ sigs.k8s.io/controller-runtime v0.19.0 h1:nWVM7aq+Il2ABxwiCizrVDSlmDcshi9llbaFbC
 sigs.k8s.io/controller-runtime v0.19.0/go.mod h1:iRmWllt8IlaLjvTTDLhRBXIEtkCK6hwVBJJsYS9Ajf4=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433 h1:FXcZd0UUR/JUn1Lo3LuKWQuGK2xg4M9FKvJ7AAOA3JU=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433/go.mod h1:B6HLcvOy2S1qq2eWOFm9xepiKPMIc8Z9OXSPsnUDaR4=
+sigs.k8s.io/controller-tools v0.15.0 h1:4dxdABXGDhIa68Fiwaif0vcu32xfwmgQ+w8p+5CxoAI=
+sigs.k8s.io/controller-tools v0.15.0/go.mod h1:8zUSS2T8Hx0APCNRhJWbS3CAQEbIxLa07khzh7pZmXM=
 sigs.k8s.io/gateway-api v1.1.0 h1:DsLDXCi6jR+Xz8/xd0Z1PYl2Pn0TyaFMOPPZIj4inDM=
 sigs.k8s.io/gateway-api v1.1.0/go.mod h1:ZH4lHrL2sDi0FHZ9jjneb8kKnGzFWyrTya35sWUTrRs=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 h1:gBQPwqORJ8d8/YNZWEjoZs7npUVDpVXUUOFfW6CgAqE=

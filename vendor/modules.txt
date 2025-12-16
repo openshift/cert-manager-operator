@@ -3016,7 +3016,7 @@ sigs.k8s.io/controller-runtime/tools/setup-envtest/remote
 sigs.k8s.io/controller-runtime/tools/setup-envtest/store
 sigs.k8s.io/controller-runtime/tools/setup-envtest/versions
 sigs.k8s.io/controller-runtime/tools/setup-envtest/workflows
-# sigs.k8s.io/controller-tools v0.15.0 => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
+# sigs.k8s.io/controller-tools v0.15.0
 ## explicit; go 1.22.0
 sigs.k8s.io/controller-tools/cmd/controller-gen
 sigs.k8s.io/controller-tools/pkg/crd
@@ -3178,5 +3178,4 @@ sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/goyaml.v3
 # github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.18.3
-# sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
 # github.com/tdakkota/asciicheck => github.com/golangci/asciicheck v0.1.1
