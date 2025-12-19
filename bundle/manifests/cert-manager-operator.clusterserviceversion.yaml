@@ -810,7 +810,7 @@ spec:
   - email: support@redhat.com
     name: Red Hat Support
   maturity: stable
-  minKubeVersion: 1.27.0
+  minKubeVersion: 1.31.0
   provider:
     name: Red Hat
   relatedImages:
