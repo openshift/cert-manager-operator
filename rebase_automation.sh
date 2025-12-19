@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -8,10 +8,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-
-# Global variables
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$SCRIPT_DIR"
 
 # Default environment variables (can be overridden)
 NEW_CERT_MANAGER_VERSION="${NEW_CERT_MANAGER_VERSION:-}"
@@ -44,8 +40,8 @@ Usage: $0 [OPTIONS]
 Automates the cert-manager-operator rebase process.
 
 Environment Variables:
-  NEW_CERT_MANAGER_VERSION    New cert-manager version (e.g., 1.18.2)
-  NEW_BUNDLE_VERSION         New bundle version (e.g., 1.18.0)
+  NEW_CERT_MANAGER_VERSION   New cert-manager version (e.g., 1.19.0)
+  NEW_BUNDLE_VERSION         New bundle version (e.g., 1.19.0)
   OLD_BUNDLE_VERSION         Old bundle version to replace (optional - auto-detected)
   OLD_CERT_MANAGER_VERSION   Old cert-manager version to replace (optional - auto-detected)
 
@@ -105,6 +101,18 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Validate version format (semver: X.Y.Z)
+    local version_regex='^[0-9]+\.[0-9]+\.[0-9]+$'
+    if [[ ! "$NEW_CERT_MANAGER_VERSION" =~ $version_regex ]]; then
+        log_error "NEW_CERT_MANAGER_VERSION '$NEW_CERT_MANAGER_VERSION' is not a valid semver format (expected: X.Y.Z)"
+        exit 1
+    fi
+    
+    if [[ ! "$NEW_BUNDLE_VERSION" =~ $version_regex ]]; then
+        log_error "NEW_BUNDLE_VERSION '$NEW_BUNDLE_VERSION' is not a valid semver format (expected: X.Y.Z)"
+        exit 1
+    fi
+    
     log_success "Prerequisites check passed"
 }
 
@@ -135,14 +143,6 @@ detect_current_versions() {
     log_info "OLD_CERT_MANAGER_VERSION: $OLD_CERT_MANAGER_VERSION"
     log_info "NEW_BUNDLE_VERSION: $NEW_BUNDLE_VERSION"
     log_info "NEW_CERT_MANAGER_VERSION: $NEW_CERT_MANAGER_VERSION"
-}
-
-# Function to backup current state
-backup_current_state() {
-    log_info "Creating backup of current state..."
-    local backup_branch="backup-$(date +%Y%m%d-%H%M%S)"
-    git branch "$backup_branch"
-    log_success "Created backup branch: $backup_branch"
 }
 
 # Step 1: Bump deps with upstream cert-manager
@@ -487,10 +487,6 @@ main() {
     # Run checks and setup
     check_prerequisites
     detect_current_versions
-    
-    if [[ "$DRY_RUN" != "true" ]]; then
-        backup_current_state
-    fi
     
     # Run specific step or all steps
     if [[ -n "$SPECIFIC_STEP" ]]; then
