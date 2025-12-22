@@ -339,6 +339,68 @@ func TestMergeContainerEnv(t *testing.T) {
 	}
 }
 
+func TestMergeContainerEnvProxyOverride(t *testing.T) {
+	tests := []struct {
+		name            string
+		clusterProxyEnv []corev1.EnvVar
+		userOverrideEnv []corev1.EnvVar
+		expected        []corev1.EnvVar
+	}{
+		{
+			name: "user override replaces cluster proxy values",
+			clusterProxyEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy:3128"},
+			},
+			userOverrideEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+		},
+		{
+			name: "user partial override keeps other cluster proxy values",
+			clusterProxyEnv: []corev1.EnvVar{
+				{Name: "HTTPS_PROXY", Value: "https://cluster-proxy:3128"},
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy:3128"},
+			},
+			userOverrideEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "HTTPS_PROXY", Value: "https://cluster-proxy:3128"},
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+		},
+		{
+			name:            "no cluster proxy, user override is applied",
+			clusterProxyEnv: []corev1.EnvVar{},
+			userOverrideEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://user-proxy:8080"},
+			},
+		},
+		{
+			name: "cluster proxy present, no user override",
+			clusterProxyEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy:3128"},
+			},
+			userOverrideEnv: []corev1.EnvVar{},
+			expected: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy:3128"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		envAfterProxy := mergeContainerEnvs([]corev1.EnvVar{}, tc.clusterProxyEnv)
+		finalEnv := mergeContainerEnvs(envAfterProxy, tc.userOverrideEnv)
+		require.Equal(t, tc.expected, finalEnv)
+	}
+}
+
 func TestMergeContainerArgs(t *testing.T) {
 	tests := []struct {
 		name         string
