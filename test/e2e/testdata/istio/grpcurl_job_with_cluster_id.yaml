@@ -35,6 +35,12 @@ spec:
               value: /tmp/go-cache
             - name: GOPATH
               value: /tmp/go
+            - name: HTTP_PROXY
+              value: {{.HTTPProxy}}
+            - name: HTTPS_PROXY
+              value: {{.HTTPSProxy}}
+            - name: NO_PROXY
+              value: {{.NoProxy}}
           image: registry.redhat.io/rhel9/go-toolset
           name: grpcurl
           volumeMounts:

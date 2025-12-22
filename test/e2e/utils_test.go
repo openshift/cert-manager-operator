@@ -850,7 +850,7 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 		}
 
 		// checks if expiry time was updated
-		if *initExpiryTime == cert.NotAfter {
+		if (*initExpiryTime).Equal(cert.NotAfter) {
 			return false, nil
 		}
 
@@ -1124,7 +1124,7 @@ func VerifyContainerResources(pod corev1.Pod, containerName string, expectedReso
 }
 
 // resetCertManagerNetworkPolicyState resets the CertManager to have defaultNetworkPolicy="true"
-func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset, loader library.DynamicResourceLoader) error {
+func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
 		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
@@ -1769,4 +1769,15 @@ func getSAToken(ctx context.Context, saName, namespace string) (string, error) {
 	}
 
 	return result.Status.Token, nil
+}
+
+// getClusterProxyConfig retrieves the cluster-wide proxy configuration
+// Returns httpProxy, httpsProxy, noProxy values from the cluster Proxy resource
+func getClusterProxyConfig(ctx context.Context, client configv1.ConfigV1Interface) (httpProxy, httpsProxy, noProxy string, err error) {
+	proxy, err := client.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to get cluster proxy config: %w", err)
+	}
+
+	return proxy.Status.HTTPProxy, proxy.Status.HTTPSProxy, proxy.Status.NoProxy, nil
 }

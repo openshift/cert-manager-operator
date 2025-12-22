@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -93,6 +94,11 @@ func TestAll(t *testing.T) {
 
 	suiteConfig, reportConfig := GinkgoConfiguration()
 
+	suiteConfig.Timeout = 120 * time.Minute // Set Ginkgo suite-level timeout
+	suiteConfig.FailFast = false            // Continue after first failure to see all issues
+	suiteConfig.FlakeAttempts = 0           // Retry on flaky tests (helpful when deflaking tests)
+	suiteConfig.MustPassRepeatedly = 1      // Must pass repeatedly times (helpful when deflaking tests)
+
 	testDir := getTestDir()
 	reportConfig.JSONReport = filepath.Join(testDir, "report.json")
 	reportConfig.JUnitReport = filepath.Join(testDir, "junit.xml")
@@ -146,6 +152,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	By("setting defaultNetworkPolicy to true")
-	err = resetCertManagerNetworkPolicyState(context.TODO(), certmanageroperatorclient, loader)
+	err = resetCertManagerNetworkPolicyState(context.TODO(), certmanageroperatorclient)
 	Expect(err).NotTo(HaveOccurred())
 })

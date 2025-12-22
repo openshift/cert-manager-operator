@@ -26,9 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// backOffLimit is the max retries for the Job
-const backOffLimit int32 = 10
-
 // istioCSRProtoURL links to proto for istio-csr API spec
 const istioCSRProtoURL = "https://raw.githubusercontent.com/istio/api/v1.24.1/security/v1alpha1/ca.proto"
 
@@ -44,6 +41,7 @@ type IstioCSRConfig struct {
 var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
+	var httpProxy, httpsProxy, noProxy string
 
 	generateCSR := func() string {
 		csrTemplate := &x509.CertificateRequest{
@@ -87,6 +85,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 			"OPERATOR_LOG_LEVEL": "5",
 		})
 		Expect(err).NotTo(HaveOccurred())
+
+		By("getting cluster proxy configuration")
+		httpProxy, httpsProxy, noProxy, err = getClusterProxyConfig(ctx, configClient)
+		Expect(err).Should(BeNil(), "failed to get cluster proxy config")
 	})
 
 	var ns *corev1.Namespace
@@ -186,6 +188,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				IstioCSRGRPCurlJobConfig{
 					CertificateSigningRequest: csr,
 					IstioCSRStatus:            istioCSRStatus,
+					HTTPProxy:                 httpProxy,
+					HTTPSProxy:                httpsProxy,
+					NoProxy:                   noProxy,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
 			DeferCleanup(func() {
@@ -263,6 +268,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					IstioCSRStatus:            istioCSRStatus,
 					ClusterID:                 clusterName, // matches the IstioCSR resource
 					JobName:                   grpcAppName,
+					HTTPProxy:                 httpProxy,
+					HTTPSProxy:                httpsProxy,
+					NoProxy:                   noProxy,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job_with_cluster_id.yaml"), ns.Name)
 			DeferCleanup(func() {
@@ -333,6 +341,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					IstioCSRStatus:            istioCSRStatus,
 					ClusterID:                 "wrong-cluster-id", // doesn't match the IstioCSR resource
 					JobName:                   grpcAppName,
+					HTTPProxy:                 httpProxy,
+					HTTPSProxy:                httpsProxy,
+					NoProxy:                   noProxy,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job_with_cluster_id.yaml"), ns.Name)
 			DeferCleanup(func() {
