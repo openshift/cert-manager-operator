@@ -785,7 +785,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource for containers]`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource for containers]`,
 		},
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap",

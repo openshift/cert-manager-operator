@@ -9,7 +9,7 @@ import (
 // CertManagerConfigApplyConfiguration represents a declarative configuration of the CertManagerConfig type for use
 // with apply.
 type CertManagerConfigApplyConfiguration struct {
-	IssuerRef          *v1.ObjectReference                   `json:"issuerRef,omitempty"`
+	IssuerRef          *v1.IssuerReference                   `json:"issuerRef,omitempty"`
 	IstioCACertificate *ConfigMapReferenceApplyConfiguration `json:"istioCACertificate,omitempty"`
 }
 
@@ -22,7 +22,7 @@ func CertManagerConfig() *CertManagerConfigApplyConfiguration {
 // WithIssuerRef sets the IssuerRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the IssuerRef field is set to the value of the last call.
-func (b *CertManagerConfigApplyConfiguration) WithIssuerRef(value v1.ObjectReference) *CertManagerConfigApplyConfiguration {
+func (b *CertManagerConfigApplyConfiguration) WithIssuerRef(value v1.IssuerReference) *CertManagerConfigApplyConfiguration {
 	b.IssuerRef = &value
 	return b
 }

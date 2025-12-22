@@ -26,14 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kyaml "sigs.k8s.io/yaml"
-
 	crdgen "sigs.k8s.io/controller-tools/pkg/crd"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/genall"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
 	yamlop "sigs.k8s.io/controller-tools/pkg/schemapatcher/internal/yaml"
+	kyaml "sigs.k8s.io/yaml"
 )
 
 // NB(directxman12): this code is quite fragile, but there are a sufficient
@@ -367,11 +366,6 @@ func crdsFromDirectory(ctx *genall.GenerationContext, dir string) (map[schema.Gr
 
 		if !isSupportedAPIExtGroupVer(typeMeta.APIVersion) {
 			return nil, fmt.Errorf("load %q: apiVersion %q not supported", filepath.Join(dir, fileInfo.Name()), typeMeta.APIVersion)
-		}
-
-		// this is a patch that allows us to skip manifests to support things like TechPreviewNoUpgrade manifests.
-		if !mayHandleFile(fileInfo.Name(), rawContent) {
-			continue
 		}
 
 		// collect the group-kind and versions from the actual structured form
