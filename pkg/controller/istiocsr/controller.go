@@ -103,7 +103,7 @@ func NewCacheBuilder(config *rest.Config, opts cache.Options) (cache.Cache, erro
 		},
 	}
 
-	return cache.New(config, opts)
+	return cache.New(config, opts) //nolint:wrapcheck // error from cache.New is already contextual
 }
 
 // New returns a new Reconciler instance.
@@ -127,6 +127,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
+		//nolint:nestif // complexity is acceptable for label processing logic
 		if objLabels != nil {
 			// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
 			// namespace in the reconcile request will be set same, else since label check matches is an object
@@ -194,6 +195,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
 	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
 
+	//nolint:wrapcheck // error from builder.Complete() is already contextual
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
@@ -270,6 +272,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	}
 
 	var errUpdate error = nil
+	//nolint:nestif // complexity is acceptable for deployment reconciliation
 	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
 		if IsIrrecoverableError(err) {
@@ -326,6 +329,8 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
+//
+//nolint:unparam // error return is kept for future implementation
 func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
 	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
 	// This might require a validation webhook to check for usage of service as GRPC endpoint in

@@ -32,7 +32,7 @@ const (
 	// boundSA is the openshift service account
 	// containing bound token.
 	boundSATokenVolumeName = "bound-sa-token"
-	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount"
+	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount" //nolint:gosec // G101: path constant, not a credential
 	boundSAAudience        = "openshift"
 	boundSAPath            = "token"
 	boundSAExpirySec       = 3600
@@ -197,7 +197,7 @@ func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deploy
 		if err != nil && apierrors.IsNotFound(err) {
 			return fmt.Errorf("(Retrying) trusted CA config map %q doesn't exist due to %w", trustedCAConfigmapName, err)
 		} else if err != nil {
-			return err
+			return err //nolint:wrapcheck // error from lister is already contextual
 		}
 
 		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, corev1.Volume{

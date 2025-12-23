@@ -44,7 +44,10 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 		return nil, fmt.Errorf("failed to decode network policy asset %s: %w", assetPath, err)
 	}
 
-	policy := obj.(*networkingv1.NetworkPolicy)
+	policy, ok := obj.(*networkingv1.NetworkPolicy)
+	if !ok {
+		return nil, fmt.Errorf("decoded object is not a NetworkPolicy, got %T", obj)
+	}
 
 	// Set the correct namespace
 	policy.Namespace = namespace

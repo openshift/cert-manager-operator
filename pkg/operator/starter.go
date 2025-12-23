@@ -7,7 +7,6 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -46,17 +45,17 @@ var UnsupportedAddonFeatures string
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // error from NewForConfig is already contextual
 	}
 
 	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // error from NewForConfig is already contextual
 	}
 
 	apiExtensionsClient, err := apiextensionsclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // error from NewForConfig is already contextual
 	}
 
 	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
@@ -81,7 +80,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // error from NewForConfig is already contextual
 	}
 
 	infraGVR := configv1.GroupVersion.WithResource("infrastructures")
@@ -147,7 +146,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
-		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil { //nolint:contextcheck // SetupSignalHandler creates a new context for signal handling, which is intentional
 			return fmt.Errorf("failed to start istiocsr controller: %w", err)
 		}
 	}

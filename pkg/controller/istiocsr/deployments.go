@@ -29,7 +29,7 @@ const (
 	caVolumeMountPath = "/var/run/configmaps/istio-csr"
 )
 
-var invalidIssuerRefConfigError = fmt.Errorf("invalid issuerRef config")
+var errInvalidIssuerRefConfig = fmt.Errorf("invalid issuerRef config")
 
 func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getDeploymentObject(istiocsr, resourceLabels)
@@ -236,12 +236,12 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	if issuerRefKind != clusterIssuerKind && issuerRefKind != issuerKind {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
 	}
 
 	issuerRefGroup := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group)
 	if issuerRefGroup != issuerGroup {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
 	}
 
 	obj, err := r.getIssuer(istiocsr)
@@ -250,14 +250,16 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	}
 
 	var issuerConfig certmanagerv1.IssuerConfig
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		issuerConfig = obj.(*certmanagerv1.ClusterIssuer).Spec.IssuerConfig
-	case issuerKind:
-		issuerConfig = obj.(*certmanagerv1.Issuer).Spec.IssuerConfig
+	switch typedObj := obj.(type) {
+	case *certmanagerv1.ClusterIssuer:
+		issuerConfig = typedObj.Spec.IssuerConfig
+	case *certmanagerv1.Issuer:
+		issuerConfig = typedObj.Spec.IssuerConfig
+	default:
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "unexpected issuer type %T, expected ClusterIssuer or Issuer", obj)
 	}
 	if issuerConfig.ACME != nil {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 	}
 
 	return nil
@@ -361,12 +363,13 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 		return FromClientError(err, "failed to fetch issuer")
 	}
 
-	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		issuerConfig = obj.(*certmanagerv1.ClusterIssuer).Spec.IssuerConfig
-	case issuerKind:
-		issuerConfig = obj.(*certmanagerv1.Issuer).Spec.IssuerConfig
+	switch typedObj := obj.(type) {
+	case *certmanagerv1.ClusterIssuer:
+		issuerConfig = typedObj.Spec.IssuerConfig
+	case *certmanagerv1.Issuer:
+		issuerConfig = typedObj.Spec.IssuerConfig
+	default:
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "unexpected issuer type %T, expected ClusterIssuer or Issuer", obj)
 	}
 
 	shouldUpdateVolume := false
