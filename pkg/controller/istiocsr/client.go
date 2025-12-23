@@ -43,31 +43,31 @@ func NewClient(m manager.Manager) (ctrlClient, error) {
 func (c *ctrlClientImpl) Get(
 	ctx context.Context, key client.ObjectKey, obj client.Object,
 ) error {
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) List(
 	ctx context.Context, list client.ObjectList, opts ...client.ListOption,
 ) error {
-	return c.Client.List(ctx, list, opts...)
+	return c.Client.List(ctx, list, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) Create(
 	ctx context.Context, obj client.Object, opts ...client.CreateOption,
 ) error {
-	return c.Client.Create(ctx, obj, opts...)
+	return c.Client.Create(ctx, obj, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) Delete(
 	ctx context.Context, obj client.Object, opts ...client.DeleteOption,
 ) error {
-	return c.Client.Delete(ctx, obj, opts...)
+	return c.Client.Delete(ctx, obj, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) Update(
 	ctx context.Context, obj client.Object, opts ...client.UpdateOption,
 ) error {
-	return c.Client.Update(ctx, obj, opts...)
+	return c.Client.Update(ctx, obj, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) UpdateWithRetry(
@@ -75,7 +75,11 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 ) error {
 	key := client.ObjectKeyFromObject(obj)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := reflect.New(reflect.TypeOf(obj).Elem()).Interface().(client.Object)
+		currentInterface := reflect.New(reflect.TypeOf(obj).Elem()).Interface()
+		current, ok := currentInterface.(client.Object)
+		if !ok {
+			return fmt.Errorf("failed to create client.Object from type %T", obj)
+		}
 		if err := c.Client.Get(ctx, key, current); err != nil {
 			return fmt.Errorf("failed to fetch latest %q for update: %w", key, err)
 		}
@@ -85,7 +89,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		}
 		return nil
 	}); err != nil {
-		return err
+		return err //nolint:wrapcheck // retry error is already contextual
 	}
 
 	return nil
@@ -94,13 +98,13 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 func (c *ctrlClientImpl) StatusUpdate(
 	ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption,
 ) error {
-	return c.Client.Status().Update(ctx, obj, opts...)
+	return c.Client.Status().Update(ctx, obj, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) Patch(
 	ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption,
 ) error {
-	return c.Client.Patch(ctx, obj, patch, opts...)
+	return c.Client.Patch(ctx, obj, patch, opts...) //nolint:wrapcheck // error from client is already contextual
 }
 
 func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
@@ -108,7 +112,7 @@ func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj c
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, err
+		return false, err //nolint:wrapcheck // error from client is already contextual
 	}
 	return true, nil
 }
