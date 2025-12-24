@@ -79,5 +79,5 @@ func NewControllerManager() (*Manager, error) {
 // Start starts the operator synchronously until a message is received from ctx.
 func (mgr *Manager) Start(ctx context.Context) error {
 	mgr.manager.GetEventRecorderFor("cert-manager-istio-csr-controller").Event(&v1alpha1.IstioCSR{}, corev1.EventTypeNormal, "ControllerStarted", "controller is starting")
-	return mgr.manager.Start(ctx)
+	return mgr.manager.Start(ctx) //nolint:wrapcheck // error from manager is already contextual
 }

@@ -186,6 +186,8 @@ type CertManagerStatus struct {
 
 // CertManager is the Schema for the certmanagers API
 // +operator-sdk:csv:customresourcedefinitions:displayName="CertManager"
+//
+//nolint:godot // operator-sdk annotation doesn't need period
 type CertManager struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

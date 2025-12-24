@@ -63,7 +63,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCS
 
 		return nil
 	}); err != nil {
-		return err
+		return err //nolint:wrapcheck // retry error is already contextual
 	}
 
 	return nil
@@ -165,7 +165,11 @@ func decodeDeploymentObjBytes(objBytes []byte) *appsv1.Deployment {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*appsv1.Deployment)
+	deployment, ok := obj.(*appsv1.Deployment)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a Deployment, got %T", obj))
+	}
+	return deployment
 }
 
 func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
@@ -173,7 +177,11 @@ func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.ClusterRole)
+	clusterRole, ok := obj.(*rbacv1.ClusterRole)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a ClusterRole, got %T", obj))
+	}
+	return clusterRole
 }
 
 func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBinding {
@@ -181,7 +189,11 @@ func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBindin
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.ClusterRoleBinding)
+	clusterRoleBinding, ok := obj.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a ClusterRoleBinding, got %T", obj))
+	}
+	return clusterRoleBinding
 }
 
 func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
@@ -189,7 +201,11 @@ func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.Role)
+	role, ok := obj.(*rbacv1.Role)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a Role, got %T", obj))
+	}
+	return role
 }
 
 func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
@@ -197,7 +213,11 @@ func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.RoleBinding)
+	roleBinding, ok := obj.(*rbacv1.RoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a RoleBinding, got %T", obj))
+	}
+	return roleBinding
 }
 
 func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
@@ -205,7 +225,11 @@ func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*corev1.Service)
+	service, ok := obj.(*corev1.Service)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a Service, got %T", obj))
+	}
+	return service
 }
 
 func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
@@ -213,7 +237,11 @@ func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*corev1.ServiceAccount)
+	serviceAccount, ok := obj.(*corev1.ServiceAccount)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a ServiceAccount, got %T", obj))
+	}
+	return serviceAccount
 }
 
 func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
@@ -221,7 +249,11 @@ func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*certmanagerv1.Certificate)
+	certificate, ok := obj.(*certmanagerv1.Certificate)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a Certificate, got %T", obj))
+	}
+	return certificate
 }
 
 func hasObjectChanged(desired, fetched client.Object) bool {
@@ -230,27 +262,63 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 	}
 
 	var objectModified bool
-	switch desired.(type) {
+	switch desiredTyped := desired.(type) {
 	case *certmanagerv1.Certificate:
-		objectModified = certificateSpecModified(desired.(*certmanagerv1.Certificate), fetched.(*certmanagerv1.Certificate))
+		fetchedTyped, ok := fetched.(*certmanagerv1.Certificate)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a Certificate, got %T", fetched))
+		}
+		objectModified = certificateSpecModified(desiredTyped, fetchedTyped)
 	case *rbacv1.ClusterRole:
-		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desired.(*rbacv1.ClusterRole), fetched.(*rbacv1.ClusterRole))
+		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a ClusterRole, got %T", fetched))
+		}
+		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desiredTyped, fetchedClusterRole)
 	case *rbacv1.ClusterRoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding))
+		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a ClusterRoleBinding, got %T", fetched))
+		}
+		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desiredTyped, fetchedClusterRoleBinding) ||
+			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desiredTyped, fetchedClusterRoleBinding)
 	case *appsv1.Deployment:
-		objectModified = deploymentSpecModified(desired.(*appsv1.Deployment), fetched.(*appsv1.Deployment))
+		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a Deployment, got %T", fetched))
+		}
+		objectModified = deploymentSpecModified(desiredTyped, fetchedDeployment)
 	case *rbacv1.Role:
-		objectModified = rbacRoleRulesModified[*rbacv1.Role](desired.(*rbacv1.Role), fetched.(*rbacv1.Role))
+		fetchedRole, ok := fetched.(*rbacv1.Role)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a Role, got %T", fetched))
+		}
+		objectModified = rbacRoleRulesModified[*rbacv1.Role](desiredTyped, fetchedRole)
 	case *rbacv1.RoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding))
+		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a RoleBinding, got %T", fetched))
+		}
+		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desiredTyped, fetchedRoleBinding) ||
+			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desiredTyped, fetchedRoleBinding)
 	case *corev1.Service:
-		objectModified = serviceSpecModified(desired.(*corev1.Service), fetched.(*corev1.Service))
+		fetchedService, ok := fetched.(*corev1.Service)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a Service, got %T", fetched))
+		}
+		objectModified = serviceSpecModified(desiredTyped, fetchedService)
 	case *corev1.ConfigMap:
-		objectModified = configMapDataModified(desired.(*corev1.ConfigMap), fetched.(*corev1.ConfigMap))
+		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a ConfigMap, got %T", fetched))
+		}
+		objectModified = configMapDataModified(desiredTyped, fetchedConfigMap)
 	case *networkingv1.NetworkPolicy:
-		objectModified = networkPolicySpecModified(desired.(*networkingv1.NetworkPolicy), fetched.(*networkingv1.NetworkPolicy))
+		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not a NetworkPolicy, got %T", fetched))
+		}
+		objectModified = networkPolicySpecModified(desiredTyped, fetchedNetworkPolicy)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
@@ -336,9 +404,19 @@ func serviceSpecModified(desired, fetched *corev1.Service) bool {
 func rbacRoleRulesModified[Object *rbacv1.Role | *rbacv1.ClusterRole](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRole:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRole).Rules, any(fetched).(*rbacv1.ClusterRole).Rules)
+		desiredClusterRole, ok1 := any(desired).(*rbacv1.ClusterRole)
+		fetchedClusterRole, ok2 := any(fetched).(*rbacv1.ClusterRole)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredClusterRole.Rules, fetchedClusterRole.Rules)
 	case *rbacv1.Role:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.Role).Rules, any(fetched).(*rbacv1.Role).Rules)
+		desiredRole, ok1 := any(desired).(*rbacv1.Role)
+		fetchedRole, ok2 := any(fetched).(*rbacv1.Role)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredRole.Rules, fetchedRole.Rules)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
@@ -347,9 +425,19 @@ func rbacRoleRulesModified[Object *rbacv1.Role | *rbacv1.ClusterRole](desired, f
 func rbacRoleBindingRefModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRoleBinding](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRoleBinding).RoleRef, any(fetched).(*rbacv1.ClusterRoleBinding).RoleRef)
+		desiredClusterRoleBinding, ok1 := any(desired).(*rbacv1.ClusterRoleBinding)
+		fetchedClusterRoleBinding, ok2 := any(fetched).(*rbacv1.ClusterRoleBinding)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredClusterRoleBinding.RoleRef, fetchedClusterRoleBinding.RoleRef)
 	case *rbacv1.RoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.RoleBinding).RoleRef, any(fetched).(*rbacv1.RoleBinding).RoleRef)
+		desiredRoleBinding, ok1 := any(desired).(*rbacv1.RoleBinding)
+		fetchedRoleBinding, ok2 := any(fetched).(*rbacv1.RoleBinding)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredRoleBinding.RoleRef, fetchedRoleBinding.RoleRef)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
@@ -358,9 +446,19 @@ func rbacRoleBindingRefModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRole
 func rbacRoleBindingSubjectsModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRoleBinding](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRoleBinding).Subjects, any(fetched).(*rbacv1.ClusterRoleBinding).Subjects)
+		desiredClusterRoleBinding, ok1 := any(desired).(*rbacv1.ClusterRoleBinding)
+		fetchedClusterRoleBinding, ok2 := any(fetched).(*rbacv1.ClusterRoleBinding)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredClusterRoleBinding.Subjects, fetchedClusterRoleBinding.Subjects)
 	case *rbacv1.RoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.RoleBinding).Subjects, any(fetched).(*rbacv1.RoleBinding).Subjects)
+		desiredRoleBinding, ok1 := any(desired).(*rbacv1.RoleBinding)
+		fetchedRoleBinding, ok2 := any(fetched).(*rbacv1.RoleBinding)
+		if !ok1 || !ok2 {
+			panic(fmt.Sprintf("type assertion failed: desired=%T, fetched=%T", desired, fetched))
+		}
+		return !reflect.DeepEqual(desiredRoleBinding.Subjects, fetchedRoleBinding.Subjects)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
@@ -401,6 +499,23 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	return prependErr
 }
 
+// handleProcessingRejection updates the status condition and annotation when processing is rejected.
+func (r *Reconciler) handleProcessingRejection(istiocsr *v1alpha1.IstioCSR, statusMessage string) error {
+	var condUpdateErr, annUpdateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		condUpdateErr = r.updateCondition(istiocsr, nil)
+	}
+	if addProcessingRejectedAnnotation(istiocsr) {
+		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
+		}
+	}
+	if condUpdateErr != nil || annUpdateErr != nil {
+		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
+	}
+	return nil
+}
+
 func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
@@ -439,17 +554,8 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	}
 
 	if ignoreProcessing {
-		var condUpdateErr, annUpdateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			condUpdateErr = r.updateCondition(istiocsr, nil)
-		}
-		if addProcessingRejectedAnnotation(istiocsr) {
-			if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
-				annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
-			}
-		}
-		if condUpdateErr != nil || annUpdateErr != nil {
-			return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
+		if err := r.handleProcessingRejection(istiocsr, statusMessage); err != nil {
+			return err
 		}
 	}
 

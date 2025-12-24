@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	testError = fmt.Errorf("test client error")
+	errTestClient = fmt.Errorf("test client error")
 )
 
 type CertificateTweak func(*x509.Certificate)
