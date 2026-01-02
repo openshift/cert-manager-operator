@@ -5,3 +5,5 @@ package v1alpha1
 type CertManagerExpansion interface{}
 
 type IstioCSRExpansion interface{}
+
+type TrustManagerExpansion interface{}

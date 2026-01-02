@@ -14,6 +14,7 @@ type OperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	CertManagersGetter
 	IstioCSRsGetter
+	TrustManagersGetter
 }
 
 // OperatorV1alpha1Client is used to interact with features provided by the operator.openshift.io group.
@@ -27,6 +28,10 @@ func (c *OperatorV1alpha1Client) CertManagers() CertManagerInterface {
 
 func (c *OperatorV1alpha1Client) IstioCSRs(namespace string) IstioCSRInterface {
 	return newIstioCSRs(c, namespace)
+}
+
+func (c *OperatorV1alpha1Client) TrustManagers() TrustManagerInterface {
+	return newTrustManagers(c)
 }
 
 // NewForConfig creates a new OperatorV1alpha1Client for the given config.
