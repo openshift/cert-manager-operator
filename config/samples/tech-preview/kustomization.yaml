@@ -1,2 +1,4 @@
 resources:
 - operator.openshift.io_v1alpha1_istiocsr.yaml
+- operator.openshift.io_v1alpha1_trustmanager.yaml
+- trust.cert-manager.io_v1alpha1_bundle.yaml
