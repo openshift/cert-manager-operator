@@ -3,8 +3,8 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.18.0
-CERT_MANAGER_VERSION ?= "v1.18.3"
+BUNDLE_VERSION ?= 1.19.0
+CERT_MANAGER_VERSION ?= "v1.19.2"
 ISTIO_CSR_VERSION ?= "v0.14.2"
 
 # CHANNELS define the bundle channels used in the bundle.
@@ -12,7 +12,7 @@ ISTIO_CSR_VERSION ?= "v0.14.2"
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
 # - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
 # - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
-CHANNELS ?= "stable-v1,stable-v1.18"
+CHANNELS ?= "stable-v1,stable-v1.19"
 ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
@@ -86,7 +86,7 @@ SHELL = /usr/bin/env bash -o pipefail
 CONTAINER_ENGINE ?= podman
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
-CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20
+CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21
 
 BUNDLE_DIR := bundle
 BUNDLE_MANIFEST_DIR := $(BUNDLE_DIR)/manifests
