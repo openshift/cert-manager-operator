@@ -18,7 +18,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
-    olm.skipRange: '>=1.17.0 <1.18.0'
+    olm.skipRange: '>=1.18.0 <1.18.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -149,5 +149,5 @@ spec:
   minKubeVersion: 1.27.0
   provider:
     name: Red Hat
-  replaces: cert-manager-operator.v1.17.0
+  replaces: cert-manager-operator.v1.18.0
   version: 1.18.0
