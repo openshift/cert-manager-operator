@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
