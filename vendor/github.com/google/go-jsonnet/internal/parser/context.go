@@ -64,9 +64,7 @@ func DirectChildren(node ast.Node) []ast.Node {
 		return []ast.Node{node.Expr}
 	case *ast.Function:
 		return nil
-	case *ast.Import:
-		return nil
-	case *ast.ImportStr:
+	case *ast.Import, *ast.ImportStr, *ast.ImportBin:
 		return nil
 	case *ast.Index:
 		if node.Id != nil {
@@ -146,7 +144,8 @@ func DirectChildren(node ast.Node) []ast.Node {
 // It supports ASTs before and after desugaring.
 //
 // TODO(sbarzowski) Make sure it works well with boundary cases like tailstrict arguments,
-//					make it more precise.
+// make it more precise.
+//
 // Rules:
 // * (same-environment) They must be evaluated in the same environment as their parent
 // * (not-direct) If they can be direct children, they should (and cannot be thunked).
@@ -181,9 +180,7 @@ func thunkChildren(node ast.Node) []ast.Node {
 		return nil
 	case *ast.Function:
 		return nil
-	case *ast.Import:
-		return nil
-	case *ast.ImportStr:
+	case *ast.Import, *ast.ImportStr, *ast.ImportBin:
 		return nil
 	case *ast.Index:
 		return nil
@@ -304,9 +301,7 @@ func specialChildren(node ast.Node) []ast.Node {
 			}
 		}
 		return children
-	case *ast.Import:
-		return nil
-	case *ast.ImportStr:
+	case *ast.Import, *ast.ImportStr, *ast.ImportBin:
 		return nil
 	case *ast.Index:
 		return nil

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package errors provides internal representation of errors.
 package errors
 
 import (
@@ -37,8 +38,8 @@ type StaticError interface {
 }
 
 type staticError struct {
-	loc ast.LocationRange
 	msg string
+	loc ast.LocationRange
 }
 
 func (err staticError) WithContext(context string) StaticError {
