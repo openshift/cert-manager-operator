@@ -4137,7 +4137,7 @@
           "$ref": "#/definitions/com.github.openshift.api.config.v1.APIServerServingCerts"
         },
         "tlsSecurityProfile": {
-          "description": "tlsSecurityProfile specifies settings for TLS connections for externally exposed servers.\n\nIf unset, a default (which may change between releases) is chosen. Note that only Old, Intermediate and Custom profiles are currently supported, and the maximum available minTLSVersion is VersionTLS12.",
+          "description": "tlsSecurityProfile specifies settings for TLS connections for externally exposed servers.\n\nWhen omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time. The current default is the Intermediate profile.",
           "$ref": "#/definitions/com.github.openshift.api.config.v1.TLSSecurityProfile"
         }
       }
@@ -4224,6 +4224,11 @@
             "dnsType": "PlatformDefault"
           },
           "$ref": "#/definitions/com.github.openshift.api.config.v1.CloudLoadBalancerConfig"
+        },
+        "ipFamily": {
+          "description": "ipFamily specifies the IP protocol family that should be used for AWS network resources. This controls whether AWS resources are created with IPv4-only, or dual-stack networking with IPv4 or IPv6 as the primary protocol family.",
+          "type": "string",
+          "default": "IPv4"
         },
         "region": {
           "description": "region holds the default AWS region for new AWS resources created by the cluster.",
@@ -4647,9 +4652,21 @@
           "description": "armEndpoint specifies a URL to use for resource management in non-soverign clouds such as Azure Stack.",
           "type": "string"
         },
+        "cloudLoadBalancerConfig": {
+          "description": "cloudLoadBalancerConfig holds configuration related to DNS and cloud load balancers. It allows configuration of in-cluster DNS as an alternative to the platform default DNS implementation. When using the ClusterHosted DNS type, Load Balancer IP addresses must be provided for the API and internal API load balancers as well as the ingress load balancer.",
+          "default": {
+            "dnsType": "PlatformDefault"
+          },
+          "$ref": "#/definitions/com.github.openshift.api.config.v1.CloudLoadBalancerConfig"
+        },
         "cloudName": {
           "description": "cloudName is the name of the Azure cloud environment which can be used to configure the Azure SDK with the appropriate Azure API endpoints. If empty, the value is equal to `AzurePublicCloud`.",
           "type": "string"
+        },
+        "ipFamily": {
+          "description": "ipFamily specifies the IP protocol family that should be used for Azure network resources. This controls whether Azure resources are created with IPv4-only, or dual-stack networking with IPv4 or IPv6 as the primary protocol family.",
+          "type": "string",
+          "default": "IPv4"
         },
         "networkResourceGroupName": {
           "description": "networkResourceGroupName is the Resource Group for network resources like the Virtual Network and Subnets used by the cluster. If empty, the value is same as ResourceGroupName.",
@@ -4761,6 +4778,14 @@
             "default": ""
           },
           "x-kubernetes-list-type": "atomic"
+        },
+        "dnsRecordsType": {
+          "description": "dnsRecordsType determines whether records for api, api-int, and ingress are provided by the internal DNS service or externally. Allowed values are `Internal`, `External`, and omitted. When set to `Internal`, records are provided by the internal infrastructure and no additional user configuration is required for the cluster to function. When set to `External`, records are not provided by the internal infrastructure and must be configured by the user on a DNS server outside the cluster. Cluster nodes must use this external server for their upstream DNS requests. This value may only be set when loadBalancer.type is set to UserManaged. When omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default is `Internal`.\n\nPossible enum values:\n - `\"External\"`\n - `\"Internal\"`",
+          "type": "string",
+          "enum": [
+            "External",
+            "Internal"
+          ]
         },
         "ingressIP": {
           "description": "ingressIP is an external IP which routes to the default ingress controller. The IP is a suitable target of a wildcard DNS record used to resolve default route host names.\n\nDeprecated: Use IngressIPs instead.",
@@ -5232,7 +5257,7 @@
       }
     },
     "com.github.openshift.api.config.v1.ClusterOperator": {
-      "description": "ClusterOperator is the Custom Resource object which holds the current state of an operator. This object is used by operators to convey their state to the rest of the cluster.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+      "description": "ClusterOperator holds the status of a core or optional OpenShift component managed by the Cluster Version Operator (CVO). This object is used by operators to convey their state to the rest of the cluster. Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
       "type": "object",
       "required": [
         "metadata",
@@ -5497,7 +5522,7 @@
           "default": ""
         },
         "desiredUpdate": {
-          "description": "desiredUpdate is an optional field that indicates the desired value of the cluster version. Setting this value will trigger an upgrade (if the current version does not match the desired version). The set of recommended update values is listed as part of available updates in status, and setting values outside that range may cause the upgrade to fail.\n\nSome of the fields are inter-related with restrictions and meanings described here. 1. image is specified, version is specified, architecture is specified. API validation error. 2. image is specified, version is specified, architecture is not specified. The version extracted from the referenced image must match the specified version. 3. image is specified, version is not specified, architecture is specified. API validation error. 4. image is specified, version is not specified, architecture is not specified. image is used. 5. image is not specified, version is specified, architecture is specified. version and desired architecture are used to select an image. 6. image is not specified, version is specified, architecture is not specified. version and current architecture are used to select an image. 7. image is not specified, version is not specified, architecture is specified. API validation error. 8. image is not specified, version is not specified, architecture is not specified. API validation error.\n\nIf an upgrade fails the operator will halt and report status about the failing component. Setting the desired update value back to the previous version will cause a rollback to be attempted. Not all rollbacks will succeed.",
+          "description": "desiredUpdate is an optional field that indicates the desired value of the cluster version. Setting this value will trigger an upgrade (if the current version does not match the desired version). The set of recommended update values is listed as part of available updates in status, and setting values outside that range may cause the upgrade to fail.\n\nSome of the fields are inter-related with restrictions and meanings described here. 1. image is specified, version is specified, architecture is specified. API validation error. 2. image is specified, version is specified, architecture is not specified. The version extracted from the referenced image must match the specified version. 3. image is specified, version is not specified, architecture is specified. API validation error. 4. image is specified, version is not specified, architecture is not specified. image is used. 5. image is not specified, version is specified, architecture is specified. version and desired architecture are used to select an image. 6. image is not specified, version is specified, architecture is not specified. version and current architecture are used to select an image. 7. image is not specified, version is not specified, architecture is specified. API validation error. 8. image is not specified, version is not specified, architecture is not specified. API validation error.\n\nIf an upgrade fails the operator will halt and report status about the failing component. Setting the desired update value back to the previous version will cause a rollback to be attempted if the previous version is within the current minor version. Not all rollbacks will succeed, and some may unrecoverably break the cluster.",
           "$ref": "#/definitions/com.github.openshift.api.config.v1.Update"
         },
         "overrides": {
@@ -6324,7 +6349,7 @@
           "default": ""
         },
         "valueExpression": {
-          "description": "valueExpression is a required field to specify the CEL expression to extract the extra attribute value from a JWT token's claims. valueExpression must produce a string or string array value. \"\", [], and null are treated as the extra mapping not being present. Empty string values within an array are filtered out.\n\nCEL expressions have access to the token claims through a CEL variable, 'claims'. 'claims' is a map of claim names to claim values. For example, the 'sub' claim value can be accessed as 'claims.sub'. Nested claims can be accessed using dot notation ('claims.foo.bar').\n\nvalueExpression must not exceed 4096 characters in length. valueExpression must not be empty.",
+          "description": "valueExpression is a required field to specify the CEL expression to extract the extra attribute value from a JWT token's claims. valueExpression must produce a string or string array value. \"\", [], and null are treated as the extra mapping not being present. Empty string values within an array are filtered out.\n\nCEL expressions have access to the token claims through a CEL variable, 'claims'. 'claims' is a map of claim names to claim values. For example, the 'sub' claim value can be accessed as 'claims.sub'. Nested claims can be accessed using dot notation ('claims.foo.bar').\n\nvalueExpression must not exceed 1024 characters in length. valueExpression must not be empty.",
           "type": "string",
           "default": ""
         }
@@ -6605,18 +6630,6 @@
             "key"
           ],
           "x-kubernetes-list-type": "map"
-        },
-        "serviceEndpoints": {
-          "description": "serviceEndpoints specifies endpoints that override the default endpoints used when creating clients to interact with GCP services. When not specified, the default endpoint for the GCP region will be used. Only 1 endpoint override is permitted for each GCP service. The maximum number of endpoint overrides allowed is 9.",
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/com.github.openshift.api.config.v1.GCPServiceEndpoint"
-          },
-          "x-kubernetes-list-map-keys": [
-            "name"
-          ],
-          "x-kubernetes-list-type": "map"
         }
       }
     },
@@ -6661,26 +6674,6 @@
         },
         "value": {
           "description": "value is the value part of the tag. A tag value can have a maximum of 63 characters and cannot be empty. Tag value must begin and end with an alphanumeric character, and must contain only uppercase, lowercase alphanumeric characters, and the following special characters `_-.@%=+:,*#&(){}[]` and spaces.",
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
-    "com.github.openshift.api.config.v1.GCPServiceEndpoint": {
-      "description": "GCPServiceEndpoint store the configuration of a custom url to override existing defaults of GCP Services.",
-      "type": "object",
-      "required": [
-        "name",
-        "url"
-      ],
-      "properties": {
-        "name": {
-          "description": "name is the name of the GCP service whose endpoint is being overridden. This must be provided and cannot be empty.\n\nAllowed values are Compute, Container, CloudResourceManager, DNS, File, IAM, ServiceUsage, Storage, and TagManager.\n\nAs an example, when setting the name to Compute all requests made by the caller to the GCP Compute Service will be directed to the endpoint specified in the url field.",
-          "type": "string",
-          "default": ""
-        },
-        "url": {
-          "description": "url is a fully qualified URI that overrides the default endpoint for a client using the GCP service specified in the name field. url is required, must use the scheme https, must not be more than 253 characters in length, and must be a valid URL according to Go's net/url package (https://pkg.go.dev/net/url#URL)\n\nAn example of a valid endpoint that overrides the Compute Service: \"https://compute-myendpoint1.p.googleapis.com\"",
           "type": "string",
           "default": ""
         }
@@ -6989,7 +6982,7 @@
       "type": "object",
       "properties": {
         "serviceEndpoints": {
-          "description": "serviceEndpoints is a list of custom endpoints which will override the default service endpoints of an IBM service. These endpoints are used by components within the cluster when trying to reach the IBM Cloud Services that have been overriden. The CCCMO reads in the IBMCloudPlatformSpec and validates each endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus are updated to reflect the same custom endpoints. A maximum of 13 service endpoints overrides are supported.",
+          "description": "serviceEndpoints is a list of custom endpoints which will override the default service endpoints of an IBM service. These endpoints are used by components within the cluster when trying to reach the IBM Cloud Services that have been overridden. The CCCMO reads in the IBMCloudPlatformSpec and validates each endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus are updated to reflect the same custom endpoints. A maximum of 13 service endpoints overrides are supported.",
           "type": "array",
           "items": {
             "default": {},
@@ -7027,7 +7020,7 @@
           "type": "string"
         },
         "serviceEndpoints": {
-          "description": "serviceEndpoints is a list of custom endpoints which will override the default service endpoints of an IBM service. These endpoints are used by components within the cluster when trying to reach the IBM Cloud Services that have been overriden. The CCCMO reads in the IBMCloudPlatformSpec and validates each endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus are updated to reflect the same custom endpoints.",
+          "description": "serviceEndpoints is a list of custom endpoints which will override the default service endpoints of an IBM service. These endpoints are used by components within the cluster when trying to reach the IBM Cloud Services that have been overridden. The CCCMO reads in the IBMCloudPlatformSpec and validates each endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus are updated to reflect the same custom endpoints.",
           "type": "array",
           "items": {
             "default": {},
@@ -8742,6 +8735,14 @@
           },
           "x-kubernetes-list-type": "set"
         },
+        "dnsRecordsType": {
+          "description": "dnsRecordsType determines whether records for api, api-int, and ingress are provided by the internal DNS service or externally. Allowed values are `Internal`, `External`, and omitted. When set to `Internal`, records are provided by the internal infrastructure and no additional user configuration is required for the cluster to function. When set to `External`, records are not provided by the internal infrastructure and must be configured by the user on a DNS server outside the cluster. Cluster nodes must use this external server for their upstream DNS requests. This value may only be set when loadBalancer.type is set to UserManaged. When omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default is `Internal`.\n\nPossible enum values:\n - `\"External\"`\n - `\"Internal\"`",
+          "type": "string",
+          "enum": [
+            "External",
+            "Internal"
+          ]
+        },
         "ingressIP": {
           "description": "ingressIP is an external IP which routes to the default ingress controller. The IP is a suitable target of a wildcard DNS record used to resolve default route host names.\n\nDeprecated: Use IngressIPs instead.",
           "type": "string"
@@ -9352,6 +9353,14 @@
           "description": "cloudName is the name of the desired OpenStack cloud in the client configuration file (`clouds.yaml`).",
           "type": "string"
         },
+        "dnsRecordsType": {
+          "description": "dnsRecordsType determines whether records for api, api-int, and ingress are provided by the internal DNS service or externally. Allowed values are `Internal`, `External`, and omitted. When set to `Internal`, records are provided by the internal infrastructure and no additional user configuration is required for the cluster to function. When set to `External`, records are not provided by the internal infrastructure and must be configured by the user on a DNS server outside the cluster. Cluster nodes must use this external server for their upstream DNS requests. This value may only be set when loadBalancer.type is set to UserManaged. When omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default is `Internal`.\n\nPossible enum values:\n - `\"External\"`\n - `\"Internal\"`",
+          "type": "string",
+          "enum": [
+            "External",
+            "Internal"
+          ]
+        },
         "ingressIP": {
           "description": "ingressIP is an external IP which routes to the default ingress controller. The IP is a suitable target of a wildcard DNS record used to resolve default route host names.\n\nDeprecated: Use IngressIPs instead.",
           "type": "string"
@@ -9541,6 +9550,14 @@
             "default": ""
           },
           "x-kubernetes-list-type": "set"
+        },
+        "dnsRecordsType": {
+          "description": "dnsRecordsType determines whether records for api, api-int, and ingress are provided by the internal DNS service or externally. Allowed values are `Internal`, `External`, and omitted. When set to `Internal`, records are provided by the internal infrastructure and no additional user configuration is required for the cluster to function. When set to `External`, records are not provided by the internal infrastructure and must be configured by the user on a DNS server outside the cluster. Cluster nodes must use this external server for their upstream DNS requests. This value may only be set when loadBalancer.type is set to UserManaged. When omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default is `Internal`.\n\nPossible enum values:\n - `\"External\"`\n - `\"Internal\"`",
+          "type": "string",
+          "enum": [
+            "External",
+            "Internal"
+          ]
         },
         "ingressIP": {
           "description": "ingressIP is an external IP which routes to the default ingress controller. The IP is a suitable target of a wildcard DNS record used to resolve default route host names.\n\nDeprecated: Use IngressIPs instead.",
@@ -10566,7 +10583,7 @@
           "type": "string"
         },
         "profileCustomizations": {
-          "description": "profileCustomizations contains configuration for modifying the default behavior of existing scheduler profiles.",
+          "description": "profileCustomizations contains configuration for modifying the default behavior of existing scheduler profiles. Deprecated: no longer needed, since DRA is GA starting with 4.21, and is enabled by' default in the cluster, this field will be removed in 4.24.",
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.config.v1.ProfileCustomizations"
         }
@@ -10888,7 +10905,7 @@
       ],
       "properties": {
         "extra": {
-          "description": "extra is an optional field for configuring the mappings used to construct the extra attribute for the cluster identity. When omitted, no extra attributes will be present on the cluster identity. key values for extra mappings must be unique. A maximum of 64 extra attribute mappings may be provided.",
+          "description": "extra is an optional field for configuring the mappings used to construct the extra attribute for the cluster identity. When omitted, no extra attributes will be present on the cluster identity. key values for extra mappings must be unique. A maximum of 32 extra attribute mappings may be provided.",
           "type": "array",
           "items": {
             "default": {},
@@ -10924,7 +10941,7 @@
           "type": "string"
         },
         "expression": {
-          "description": "expression is an optional field for specifying a CEL expression that produces a string value from JWT token claims.\n\nCEL expressions have access to the token claims through a CEL variable, 'claims'. 'claims' is a map of claim names to claim values. For example, the 'sub' claim value can be accessed as 'claims.sub'. Nested claims can be accessed using dot notation ('claims.foo.bar').\n\nPrecisely one of claim or expression must be set. expression must not be specified when claim is set. When specified, expression must be at least 1 character in length and must not exceed 4096 characters in length.",
+          "description": "expression is an optional field for specifying a CEL expression that produces a string value from JWT token claims.\n\nCEL expressions have access to the token claims through a CEL variable, 'claims'. 'claims' is a map of claim names to claim values. For example, the 'sub' claim value can be accessed as 'claims.sub'. Nested claims can be accessed using dot notation ('claims.foo.bar').\n\nPrecisely one of claim or expression must be set. expression must not be specified when claim is set. When specified, expression must be at least 1 character in length and must not exceed 1024 characters in length.",
           "type": "string"
         }
       }
@@ -10988,7 +11005,7 @@
           "$ref": "#/definitions/com.github.openshift.api.config.v1.ConfigMapNameReference"
         },
         "issuerURL": {
-          "description": "issuerURL is a required field that configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication tokens should be handled by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.\n\nissuerURL must use the 'https' scheme.",
+          "description": "issuerURL is a required field that configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication tokens should be handled by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.\n\nMust be at least 1 character and must not exceed 512 characters in length. Must be a valid URL that uses the 'https' scheme and does not contain a query, fragment or user.",
           "type": "string",
           "default": ""
         }
@@ -11023,7 +11040,7 @@
           "default": ""
         },
         "force": {
-          "description": "force allows an administrator to update to an image that has failed verification or upgradeable checks. This option should only be used when the authenticity of the provided image has been verified out of band because the provided image will run with full administrative access to the cluster. Do not use this flag with images that comes from unknown or potentially malicious sources.",
+          "description": "force allows an administrator to update to an image that has failed verification or upgradeable checks that are designed to keep your cluster safe. Only use this if: * you are testing unsigned release images in short-lived test clusters or * you are working around a known bug in the cluster-version\n  operator and you have verified the authenticity of the provided\n  image yourself.\nThe provided image will run with full administrative access to the cluster. Do not use this flag with images that come from unknown or potentially malicious sources.",
           "type": "boolean",
           "default": false
         },
@@ -11051,7 +11068,7 @@
       ],
       "properties": {
         "acceptedRisks": {
-          "description": "acceptedRisks records risks which were accepted to initiate the update. For example, it may menition an Upgradeable=False or missing signature that was overriden via desiredUpdate.force, or an update that was initiated despite not being in the availableUpdates set of recommended update targets.",
+          "description": "acceptedRisks records risks which were accepted to initiate the update. For example, it may menition an Upgradeable=False or missing signature that was overridden via desiredUpdate.force, or an update that was initiated despite not being in the availableUpdates set of recommended update targets.",
           "type": "string"
         },
         "completionTime": {
@@ -11396,6 +11413,14 @@
           },
           "x-kubernetes-list-type": "atomic"
         },
+        "dnsRecordsType": {
+          "description": "dnsRecordsType determines whether records for api, api-int, and ingress are provided by the internal DNS service or externally. Allowed values are `Internal`, `External`, and omitted. When set to `Internal`, records are provided by the internal infrastructure and no additional user configuration is required for the cluster to function. When set to `External`, records are not provided by the internal infrastructure and must be configured by the user on a DNS server outside the cluster. Cluster nodes must use this external server for their upstream DNS requests. This value may only be set when loadBalancer.type is set to UserManaged. When omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default is `Internal`.\n\nPossible enum values:\n - `\"External\"`\n - `\"Internal\"`",
+          "type": "string",
+          "enum": [
+            "External",
+            "Internal"
+          ]
+        },
         "ingressIP": {
           "description": "ingressIP is an external IP which routes to the default ingress controller. The IP is a suitable target of a wildcard DNS record used to resolve default route host names.\n\nDeprecated: Use IngressIPs instead.",
           "type": "string"
@@ -11519,6 +11544,102 @@
           "description": "kubeConfig references a secret that contains kube config file data which describes how to access the remote webhook service. The namespace for the referenced secret is openshift-config.\n\nFor further details, see:\n\nhttps://kubernetes.io/docs/reference/access-authn-authz/authentication/#webhook-token-authentication\n\nThe key \"kubeConfig\" is used to locate the data. If the secret or expected key is not found, the webhook is not honored. If the specified kube config data is not valid, the webhook is not honored.",
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.config.v1.SecretNameReference"
+        }
+      }
+    },
+    "com.github.openshift.api.config.v1alpha1.AlertmanagerConfig": {
+      "description": "alertmanagerConfig provides configuration options for the default Alertmanager instance that runs in the `openshift-monitoring` namespace. Use this configuration to control whether the default Alertmanager is deployed, how it logs, and how its pods are scheduled.",
+      "type": "object",
+      "required": [
+        "deploymentMode"
+      ],
+      "properties": {
+        "customConfig": {
+          "description": "customConfig must be set when deploymentMode is CustomConfig, and must be unset otherwise. When set to CustomConfig, the Alertmanager will be deployed with custom configuration.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.AlertmanagerCustomConfig"
+        },
+        "deploymentMode": {
+          "description": "deploymentMode determines whether the default Alertmanager instance should be deployed as part of the monitoring stack. Allowed values are Disabled, DefaultConfig, and CustomConfig. When set to Disabled, the Alertmanager instance will not be deployed. When set to DefaultConfig, the platform will deploy Alertmanager with default settings. When set to CustomConfig, the Alertmanager will be deployed with custom configuration.",
+          "type": "string"
+        }
+      }
+    },
+    "com.github.openshift.api.config.v1alpha1.AlertmanagerCustomConfig": {
+      "description": "AlertmanagerCustomConfig represents the configuration for a custom Alertmanager deployment. alertmanagerCustomConfig provides configuration options for the default Alertmanager instance that runs in the `openshift-monitoring` namespace. Use this configuration to control whether the default Alertmanager is deployed, how it logs, and how its pods are scheduled.",
+      "type": "object",
+      "properties": {
+        "logLevel": {
+          "description": "logLevel defines the verbosity of logs emitted by Alertmanager. This field allows users to control the amount and severity of logs generated, which can be useful for debugging issues or reducing noise in production environments. Allowed values are Error, Warn, Info, and Debug. When set to Error, only errors will be logged. When set to Warn, both warnings and errors will be logged. When set to Info, general information, warnings, and errors will all be logged. When set to Debug, detailed debugging information will be logged. When omitted, this means no opinion and the platform is left to choose a reasonable default, that is subject to change over time. The current default value is `Info`.",
+          "type": "string"
+        },
+        "nodeSelector": {
+          "description": "nodeSelector defines the nodes on which the Pods are scheduled nodeSelector is optional.\n\nWhen omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default value is `kubernetes.io/os: linux`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "resources": {
+          "description": "resources defines the compute resource requests and limits for the Alertmanager container. This includes CPU, memory and HugePages constraints to help control scheduling and resource usage. When not specified, defaults are used by the platform. Requests cannot exceed limits. This field is optional. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ This is a simplified API that maps to Kubernetes ResourceRequirements. The current default values are:\n  resources:\n   - name: cpu\n     request: 4m\n     limit: null\n   - name: memory\n     request: 40Mi\n     limit: null\nMaximum length for this list is 10. Minimum length for this list is 1.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.ContainerResource"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "secrets": {
+          "description": "secrets defines a list of secrets that need to be mounted into the Alertmanager. The secrets must reside within the same namespace as the Alertmanager object. They will be added as volumes named secret-<secret-name> and mounted at /etc/alertmanager/secrets/<secret-name> within the 'alertmanager' container of the Alertmanager Pods.\n\nThese secrets can be used to authenticate Alertmanager with endpoint receivers. For example, you can use secrets to: - Provide certificates for TLS authentication with receivers that require private CA certificates - Store credentials for Basic HTTP authentication with receivers that require password-based auth - Store any other authentication credentials needed by your alert receivers\n\nThis field is optional. Maximum length for this list is 10. Minimum length for this list is 1. Entries in this list must be unique.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          },
+          "x-kubernetes-list-type": "set"
+        },
+        "tolerations": {
+          "description": "tolerations defines tolerations for the pods. tolerations is optional.\n\nWhen omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. Defaults are empty/unset. Maximum length for this list is 10 Minimum length for this list is 1",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.Toleration"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "topologySpreadConstraints": {
+          "description": "topologySpreadConstraints defines rules for how Alertmanager Pods should be distributed across topology domains such as zones, nodes, or other user-defined labels. topologySpreadConstraints is optional. This helps improve high availability and resource efficiency by avoiding placing too many replicas in the same failure domain.\n\nWhen omitted, this means no opinion and the platform is left to choose a default, which is subject to change over time. This field maps directly to the `topologySpreadConstraints` field in the Pod spec. Default is empty list. Maximum length for this list is 10. Minimum length for this list is 1 Entries must have unique topologyKey and whenUnsatisfiable pairs.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.TopologySpreadConstraint"
+          },
+          "x-kubernetes-list-map-keys": [
+            "topologyKey",
+            "whenUnsatisfiable"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "volumeClaimTemplate": {
+          "description": "volumeClaimTemplate Defines persistent storage for Alertmanager. Use this setting to configure the persistent volume claim, including storage class, volume size, and name. If omitted, the Pod uses ephemeral storage and alert data will not persist across restarts. This field is optional.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+        }
+      }
+    },
+    "com.github.openshift.api.config.v1alpha1.Audit": {
+      "description": "Audit profile configurations",
+      "type": "object",
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "description": "profile is a required field for configuring the audit log level of the Kubernetes Metrics Server. Allowed values are None, Metadata, Request, or RequestResponse. When set to None, audit logging is disabled and no audit events are recorded. When set to Metadata, only request metadata (such as requesting user, timestamp, resource, verb, etc.) is logged, but not the request or response body. When set to Request, event metadata and the request body are logged, but not the response body. When set to RequestResponse, event metadata, request body, and response body are all logged, providing the most detailed audit information.\n\nSee: https://kubernetes.io/docs/tasks/debug-application-cluster/audit/#audit-policy for more information about auditing and log levels.",
+          "type": "string"
         }
       }
     },
@@ -11765,20 +11886,48 @@
     "com.github.openshift.api.config.v1alpha1.ClusterMonitoringSpec": {
       "description": "ClusterMonitoringSpec defines the desired state of Cluster Monitoring Operator",
       "type": "object",
-      "required": [
-        "userDefined"
-      ],
       "properties": {
+        "alertmanagerConfig": {
+          "description": "alertmanagerConfig allows users to configure how the default Alertmanager instance should be deployed in the `openshift-monitoring` namespace. alertmanagerConfig is optional. When omitted, this means no opinion and the platform is left to choose a reasonable default, that is subject to change over time. The current default value is `DefaultConfig`.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.AlertmanagerConfig"
+        },
+        "metricsServerConfig": {
+          "description": "metricsServerConfig is an optional field that can be used to configure the Kubernetes Metrics Server that runs in the openshift-monitoring namespace. Specifically, it can configure how the Metrics Server instance is deployed, pod scheduling, its audit policy and log verbosity. When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.MetricsServerConfig"
+        },
         "userDefined": {
-          "description": "userDefined set the deployment mode for user-defined monitoring in addition to the default platform monitoring.",
+          "description": "userDefined set the deployment mode for user-defined monitoring in addition to the default platform monitoring. userDefined is optional. When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time. The current default value is `Disabled`.",
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.UserDefinedMonitoring"
         }
       }
     },
     "com.github.openshift.api.config.v1alpha1.ClusterMonitoringStatus": {
-      "description": "MonitoringOperatorStatus defines the observed state of MonitoringOperator",
+      "description": "ClusterMonitoringStatus defines the observed state of ClusterMonitoring",
       "type": "object"
+    },
+    "com.github.openshift.api.config.v1alpha1.ContainerResource": {
+      "description": "ContainerResource defines a single resource requirement for a container.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "limit": {
+          "description": "limit is the maximum amount of the resource allowed (e.g. \"2Mi\", \"1Gi\"). This field is optional. When request is specified, limit cannot be less than request. The value must be greater than 0 when specified.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+        },
+        "name": {
+          "description": "name of the resource (e.g. \"cpu\", \"memory\", \"hugepages-2Mi\"). This field is required. name must consist only of alphanumeric characters, `-`, `_` and `.` and must start and end with an alphanumeric character.",
+          "type": "string"
+        },
+        "request": {
+          "description": "request is the minimum amount of the resource required (e.g. \"2Mi\", \"1Gi\"). This field is optional. When limit is specified, request cannot be greater than limit.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+        }
+      }
     },
     "com.github.openshift.api.config.v1alpha1.EtcdBackupSpec": {
       "description": "EtcdBackupSpec provides configuration for automated etcd backups to the cluster-etcd-operator",
@@ -12031,6 +12180,63 @@
     },
     "com.github.openshift.api.config.v1alpha1.InsightsDataGatherStatus": {
       "type": "object"
+    },
+    "com.github.openshift.api.config.v1alpha1.MetricsServerConfig": {
+      "description": "MetricsServerConfig provides configuration options for the Metrics Server instance that runs in the `openshift-monitoring` namespace. Use this configuration to control how the Metrics Server instance is deployed, how it logs, and how its pods are scheduled.",
+      "type": "object",
+      "properties": {
+        "audit": {
+          "description": "audit defines the audit configuration used by the Metrics Server instance. audit is optional. When omitted, this means no opinion and the platform is left to choose a reasonable default, that is subject to change over time. The current default sets audit.profile to Metadata",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.Audit"
+        },
+        "nodeSelector": {
+          "description": "nodeSelector defines the nodes on which the Pods are scheduled nodeSelector is optional.\n\nWhen omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. The current default value is `kubernetes.io/os: linux`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "resources": {
+          "description": "resources defines the compute resource requests and limits for the Metrics Server container. This includes CPU, memory and HugePages constraints to help control scheduling and resource usage. When not specified, defaults are used by the platform. Requests cannot exceed limits. This field is optional. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ This is a simplified API that maps to Kubernetes ResourceRequirements. The current default values are:\n  resources:\n   - name: cpu\n     request: 4m\n     limit: null\n   - name: memory\n     request: 40Mi\n     limit: null\nMaximum length for this list is 10. Minimum length for this list is 1.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/com.github.openshift.api.config.v1alpha1.ContainerResource"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "tolerations": {
+          "description": "tolerations defines tolerations for the pods. tolerations is optional.\n\nWhen omitted, this means the user has no opinion and the platform is left to choose reasonable defaults. These defaults are subject to change over time. Defaults are empty/unset. Maximum length for this list is 10 Minimum length for this list is 1",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.Toleration"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "topologySpreadConstraints": {
+          "description": "topologySpreadConstraints defines rules for how Metrics Server Pods should be distributed across topology domains such as zones, nodes, or other user-defined labels. topologySpreadConstraints is optional. This helps improve high availability and resource efficiency by avoiding placing too many replicas in the same failure domain.\n\nWhen omitted, this means no opinion and the platform is left to choose a default, which is subject to change over time. This field maps directly to the `topologySpreadConstraints` field in the Pod spec. Default is empty list. Maximum length for this list is 10. Minimum length for this list is 1 Entries must have unique topologyKey and whenUnsatisfiable pairs.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.TopologySpreadConstraint"
+          },
+          "x-kubernetes-list-map-keys": [
+            "topologyKey",
+            "whenUnsatisfiable"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "verbosity": {
+          "description": "verbosity defines the verbosity of log messages for Metrics Server. Valid values are Errors, Info, Trace, TraceAll and omitted. When set to Errors, only critical messages and errors are logged. When set to Info, only basic information messages are logged. When set to Trace, information useful for general debugging is logged. When set to TraceAll, detailed information about metric scraping is logged. When omitted, this means no opinion and the platform is left to choose a reasonable default, that is subject to change over time. The current default value is `Errors`",
+          "type": "string"
+        }
+      }
     },
     "com.github.openshift.api.config.v1alpha1.PKI": {
       "description": "PKI defines the root of trust based on Root CA(s) and corresponding intermediate certificates.",
@@ -12351,7 +12557,7 @@
       ],
       "properties": {
         "mode": {
-          "description": "mode defines the different configurations of UserDefinedMonitoring Valid values are Disabled and NamespaceIsolated Disabled disables monitoring for user-defined projects. This restricts the default monitoring stack, installed in the openshift-monitoring project, to monitor only platform namespaces, which prevents any custom monitoring configurations or resources from being applied to user-defined namespaces. NamespaceIsolated enables monitoring for user-defined projects with namespace-scoped tenancy. This ensures that metrics, alerts, and monitoring data are isolated at the namespace level.\n\nPossible enum values:\n - `\"Disabled\"` disables monitoring for user-defined projects. This restricts the default monitoring stack, installed in the openshift-monitoring project, to monitor only platform namespaces, which prevents any custom monitoring configurations or resources from being applied to user-defined namespaces.\n - `\"NamespaceIsolated\"` enables monitoring for user-defined projects with namespace-scoped tenancy. This ensures that metrics, alerts, and monitoring data are isolated at the namespace level.",
+          "description": "mode defines the different configurations of UserDefinedMonitoring Valid values are Disabled and NamespaceIsolated Disabled disables monitoring for user-defined projects. This restricts the default monitoring stack, installed in the openshift-monitoring project, to monitor only platform namespaces, which prevents any custom monitoring configurations or resources from being applied to user-defined namespaces. NamespaceIsolated enables monitoring for user-defined projects with namespace-scoped tenancy. This ensures that metrics, alerts, and monitoring data are isolated at the namespace level. The current default value is `Disabled`.\n\nPossible enum values:\n - `\"Disabled\"` disables monitoring for user-defined projects. This restricts the default monitoring stack, installed in the openshift-monitoring project, to monitor only platform namespaces, which prevents any custom monitoring configurations or resources from being applied to user-defined namespaces.\n - `\"NamespaceIsolated\"` enables monitoring for user-defined projects with namespace-scoped tenancy. This ensures that metrics, alerts, and monitoring data are isolated at the namespace level.",
           "type": "string",
           "default": "",
           "enum": [
@@ -12843,7 +13049,7 @@
           "$ref": "#/definitions/com.github.openshift.api.console.v1.ApplicationMenuSpec"
         },
         "href": {
-          "description": "href is the absolute secure URL for the link (must use https)",
+          "description": "href is the absolute URL for the link. Must use https:// for web URLs or mailto: for email links.",
           "type": "string",
           "default": ""
         },
@@ -13775,7 +13981,7 @@
       ],
       "properties": {
         "href": {
-          "description": "href is the absolute secure URL for the link (must use https)",
+          "description": "href is the absolute URL for the link. Must use https:// for web URLs or mailto: for email links.",
           "type": "string",
           "default": ""
         },
@@ -13845,6 +14051,76 @@
           "description": "type is the discriminator. It has different values for Default and for TechPreviewNoUpgrade",
           "type": "string",
           "default": ""
+        }
+      }
+    },
+    "com.github.openshift.api.example.v1.FormatMarkerExamples": {
+      "description": "FormatMarkerExamples demonstrates all Kubebuilder Format markers supported as of Kubernetes 1.33. This struct provides a comprehensive reference for format marker validation. Each field uses a different format marker to validate its value.",
+      "type": "object",
+      "properties": {
+        "base64Data": {
+          "description": "base64Data must be valid base64-encoded data. Valid examples include aGVsbG8= (encodes \"hello\") or SGVsbG8gV29ybGQh (encodes \"Hello World!\").",
+          "type": "string"
+        },
+        "cidrNotation": {
+          "description": "cidrNotation must be a valid CIDR notation IP address range. Valid examples include IPv4 CIDR (10.0.0.0/8, 192.168.1.0/24) or IPv6 CIDR (fd00::/8, 2001:db8::/32).\n\nUse of Format=cidr is not recommended due to CVE-2021-29923 and CVE-2024-24790. Instead, use the CEL expression `isCIDR(self)` to validate CIDR notation. Additionally, use `isCIDR(self) && cidr(self).ip().family() == X` to validate IPvX specifically.",
+          "type": "string"
+        },
+        "dateField": {
+          "description": "dateField must be a valid date in RFC 3339 full-date format (YYYY-MM-DD). Valid examples include 2024-01-15 or 2023-12-31.",
+          "type": "string"
+        },
+        "dateTimeField": {
+          "description": "dateTimeField must be a valid RFC 3339 date-time. Valid examples include 2024-01-15T14:30:00Z, 2024-01-15T14:30:00+00:00, or 2024-01-15T14:30:00.123Z.",
+          "type": "string"
+        },
+        "durationField": {
+          "description": "durationField must be a valid duration string parseable by Go's time.ParseDuration. Valid time units are ns, us (or µs), ms, s, m, h. Valid examples include 30s, 5m, 1h30m, 100ms, or 1h.",
+          "type": "string"
+        },
+        "emailAddress": {
+          "description": "emailAddress must be a valid email address. Valid examples include user@example.com or firstname.lastname@company.co.uk.",
+          "type": "string"
+        },
+        "hostnameField": {
+          "description": "hostnameField must be a valid Internet hostname per RFC 1034. Valid examples include example.com, api.example.com, or my-service.",
+          "type": "string"
+        },
+        "ipv4Address": {
+          "description": "ipv4Address must be a valid IPv4 address in dotted-quad notation. Valid values range from 0.0.0.0 to 255.255.255.255 (e.g., 192.168.1.1).\n\nUse of Format=ipv4 is not recommended due to CVE-2021-29923 and CVE-2024-24790. Instead, use the CEL expression `isIP(self) && ip(self).family() == 4` to validate IPv4 addresses.",
+          "type": "string"
+        },
+        "ipv6Address": {
+          "description": "ipv6Address must be a valid IPv6 address. Valid examples include full form (2001:0db8:0000:0000:0000:0000:0000:0001) or compressed form (2001:db8::1 or ::1).\n\nUse of Format=ipv6 is not recommended due to CVE-2021-29923 and CVE-2024-24790. Instead, use the CEL expression `isIP(self) && ip(self).family() == 6` to validate IPv6 addresses.",
+          "type": "string"
+        },
+        "macAddress": {
+          "description": "macAddress must be a valid MAC address. Valid examples include 00:1A:2B:3C:4D:5E or 00-1A-2B-3C-4D-5E.",
+          "type": "string"
+        },
+        "passwordField": {
+          "description": "passwordField is a marker for sensitive data. Note that the password format marker does not perform any actual validation - it accepts any string value. This marker is primarily used to signal that the field contains sensitive information.",
+          "type": "string"
+        },
+        "uriField": {
+          "description": "uriField must be a valid URI following RFC 3986 syntax. Valid examples include https://example.com/path?query=value or /absolute-path.",
+          "type": "string"
+        },
+        "uuid3Field": {
+          "description": "uuid3Field must be a valid UUID version 3 (MD5 hash-based). Version 3 UUIDs are generated using MD5 hashing of a namespace and name. Valid example: a3bb189e-8bf9-3888-9912-ace4e6543002.",
+          "type": "string"
+        },
+        "uuid4Field": {
+          "description": "uuid4Field must be a valid UUID version 4 (random). Version 4 UUIDs are randomly generated. Valid example: 550e8400-e29b-41d4-a716-446655440000.",
+          "type": "string"
+        },
+        "uuid5Field": {
+          "description": "uuid5Field must be a valid UUID version 5 (SHA-1 hash-based). Version 5 UUIDs are generated using SHA-1 hashing of a namespace and name. Valid example: 74738ff5-5367-5958-9aee-98fffdcd1876.",
+          "type": "string"
+        },
+        "uuidField": {
+          "description": "uuidField must be a valid UUID (any version) in 8-4-4-4-12 format. Valid examples include 550e8400-e29b-41d4-a716-446655440000 or 123e4567-e89b-12d3-a456-426614174000.",
+          "type": "string"
         }
       }
     },
@@ -13936,6 +14212,10 @@
           "description": "evolvingUnion demonstrates how to phase in new values into discriminated union",
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.example.v1.EvolvingUnion"
+        },
+        "formatMarkerExamples": {
+          "description": "formatMarkerExamples demonstrates all Kubebuilder Format markers supported as of Kubernetes 1.33. This field serves as a comprehensive reference for format marker validation.",
+          "$ref": "#/definitions/com.github.openshift.api.example.v1.FormatMarkerExamples"
         },
         "immutableField": {
           "description": "immutableField is a field that is immutable once the object has been created. It is required at all times.",
@@ -19698,7 +19978,7 @@
       ],
       "properties": {
         "accessTokenInactivityTimeoutSeconds": {
-          "description": "accessTokenInactivityTimeoutSeconds defined the default token inactivity timeout for tokens granted by any client. Setting it to nil means the feature is completely disabled (default) The default setting can be overriden on OAuthClient basis. The value represents the maximum amount of time that can occur between consecutive uses of the token. Tokens become invalid if they are not used within this temporal window. The user will need to acquire a new token to regain access once a token times out. Valid values are: - 0: Tokens never time out - X: Tokens time out if there is no activity for X seconds The current minimum allowed value for X is 300 (5 minutes)",
+          "description": "accessTokenInactivityTimeoutSeconds defined the default token inactivity timeout for tokens granted by any client. Setting it to nil means the feature is completely disabled (default) The default setting can be overridden on OAuthClient basis. The value represents the maximum amount of time that can occur between consecutive uses of the token. Tokens become invalid if they are not used within this temporal window. The user will need to acquire a new token to regain access once a token times out. Valid values are: - 0: Tokens never time out - X: Tokens time out if there is no activity for X seconds The current minimum allowed value for X is 300 (5 minutes)",
           "type": "integer",
           "format": "int32"
         },
@@ -20886,7 +21166,7 @@
           "$ref": "#/definitions/com.github.openshift.api.machine.v1.ControlPlaneMachineSetTemplateObjectMeta"
         },
         "spec": {
-          "description": "spec contains the desired configuration of the Control Plane Machines. The ProviderSpec within contains platform specific details for creating the Control Plane Machines. The ProviderSe should be complete apart from the platform specific failure domain field. This will be overriden when the Machines are created based on the FailureDomains field.",
+          "description": "spec contains the desired configuration of the Control Plane Machines. The ProviderSpec within contains platform specific details for creating the Control Plane Machines. The ProviderSe should be complete apart from the platform specific failure domain field. This will be overridden when the Machines are created based on the FailureDomains field.",
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.machine.v1beta1.MachineSpec"
         }
@@ -21847,6 +22127,10 @@
           "type": "string",
           "default": ""
         },
+        "cpuOptions": {
+          "description": "cpuOptions defines CPU-related settings for the instance, including the confidential computing policy. When omitted, this means no opinion and the AWS platform is left to choose a reasonable default. More info: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CpuOptionsRequest.html, https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cpu-options-supported-instances-values.html",
+          "$ref": "#/definitions/com.github.openshift.api.machine.v1beta1.CPUOptions"
+        },
         "credentialsSecret": {
           "description": "credentialsSecret is a reference to the secret with AWS credentials. Otherwise, defaults to permissions provided by attached IAM role where the actuator is running.",
           "$ref": "#/definitions/io.k8s.api.core.v1.LocalObjectReference"
@@ -22322,6 +22606,16 @@
         }
       }
     },
+    "com.github.openshift.api.machine.v1beta1.CPUOptions": {
+      "description": "CPUOptions defines CPU-related settings for the instance, including the confidential computing policy. If provided, it must not be empty — at least one field must be set.",
+      "type": "object",
+      "properties": {
+        "confidentialCompute": {
+          "description": "confidentialCompute specifies whether confidential computing should be enabled for the instance, and, if so, which confidential computing technology to use. Valid values are: Disabled, AMDEncryptedVirtualizationNestedPaging and omitted. When set to Disabled, confidential computing will be disabled for the instance. When set to AMDEncryptedVirtualizationNestedPaging, AMD SEV-SNP will be used as the confidential computing technology for the instance. In this case, ensure the following conditions are met: 1) The selected instance type supports AMD SEV-SNP. 2) The selected AWS region supports AMD SEV-SNP. 3) The selected AMI supports AMD SEV-SNP. More details can be checked at https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sev-snp.html When omitted, this means no opinion and the AWS platform is left to choose a reasonable default, which is subject to change without notice. The current default is Disabled.",
+          "type": "string"
+        }
+      }
+    },
     "com.github.openshift.api.machine.v1beta1.Condition": {
       "description": "Condition defines an observation of a Machine API resource operational state.",
       "type": "object",
@@ -22434,6 +22728,19 @@
         }
       }
     },
+    "com.github.openshift.api.machine.v1beta1.DedicatedHost": {
+      "description": "DedicatedHost represents the configuration for the usage of dedicated host.",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+          "type": "string"
+        }
+      }
+    },
     "com.github.openshift.api.machine.v1beta1.DiskEncryptionSetParameters": {
       "description": "DiskEncryptionSetParameters is the disk encryption set properties",
       "type": "object",
@@ -22476,13 +22783,18 @@
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.machine.v1beta1.AWSResourceReference"
         },
+        "throughputMib": {
+          "description": "throughputMib to provision in MiB/s supported for the volume type. Not applicable to all types.\n\nThis parameter is valid only for gp3 volumes. Valid Range: Minimum value of 125. Maximum value of 2000.\n\nWhen omitted, this means no opinion, and the platform is left to choose a reasonable default, which is subject to change over time. The current default is 125.",
+          "type": "integer",
+          "format": "int32"
+        },
         "volumeSize": {
           "description": "The size of the volume, in GiB.\n\nConstraints: 1-16384 for General Purpose SSD (gp2), 4-16384 for Provisioned IOPS SSD (io1), 500-16384 for Throughput Optimized HDD (st1), 500-16384 for Cold HDD (sc1), and 1-1024 for Magnetic (standard) volumes. If you specify a snapshot, the volume size must be equal to or larger than the snapshot size.\n\nDefault: If you're creating the volume from a snapshot and don't specify a volume size, the default is the snapshot size.",
           "type": "integer",
           "format": "int64"
         },
         "volumeType": {
-          "description": "The volume type: gp2, io1, st1, sc1, or standard. Default: standard",
+          "description": "volumeType can be of type gp2, gp3, io1, st1, sc1, or standard. Default: standard",
           "type": "string"
         }
       }
@@ -22723,6 +23035,10 @@
           "description": "projectID is the project in which the GCP machine provider will create the VM.",
           "type": "string"
         },
+        "provisioningModel": {
+          "description": "provisioningModel is an optional field that determines the provisioning model for the GCP machine instance. Valid values are \"Spot\" and omitted. When set to Spot, the instance runs as a Google Cloud Spot instance which provides significant cost savings but may be preempted by Google Cloud Platform when resources are needed elsewhere. When omitted, the machine will be provisioned as a standard on-demand instance. This field cannot be used together with the preemptible field.",
+          "type": "string"
+        },
         "region": {
           "description": "region is the region in which the GCP machine provider will create the VM.",
           "type": "string",
@@ -22903,6 +23219,31 @@
           "type": "string"
         }
       }
+    },
+    "com.github.openshift.api.machine.v1beta1.HostPlacement": {
+      "description": "HostPlacement is the type that will be used to configure the placement of AWS instances.",
+      "type": "object",
+      "required": [
+        "affinity"
+      ],
+      "properties": {
+        "affinity": {
+          "description": "affinity specifies the affinity setting for the instance. Allowed values are AnyAvailable and DedicatedHost. When Affinity is set to DedicatedHost, an instance started onto a specific host always restarts on the same host if stopped. In this scenario, the `dedicatedHost` field must be set. When Affinity is set to AnyAvailable, and you stop and restart the instance, it can be restarted on any available host. When Affinity is set to AnyAvailable and the `dedicatedHost` field is defined, it runs on specified Dedicated Host, but may move if stopped.",
+          "type": "string"
+        },
+        "dedicatedHost": {
+          "description": "dedicatedHost specifies the exact host that an instance should be restarted on if stopped. dedicatedHost is required when 'affinity' is set to DedicatedHost, and optional otherwise.",
+          "$ref": "#/definitions/com.github.openshift.api.machine.v1beta1.DedicatedHost"
+        }
+      },
+      "x-kubernetes-unions": [
+        {
+          "discriminator": "affinity",
+          "fields-to-discriminateBy": {
+            "dedicatedHost": "DedicatedHost"
+          }
+        }
+      ]
     },
     "com.github.openshift.api.machine.v1beta1.Image": {
       "description": "Image is a mirror of azure sdk compute.ImageReference",
@@ -23130,7 +23471,7 @@
       ],
       "properties": {
         "maxUnhealthy": {
-          "description": "Any farther remediation is only allowed if at most \"MaxUnhealthy\" machines selected by \"selector\" are not healthy. Expects either a postive integer value or a percentage value. Percentage values must be positive whole numbers and are capped at 100%. Both 0 and 0% are valid and will block all remediation.",
+          "description": "Any farther remediation is only allowed if at most \"MaxUnhealthy\" machines selected by \"selector\" are not healthy. Expects either a postive integer value or a percentage value. Percentage values must be positive whole numbers and are capped at 100%. Both 0 and 0% are valid and will block all remediation. Defaults to 100% if not set.",
           "$ref": "#/definitions/io.k8s.apimachinery.pkg.util.intstr.IntOrString"
         },
         "nodeStartupTimeout": {
@@ -23671,12 +24012,16 @@
           "description": "availabilityZone is the availability zone of the instance",
           "type": "string"
         },
+        "host": {
+          "description": "host configures placement on AWS Dedicated Hosts. This allows admins to assign instances to specific host for a variety of needs including for regulatory compliance, to leverage existing per-socket or per-core software licenses (BYOL), and to gain visibility and control over instance placement on a physical server. When omitted, the instance is not constrained to a dedicated host.",
+          "$ref": "#/definitions/com.github.openshift.api.machine.v1beta1.HostPlacement"
+        },
         "region": {
           "description": "region is the region to use to create the instance",
           "type": "string"
         },
         "tenancy": {
-          "description": "tenancy indicates if instance should run on shared or single-tenant hardware. There are supported 3 options: default, dedicated and host.",
+          "description": "tenancy indicates if instance should run on shared or single-tenant hardware. There are supported 3 options: default, dedicated and host. When set to default Runs on shared multi-tenant hardware. When dedicated Runs on single-tenant hardware (any dedicated instance hardware). When host and the host object is not provided: Runs on Dedicated Host; best-effort restart on same host. When `host` and `host` object is provided with affinity `dedicatedHost` defined: Runs on specified Dedicated Host.",
           "type": "string"
         }
       }
@@ -24055,92 +24400,161 @@
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.BuildInputs": {
-      "description": "BuildInputs holds all of the information needed to trigger a build",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImage": {
+      "description": "InternalReleaseImage is used to keep track and manage a set of release bundles (OCP and OLM operators images) that are stored into the control planes nodes.\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
       "type": "object",
       "required": [
-        "baseImagePullSecret",
-        "imageBuilder",
-        "renderedImagePushSecret",
-        "renderedImagePushspec"
+        "metadata",
+        "spec"
       ],
       "properties": {
-        "baseImagePullSecret": {
-          "description": "baseImagePullSecret is the secret used to pull the base image. must live in the openshift-machine-config-operator namespace",
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
           "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.ImageSecretObjectReference"
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
-        "baseOSExtensionsImagePullspec": {
-          "description": "baseOSExtensionsImagePullspec is the base Extensions image used in the build process the MachineOSConfig object will use the in cluster image registry configuration. if you wish to use a mirror or any other settings specific to registries.conf, please specify those in the cluster wide registries.conf. The format of the image pullspec is: host[:port][/namespace]/name@sha256:<digest>",
-          "type": "string"
-        },
-        "baseOSImagePullspec": {
-          "description": "baseOSImagePullspec is the base OSImage we use to build our custom image. the MachineOSConfig object will use the in cluster image registry configuration. if you wish to use a mirror or any other settings specific to registries.conf, please specify those in the cluster wide registries.conf. The format of the image pullspec is: host[:port][/namespace]/name@sha256:<digest>",
-          "type": "string"
-        },
-        "containerFile": {
-          "description": "containerFile describes the custom data the user has specified to build into the image. this is also commonly called a Dockerfile and you can treat it as such. The content is the content of your Dockerfile.",
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSContainerfile"
-          },
-          "x-kubernetes-list-map-keys": [
-            "containerfileArch"
-          ],
-          "x-kubernetes-list-type": "map",
-          "x-kubernetes-patch-merge-key": "containerfileArch",
-          "x-kubernetes-patch-strategy": "merge"
-        },
-        "imageBuilder": {
-          "description": "machineOSImageBuilder describes which image builder will be used in each build triggered by this MachineOSConfig",
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSImageBuilder"
-        },
-        "releaseVersion": {
-          "description": "releaseVersion is associated with the base OS Image. This is the version of Openshift that the Base Image is associated with. This field is populated from the machine-config-osimageurl configmap in the openshift-machine-config-operator namespace. It will come in the format: 4.16.0-0.nightly-2024-04-03-065948 or any valid release. The MachineOSBuilder populates this field and validates that this is a valid stream. This is used as a label in the dockerfile that builds the OS image.",
-          "type": "string"
-        },
-        "renderedImagePushSecret": {
-          "description": "renderedImagePushSecret is the secret used to connect to a user registry. the final image push and pull secrets should be separate for security concerns. If the final image push secret is somehow exfiltrated, that gives someone the power to push images to the image repository. By comparison, if the final image pull secret gets exfiltrated, that only gives someone to pull images from the image repository. It's basically the principle of least permissions. this push secret will be used only by the MachineConfigController pod to push the image to the final destination. Not all nodes will need to push this image, most of them will only need to pull the image in order to use it.",
+        "spec": {
+          "description": "spec describes the configuration of this internal release image.",
           "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.ImageSecretObjectReference"
+          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageSpec"
         },
-        "renderedImagePushspec": {
-          "description": "renderedImagePushspec describes the location of the final image. the MachineOSConfig object will use the in cluster image registry configuration. if you wish to use a mirror or any other settings specific to registries.conf, please specify those in the cluster wide registries.conf. The format of the image pushspec is: host[:port][/namespace]/name:<tag> or svc_name.namespace.svc[:port]/repository/name:<tag>",
-          "type": "string",
-          "default": ""
+        "status": {
+          "description": "status describes the last observed state of this internal release image.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageStatus"
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.BuildOutputs": {
-      "description": "BuildOutputs holds all information needed to handle booting the image after a build",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageBundleStatus": {
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
-        "currentImagePullSecret": {
-          "description": "currentImagePullSecret is the secret used to pull the final produced image. must live in the openshift-machine-config-operator namespace the final image push and pull secrets should be separate for security concerns. If the final image push secret is somehow exfiltrated, that gives someone the power to push images to the image repository. By comparison, if the final image pull secret gets exfiltrated, that only gives someone to pull images from the image repository. It's basically the principle of least permissions. this pull secret will be used on all nodes in the pool. These nodes will need to pull the final OS image and boot into it using rpm-ostree or bootc.",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.ImageSecretObjectReference"
+        "conditions": {
+          "description": "conditions represent the observations of an internal release image current state. Valid types are: Mounted, Installing, Available, Removing and Degraded.\n\nIf Mounted is true, that means that a valid ISO has been discovered and mounted on one of the cluster nodes. If Installing is true, that means that a new release bundle is currently being copied on one (or more) cluster nodes, and not yet completed. If Available is true, it means that the release has been previously installed on all the cluster nodes, and it can be used. If Removing is true, it means that a release deletion is in progress on one (or more) cluster nodes, and not yet completed. If Degraded is true, that means something has gone wrong (possibly on one or more cluster nodes).\n\nIn general, after installing a new release bundle, it is required to wait for the Conditions \"Available\" to become \"True\" (and all the other conditions to be equal to \"False\") before being able to pull its content.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "image": {
+          "description": "image is an OCP release image referenced by digest. The format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters. The field is optional, and it will be provided after a release will be successfully installed.",
+          "type": "string"
+        },
+        "name": {
+          "description": "name indicates the desired release bundle identifier. This field is required and must be between 1 and 64 characters long. The expected name format is ocp-release-bundle-<version>-<arch|stream>.",
+          "type": "string"
         }
-      },
-      "x-kubernetes-unions": [
-        {
-          "fields-to-discriminateBy": {
-            "currentImagePullSecret": "CurrentImagePullSecret"
-          }
-        }
-      ]
+      }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.ImageSecretObjectReference": {
-      "description": "Refers to the name of an image registry push/pull secret needed in the build process.",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageList": {
+      "description": "InternalReleaseImageList is a list of InternalReleaseImage resources\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+      "type": "object",
+      "required": [
+        "metadata",
+        "items"
+      ],
+      "properties": {
+        "apiVersion": {
+          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImage"
+          }
+        },
+        "kind": {
+          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+          "default": {},
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
+        }
+      }
+    },
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageRef": {
+      "description": "InternalReleaseImageRef is used to provide a simple reference for a release bundle. Currently it contains only the name field.",
       "type": "object",
       "required": [
         "name"
       ],
       "properties": {
         "name": {
-          "description": "name is the name of the secret used to push or pull this MachineOSConfig object. this secret must be in the openshift-machine-config-operator namespace.",
-          "type": "string",
-          "default": ""
+          "description": "name indicates the desired release bundle identifier. This field is required and must be between 1 and 64 characters long. The expected name format is ocp-release-bundle-<version>-<arch|stream>.",
+          "type": "string"
+        }
+      }
+    },
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageSpec": {
+      "description": "InternalReleaseImageSpec defines the desired state of a InternalReleaseImage.",
+      "type": "object",
+      "required": [
+        "releases"
+      ],
+      "properties": {
+        "releases": {
+          "description": "releases is a list of release bundle identifiers that the user wants to add/remove to/from the control plane nodes. Entries must be unique, keyed on the name field. releases must contain at least one entry and must not exceed 16 entries.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageRef"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
+        }
+      }
+    },
+    "com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageStatus": {
+      "description": "InternalReleaseImageStatus describes the current state of a InternalReleaseImage.",
+      "type": "object",
+      "required": [
+        "releases"
+      ],
+      "properties": {
+        "conditions": {
+          "description": "conditions represent the observations of the InternalReleaseImage controller current state. Valid types are: Degraded. If Degraded is true, that means something has gone wrong in the controller.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+          },
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "x-kubernetes-list-type": "map"
+        },
+        "releases": {
+          "description": "releases is a list of the release bundles currently owned and managed by the cluster. A release bundle content could be safely pulled only when its Conditions field contains at least an Available entry set to \"True\" and Degraded to \"False\". Entries must be unique, keyed on the name field. releases must contain at least one entry and must not exceed 32 entries.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.InternalReleaseImageBundleStatus"
+          },
+          "x-kubernetes-list-map-keys": [
+            "name"
+          ],
+          "x-kubernetes-list-type": "map"
         }
       }
     },
@@ -24352,22 +24766,8 @@
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineConfigPoolReference": {
-      "description": "Refers to the name of a MachineConfigPool (e.g., \"worker\", \"infra\", etc.): the MachineOSBuilder pod validates that the user has provided a valid pool",
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "description": "name of the MachineConfigPool object.",
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuild": {
-      "description": "MachineOSBuild describes a build process managed and deployed by the MCO Compatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStream": {
+      "description": "OSImageStream describes a set of streams and associated images available for the MachineConfigPools to be used as base OS images.\n\nThe resource is a singleton named \"cluster\".\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
       "type": "object",
       "required": [
         "spec"
@@ -24382,23 +24782,23 @@
           "type": "string"
         },
         "metadata": {
+          "description": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
           "default": {},
           "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
         },
         "spec": {
-          "description": "spec describes the configuration of the machine os build",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuildSpec"
+          "description": "spec contains the desired OSImageStream config configuration.",
+          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamSpec"
         },
         "status": {
-          "description": "status describes the lst observed state of this machine os build",
+          "description": "status describes the last observed state of this OSImageStream. Populated by the MachineConfigOperator after reading release metadata. When not present, the controller has not yet reconciled this resource.",
           "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuildStatus"
+          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamStatus"
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuildList": {
-      "description": "MachineOSBuildList describes all of the Builds on the system\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamList": {
+      "description": "OSImageStreamList is a list of OSImageStream resources\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
       "type": "object",
       "required": [
         "metadata",
@@ -24413,7 +24813,7 @@
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuild"
+            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStream"
           }
         },
         "kind": {
@@ -24421,308 +24821,61 @@
           "type": "string"
         },
         "metadata": {
+          "description": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
           "default": {},
           "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuildSpec": {
-      "description": "MachineOSBuildSpec describes information about a build process primarily populated from a MachineOSConfig object.",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamSet": {
       "type": "object",
       "required": [
-        "configGeneration",
-        "desiredConfig",
-        "machineOSConfig",
-        "version",
-        "renderedImagePushspec"
-      ],
-      "properties": {
-        "configGeneration": {
-          "description": "configGeneration tracks which version of MachineOSConfig this build is based off of",
-          "type": "integer",
-          "format": "int64",
-          "default": 0
-        },
-        "desiredConfig": {
-          "description": "desiredConfig is the desired config we want to build an image for.",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.RenderedMachineConfigReference"
-        },
-        "machineOSConfig": {
-          "description": "machineOSConfig is the config object which the build is based off of",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigReference"
-        },
-        "renderedImagePushspec": {
-          "description": "renderedImagePushspec is set from the MachineOSConfig The format of the image pullspec is: host[:port][/namespace]/name:<tag> or svc_name.namespace.svc[:port]/repository/name:<tag>",
-          "type": "string",
-          "default": ""
-        },
-        "version": {
-          "description": "version tracks the newest MachineOSBuild for each MachineOSConfig",
-          "type": "integer",
-          "format": "int64",
-          "default": 0
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuildStatus": {
-      "description": "MachineOSBuildStatus describes the state of a build and other helpful information.",
-      "type": "object",
-      "required": [
-        "buildStart"
-      ],
-      "properties": {
-        "buildEnd": {
-          "description": "buildEnd describes when the build ended.",
-          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
-        },
-        "buildStart": {
-          "description": "buildStart describes when the build started.",
-          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
-        },
-        "builderReference": {
-          "description": "ImageBuilderType describes the image builder set in the MachineOSConfig",
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuilderReference"
-        },
-        "conditions": {
-          "description": "conditions are state related conditions for the build. Valid types are: Prepared, Building, Failed, Interrupted, and Succeeded once a Build is marked as Failed, no future conditions can be set. This is enforced by the MCO.",
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
-          },
-          "x-kubernetes-list-map-keys": [
-            "type"
-          ],
-          "x-kubernetes-list-type": "map"
-        },
-        "finalImagePullspec": {
-          "description": "finalImagePushSpec describes the fully qualified pushspec produced by this build that the final image can be. Must be in sha format.",
-          "type": "string"
-        },
-        "relatedObjects": {
-          "description": "relatedObjects is a list of objects that are related to the build process.",
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.ObjectReference"
-          }
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSBuilderReference": {
-      "description": "MachineOSBuilderReference describes which ImageBuilder backend to use for this build/",
-      "type": "object",
-      "required": [
-        "imageBuilderType"
-      ],
-      "properties": {
-        "buildPod": {
-          "description": "relatedObjects is a list of objects that are related to the build process.",
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.ObjectReference"
-        },
-        "imageBuilderType": {
-          "description": "imageBuilderType describes the image builder set in the MachineOSConfig",
-          "type": "string",
-          "default": ""
-        }
-      },
-      "x-kubernetes-unions": [
-        {
-          "discriminator": "imageBuilderType",
-          "fields-to-discriminateBy": {
-            "buildPod": "PodImageBuilder"
-          }
-        }
-      ]
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfig": {
-      "description": "MachineOSConfig describes the configuration for a build process managed by the MCO Compatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
-      "type": "object",
-      "required": [
-        "spec"
-      ],
-      "properties": {
-        "apiVersion": {
-          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-          "type": "string"
-        },
-        "kind": {
-          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-          "type": "string"
-        },
-        "metadata": {
-          "default": {},
-          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
-        },
-        "spec": {
-          "description": "spec describes the configuration of the machineosconfig",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigSpec"
-        },
-        "status": {
-          "description": "status describes the status of the machineosconfig",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigStatus"
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigList": {
-      "description": "MachineOSConfigList describes all configurations for image builds on the system\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
-      "type": "object",
-      "required": [
-        "items"
-      ],
-      "properties": {
-        "apiVersion": {
-          "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-          "type": "string"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "default": {},
-            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfig"
-          }
-        },
-        "kind": {
-          "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-          "type": "string"
-        },
-        "metadata": {
-          "default": {},
-          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigReference": {
-      "description": "MachineOSConfigReference refers to the MachineOSConfig this build is based off of",
-      "type": "object",
-      "required": [
-        "name"
+        "name",
+        "osImage",
+        "osExtensionsImage"
       ],
       "properties": {
         "name": {
-          "description": "name of the MachineOSConfig",
-          "type": "string",
-          "default": ""
+          "description": "name is the required identifier of the stream.\n\nname is determined by the operator based on the OCI label of the discovered OS or Extension Image.\n\nMust be a valid RFC 1123 subdomain between 1 and 253 characters in length, consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.').",
+          "type": "string"
+        },
+        "osExtensionsImage": {
+          "description": "osExtensionsImage is a required OS Extensions Image referenced by digest.\n\nosExtensionsImage bundles the extra repositories used to enable extensions, augmenting the base operating system without modifying the underlying immutable osImage.\n\nThe format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters.",
+          "type": "string"
+        },
+        "osImage": {
+          "description": "osImage is a required OS Image referenced by digest.\n\nosImage contains the immutable, fundamental operating system components, including the kernel and base utilities, that define the core environment for the node's host operating system.\n\nThe format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters.",
+          "type": "string"
         }
       }
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigSpec": {
-      "description": "MachineOSConfigSpec describes user-configurable options as well as information about a build process.",
-      "type": "object",
-      "required": [
-        "machineConfigPool",
-        "buildInputs"
-      ],
-      "properties": {
-        "buildInputs": {
-          "description": "buildInputs is where user input options for the build live",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.BuildInputs"
-        },
-        "buildOutputs": {
-          "description": "buildOutputs is where user input options for the build live",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.BuildOutputs"
-        },
-        "machineConfigPool": {
-          "description": "machineConfigPool is the pool which the build is for",
-          "default": {},
-          "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.MachineConfigPoolReference"
-        }
-      }
+    "com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamSpec": {
+      "description": "OSImageStreamSpec defines the desired state of a OSImageStream.",
+      "type": "object"
     },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSConfigStatus": {
-      "description": "MachineOSConfigStatus describes the status this config object and relates it to the builds associated with this MachineOSConfig",
+    "com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamStatus": {
+      "description": "OSImageStreamStatus describes the current state of a OSImageStream",
       "type": "object",
       "required": [
-        "observedGeneration"
+        "availableStreams",
+        "defaultStream"
       ],
       "properties": {
-        "conditions": {
-          "description": "conditions are state related conditions for the config.",
+        "availableStreams": {
+          "description": "availableStreams is a list of the available OS Image Streams that can be used as the base image for MachineConfigPools. availableStreams is required, must have at least one item, must not exceed 100 items, and must have unique entries keyed on the name field.",
           "type": "array",
           "items": {
             "default": {},
-            "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Condition"
+            "$ref": "#/definitions/com.github.openshift.api.machineconfiguration.v1alpha1.OSImageStreamSet"
           },
           "x-kubernetes-list-map-keys": [
-            "type"
+            "name"
           ],
           "x-kubernetes-list-type": "map"
         },
-        "currentImagePullspec": {
-          "description": "currentImagePullspec is the fully qualified image pull spec used by the MCO to pull down the new OSImage. This must include sha256.",
+        "defaultStream": {
+          "description": "defaultStream is the name of the stream that should be used as the default when no specific stream is requested by a MachineConfigPool.\n\nIt must be a valid RFC 1123 subdomain between 1 and 253 characters in length, consisting of lowercase alphanumeric characters, hyphens ('-'), and periods ('.'), and must reference the name of one of the streams in availableStreams.",
           "type": "string"
-        },
-        "observedGeneration": {
-          "description": "observedGeneration represents the generation observed by the controller. this field is updated when the user changes the configuration in BuildSettings or the MCP this object is associated with.",
-          "type": "integer",
-          "format": "int64"
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSContainerfile": {
-      "description": "MachineOSContainerfile contains all custom content the user wants built into the image",
-      "type": "object",
-      "required": [
-        "content"
-      ],
-      "properties": {
-        "containerfileArch": {
-          "description": "containerfileArch describes the architecture this containerfile is to be built for this arch is optional. If the user does not specify an architecture, it is assumed that the content can be applied to all architectures, or in a single arch cluster: the only architecture.",
-          "type": "string"
-        },
-        "content": {
-          "description": "content is the custom content to be built",
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.MachineOSImageBuilder": {
-      "type": "object",
-      "required": [
-        "imageBuilderType"
-      ],
-      "properties": {
-        "imageBuilderType": {
-          "description": "imageBuilderType specifies the backend to be used to build the image. Valid options are: PodImageBuilder",
-          "type": "string",
-          "default": ""
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.ObjectReference": {
-      "description": "ObjectReference contains enough information to let you inspect or modify the referred object.",
-      "type": "object",
-      "required": [
-        "group",
-        "resource",
-        "name"
-      ],
-      "properties": {
-        "group": {
-          "description": "group of the referent.",
-          "type": "string",
-          "default": ""
-        },
-        "name": {
-          "description": "name of the referent.",
-          "type": "string",
-          "default": ""
-        },
-        "namespace": {
-          "description": "namespace of the referent.",
-          "type": "string"
-        },
-        "resource": {
-          "description": "resource of the referent.",
-          "type": "string",
-          "default": ""
         }
       }
     },
@@ -24733,9 +24886,8 @@
       ],
       "properties": {
         "name": {
-          "description": "name is an OCI Image referenced by digest.\n\nThe format of the image ref is: host[:port][/namespace]/name@sha256:<digest>",
-          "type": "string",
-          "default": ""
+          "description": "name is an OCI Image referenced by digest. The format of the image pull spec is: host[:port][/namespace]/name@sha256:<digest>, where the digest must be 64 characters long, and consist only of lowercase hexadecimal characters, a-f and 0-9. The length of the whole spec must be between 1 to 447 characters.",
+          "type": "string"
         }
       }
     },
@@ -24836,20 +24988,6 @@
             "type"
           ],
           "x-kubernetes-list-type": "map"
-        }
-      }
-    },
-    "com.github.openshift.api.machineconfiguration.v1alpha1.RenderedMachineConfigReference": {
-      "description": "Refers to the name of a rendered MachineConfig (e.g., \"rendered-worker-ec40d2965ff81bce7cd7a7e82a680739\", etc.): the build targets this MachineConfig, this is often used to tell us whether we need an update.",
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "name": {
-          "description": "name is the name of the rendered MachineConfig object.",
-          "type": "string",
-          "default": ""
         }
       }
     },
@@ -27562,6 +27700,64 @@
         }
       }
     },
+    "com.github.openshift.api.operator.v1.BootImageSkewEnforcementConfig": {
+      "description": "BootImageSkewEnforcementConfig is used to configure how boot image version skew is enforced on the cluster.",
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "manual": {
+          "description": "manual describes the current boot image of the cluster. This should be set to the oldest boot image used amongst all machine resources in the cluster. This must include either the RHCOS version of the boot image or the OCP release version which shipped with that RHCOS boot image. Required when mode is set to \"Manual\" and forbidden otherwise.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.ClusterBootImageManual"
+        },
+        "mode": {
+          "description": "mode determines the underlying behavior of skew enforcement mechanism. Valid values are Manual and None. Manual means that the cluster admin is expected to perform manual boot image updates and store the OCP & RHCOS version associated with the last boot image update in the manual field. In Manual mode, the MCO will prevent upgrades when the boot image skew exceeds the skew limit described by the release image. None means that the MCO will no longer monitor the boot image skew. This may affect the cluster's ability to scale. This field is required.",
+          "type": "string"
+        }
+      },
+      "x-kubernetes-unions": [
+        {
+          "discriminator": "mode",
+          "fields-to-discriminateBy": {
+            "manual": "Manual"
+          }
+        }
+      ]
+    },
+    "com.github.openshift.api.operator.v1.BootImageSkewEnforcementStatus": {
+      "description": "BootImageSkewEnforcementStatus is the type for the status object. It represents the cluster defaults when the boot image skew enforcement configuration is undefined and reflects the actual configuration when it is defined.",
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "automatic": {
+          "description": "automatic describes the current boot image of the cluster. This will be populated by the MCO when performing boot image updates. This value will be compared against the cluster's skew limit to determine skew compliance. Required when mode is set to \"Automatic\" and forbidden otherwise.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.ClusterBootImageAutomatic"
+        },
+        "manual": {
+          "description": "manual describes the current boot image of the cluster. This will be populated by the MCO using the values provided in the spec.bootImageSkewEnforcement.manual field. This value will be compared against the cluster's skew limit to determine skew compliance. Required when mode is set to \"Manual\" and forbidden otherwise.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.ClusterBootImageManual"
+        },
+        "mode": {
+          "description": "mode determines the underlying behavior of skew enforcement mechanism. Valid values are Automatic, Manual and None. Automatic means that the MCO will perform boot image updates and store the OCP & RHCOS version associated with the last boot image update in the automatic field. Manual means that the cluster admin is expected to perform manual boot image updates and store the OCP & RHCOS version associated with the last boot image update in the manual field. In Automatic and Manual mode, the MCO will prevent upgrades when the boot image skew exceeds the skew limit described by the release image. None means that the MCO will no longer monitor the boot image skew. This may affect the cluster's ability to scale. This field is required.",
+          "type": "string"
+        }
+      },
+      "x-kubernetes-unions": [
+        {
+          "discriminator": "mode",
+          "fields-to-discriminateBy": {
+            "automatic": "Automatic",
+            "manual": "Manual"
+          }
+        }
+      ]
+    },
     "com.github.openshift.api.operator.v1.CSIDriverConfigSpec": {
       "description": "CSIDriverConfigSpec defines configuration spec that can be used to optionally configure a specific CSI Driver.",
       "type": "object",
@@ -27967,6 +28163,50 @@
           "type": "string"
         }
       }
+    },
+    "com.github.openshift.api.operator.v1.ClusterBootImageAutomatic": {
+      "description": "ClusterBootImageAutomatic is used to describe the cluster boot image in Automatic mode. It stores the RHCOS version of the boot image and the OCP release version which shipped with that RHCOS boot image. At least one of these values are required. If ocpVersion and rhcosVersion are defined, both values will be used for checking skew compliance. If only ocpVersion is defined, only that value will be used for checking skew compliance. If only rhcosVersion is defined, only that value will be used for checking skew compliance.",
+      "type": "object",
+      "properties": {
+        "ocpVersion": {
+          "description": "ocpVersion provides a string which represents the OCP version of the boot image. This field must match the OCP semver compatible format of x.y.z. This field must be between 5 and 10 characters long.",
+          "type": "string"
+        },
+        "rhcosVersion": {
+          "description": "rhcosVersion provides a string which represents the RHCOS version of the boot image This field must match rhcosVersion formatting of [major].[minor].[datestamp(YYYYMMDD)]-[buildnumber] or the legacy format of [major].[minor].[timestamp(YYYYMMDDHHmm)]-[buildnumber]. This field must be between 14 and 21 characters long.",
+          "type": "string"
+        }
+      }
+    },
+    "com.github.openshift.api.operator.v1.ClusterBootImageManual": {
+      "description": "ClusterBootImageManual is used to describe the cluster boot image in Manual mode.",
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "description": "mode is used to configure which boot image field is defined in Manual mode. Valid values are OCPVersion and RHCOSVersion. OCPVersion means that the cluster admin is expected to set the OCP version associated with the last boot image update in the OCPVersion field. RHCOSVersion means that the cluster admin is expected to set the RHCOS version associated with the last boot image update in the RHCOSVersion field. This field is required.",
+          "type": "string"
+        },
+        "ocpVersion": {
+          "description": "ocpVersion provides a string which represents the OCP version of the boot image. This field must match the OCP semver compatible format of x.y.z. This field must be between 5 and 10 characters long. Required when mode is set to \"OCPVersion\" and forbidden otherwise.",
+          "type": "string"
+        },
+        "rhcosVersion": {
+          "description": "rhcosVersion provides a string which represents the RHCOS version of the boot image This field must match rhcosVersion formatting of [major].[minor].[datestamp(YYYYMMDD)]-[buildnumber] or the legacy format of [major].[minor].[timestamp(YYYYMMDDHHmm)]-[buildnumber]. This field must be between 14 and 21 characters long. Required when mode is set to \"RHCOSVersion\" and forbidden otherwise.",
+          "type": "string"
+        }
+      },
+      "x-kubernetes-unions": [
+        {
+          "discriminator": "mode",
+          "fields-to-discriminateBy": {
+            "ocpVersion": "OCPVersion",
+            "rhcosVersion": "RHCOSVersion"
+          }
+        }
+      ]
     },
     "com.github.openshift.api.operator.v1.ClusterCSIDriver": {
       "description": "ClusterCSIDriver object allows management and configuration of a CSI driver operator installed by default in OpenShift. Name of the object must be name of the CSI driver it operates. See CSIDriverName type for list of allowed values.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
@@ -30026,12 +30266,17 @@
           "default": {},
           "$ref": "#/definitions/com.github.openshift.api.operator.v1.ClientTLS"
         },
+        "closedClientConnectionPolicy": {
+          "description": "closedClientConnectionPolicy controls how the IngressController behaves when the client closes the TCP connection while the TLS handshake or HTTP request is in progress. This option maps directly to HAProxy’s \"abortonclose\" option.\n\nValid values are: \"Abort\" and \"Continue\". The default value is \"Continue\".\n\nWhen set to \"Abort\", the router will stop processing the TLS handshake if it is in progress, and it will not send an HTTP request to the backend server if the request has not yet been sent when the client closes the connection.\n\nWhen set to \"Continue\", the router will complete the TLS handshake if it is in progress, or send an HTTP request to the backend server and wait for the backend server's response, regardless of whether the client has closed the connection.\n\nSetting \"Abort\" can help free CPU resources otherwise spent on TLS computation for connections the client has already closed, and can reduce request queue size, thereby reducing the load on saturated backend servers.\n\nImportant Considerations:\n\n  - The default policy (\"Continue\") is HTTP-compliant, and requests\n    for aborted client connections will still be served.\n    Use the \"Continue\" policy to allow a client to send a request\n    and then immediately close its side of the connection while\n    still receiving a response on the half-closed connection.\n\n  - When clients use keep-alive connections, the most common case for premature\n    closure is when the user wants to cancel the transfer or when a timeout\n    occurs. In that case, the \"Abort\" policy may be used to reduce resource consumption.\n\n  - Using RSA keys larger than 2048 bits can significantly slow down\n    TLS computations. Consider using the \"Abort\" policy to reduce CPU usage.",
+          "type": "string",
+          "default": "Continue"
+        },
         "defaultCertificate": {
           "description": "defaultCertificate is a reference to a secret containing the default certificate served by the ingress controller. When Routes don't specify their own certificate, defaultCertificate is used.\n\nThe secret must contain the following keys and data:\n\n  tls.crt: certificate file contents\n  tls.key: key file contents\n\nIf unset, a wildcard certificate is automatically generated and used. The certificate is valid for the ingress controller domain (and subdomains) and the generated certificate's CA will be automatically integrated with the cluster's trust store.\n\nIf a wildcard certificate is used and shared by multiple HTTP/2 enabled routes (which implies ALPN) then clients (i.e., notably browsers) are at liberty to reuse open connections. This means a client can reuse a connection to another route and that is likely to fail. This behaviour is generally known as connection coalescing.\n\nThe in-use certificate (whether generated or user-specified) will be automatically integrated with OpenShift's built-in OAuth server.",
           "$ref": "#/definitions/io.k8s.api.core.v1.LocalObjectReference"
         },
         "domain": {
-          "description": "domain is a DNS name serviced by the ingress controller and is used to configure multiple features:\n\n* For the LoadBalancerService endpoint publishing strategy, domain is\n  used to configure DNS records. See endpointPublishingStrategy.\n\n* When using a generated default certificate, the certificate will be valid\n  for domain and its subdomains. See defaultCertificate.\n\n* The value is published to individual Route statuses so that end-users\n  know where to target external DNS records.\n\ndomain must be unique among all IngressControllers, and cannot be updated.\n\nIf empty, defaults to ingress.config.openshift.io/cluster .spec.domain.",
+          "description": "domain is a DNS name serviced by the ingress controller and is used to configure multiple features:\n\n* For the LoadBalancerService endpoint publishing strategy, domain is\n  used to configure DNS records. See endpointPublishingStrategy.\n\n* When using a generated default certificate, the certificate will be valid\n  for domain and its subdomains. See defaultCertificate.\n\n* The value is published to individual Route statuses so that end-users\n  know where to target external DNS records.\n\ndomain must be unique among all IngressControllers, and cannot be updated.\n\nIf empty, defaults to ingress.config.openshift.io/cluster .spec.domain.\n\nThe domain value must be a valid DNS name. It must consist of lowercase alphanumeric characters, '-' or '.', and each label must start and end with an alphanumeric character and not exceed 63 characters. Maximum length of a valid DNS domain is 253 characters.\n\nThe implementation may add a prefix such as \"router-default.\" to the domain when constructing the router canonical hostname. To ensure the resulting hostname does not exceed the DNS maximum length of 253 characters, the domain length is additionally validated at the IngressController object level. For the maximum length of the domain value itself, the shortest possible variant of the prefix and the ingress controller name was considered for example \"router-a.\"",
           "type": "string"
         },
         "endpointPublishingStrategy": {
@@ -30057,7 +30302,7 @@
           "$ref": "#/definitions/com.github.openshift.api.operator.v1.IngressControllerHTTPHeaders"
         },
         "idleConnectionTerminationPolicy": {
-          "description": "idleConnectionTerminationPolicy maps directly to HAProxy's idle-close-on-response option and controls whether HAProxy keeps idle frontend connections open during a soft stop (router reload).\n\nAllowed values for this field are \"Immediate\" and \"Deferred\". The default value is \"Immediate\".\n\nWhen set to \"Immediate\", idle connections are closed immediately during router reloads. This ensures immediate propagation of route changes but may impact clients sensitive to connection resets.\n\nWhen set to \"Deferred\", HAProxy will maintain idle connections during a soft reload instead of closing them immediately. These connections remain open until any of the following occurs:\n\n  - A new request is received on the connection, in which\n    case HAProxy handles it in the old process and closes\n    the connection after sending the response.\n\n  - HAProxy's `timeout http-keep-alive` duration expires\n    (300 seconds in OpenShift's configuration, not\n    configurable).\n\n  - The client's keep-alive timeout expires, causing the\n    client to close the connection.\n\nSetting Deferred can help prevent errors in clients or load balancers that do not properly handle connection resets. Additionally, this option allows you to retain the pre-2.4 HAProxy behaviour: in HAProxy version 2.2 (OpenShift versions < 4.14), maintaining idle connections during a soft reload was the default behaviour, but starting with HAProxy 2.4, the default changed to closing idle connections immediately.\n\nImportant Consideration:\n\n  - Using Deferred will result in temporary inconsistencies\n    for the first request on each persistent connection\n    after a route update and router reload. This request\n    will be processed by the old HAProxy process using its\n    old configuration. Subsequent requests will use the\n    updated configuration.\n\nOperational Considerations:\n\n  - Keeping idle connections open during reloads may lead\n    to an accumulation of old HAProxy processes if\n    connections remain idle for extended periods,\n    especially in environments where frequent reloads\n    occur.\n\n  - Consider monitoring the number of HAProxy processes in\n    the router pods when Deferred is set.\n\n  - You may need to enable or adjust the\n    `ingress.operator.openshift.io/hard-stop-after`\n    duration (configured via an annotation on the\n    IngressController resource) in environments with\n    frequent reloads to prevent resource exhaustion.",
+          "description": "idleConnectionTerminationPolicy maps directly to HAProxy's idle-close-on-response option and controls whether HAProxy keeps idle frontend connections open during a soft stop (router reload).\n\nAllowed values for this field are \"Immediate\" and \"Deferred\". The default value is \"Immediate\".\n\nWhen set to \"Immediate\", idle connections are closed immediately during router reloads. This ensures immediate propagation of route changes but may impact clients sensitive to connection resets.\n\nWhen set to \"Deferred\", HAProxy will maintain idle connections during a soft reload instead of closing them immediately. These connections remain open until any of the following occurs:\n\n  - A new request is received on the connection, in which\n    case HAProxy handles it in the old process and closes\n    the connection after sending the response.\n\n  - HAProxy's `timeout http-keep-alive` duration expires.\n    By default this is 300 seconds, but it can be changed\n    using httpKeepAliveTimeout tuning option.\n\n  - The client's keep-alive timeout expires, causing the\n    client to close the connection.\n\nSetting Deferred can help prevent errors in clients or load balancers that do not properly handle connection resets. Additionally, this option allows you to retain the pre-2.4 HAProxy behaviour: in HAProxy version 2.2 (OpenShift versions < 4.14), maintaining idle connections during a soft reload was the default behaviour, but starting with HAProxy 2.4, the default changed to closing idle connections immediately.\n\nImportant Consideration:\n\n  - Using Deferred will result in temporary inconsistencies\n    for the first request on each persistent connection\n    after a route update and router reload. This request\n    will be processed by the old HAProxy process using its\n    old configuration. Subsequent requests will use the\n    updated configuration.\n\nOperational Considerations:\n\n  - Keeping idle connections open during reloads may lead\n    to an accumulation of old HAProxy processes if\n    connections remain idle for extended periods,\n    especially in environments where frequent reloads\n    occur.\n\n  - Consider monitoring the number of HAProxy processes in\n    the router pods when Deferred is set.\n\n  - You may need to enable or adjust the\n    `ingress.operator.openshift.io/hard-stop-after`\n    duration (configured via an annotation on the\n    IngressController resource) in environments with\n    frequent reloads to prevent resource exhaustion.",
           "type": "string",
           "default": "Immediate"
         },
@@ -30184,6 +30429,10 @@
         },
         "healthCheckInterval": {
           "description": "healthCheckInterval defines how long the router waits between two consecutive health checks on its configured backends.  This value is applied globally as a default for all routes, but may be overridden per-route by the route annotation \"router.openshift.io/haproxy.health.check.interval\".\n\nExpects an unsigned duration string of decimal numbers, each with optional fraction and a unit suffix, eg \"300ms\", \"1.5h\" or \"2h45m\". Valid time units are \"ns\", \"us\" (or \"µs\" U+00B5 or \"μs\" U+03BC), \"ms\", \"s\", \"m\", \"h\".\n\nSetting this to less than 5s can cause excess traffic due to too frequent TCP health checks and accompanying SYN packet storms.  Alternatively, setting this too high can result in increased latency, due to backend servers that are no longer available, but haven't yet been detected as such.\n\nAn empty or zero healthCheckInterval means no opinion and IngressController chooses a default, which is subject to change over time. Currently the default healthCheckInterval value is 5s.\n\nCurrently the minimum allowed value is 1s and the maximum allowed value is 2147483647ms (24.85 days).  Both are subject to change over time.",
+          "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Duration"
+        },
+        "httpKeepAliveTimeout": {
+          "description": "httpKeepAliveTimeout defines the maximum allowed time to wait for a new HTTP request to appear on a connection from the client to the router.\n\nThis field expects an unsigned duration string of a decimal number, with optional fraction and a unit suffix, e.g. \"300ms\", \"1.5s\" or \"2m45s\". Valid time units are \"ms\", \"s\", \"m\". The allowed range is from 1 millisecond to 15 minutes.\n\nWhen omitted, this means the user has no opinion and the platform is left to choose a reasonable default. This default is subject to change over time. The current default is 300s.\n\nLow values (tens of milliseconds or less) can cause clients to close and reopen connections for each request, leading to reduced connection sharing. For HTTP/2, special care should be taken with low values. A few seconds is a reasonable starting point to avoid holding idle connections open while still allowing subsequent requests to reuse the connection.\n\nHigh values (minutes or more) favor connection reuse but may cause idle connections to linger longer.",
           "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Duration"
         },
         "maxConnections": {
@@ -30391,6 +30640,21 @@
         }
       }
     },
+    "com.github.openshift.api.operator.v1.IrreconcilableValidationOverrides": {
+      "description": "IrreconcilableValidationOverrides holds the irreconcilable validations overrides to be applied on each rendered MachineConfig generation.",
+      "type": "object",
+      "properties": {
+        "storage": {
+          "description": "storage can be used to allow making irreconcilable changes to the selected sections under the `spec.config.storage` field of MachineConfig CRs It must have at least one item, may not exceed 3 items and must not contain duplicates. Allowed element values are \"Disks\", \"FileSystems\", \"Raid\" and omitted. When contains \"Disks\" changes to the `spec.config.storage.disks` section of MachineConfig CRs are allowed. When contains \"FileSystems\" changes to the `spec.config.storage.filesystems` section of MachineConfig CRs are allowed. When contains \"Raid\" changes to the `spec.config.storage.raid` section of MachineConfig CRs are allowed. When omitted changes to the `spec.config.storage` section are forbidden.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "default": ""
+          },
+          "x-kubernetes-list-type": "set"
+        }
+      }
+    },
     "com.github.openshift.api.operator.v1.KubeAPIServer": {
       "description": "KubeAPIServer provides information to configure an operator to manage kube-apiserver.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
       "type": "object",
@@ -30462,6 +30726,11 @@
         "forceRedeploymentReason"
       ],
       "properties": {
+        "eventTTLMinutes": {
+          "description": "eventTTLMinutes specifies the amount of time that the events are stored before being deleted. The TTL is allowed between 5 minutes minimum up to a maximum of 180 minutes (3 hours).\n\nLowering this value will reduce the storage required in etcd. Note that this setting will only apply to new events being created and will not update existing events.\n\nWhen omitted this means no opinion, and the platform is left to choose a reasonable default, which is subject to change over time. The current default value is 3h (180 minutes).",
+          "type": "integer",
+          "format": "int32"
+        },
         "failedRevisionLimit": {
           "description": "failedRevisionLimit is the number of failed static pod installer revisions to keep on disk and in the api -1 = unlimited, 0 or unset = 5 (default)",
           "type": "integer",
@@ -30568,7 +30837,8 @@
           "items": {
             "default": {},
             "$ref": "#/definitions/com.github.openshift.api.operator.v1.ServiceAccountIssuerStatus"
-          }
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "version": {
           "description": "version is the level this availability applies to",
@@ -31278,6 +31548,11 @@
         "forceRedeploymentReason"
       ],
       "properties": {
+        "bootImageSkewEnforcement": {
+          "description": "bootImageSkewEnforcement allows an admin to configure how boot image version skew is enforced on the cluster. When omitted, this will default to Automatic for clusters that support automatic boot image updates. For clusters that do not support automatic boot image updates, cluster upgrades will be disabled until a skew enforcement mode has been specified. When version skew is being enforced, cluster upgrades will be disabled until the version skew is deemed acceptable for the current release payload.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.BootImageSkewEnforcementConfig"
+        },
         "failedRevisionLimit": {
           "description": "failedRevisionLimit is the number of failed static pod installer revisions to keep on disk and in the api -1 = unlimited, 0 or unset = 5 (default)",
           "type": "integer",
@@ -31287,6 +31562,11 @@
           "description": "forceRedeploymentReason can be used to force the redeployment of the operand by providing a unique string. This provides a mechanism to kick a previously failed deployment and provide a reason why you think it will work this time instead of failing again on the same config.",
           "type": "string",
           "default": ""
+        },
+        "irreconcilableValidationOverrides": {
+          "description": "irreconcilableValidationOverrides is an optional field that can used to make changes to a MachineConfig that cannot be applied to existing nodes. When specified, the fields configured with validation overrides will no longer reject changes to those respective fields due to them not being able to be applied to existing nodes. Only newly provisioned nodes will have these configurations applied. Existing nodes will report observed configuration differences in their MachineConfigNode status.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.IrreconcilableValidationOverrides"
         },
         "logLevel": {
           "description": "logLevel is an intent based logging for an overall component.  It does not give fine grained control, but it is a simple way to manage coarse grained logging choices that operators have to interpret for their operands.\n\nValid values are: \"Normal\", \"Debug\", \"Trace\", \"TraceAll\". Defaults to \"Normal\".",
@@ -31329,6 +31609,11 @@
     "com.github.openshift.api.operator.v1.MachineConfigurationStatus": {
       "type": "object",
       "properties": {
+        "bootImageSkewEnforcementStatus": {
+          "description": "bootImageSkewEnforcementStatus reflects what the latest cluster-validated boot image skew enforcement configuration is and will be used by Machine Config Controller while performing boot image skew enforcement. When omitted, the MCO has no knowledge of how to enforce boot image skew. When the MCO does not know how boot image skew should be enforced, cluster upgrades will be blocked until it can either automatically determine skew enforcement or there is an explicit skew enforcement configuration provided in the spec.bootImageSkewEnforcement field.",
+          "default": {},
+          "$ref": "#/definitions/com.github.openshift.api.operator.v1.BootImageSkewEnforcementStatus"
+        },
         "conditions": {
           "description": "conditions is a list of conditions and their status",
           "type": "array",
@@ -31373,7 +31658,7 @@
           "default": ""
         },
         "resource": {
-          "description": "resource is the machine management resource's type. The only current valid value is machinesets. machinesets means that the machine manager will only register resources of the kind MachineSet.",
+          "description": "resource is the machine management resource's type. Valid values are machinesets and controlplanemachinesets. machinesets means that the machine manager will only register resources of the kind MachineSet. controlplanemachinesets means that the machine manager will only register resources of the kind ControlPlaneMachineSet.",
           "type": "string",
           "default": ""
         },
@@ -31391,7 +31676,7 @@
       ],
       "properties": {
         "mode": {
-          "description": "mode determines how machine managers will be selected for updates. Valid values are All and Partial. All means that every resource matched by the machine manager will be updated. Partial requires specified selector(s) and allows customisation of which resources matched by the machine manager will be updated. None means that every resource matched by the machine manager will not be updated.",
+          "description": "mode determines how machine managers will be selected for updates. Valid values are All, Partial and None. All means that every resource matched by the machine manager will be updated. Partial requires specified selector(s) and allows customisation of which resources matched by the machine manager will be updated. Partial is not permitted for the controlplanemachinesets resource type as they are a singleton within the cluster. None means that every resource matched by the machine manager will not be updated.",
           "type": "string",
           "default": ""
         },
@@ -36934,7 +37219,7 @@
           "type": "string"
         },
         "termination": {
-          "description": "termination indicates termination type.\n\n* edge - TLS termination is done by the router and http is used to communicate with the backend (default) * passthrough - Traffic is sent straight to the destination without the router providing TLS termination * reencrypt - TLS termination is done by the router and https is used to communicate with the backend\n\nNote: passthrough termination is incompatible with httpHeader actions",
+          "description": "termination indicates the TLS termination type.\n\n* edge - TLS termination is done by the router and http is used to communicate with the backend (default)\n\n* passthrough - Traffic is sent straight to the destination without the router providing TLS termination\n\n* reencrypt - TLS termination is done by the router and https is used to communicate with the backend\n\nNote: passthrough termination is incompatible with httpHeader actions",
           "type": "string",
           "default": ""
         }
@@ -38945,7 +39230,7 @@
       "type": "object",
       "properties": {
         "fieldSelector": {
-          "description": "fieldSelector describes the limitation on access based on field.  It can only limit access, not broaden it.\n\nThis field  is alpha-level. To use this field, you must enable the `AuthorizeWithSelectors` feature gate (disabled by default).",
+          "description": "fieldSelector describes the limitation on access based on field.  It can only limit access, not broaden it.",
           "$ref": "#/definitions/io.k8s.api.authorization.v1.FieldSelectorAttributes"
         },
         "group": {
@@ -38953,7 +39238,7 @@
           "type": "string"
         },
         "labelSelector": {
-          "description": "labelSelector describes the limitation on access based on labels.  It can only limit access, not broaden it.\n\nThis field  is alpha-level. To use this field, you must enable the `AuthorizeWithSelectors` feature gate (disabled by default).",
+          "description": "labelSelector describes the limitation on access based on labels.  It can only limit access, not broaden it.",
           "$ref": "#/definitions/io.k8s.api.authorization.v1.LabelSelectorAttributes"
         },
         "name": {
@@ -40102,7 +40387,7 @@
           "x-kubernetes-patch-strategy": "merge"
         },
         "envFrom": {
-          "description": "List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
+          "description": "List of sources to populate environment variables in the container. The keys defined within a source may consist of any printable ASCII characters except '='. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
           "type": "array",
           "items": {
             "default": {},
@@ -40170,8 +40455,17 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ResourceRequirements"
         },
         "restartPolicy": {
-          "description": "RestartPolicy defines the restart behavior of individual containers in a pod. This field may only be set for init containers, and the only allowed value is \"Always\". For non-init containers or when this field is not specified, the restart behavior is defined by the Pod's restart policy and the container type. Setting the RestartPolicy as \"Always\" for the init container will have the following effect: this init container will be continually restarted on exit until all regular containers have terminated. Once all regular containers have completed, all init containers with restartPolicy \"Always\" will be shut down. This lifecycle differs from normal init containers and is often referred to as a \"sidecar\" container. Although this init container still starts in the init container sequence, it does not wait for the container to complete before proceeding to the next init container. Instead, the next init container starts immediately after this init container is started, or after any startupProbe has successfully completed.",
+          "description": "RestartPolicy defines the restart behavior of individual containers in a pod. This overrides the pod-level restart policy. When this field is not specified, the restart behavior is defined by the Pod's restart policy and the container type. Additionally, setting the RestartPolicy as \"Always\" for the init container will have the following effect: this init container will be continually restarted on exit until all regular containers have terminated. Once all regular containers have completed, all init containers with restartPolicy \"Always\" will be shut down. This lifecycle differs from normal init containers and is often referred to as a \"sidecar\" container. Although this init container still starts in the init container sequence, it does not wait for the container to complete before proceeding to the next init container. Instead, the next init container starts immediately after this init container is started, or after any startupProbe has successfully completed.",
           "type": "string"
+        },
+        "restartPolicyRules": {
+          "description": "Represents a list of rules to be checked to determine if the container should be restarted on exit. The rules are evaluated in order. Once a rule matches a container exit condition, the remaining rules are ignored. If no rule matches the container exit condition, the Container-level restart policy determines the whether the container is restarted or not. Constraints on the rules: - At most 20 rules are allowed. - Rules can have the same action. - Identical rules are not forbidden in validations. When rules are specified, container MUST set RestartPolicy explicitly even it if matches the Pod's RestartPolicy.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.ContainerRestartRule"
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "securityContext": {
           "description": "SecurityContext defines the security options the container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext. More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
@@ -40236,6 +40530,32 @@
         "workingDir": {
           "description": "Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.",
           "type": "string"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.ContainerExtendedResourceRequest": {
+      "description": "ContainerExtendedResourceRequest has the mapping of container name, extended resource name to the device request name.",
+      "type": "object",
+      "required": [
+        "containerName",
+        "resourceName",
+        "requestName"
+      ],
+      "properties": {
+        "containerName": {
+          "description": "The name of the container requesting resources.",
+          "type": "string",
+          "default": ""
+        },
+        "requestName": {
+          "description": "The name of the request in the special ResourceClaim which corresponds to the extended resource.",
+          "type": "string",
+          "default": ""
+        },
+        "resourceName": {
+          "description": "The name of the extended resource in that container which gets backed by DRA.",
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -40314,6 +40634,46 @@
           "description": "Restart policy to apply when specified resource is resized. If not specified, it defaults to NotRequired.",
           "type": "string",
           "default": ""
+        }
+      }
+    },
+    "io.k8s.api.core.v1.ContainerRestartRule": {
+      "description": "ContainerRestartRule describes how a container exit is handled.",
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "description": "Specifies the action taken on a container exit if the requirements are satisfied. The only possible value is \"Restart\" to restart the container.",
+          "type": "string"
+        },
+        "exitCodes": {
+          "description": "Represents the exit codes to check on container exits.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.ContainerRestartRuleOnExitCodes"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.ContainerRestartRuleOnExitCodes": {
+      "description": "ContainerRestartRuleOnExitCodes describes the condition for handling an exited container based on its exit codes.",
+      "type": "object",
+      "required": [
+        "operator"
+      ],
+      "properties": {
+        "operator": {
+          "description": "Represents the relationship between the container exit code(s) and the specified values. Possible values are: - In: the requirement is satisfied if the container exit code is in the\n  set of specified values.\n- NotIn: the requirement is satisfied if the container exit code is\n  not in the set of specified values.",
+          "type": "string"
+        },
+        "values": {
+          "description": "Specifies the set of values to check for container exit codes. At most 255 elements are allowed.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0
+          },
+          "x-kubernetes-list-type": "set"
         }
       }
     },
@@ -40831,7 +41191,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMapEnvSource"
         },
         "prefix": {
-          "description": "Optional text to prepend to the name of each environment variable. Must be a C_IDENTIFIER.",
+          "description": "Optional text to prepend to the name of each environment variable. May consist of any printable ASCII characters except '='.",
           "type": "string"
         },
         "secretRef": {
@@ -40848,7 +41208,7 @@
       ],
       "properties": {
         "name": {
-          "description": "Name of the environment variable. Must be a C_IDENTIFIER.",
+          "description": "Name of the environment variable. May consist of any printable ASCII characters except '='.",
           "type": "string",
           "default": ""
         },
@@ -40873,6 +41233,10 @@
         "fieldRef": {
           "description": "Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`, spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.",
           "$ref": "#/definitions/io.k8s.api.core.v1.ObjectFieldSelector"
+        },
+        "fileKeyRef": {
+          "description": "FileKeyRef selects a key of the env file. Requires the EnvFiles feature gate to be enabled.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.FileKeySelector"
         },
         "resourceFieldRef": {
           "description": "Selects a resource of the container: only resources limits and requests (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.",
@@ -40924,7 +41288,7 @@
           "x-kubernetes-patch-strategy": "merge"
         },
         "envFrom": {
-          "description": "List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
+          "description": "List of sources to populate environment variables in the container. The keys defined within a source may consist of any printable ASCII characters except '='. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
           "type": "array",
           "items": {
             "default": {},
@@ -40992,8 +41356,17 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ResourceRequirements"
         },
         "restartPolicy": {
-          "description": "Restart policy for the container to manage the restart behavior of each container within a pod. This may only be set for init containers. You cannot set this field on ephemeral containers.",
+          "description": "Restart policy for the container to manage the restart behavior of each container within a pod. You cannot set this field on ephemeral containers.",
           "type": "string"
+        },
+        "restartPolicyRules": {
+          "description": "Represents a list of rules to be checked to determine if the container should be restarted on exit. You cannot set this field on ephemeral containers.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.ContainerRestartRule"
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "securityContext": {
           "description": "Optional: SecurityContext defines the security options the ephemeral container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.",
@@ -41105,7 +41478,7 @@
           "x-kubernetes-patch-strategy": "merge"
         },
         "envFrom": {
-          "description": "List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
+          "description": "List of sources to populate environment variables in the container. The keys defined within a source may consist of any printable ASCII characters except '='. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.",
           "type": "array",
           "items": {
             "default": {},
@@ -41173,8 +41546,17 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ResourceRequirements"
         },
         "restartPolicy": {
-          "description": "Restart policy for the container to manage the restart behavior of each container within a pod. This may only be set for init containers. You cannot set this field on ephemeral containers.",
+          "description": "Restart policy for the container to manage the restart behavior of each container within a pod. You cannot set this field on ephemeral containers.",
           "type": "string"
+        },
+        "restartPolicyRules": {
+          "description": "Represents a list of rules to be checked to determine if the container should be restarted on exit. You cannot set this field on ephemeral containers.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.ContainerRestartRule"
+          },
+          "x-kubernetes-list-type": "atomic"
         },
         "securityContext": {
           "description": "Optional: SecurityContext defines the security options the ephemeral container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.",
@@ -41447,6 +41829,38 @@
         }
       }
     },
+    "io.k8s.api.core.v1.FileKeySelector": {
+      "description": "FileKeySelector selects a key of the env file.",
+      "type": "object",
+      "required": [
+        "volumeName",
+        "path",
+        "key"
+      ],
+      "properties": {
+        "key": {
+          "description": "The key within the env file. An invalid key will prevent the pod from starting. The keys defined within a source may consist of any printable ASCII characters except '='. During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.",
+          "type": "string",
+          "default": ""
+        },
+        "optional": {
+          "description": "Specify whether the file or its key must be defined. If the file or key does not exist, then the env var is not published. If optional is set to true and the specified key does not exist, the environment variable will not be set in the Pod's containers.\n\nIf optional is set to false and the specified key does not exist, an error will be returned during Pod creation.",
+          "type": "boolean",
+          "default": false
+        },
+        "path": {
+          "description": "The path within the volume from which to select the file. Must be relative and may not contain the '..' path or start with '..'.",
+          "type": "string",
+          "default": ""
+        },
+        "volumeName": {
+          "description": "The name of the volume mount containing the env file.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "x-kubernetes-map-type": "atomic"
+    },
     "io.k8s.api.core.v1.FlexPersistentVolumeSource": {
       "description": "FlexPersistentVolumeSource represents a generic persistent volume resource that is provisioned/attached using an exec based plugin.",
       "type": "object",
@@ -41635,7 +42049,7 @@
       ],
       "properties": {
         "endpoints": {
-          "description": "endpoints is the endpoint name that details Glusterfs topology. More info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod",
+          "description": "endpoints is the endpoint name that details Glusterfs topology.",
           "type": "string",
           "default": ""
         },
@@ -43262,7 +43676,7 @@
           "type": "string"
         },
         "volumeAttributesClassName": {
-          "description": "volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim. If specified, the CSI driver will create or update the volume with the attributes defined in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName, it can be changed after the claim is created. An empty string value means that no VolumeAttributesClass will be applied to the claim but it's not allowed to reset this field to empty string once it is set. If unspecified and the PersistentVolumeClaim is unbound, the default VolumeAttributesClass will be set by the persistentvolume controller if it exists. If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource exists. More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/ (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).",
+          "description": "volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim. If specified, the CSI driver will create or update the volume with the attributes defined in the corresponding VolumeAttributesClass. This has a different purpose than storageClassName, it can be changed after the claim is created. An empty string or nil value indicates that no VolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state, this field can be reset to its previous value (including nil) to cancel the modification. If the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource exists. More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/",
           "type": "string"
         },
         "volumeMode": {
@@ -43343,11 +43757,11 @@
           "x-kubernetes-patch-strategy": "merge"
         },
         "currentVolumeAttributesClassName": {
-          "description": "currentVolumeAttributesClassName is the current name of the VolumeAttributesClass the PVC is using. When unset, there is no VolumeAttributeClass applied to this PersistentVolumeClaim This is a beta field and requires enabling VolumeAttributesClass feature (off by default).",
+          "description": "currentVolumeAttributesClassName is the current name of the VolumeAttributesClass the PVC is using. When unset, there is no VolumeAttributeClass applied to this PersistentVolumeClaim",
           "type": "string"
         },
         "modifyVolumeStatus": {
-          "description": "ModifyVolumeStatus represents the status object of ControllerModifyVolume operation. When this is unset, there is no ModifyVolume operation being attempted. This is a beta field and requires enabling VolumeAttributesClass feature (off by default).",
+          "description": "ModifyVolumeStatus represents the status object of ControllerModifyVolume operation. When this is unset, there is no ModifyVolume operation being attempted.",
           "$ref": "#/definitions/io.k8s.api.core.v1.ModifyVolumeStatus"
         },
         "phase": {
@@ -43664,7 +44078,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.StorageOSPersistentVolumeSource"
         },
         "volumeAttributesClassName": {
-          "description": "Name of VolumeAttributesClass to which this persistent volume belongs. Empty value is not allowed. When this field is not set, it indicates that this volume does not belong to any VolumeAttributesClass. This field is mutable and can be changed by the CSI driver after a volume has been updated successfully to a new class. For an unbound PersistentVolume, the volumeAttributesClassName will be matched with unbound PersistentVolumeClaims during the binding process. This is a beta field and requires enabling VolumeAttributesClass feature (off by default).",
+          "description": "Name of VolumeAttributesClass to which this persistent volume belongs. Empty value is not allowed. When this field is not set, it indicates that this volume does not belong to any VolumeAttributesClass. This field is mutable and can be changed by the CSI driver after a volume has been updated successfully to a new class. For an unbound PersistentVolume, the volumeAttributesClassName will be matched with unbound PersistentVolumeClaims during the binding process.",
           "type": "string"
         },
         "volumeMode": {
@@ -43835,7 +44249,7 @@
       "type": "object",
       "properties": {
         "preferredDuringSchedulingIgnoredDuringExecution": {
-          "description": "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding \"weight\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
+          "description": "The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and subtracting \"weight\" from the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.",
           "type": "array",
           "items": {
             "default": {},
@@ -43885,6 +44299,41 @@
         "tty": {
           "description": "TTY if true indicates that a tty will be allocated for the attach call. This is passed through the container runtime so the tty is allocated on the worker node by the container runtime. Defaults to false.",
           "type": "boolean"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.PodCertificateProjection": {
+      "description": "PodCertificateProjection provides a private key and X.509 certificate in the pod filesystem.",
+      "type": "object",
+      "required": [
+        "signerName",
+        "keyType"
+      ],
+      "properties": {
+        "certificateChainPath": {
+          "description": "Write the certificate chain at this path in the projected volume.\n\nMost applications should use credentialBundlePath.  When using keyPath and certificateChainPath, your application needs to check that the key and leaf certificate are consistent, because it is possible to read the files mid-rotation.",
+          "type": "string"
+        },
+        "credentialBundlePath": {
+          "description": "Write the credential bundle at this path in the projected volume.\n\nThe credential bundle is a single file that contains multiple PEM blocks. The first PEM block is a PRIVATE KEY block, containing a PKCS#8 private key.\n\nThe remaining blocks are CERTIFICATE blocks, containing the issued certificate chain from the signer (leaf and any intermediates).\n\nUsing credentialBundlePath lets your Pod's application code make a single atomic read that retrieves a consistent key and certificate chain.  If you project them to separate files, your application code will need to additionally check that the leaf certificate was issued to the key.",
+          "type": "string"
+        },
+        "keyPath": {
+          "description": "Write the key at this path in the projected volume.\n\nMost applications should use credentialBundlePath.  When using keyPath and certificateChainPath, your application needs to check that the key and leaf certificate are consistent, because it is possible to read the files mid-rotation.",
+          "type": "string"
+        },
+        "keyType": {
+          "description": "The type of keypair Kubelet will generate for the pod.\n\nValid values are \"RSA3072\", \"RSA4096\", \"ECDSAP256\", \"ECDSAP384\", \"ECDSAP521\", and \"ED25519\".",
+          "type": "string"
+        },
+        "maxExpirationSeconds": {
+          "description": "maxExpirationSeconds is the maximum lifetime permitted for the certificate.\n\nKubelet copies this value verbatim into the PodCertificateRequests it generates for this projection.\n\nIf omitted, kube-apiserver will set it to 86400(24 hours). kube-apiserver will reject values shorter than 3600 (1 hour).  The maximum allowable value is 7862400 (91 days).\n\nThe signer implementation is then free to issue a certificate with any lifetime *shorter* than MaxExpirationSeconds, but no shorter than 3600 seconds (1 hour).  This constraint is enforced by kube-apiserver. `kubernetes.io` signers will never issue certificates with a lifetime longer than 24 hours.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "signerName": {
+          "description": "Kubelet's generated CSRs will be addressed to this signer.",
+          "type": "string"
         }
       }
     },
@@ -44019,6 +44468,30 @@
         "tty": {
           "description": "TTY if true indicates that a tty will be allocated for the exec call. Defaults to false.",
           "type": "boolean"
+        }
+      }
+    },
+    "io.k8s.api.core.v1.PodExtendedResourceClaimStatus": {
+      "description": "PodExtendedResourceClaimStatus is stored in the PodStatus for the extended resource requests backed by DRA. It stores the generated name for the corresponding special ResourceClaim created by the scheduler.",
+      "type": "object",
+      "required": [
+        "requestMappings",
+        "resourceClaimName"
+      ],
+      "properties": {
+        "requestMappings": {
+          "description": "RequestMappings identifies the mapping of <container, extended resource backed by DRA> to  device request in the generated ResourceClaim.",
+          "type": "array",
+          "items": {
+            "default": {},
+            "$ref": "#/definitions/io.k8s.api.core.v1.ContainerExtendedResourceRequest"
+          },
+          "x-kubernetes-list-type": "atomic"
+        },
+        "resourceClaimName": {
+          "description": "ResourceClaimName is the name of the ResourceClaim that was generated for the Pod in the namespace of the Pod.",
+          "type": "string",
+          "default": ""
         }
       }
     },
@@ -44422,7 +44895,7 @@
           "type": "boolean"
         },
         "hostNetwork": {
-          "description": "Host networking requested for this pod. Use the host's network namespace. If this option is set, the ports that will be used must be specified. Default to false.",
+          "description": "Host networking requested for this pod. Use the host's network namespace. When using HostNetwork you should specify ports so the scheduler is aware. When `hostNetwork` is true, specified `hostPort` fields in port definitions must match `containerPort`, and unspecified `hostPort` fields in port definitions are defaulted to match `containerPort`. Default to false.",
           "type": "boolean"
         },
         "hostPID": {
@@ -44435,6 +44908,10 @@
         },
         "hostname": {
           "description": "Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.",
+          "type": "string"
+        },
+        "hostnameOverride": {
+          "description": "HostnameOverride specifies an explicit override for the pod's hostname as perceived by the pod. This field only specifies the pod's hostname and does not affect its DNS records. When this field is set to a non-empty string: - It takes precedence over the values set in `hostname` and `subdomain`. - The Pod's hostname will be set to this value. - `setHostnameAsFQDN` must be nil or set to false. - `hostNetwork` must be set to false.\n\nThis field must be a valid DNS subdomain as defined in RFC 1123 and contain at most 64 characters. Requires the HostnameOverride feature gate to be enabled.",
           "type": "string"
         },
         "imagePullSecrets": {
@@ -44479,7 +44956,7 @@
           "x-kubernetes-map-type": "atomic"
         },
         "os": {
-          "description": "Specifies the OS of the containers in the pod. Some pod and container fields are restricted if this is set.\n\nIf the OS field is set to linux, the following fields must be unset: -securityContext.windowsOptions\n\nIf the OS field is set to windows, following fields must be unset: - spec.hostPID - spec.hostIPC - spec.hostUsers - spec.securityContext.appArmorProfile - spec.securityContext.seLinuxOptions - spec.securityContext.seccompProfile - spec.securityContext.fsGroup - spec.securityContext.fsGroupChangePolicy - spec.securityContext.sysctls - spec.shareProcessNamespace - spec.securityContext.runAsUser - spec.securityContext.runAsGroup - spec.securityContext.supplementalGroups - spec.securityContext.supplementalGroupsPolicy - spec.containers[*].securityContext.appArmorProfile - spec.containers[*].securityContext.seLinuxOptions - spec.containers[*].securityContext.seccompProfile - spec.containers[*].securityContext.capabilities - spec.containers[*].securityContext.readOnlyRootFilesystem - spec.containers[*].securityContext.privileged - spec.containers[*].securityContext.allowPrivilegeEscalation - spec.containers[*].securityContext.procMount - spec.containers[*].securityContext.runAsUser - spec.containers[*].securityContext.runAsGroup",
+          "description": "Specifies the OS of the containers in the pod. Some pod and container fields are restricted if this is set.\n\nIf the OS field is set to linux, the following fields must be unset: -securityContext.windowsOptions\n\nIf the OS field is set to windows, following fields must be unset: - spec.hostPID - spec.hostIPC - spec.hostUsers - spec.resources - spec.securityContext.appArmorProfile - spec.securityContext.seLinuxOptions - spec.securityContext.seccompProfile - spec.securityContext.fsGroup - spec.securityContext.fsGroupChangePolicy - spec.securityContext.sysctls - spec.shareProcessNamespace - spec.securityContext.runAsUser - spec.securityContext.runAsGroup - spec.securityContext.supplementalGroups - spec.securityContext.supplementalGroupsPolicy - spec.containers[*].securityContext.appArmorProfile - spec.containers[*].securityContext.seLinuxOptions - spec.containers[*].securityContext.seccompProfile - spec.containers[*].securityContext.capabilities - spec.containers[*].securityContext.readOnlyRootFilesystem - spec.containers[*].securityContext.privileged - spec.containers[*].securityContext.allowPrivilegeEscalation - spec.containers[*].securityContext.procMount - spec.containers[*].securityContext.runAsUser - spec.containers[*].securityContext.runAsGroup",
           "$ref": "#/definitions/io.k8s.api.core.v1.PodOS"
         },
         "overhead": {
@@ -44530,7 +45007,7 @@
           "x-kubernetes-patch-strategy": "merge,retainKeys"
         },
         "resources": {
-          "description": "Resources is the total amount of CPU and Memory resources required by all containers in the pod. It supports specifying Requests and Limits for \"cpu\" and \"memory\" resource names only. ResourceClaims are not supported.\n\nThis field enables fine-grained control over resource allocation for the entire pod, allowing resource sharing among containers in a pod.\n\nThis is an alpha field and requires enabling the PodLevelResources feature gate.",
+          "description": "Resources is the total amount of CPU and Memory resources required by all containers in the pod. It supports specifying Requests and Limits for \"cpu\", \"memory\" and \"hugepages-\" resource names only. ResourceClaims are not supported.\n\nThis field enables fine-grained control over resource allocation for the entire pod, allowing resource sharing among containers in a pod.\n\nThis is an alpha field and requires enabling the PodLevelResources feature gate.",
           "$ref": "#/definitions/io.k8s.api.core.v1.ResourceRequirements"
         },
         "restartPolicy": {
@@ -44668,6 +45145,10 @@
             "$ref": "#/definitions/io.k8s.api.core.v1.ContainerStatus"
           },
           "x-kubernetes-list-type": "atomic"
+        },
+        "extendedResourceClaimStatus": {
+          "description": "Status of extended resource claim backed by DRA.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.PodExtendedResourceClaimStatus"
         },
         "hostIP": {
           "description": "hostIP holds the IP address of the host to which the pod is assigned. Empty if the pod has not started yet. A pod can be assigned to a node that has a problem in kubelet which in turns mean that HostIP will not be updated even if there is a node is assigned to pod",
@@ -45579,7 +46060,7 @@
       "type": "object",
       "properties": {
         "claims": {
-          "description": "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container.\n\nThis is an alpha field and requires enabling the DynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
+          "description": "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container.\n\nThis field depends on the DynamicResourceAllocation feature gate.\n\nThis field is immutable. It can only be set for containers.",
           "type": "array",
           "items": {
             "default": {},
@@ -46645,7 +47126,7 @@
           "default": ""
         },
         "timeAdded": {
-          "description": "TimeAdded represents the time at which the taint was added. It is only written for NoExecute taints.",
+          "description": "TimeAdded represents the time at which the taint was added.",
           "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.Time"
         },
         "value": {
@@ -46916,7 +47397,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.GitRepoVolumeSource"
         },
         "glusterfs": {
-          "description": "glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime. Deprecated: Glusterfs is deprecated and the in-tree glusterfs type is no longer supported. More info: https://examples.k8s.io/volumes/glusterfs/README.md",
+          "description": "glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime. Deprecated: Glusterfs is deprecated and the in-tree glusterfs type is no longer supported.",
           "$ref": "#/definitions/io.k8s.api.core.v1.GlusterfsVolumeSource"
         },
         "hostPath": {
@@ -46928,7 +47409,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ImageVolumeSource"
         },
         "iscsi": {
-          "description": "iscsi represents an ISCSI Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: https://examples.k8s.io/volumes/iscsi/README.md",
+          "description": "iscsi represents an ISCSI Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: https://kubernetes.io/docs/concepts/storage/volumes/#iscsi",
           "$ref": "#/definitions/io.k8s.api.core.v1.ISCSIVolumeSource"
         },
         "name": {
@@ -46961,7 +47442,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.QuobyteVolumeSource"
         },
         "rbd": {
-          "description": "rbd represents a Rados Block Device mount on the host that shares a pod's lifetime. Deprecated: RBD is deprecated and the in-tree rbd type is no longer supported. More info: https://examples.k8s.io/volumes/rbd/README.md",
+          "description": "rbd represents a Rados Block Device mount on the host that shares a pod's lifetime. Deprecated: RBD is deprecated and the in-tree rbd type is no longer supported.",
           "$ref": "#/definitions/io.k8s.api.core.v1.RBDVolumeSource"
         },
         "scaleIO": {
@@ -47101,6 +47582,10 @@
           "description": "downwardAPI information about the downwardAPI data to project",
           "$ref": "#/definitions/io.k8s.api.core.v1.DownwardAPIProjection"
         },
+        "podCertificate": {
+          "description": "Projects an auto-rotating credential bundle (private key and certificate chain) that the pod can use either as a TLS client or server.\n\nKubelet generates a private key and uses it to send a PodCertificateRequest to the named signer.  Once the signer approves the request and issues a certificate chain, Kubelet writes the key and certificate chain to the pod filesystem.  The pod does not start until certificates have been issued for each podCertificate projected volume source in its spec.\n\nKubelet will begin trying to rotate the certificate at the time indicated by the signer using the PodCertificateRequest.Status.BeginRefreshAt timestamp.\n\nKubelet can write a single file, indicated by the credentialBundlePath field, or separate files, indicated by the keyPath and certificateChainPath fields.\n\nThe credential bundle is a single file in PEM format.  The first PEM entry is the private key (in PKCS#8 format), and the remaining PEM entries are the certificate chain issued by the signer (typically, signers will return their certificate chain in leaf-to-root order).\n\nPrefer using the credential bundle format, since your application code can read it atomically.  If you use keyPath and certificateChainPath, your application must make two separate file reads. If these coincide with a certificate rotation, it is possible that the private key and leaf certificate you read may not correspond to each other.  Your application will need to check for this condition, and re-read until they are consistent.\n\nThe named signer controls chooses the format of the certificate it issues; consult the signer implementation's documentation to learn how to use the certificates it issues.",
+          "$ref": "#/definitions/io.k8s.api.core.v1.PodCertificateProjection"
+        },
         "secret": {
           "description": "secret information about the secret data to project",
           "$ref": "#/definitions/io.k8s.api.core.v1.SecretProjection"
@@ -47196,7 +47681,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.GitRepoVolumeSource"
         },
         "glusterfs": {
-          "description": "glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime. Deprecated: Glusterfs is deprecated and the in-tree glusterfs type is no longer supported. More info: https://examples.k8s.io/volumes/glusterfs/README.md",
+          "description": "glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime. Deprecated: Glusterfs is deprecated and the in-tree glusterfs type is no longer supported.",
           "$ref": "#/definitions/io.k8s.api.core.v1.GlusterfsVolumeSource"
         },
         "hostPath": {
@@ -47208,7 +47693,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.ImageVolumeSource"
         },
         "iscsi": {
-          "description": "iscsi represents an ISCSI Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: https://examples.k8s.io/volumes/iscsi/README.md",
+          "description": "iscsi represents an ISCSI Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: https://kubernetes.io/docs/concepts/storage/volumes/#iscsi",
           "$ref": "#/definitions/io.k8s.api.core.v1.ISCSIVolumeSource"
         },
         "nfs": {
@@ -47236,7 +47721,7 @@
           "$ref": "#/definitions/io.k8s.api.core.v1.QuobyteVolumeSource"
         },
         "rbd": {
-          "description": "rbd represents a Rados Block Device mount on the host that shares a pod's lifetime. Deprecated: RBD is deprecated and the in-tree rbd type is no longer supported. More info: https://examples.k8s.io/volumes/rbd/README.md",
+          "description": "rbd represents a Rados Block Device mount on the host that shares a pod's lifetime. Deprecated: RBD is deprecated and the in-tree rbd type is no longer supported.",
           "$ref": "#/definitions/io.k8s.api.core.v1.RBDVolumeSource"
         },
         "scaleIO": {
