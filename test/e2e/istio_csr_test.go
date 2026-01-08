@@ -14,12 +14,12 @@ import (
 	"net/url"
 	"path/filepath"
 
-	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -535,7 +535,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				if err != nil {
 					return false
 				}
-				_, hasWatchLabel := configMap.Labels[testutils.IstiocsrResourceWatchLabelName]
+				_, hasWatchLabel := configMap.Labels[istiocsr.IstiocsrResourceWatchLabelName]
 				return hasWatchLabel
 			}, "1m", "5s").Should(BeTrue(), fmt.Sprintf("ConfigMap %s should have watch label", configMapName))
 		}
@@ -551,11 +551,11 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 				sourceCertData := sourceConfigMap.Data[sourceKey]
 
 				// Check if the copied ConfigMap exists and has the same data
-				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(destNamespace).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(destNamespace).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
-				copiedCertData := copiedConfigMap.Data[testutils.IstiocsrCAKeyName]
+				copiedCertData := copiedConfigMap.Data[istiocsr.IstiocsrCAKeyName]
 
 				return sourceCertData != "" && copiedCertData != "" && copiedCertData == sourceCertData
 			}, "2m", "5s").Should(BeTrue(), "CA certificate should be copied with identical content")
@@ -593,9 +593,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 						if vol.ConfigMap == nil {
 							return fmt.Errorf("volume root-ca is not a ConfigMap volume")
 						}
-						if vol.ConfigMap.Name != testutils.IstiocsrCAConfigMapName {
+						if vol.ConfigMap.Name != istiocsr.IstiocsrCAConfigMapName {
 							return fmt.Errorf("volume root-ca references wrong ConfigMap: got %s, want %s",
-								vol.ConfigMap.Name, testutils.IstiocsrCAConfigMapName)
+								vol.ConfigMap.Name, istiocsr.IstiocsrCAConfigMapName)
 						}
 						volumeFound = true
 						break
@@ -640,7 +640,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					Namespace: ns.Name, // same namespace as IstioCSR
 				},
 				Data: map[string]string{
-					configMapRefKey: testutils.GenerateCertificate("Test CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+					configMapRefKey: library.GenerateCertificate("Test CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
 						cert.IsCA = true
 						cert.KeyUsage |= x509.KeyUsageCertSign
 					}),
@@ -680,7 +680,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					Namespace: ns.Name, // same namespace as IstioCSR
 				},
 				Data: map[string]string{
-					configMapRefKey: testutils.GenerateCertificate("Test Non-CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+					configMapRefKey: library.GenerateCertificate("Test Non-CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
 						cert.IsCA = false
 					}),
 				},
@@ -722,7 +722,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 					Namespace: customNamespace.Name,
 				},
 				Data: map[string]string{
-					configMapRefKey: testutils.GenerateCertificate("Custom Namespace CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+					configMapRefKey: library.GenerateCertificate("Custom Namespace CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
 						cert.IsCA = true
 						cert.KeyUsage |= x509.KeyUsageCertSign
 					}),
@@ -756,7 +756,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 		It("should reconcile copied ConfigMap when manually modified", func() {
 			By("Creating initial CA certificate ConfigMap")
-			initialCert := testutils.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+			initialCert := library.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
 				cert.IsCA = true
 				cert.KeyUsage |= x509.KeyUsageCertSign
 			})
@@ -789,29 +789,29 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 			By("Verifying initial ConfigMap is copied")
 			Eventually(func() bool {
-				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
-				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+				return copiedConfigMap.Data[istiocsr.IstiocsrCAKeyName] == initialCert
 			}, "2m", "5s").Should(BeTrue(), "Initial CA certificate should be copied")
 
 			By("Manually modifying the copied ConfigMap")
 			tamperedCert := "-----BEGIN CERTIFICATE-----\nTAMPERED DATA\n-----END CERTIFICATE-----"
-			copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+			copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-			copiedConfigMap.Data[testutils.IstiocsrCAKeyName] = tamperedCert
+			copiedConfigMap.Data[istiocsr.IstiocsrCAKeyName] = tamperedCert
 			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Update(ctx, copiedConfigMap, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Verifying operator automatically reconciles the copied ConfigMap back to the desired state")
 			Eventually(func() bool {
-				reconciledConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				reconciledConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
 				// Should be reconciled back to match the source ConfigMap, not the tampered data
-				return reconciledConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+				return reconciledConfigMap.Data[istiocsr.IstiocsrCAKeyName] == initialCert
 			}, "2m", "5s").Should(BeTrue(), "Copied ConfigMap should be reconciled back to match source ConfigMap")
 
 			By("Verifying the ConfigMap volume mount is still correctly configured")
@@ -820,7 +820,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 		It("should update mounted CA certificate when source ConfigMap is modified", func() {
 			By("Creating initial CA certificate ConfigMap")
-			initialCert := testutils.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+			initialCert := library.GenerateCertificate("Initial CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
 				cert.IsCA = true
 				cert.KeyUsage |= x509.KeyUsageCertSign
 			})
@@ -853,18 +853,18 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 			By("Verifying initial ConfigMap is copied and mounted")
 			Eventually(func() bool {
-				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
-				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == initialCert
+				return copiedConfigMap.Data[istiocsr.IstiocsrCAKeyName] == initialCert
 			}, "2m", "5s").Should(BeTrue(), "Initial CA certificate should be copied")
 
 			// Verify that the ConfigMap volume mount is correctly configured
 			verifyConfigMapMountedInPod(ns.Name)
 
 			By("Updating the source ConfigMap with new CA certificate")
-			updatedCert := testutils.GenerateCertificate("Updated CA E2E", []string{"cert-manager-operator-updated"}, func(cert *x509.Certificate) {
+			updatedCert := library.GenerateCertificate("Updated CA E2E", []string{"cert-manager-operator-updated"}, func(cert *x509.Certificate) {
 				cert.IsCA = true
 				cert.KeyUsage |= x509.KeyUsageCertSign
 			})
@@ -877,11 +877,11 @@ var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
 
 			By("Verifying copied ConfigMap is updated with new certificate")
 			Eventually(func() bool {
-				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, istiocsr.IstiocsrCAConfigMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
-				return copiedConfigMap.Data[testutils.IstiocsrCAKeyName] == updatedCert
+				return copiedConfigMap.Data[istiocsr.IstiocsrCAKeyName] == updatedCert
 			}, "2m", "5s").Should(BeTrue(), "Updated CA certificate should be copied")
 
 			// Verify that the ConfigMap volume mount is still correctly configured

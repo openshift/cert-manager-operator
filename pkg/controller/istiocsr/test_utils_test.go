@@ -2,11 +2,7 @@ package istiocsr
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
 	"maps"
 	"testing"
@@ -39,8 +35,6 @@ const (
 var (
 	testError = fmt.Errorf("test client error")
 )
-
-type CertificateTweak func(*x509.Certificate)
 
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
@@ -240,7 +234,7 @@ func testConfigMap() *corev1.ConfigMap {
 }
 
 func testSecret() *corev1.Secret {
-	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
+	caPEM := library.GenerateCertificate("Test CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = true
 			cert.KeyUsage |= x509.KeyUsageCertSign
@@ -259,7 +253,7 @@ func testSecret() *corev1.Secret {
 
 // testCACertificateConfigMap creates a ConfigMap with a CA certificate.
 func testCACertificateConfigMap() *corev1.ConfigMap {
-	caPEM := GenerateCertificate("Test CA", []string{"cert-manager-operator"},
+	caPEM := library.GenerateCertificate("Test CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = true
 			cert.KeyUsage |= x509.KeyUsageCertSign
@@ -270,7 +264,7 @@ func testCACertificateConfigMap() *corev1.ConfigMap {
 
 // testNonCACertificateConfigMap creates a ConfigMap with a non-CA certificate.
 func testNonCACertificateConfigMap() *corev1.ConfigMap {
-	certPEM := GenerateCertificate("Test non-CA", []string{"cert-manager-operator"},
+	certPEM := library.GenerateCertificate("Test non-CA", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = false
 		},
@@ -280,50 +274,12 @@ func testNonCACertificateConfigMap() *corev1.ConfigMap {
 
 // testCertificateWithoutCertSignConfigMap creates a ConfigMap with a CA certificate missing CertSign.
 func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
-	certPEM := GenerateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
+	certPEM := library.GenerateCertificate("Test CA without CertSign", []string{"cert-manager-operator"},
 		func(cert *x509.Certificate) {
 			cert.IsCA = true
 		},
 	)
 	return createCertificateConfigMap("ca-without-certsign-test", testIstioCSRNamespace, certPEM)
-}
-
-// GenerateCertificate creates a certificate with specified tweaks.
-func GenerateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
-	// Generate RSA private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to generate private key: %v", err))
-	}
-
-	template := &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName:   commonName,
-			Organization: organization,
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  false,
-	}
-
-	// Apply tweaks to modify the template
-	tweak(template)
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create certificate: %v", err))
-	}
-
-	// Encode certificate to PEM format
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certDER,
-	})
-
-	return string(certPEM)
 }
 
 func createCertificateConfigMap(name string, namespace string, pemData string) *corev1.ConfigMap {
