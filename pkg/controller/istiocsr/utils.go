@@ -63,7 +63,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCS
 
 		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to update istiocsr status with retry: %w", err)
+		return err
 	}
 
 	return nil

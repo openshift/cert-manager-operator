@@ -43,46 +43,31 @@ func NewClient(m manager.Manager) (ctrlClient, error) {
 func (c *ctrlClientImpl) Get(
 	ctx context.Context, key client.ObjectKey, obj client.Object,
 ) error {
-	if err := c.Client.Get(ctx, key, obj); err != nil {
-		return fmt.Errorf("failed to get object %q: %w", key, err)
-	}
-	return nil
+	return c.Client.Get(ctx, key, obj)
 }
 
 func (c *ctrlClientImpl) List(
 	ctx context.Context, list client.ObjectList, opts ...client.ListOption,
 ) error {
-	if err := c.Client.List(ctx, list, opts...); err != nil {
-		return fmt.Errorf("failed to list objects: %w", err)
-	}
-	return nil
+	return c.Client.List(ctx, list, opts...)
 }
 
 func (c *ctrlClientImpl) Create(
 	ctx context.Context, obj client.Object, opts ...client.CreateOption,
 ) error {
-	if err := c.Client.Create(ctx, obj, opts...); err != nil {
-		return fmt.Errorf("failed to create object %q: %w", client.ObjectKeyFromObject(obj), err)
-	}
-	return nil
+	return c.Client.Create(ctx, obj, opts...)
 }
 
 func (c *ctrlClientImpl) Delete(
 	ctx context.Context, obj client.Object, opts ...client.DeleteOption,
 ) error {
-	if err := c.Client.Delete(ctx, obj, opts...); err != nil {
-		return fmt.Errorf("failed to delete object %q: %w", client.ObjectKeyFromObject(obj), err)
-	}
-	return nil
+	return c.Client.Delete(ctx, obj, opts...)
 }
 
 func (c *ctrlClientImpl) Update(
 	ctx context.Context, obj client.Object, opts ...client.UpdateOption,
 ) error {
-	if err := c.Client.Update(ctx, obj, opts...); err != nil {
-		return fmt.Errorf("failed to update object %q: %w", client.ObjectKeyFromObject(obj), err)
-	}
-	return nil
+	return c.Client.Update(ctx, obj, opts...)
 }
 
 func (c *ctrlClientImpl) UpdateWithRetry(
@@ -100,7 +85,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to update object %q with retry: %w", key, err)
+		return err
 	}
 
 	return nil
@@ -109,19 +94,13 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 func (c *ctrlClientImpl) StatusUpdate(
 	ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption,
 ) error {
-	if err := c.Client.Status().Update(ctx, obj, opts...); err != nil {
-		return fmt.Errorf("failed to update status for object %q: %w", client.ObjectKeyFromObject(obj), err)
-	}
-	return nil
+	return c.Client.Status().Update(ctx, obj, opts...)
 }
 
 func (c *ctrlClientImpl) Patch(
 	ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption,
 ) error {
-	if err := c.Client.Patch(ctx, obj, patch, opts...); err != nil {
-		return fmt.Errorf("failed to patch object %q: %w", client.ObjectKeyFromObject(obj), err)
-	}
-	return nil
+	return c.Client.Patch(ctx, obj, patch, opts...)
 }
 
 func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
@@ -129,7 +108,7 @@ func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj c
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to check existence of object %q: %w", key, err)
+		return false, err
 	}
 	return true, nil
 }
