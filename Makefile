@@ -155,14 +155,14 @@ update: generate update-manifests update-bindata
 update-with-container:
 	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
-verify-scripts:
+verify-scripts: verify-bindata
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
 	hack/verify-bundle.sh
 .PHONY: verify-scripts
 
 .PHONY: verify
-verify: verify-scripts fmt
+verify: verify-scripts verify-deps fmt vet
 
 .PHONY: verify-with-container
 verify-with-container:

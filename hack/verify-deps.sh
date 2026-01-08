@@ -9,8 +9,12 @@ function print_failure {
 }
 
 if [ "${OPENSHIFT_CI:-false}" = true ]; then
+  # Verify main module
   go mod vendor
   go mod tidy
+
+  # Verify tools module
+  (cd tools && go mod vendor && go mod tidy)
 
   test -z "$(git status --porcelain | \grep -v '^??')" || print_failure
   echo "verified Go modules"
