@@ -252,9 +252,17 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	var issuerConfig certmanagerv1.IssuerConfig
 	switch issuerRefKind {
 	case clusterIssuerKind:
-		issuerConfig = obj.(*certmanagerv1.ClusterIssuer).Spec.IssuerConfig
+		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
+		if !ok {
+			return NewIrrecoverableError(invalidIssuerRefConfigError, "failed to convert to ClusterIssuer")
+		}
+		issuerConfig = clusterIssuer.Spec.IssuerConfig
 	case issuerKind:
-		issuerConfig = obj.(*certmanagerv1.Issuer).Spec.IssuerConfig
+		issuer, ok := obj.(*certmanagerv1.Issuer)
+		if !ok {
+			return NewIrrecoverableError(invalidIssuerRefConfigError, "failed to convert to Issuer")
+		}
+		issuerConfig = issuer.Spec.IssuerConfig
 	}
 	if issuerConfig.ACME != nil {
 		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
@@ -364,9 +372,17 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	switch issuerRefKind {
 	case clusterIssuerKind:
-		issuerConfig = obj.(*certmanagerv1.ClusterIssuer).Spec.IssuerConfig
+		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
+		if !ok {
+			return FromClientError(fmt.Errorf("failed to convert to ClusterIssuer"), "failed to fetch issuer")
+		}
+		issuerConfig = clusterIssuer.Spec.IssuerConfig
 	case issuerKind:
-		issuerConfig = obj.(*certmanagerv1.Issuer).Spec.IssuerConfig
+		issuer, ok := obj.(*certmanagerv1.Issuer)
+		if !ok {
+			return FromClientError(fmt.Errorf("failed to convert to Issuer"), "failed to fetch issuer")
+		}
+		issuerConfig = issuer.Spec.IssuerConfig
 	}
 
 	shouldUpdateVolume := false

@@ -75,7 +75,11 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 ) error {
 	key := client.ObjectKeyFromObject(obj)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := reflect.New(reflect.TypeOf(obj).Elem()).Interface().(client.Object)
+		currentInterface := reflect.New(reflect.TypeOf(obj).Elem()).Interface()
+		current, ok := currentInterface.(client.Object)
+		if !ok {
+			return fmt.Errorf("failed to convert to client.Object")
+		}
 		if err := c.Client.Get(ctx, key, current); err != nil {
 			return fmt.Errorf("failed to fetch latest %q for update: %w", key, err)
 		}

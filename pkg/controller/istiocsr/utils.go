@@ -165,7 +165,11 @@ func decodeDeploymentObjBytes(objBytes []byte) *appsv1.Deployment {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*appsv1.Deployment)
+	deployment, ok := obj.(*appsv1.Deployment)
+	if !ok {
+		panic("failed to convert to *appsv1.Deployment")
+	}
+	return deployment
 }
 
 func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
@@ -173,7 +177,11 @@ func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.ClusterRole)
+	clusterRole, ok := obj.(*rbacv1.ClusterRole)
+	if !ok {
+		panic("failed to convert to *rbacv1.ClusterRole")
+	}
+	return clusterRole
 }
 
 func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBinding {
@@ -181,7 +189,11 @@ func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBindin
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.ClusterRoleBinding)
+	clusterRoleBinding, ok := obj.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic("failed to convert to *rbacv1.ClusterRoleBinding")
+	}
+	return clusterRoleBinding
 }
 
 func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
@@ -189,7 +201,11 @@ func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.Role)
+	role, ok := obj.(*rbacv1.Role)
+	if !ok {
+		panic("failed to convert to *rbacv1.Role")
+	}
+	return role
 }
 
 func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
@@ -197,7 +213,11 @@ func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*rbacv1.RoleBinding)
+	roleBinding, ok := obj.(*rbacv1.RoleBinding)
+	if !ok {
+		panic("failed to convert to *rbacv1.RoleBinding")
+	}
+	return roleBinding
 }
 
 func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
@@ -205,7 +225,11 @@ func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*corev1.Service)
+	service, ok := obj.(*corev1.Service)
+	if !ok {
+		panic("failed to convert to *corev1.Service")
+	}
+	return service
 }
 
 func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
@@ -213,7 +237,11 @@ func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*corev1.ServiceAccount)
+	serviceAccount, ok := obj.(*corev1.ServiceAccount)
+	if !ok {
+		panic("failed to convert to *corev1.ServiceAccount")
+	}
+	return serviceAccount
 }
 
 func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
@@ -221,7 +249,11 @@ func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*certmanagerv1.Certificate)
+	certificate, ok := obj.(*certmanagerv1.Certificate)
+	if !ok {
+		panic("failed to convert to *certmanagerv1.Certificate")
+	}
+	return certificate
 }
 
 func hasObjectChanged(desired, fetched client.Object) bool {
@@ -232,25 +264,97 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 	var objectModified bool
 	switch desired.(type) {
 	case *certmanagerv1.Certificate:
-		objectModified = certificateSpecModified(desired.(*certmanagerv1.Certificate), fetched.(*certmanagerv1.Certificate))
+		desiredCert, ok := desired.(*certmanagerv1.Certificate)
+		if !ok {
+			panic("failed to convert desired to *certmanagerv1.Certificate")
+		}
+		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
+		if !ok {
+			panic("failed to convert fetched to *certmanagerv1.Certificate")
+		}
+		objectModified = certificateSpecModified(desiredCert, fetchedCert)
 	case *rbacv1.ClusterRole:
-		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desired.(*rbacv1.ClusterRole), fetched.(*rbacv1.ClusterRole))
+		desiredClusterRole, ok := desired.(*rbacv1.ClusterRole)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.ClusterRole")
+		}
+		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.ClusterRole")
+		}
+		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desiredClusterRole, fetchedClusterRole)
 	case *rbacv1.ClusterRoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding))
+		desiredClusterRoleBinding, ok := desired.(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.ClusterRoleBinding")
+		}
+		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
+		}
+		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desiredClusterRoleBinding, fetchedClusterRoleBinding) ||
+			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desiredClusterRoleBinding, fetchedClusterRoleBinding)
 	case *appsv1.Deployment:
-		objectModified = deploymentSpecModified(desired.(*appsv1.Deployment), fetched.(*appsv1.Deployment))
+		desiredDeployment, ok := desired.(*appsv1.Deployment)
+		if !ok {
+			panic("failed to convert desired to *appsv1.Deployment")
+		}
+		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
+		if !ok {
+			panic("failed to convert fetched to *appsv1.Deployment")
+		}
+		objectModified = deploymentSpecModified(desiredDeployment, fetchedDeployment)
 	case *rbacv1.Role:
-		objectModified = rbacRoleRulesModified[*rbacv1.Role](desired.(*rbacv1.Role), fetched.(*rbacv1.Role))
+		desiredRole, ok := desired.(*rbacv1.Role)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.Role")
+		}
+		fetchedRole, ok := fetched.(*rbacv1.Role)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.Role")
+		}
+		objectModified = rbacRoleRulesModified[*rbacv1.Role](desiredRole, fetchedRole)
 	case *rbacv1.RoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding))
+		desiredRoleBinding, ok := desired.(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.RoleBinding")
+		}
+		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.RoleBinding")
+		}
+		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desiredRoleBinding, fetchedRoleBinding) ||
+			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desiredRoleBinding, fetchedRoleBinding)
 	case *corev1.Service:
-		objectModified = serviceSpecModified(desired.(*corev1.Service), fetched.(*corev1.Service))
+		desiredService, ok := desired.(*corev1.Service)
+		if !ok {
+			panic("failed to convert desired to *corev1.Service")
+		}
+		fetchedService, ok := fetched.(*corev1.Service)
+		if !ok {
+			panic("failed to convert fetched to *corev1.Service")
+		}
+		objectModified = serviceSpecModified(desiredService, fetchedService)
 	case *corev1.ConfigMap:
-		objectModified = configMapDataModified(desired.(*corev1.ConfigMap), fetched.(*corev1.ConfigMap))
+		desiredConfigMap, ok := desired.(*corev1.ConfigMap)
+		if !ok {
+			panic("failed to convert desired to *corev1.ConfigMap")
+		}
+		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
+		if !ok {
+			panic("failed to convert fetched to *corev1.ConfigMap")
+		}
+		objectModified = configMapDataModified(desiredConfigMap, fetchedConfigMap)
 	case *networkingv1.NetworkPolicy:
-		objectModified = networkPolicySpecModified(desired.(*networkingv1.NetworkPolicy), fetched.(*networkingv1.NetworkPolicy))
+		desiredNetworkPolicy, ok := desired.(*networkingv1.NetworkPolicy)
+		if !ok {
+			panic("failed to convert desired to *networkingv1.NetworkPolicy")
+		}
+		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
+		if !ok {
+			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
+		}
+		objectModified = networkPolicySpecModified(desiredNetworkPolicy, fetchedNetworkPolicy)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
@@ -336,9 +440,25 @@ func serviceSpecModified(desired, fetched *corev1.Service) bool {
 func rbacRoleRulesModified[Object *rbacv1.Role | *rbacv1.ClusterRole](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRole:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRole).Rules, any(fetched).(*rbacv1.ClusterRole).Rules)
+		desiredClusterRole, ok := any(desired).(*rbacv1.ClusterRole)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.ClusterRole")
+		}
+		fetchedClusterRole, ok := any(fetched).(*rbacv1.ClusterRole)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.ClusterRole")
+		}
+		return !reflect.DeepEqual(desiredClusterRole.Rules, fetchedClusterRole.Rules)
 	case *rbacv1.Role:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.Role).Rules, any(fetched).(*rbacv1.Role).Rules)
+		desiredRole, ok := any(desired).(*rbacv1.Role)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.Role")
+		}
+		fetchedRole, ok := any(fetched).(*rbacv1.Role)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.Role")
+		}
+		return !reflect.DeepEqual(desiredRole.Rules, fetchedRole.Rules)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
@@ -347,9 +467,25 @@ func rbacRoleRulesModified[Object *rbacv1.Role | *rbacv1.ClusterRole](desired, f
 func rbacRoleBindingRefModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRoleBinding](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRoleBinding).RoleRef, any(fetched).(*rbacv1.ClusterRoleBinding).RoleRef)
+		desiredClusterRoleBinding, ok := any(desired).(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.ClusterRoleBinding")
+		}
+		fetchedClusterRoleBinding, ok := any(fetched).(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
+		}
+		return !reflect.DeepEqual(desiredClusterRoleBinding.RoleRef, fetchedClusterRoleBinding.RoleRef)
 	case *rbacv1.RoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.RoleBinding).RoleRef, any(fetched).(*rbacv1.RoleBinding).RoleRef)
+		desiredRoleBinding, ok := any(desired).(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.RoleBinding")
+		}
+		fetchedRoleBinding, ok := any(fetched).(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.RoleBinding")
+		}
+		return !reflect.DeepEqual(desiredRoleBinding.RoleRef, fetchedRoleBinding.RoleRef)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
@@ -358,9 +494,25 @@ func rbacRoleBindingRefModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRole
 func rbacRoleBindingSubjectsModified[Object *rbacv1.RoleBinding | *rbacv1.ClusterRoleBinding](desired, fetched Object) bool {
 	switch typ := any(desired).(type) {
 	case *rbacv1.ClusterRoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.ClusterRoleBinding).Subjects, any(fetched).(*rbacv1.ClusterRoleBinding).Subjects)
+		desiredClusterRoleBinding, ok := any(desired).(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.ClusterRoleBinding")
+		}
+		fetchedClusterRoleBinding, ok := any(fetched).(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
+		}
+		return !reflect.DeepEqual(desiredClusterRoleBinding.Subjects, fetchedClusterRoleBinding.Subjects)
 	case *rbacv1.RoleBinding:
-		return !reflect.DeepEqual(any(desired).(*rbacv1.RoleBinding).Subjects, any(fetched).(*rbacv1.RoleBinding).Subjects)
+		desiredRoleBinding, ok := any(desired).(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert desired to *rbacv1.RoleBinding")
+		}
+		fetchedRoleBinding, ok := any(fetched).(*rbacv1.RoleBinding)
+		if !ok {
+			panic("failed to convert fetched to *rbacv1.RoleBinding")
+		}
+		return !reflect.DeepEqual(desiredRoleBinding.Subjects, fetchedRoleBinding.Subjects)
 	default:
 		panic(fmt.Sprintf("unsupported object type %v", typ))
 	}
