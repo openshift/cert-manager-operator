@@ -3,8 +3,8 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.18.0
-CERT_MANAGER_VERSION ?= "v1.18.3"
+BUNDLE_VERSION ?= 1.18.1
+CERT_MANAGER_VERSION ?= "v1.18.4"
 ISTIO_CSR_VERSION ?= "v0.14.2"
 
 # CHANNELS define the bundle channels used in the bundle.
