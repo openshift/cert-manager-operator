@@ -2274,7 +2274,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
   name: cert-manager-istio-csr
 rules:
@@ -2325,7 +2325,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
   name: cert-manager-istio-csr
 roleRef:
@@ -2361,7 +2361,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 spec:
   replicas: 1
@@ -2374,14 +2374,14 @@ spec:
         app: cert-manager-istio-csr
         app.kubernetes.io/name: cert-manager-istio-csr
         app.kubernetes.io/instance: cert-manager-istio-csr
-        app.kubernetes.io/version: v0.14.2
+        app.kubernetes.io/version: v0.15.0
     spec:
       serviceAccountName: cert-manager-istio-csr
       nodeSelector:
         kubernetes.io/os: linux
       containers:
         - name: cert-manager-istio-csr
-          image: quay.io/jetstack/cert-manager-istio-csr:v0.14.2
+          image: quay.io/jetstack/cert-manager-istio-csr:v0.15.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6443
@@ -2460,7 +2460,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
   name: cert-manager-istio-csr-leases
   namespace: istio-system
@@ -2506,7 +2506,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -2542,7 +2542,7 @@ metadata:
     app: cert-manager-istio-csr-metrics
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 spec:
   type: ClusterIP
@@ -2576,7 +2576,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
   name: cert-manager-istio-csr
   namespace: istio-system
@@ -2623,7 +2623,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -2659,7 +2659,7 @@ metadata:
     app: cert-manager-istio-csr
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 spec:
   type: ClusterIP
@@ -2693,7 +2693,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
   name: cert-manager-istio-csr
   namespace: cert-manager
@@ -2722,7 +2722,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-istio-csr
     app.kubernetes.io/instance: cert-manager-istio-csr
-    app.kubernetes.io/version: v0.14.2
+    app.kubernetes.io/version: v0.15.0
     app.kubernetes.io/managed-by: cert-manager-operator
 spec:
   commonName: istiod.istio-system.svc
