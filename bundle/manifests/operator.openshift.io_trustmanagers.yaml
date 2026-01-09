@@ -1225,7 +1225,7 @@ spec:
             properties:
               conditions:
                 description: conditions holds information about the current state
-                  of the istio-csr agent deployment.
+                  of the operand deployment.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
