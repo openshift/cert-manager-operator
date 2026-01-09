@@ -51,6 +51,11 @@ func newGenericDeploymentController(
 		withSABoundToken,
 	}
 
+	informers := []factory.Informer{
+		kubeInformersForTargetNamespace.Core().V1().ConfigMaps().Informer(),
+		kubeInformersForTargetNamespace.Core().V1().Secrets().Informer(),
+	}
+
 	if infraInformers.Applicable() {
 		infraInformerFactory := (*infraInformers.InformerFactory)
 
@@ -60,6 +65,8 @@ func newGenericDeploymentController(
 			deployment.Name,
 			cloudCredentialsSecretName,
 		))
+
+		informers = append(informers, (*infraInformers.InformerFactory).Config().V1().Infrastructures().Informer())
 	}
 
 	return deploymentcontroller.NewDeploymentController(
