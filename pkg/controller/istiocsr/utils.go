@@ -590,19 +590,21 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		}
 	}
 
-	if ignoreProcessing {
-		var condUpdateErr, annUpdateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			condUpdateErr = r.updateCondition(istiocsr, nil)
+	if !ignoreProcessing {
+		return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+	}
+
+	var condUpdateErr, annUpdateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		condUpdateErr = r.updateCondition(istiocsr, nil)
+	}
+	if addProcessingRejectedAnnotation(istiocsr) {
+		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 		}
-		if addProcessingRejectedAnnotation(istiocsr) {
-			if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
-				annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
-			}
-		}
-		if condUpdateErr != nil || annUpdateErr != nil {
-			return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
-		}
+	}
+	if condUpdateErr != nil || annUpdateErr != nil {
+		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
 
 	return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
