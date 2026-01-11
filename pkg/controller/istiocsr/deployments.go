@@ -29,7 +29,7 @@ const (
 	caVolumeMountPath = "/var/run/configmaps/istio-csr"
 )
 
-var invalidIssuerRefConfigError = fmt.Errorf("invalid issuerRef config")
+var errInvalidIssuerRefConfig = fmt.Errorf("invalid issuerRef config")
 
 func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getDeploymentObject(istiocsr, resourceLabels)
@@ -236,12 +236,12 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	if issuerRefKind != clusterIssuerKind && issuerRefKind != issuerKind {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
 	}
 
 	issuerRefGroup := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group)
 	if issuerRefGroup != issuerGroup {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
 	}
 
 	obj, err := r.getIssuer(istiocsr)
@@ -254,18 +254,18 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	case clusterIssuerKind:
 		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
 		if !ok {
-			return NewIrrecoverableError(invalidIssuerRefConfigError, "failed to convert to ClusterIssuer")
+			return NewIrrecoverableError(errInvalidIssuerRefConfig, "failed to convert to ClusterIssuer")
 		}
 		issuerConfig = clusterIssuer.Spec.IssuerConfig
 	case issuerKind:
 		issuer, ok := obj.(*certmanagerv1.Issuer)
 		if !ok {
-			return NewIrrecoverableError(invalidIssuerRefConfigError, "failed to convert to Issuer")
+			return NewIrrecoverableError(errInvalidIssuerRefConfig, "failed to convert to Issuer")
 		}
 		issuerConfig = issuer.Spec.IssuerConfig
 	}
 	if issuerConfig.ACME != nil {
-		return NewIrrecoverableError(invalidIssuerRefConfigError, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 	}
 
 	return nil
