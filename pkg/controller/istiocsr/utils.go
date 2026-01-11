@@ -262,99 +262,63 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 	}
 
 	var objectModified bool
-	switch desired.(type) {
+	switch desiredObj := desired.(type) {
 	case *certmanagerv1.Certificate:
-		desiredCert, ok := desired.(*certmanagerv1.Certificate)
-		if !ok {
-			panic("failed to convert desired to *certmanagerv1.Certificate")
-		}
 		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
 		if !ok {
 			panic("failed to convert fetched to *certmanagerv1.Certificate")
 		}
-		objectModified = certificateSpecModified(desiredCert, fetchedCert)
+		objectModified = certificateSpecModified(desiredObj, fetchedCert)
 	case *rbacv1.ClusterRole:
-		desiredClusterRole, ok := desired.(*rbacv1.ClusterRole)
-		if !ok {
-			panic("failed to convert desired to *rbacv1.ClusterRole")
-		}
 		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.ClusterRole")
 		}
-		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desiredClusterRole, fetchedClusterRole)
+		objectModified = rbacRoleRulesModified(desiredObj, fetchedClusterRole)
 	case *rbacv1.ClusterRoleBinding:
-		desiredClusterRoleBinding, ok := desired.(*rbacv1.ClusterRoleBinding)
-		if !ok {
-			panic("failed to convert desired to *rbacv1.ClusterRoleBinding")
-		}
 		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
 		}
-		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desiredClusterRoleBinding, fetchedClusterRoleBinding) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desiredClusterRoleBinding, fetchedClusterRoleBinding)
+		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedClusterRoleBinding) ||
+			rbacRoleBindingSubjectsModified(desiredObj, fetchedClusterRoleBinding)
 	case *appsv1.Deployment:
-		desiredDeployment, ok := desired.(*appsv1.Deployment)
-		if !ok {
-			panic("failed to convert desired to *appsv1.Deployment")
-		}
 		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
 		if !ok {
 			panic("failed to convert fetched to *appsv1.Deployment")
 		}
-		objectModified = deploymentSpecModified(desiredDeployment, fetchedDeployment)
+		objectModified = deploymentSpecModified(desiredObj, fetchedDeployment)
 	case *rbacv1.Role:
-		desiredRole, ok := desired.(*rbacv1.Role)
-		if !ok {
-			panic("failed to convert desired to *rbacv1.Role")
-		}
 		fetchedRole, ok := fetched.(*rbacv1.Role)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.Role")
 		}
-		objectModified = rbacRoleRulesModified[*rbacv1.Role](desiredRole, fetchedRole)
+		objectModified = rbacRoleRulesModified(desiredObj, fetchedRole)
 	case *rbacv1.RoleBinding:
-		desiredRoleBinding, ok := desired.(*rbacv1.RoleBinding)
-		if !ok {
-			panic("failed to convert desired to *rbacv1.RoleBinding")
-		}
 		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.RoleBinding")
 		}
-		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desiredRoleBinding, fetchedRoleBinding) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desiredRoleBinding, fetchedRoleBinding)
+		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedRoleBinding) ||
+			rbacRoleBindingSubjectsModified(desiredObj, fetchedRoleBinding)
 	case *corev1.Service:
-		desiredService, ok := desired.(*corev1.Service)
-		if !ok {
-			panic("failed to convert desired to *corev1.Service")
-		}
 		fetchedService, ok := fetched.(*corev1.Service)
 		if !ok {
 			panic("failed to convert fetched to *corev1.Service")
 		}
-		objectModified = serviceSpecModified(desiredService, fetchedService)
+		objectModified = serviceSpecModified(desiredObj, fetchedService)
 	case *corev1.ConfigMap:
-		desiredConfigMap, ok := desired.(*corev1.ConfigMap)
-		if !ok {
-			panic("failed to convert desired to *corev1.ConfigMap")
-		}
 		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
 		if !ok {
 			panic("failed to convert fetched to *corev1.ConfigMap")
 		}
-		objectModified = configMapDataModified(desiredConfigMap, fetchedConfigMap)
+		objectModified = configMapDataModified(desiredObj, fetchedConfigMap)
 	case *networkingv1.NetworkPolicy:
-		desiredNetworkPolicy, ok := desired.(*networkingv1.NetworkPolicy)
-		if !ok {
-			panic("failed to convert desired to *networkingv1.NetworkPolicy")
-		}
 		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
 		if !ok {
 			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
 		}
-		objectModified = networkPolicySpecModified(desiredNetworkPolicy, fetchedNetworkPolicy)
+		objectModified = networkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
