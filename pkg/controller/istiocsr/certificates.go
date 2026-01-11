@@ -74,8 +74,8 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		certificate.Spec.CommonName = fmt.Sprintf(istiodCertificateCommonNameFmt, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
 	}
 
-	dnsNames := make([]string, len(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames))
-	copy(dnsNames, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames)
+	dnsNames := make([]string, 0, len(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames)+len(istiocsr.Spec.IstioCSRConfig.Istio.Revisions))
+	dnsNames = append(dnsNames, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames...)
 
 	// Also need to add a DNS SAN for every requested revision, except for default revision, which will not be
 	// included in the DNS name.

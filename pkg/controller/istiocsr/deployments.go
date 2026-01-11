@@ -236,7 +236,7 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	if issuerRefKind != clusterIssuerKind && issuerRefKind != issuerKind {
-		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
+		return NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be any of `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerKind)
 	}
 
 	issuerRefGroup := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group)
