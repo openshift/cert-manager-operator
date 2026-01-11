@@ -385,7 +385,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "invalid"
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `clusterissuer` or `issuer`, configured: issuer: invalid issuerRef config",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be any of `clusterissuer` or `issuer`, configured: issuer: invalid issuerRef config",
 		},
 		{
 			name: "deployment reconciliation fails as invalid group in issuerRef",
