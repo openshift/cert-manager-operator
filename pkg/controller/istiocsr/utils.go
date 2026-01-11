@@ -591,9 +591,11 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	}
 
 	if !ignoreProcessing {
-		return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+		// This is the oldest instance, allow it to proceed
+		return nil
 	}
 
+	// This instance should be rejected as there's an older or equally old instance
 	var condUpdateErr, annUpdateErr error
 	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 		condUpdateErr = r.updateCondition(istiocsr, nil)

@@ -60,7 +60,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 	}
 

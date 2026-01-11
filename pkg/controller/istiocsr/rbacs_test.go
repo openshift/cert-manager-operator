@@ -255,7 +255,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation updating name in status fails",
@@ -293,7 +293,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating to desired state fails",

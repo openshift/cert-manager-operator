@@ -358,7 +358,7 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			requeue: false,
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource status: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource status: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test error`,
 		},
 		{
 			name: "reconciliation remove finalizer from istiocsr fails",
@@ -697,7 +697,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			expectedAnnotations: map[string]string{
 				controllerProcessingRejectedAnnotation: "true",
 			},
-			wantErr: `failed to update istiocsr3/istiocsr-test-resource status: failed to update istiocsr.openshift.operator.io "istiocsr3/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr3/istiocsr-test-resource status: failed to update status for "istiocsr3/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr3/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "validating multiple istiocsrs' failed to update annotations",
