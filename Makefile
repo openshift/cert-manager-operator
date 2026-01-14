@@ -71,8 +71,8 @@ BIN=$(lastword $(subst /, ,$(PACKAGE)))
 BIN_DIR=$(PROJECT_ROOT)/bin
 
 # Tool commands run from the tools module directory and operate on the project root
-CONTROLLER_GEN := cd $(TOOLS_DIR) && go run sigs.k8s.io/controller-tools/cmd/controller-gen
-SETUP_ENVTEST := cd $(TOOLS_DIR) && go run sigs.k8s.io/controller-runtime/tools/setup-envtest
+CONTROLLER_GEN := go run -C $(TOOLS_DIR) sigs.k8s.io/controller-tools/cmd/controller-gen
+SETUP_ENVTEST := go run -C $(TOOLS_DIR) sigs.k8s.io/controller-runtime/tools/setup-envtest
 # These tools are installed as binaries so they can run from the project root
 GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
 KUSTOMIZE := $(BIN_DIR)/kustomize
@@ -315,7 +315,7 @@ lint-fix: $(GOLANGCI_LINT)
 
 $(GOLANGCI_LINT):
 	mkdir -p $(BIN_DIR)
-	cd $(TOOLS_DIR) && go build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	go build -C $(TOOLS_DIR) -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 $(OPERATOR_SDK_BIN):
 	mkdir -p $(BIN_DIR)
@@ -327,7 +327,7 @@ $(HELM_BIN):
 
 $(KUSTOMIZE):
 	mkdir -p $(BIN_DIR)
-	cd $(TOOLS_DIR) && go build -o $(KUSTOMIZE) sigs.k8s.io/kustomize/kustomize/v5
+	go build -C $(TOOLS_DIR) -o $(KUSTOMIZE) sigs.k8s.io/kustomize/kustomize/v5
 
 .PHONY: clean
 clean:
