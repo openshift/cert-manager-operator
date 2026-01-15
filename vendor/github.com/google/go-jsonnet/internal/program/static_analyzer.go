@@ -89,9 +89,7 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 		for _, param := range a.Parameters {
 			s.freeVars.Remove(param.Name)
 		}
-	case *ast.Import:
-		//nothing to do here
-	case *ast.ImportStr:
+	case *ast.Import, *ast.ImportStr, *ast.ImportBin:
 		//nothing to do here
 	case *ast.InSuper:
 		if !inObject {
@@ -164,5 +162,5 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 // It enriches the AST with additional information about free variables in every node,
 // so it is necessary to always run it before executing the AST.
 func analyze(node ast.Node) error {
-	return analyzeVisit(node, false, ast.NewIdentifierSet("std"))
+	return analyzeVisit(node, false, ast.NewIdentifierSet("std", "$std"))
 }
