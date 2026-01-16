@@ -8,11 +8,7 @@ coverage.out
 build/
 dist/
 gojsonnet.egg-info/
-/bazel-bin
-/bazel-genfiles
-/bazel-go-jsonnet
-/bazel-out
-/bazel-testlogs
+bazel-*
 /dumpstdlibast
 
 # built binaries
@@ -28,5 +24,7 @@ gojsonnet.egg-info/
 /tests_path.source
 
 /jsonnet-lint
-
+/jsonnet-deps
 /builtin-benchmark-results
+
+libjsonnet.wasm

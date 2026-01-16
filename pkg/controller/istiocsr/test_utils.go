@@ -26,7 +26,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
-	"github.com/openshift/cert-manager-operator/test/library"
+	"github.com/openshift/cert-manager-operator/pkg/testutil"
 )
 
 const (
@@ -47,7 +47,7 @@ func testReconciler(t *testing.T) *Reconciler {
 		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
 		log:           testr.New(t),
-		scheme:        library.Scheme,
+		scheme:        testutil.Scheme,
 	}
 }
 

@@ -17,6 +17,8 @@ limitations under the License.
 package jsonnet
 
 import (
+	"fmt"
+
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -34,6 +36,10 @@ type readyValue struct {
 
 func (rv *readyValue) evaluate(i *interpreter, sb selfBinding, origBinding bindingFrame, fieldName string) (value, error) {
 	return rv.content, nil
+}
+
+func (rv *readyValue) loc() *ast.LocationRange {
+	return &ast.LocationRange{}
 }
 
 // potentialValues
@@ -89,7 +95,12 @@ type codeUnboundField struct {
 
 func (f *codeUnboundField) evaluate(i *interpreter, sb selfBinding, origBindings bindingFrame, fieldName string) (value, error) {
 	env := makeEnvironment(origBindings, sb)
-	return i.EvalInCleanEnv(&env, f.body, false)
+	val, err := i.EvalInCleanEnv(&env, f.body, false)
+	return val, err
+}
+
+func (f *codeUnboundField) loc() *ast.LocationRange {
+	return f.body.Loc()
 }
 
 // Provide additional bindings for a field. It shadows bindings from the object.
@@ -100,7 +111,7 @@ type bindingsUnboundField struct {
 }
 
 func (f *bindingsUnboundField) evaluate(i *interpreter, sb selfBinding, origBindings bindingFrame, fieldName string) (value, error) {
-	upValues := make(bindingFrame)
+	upValues := make(bindingFrame, len(origBindings)+len(f.bindings))
 	for variable, pvalue := range origBindings {
 		upValues[variable] = pvalue
 	}
@@ -110,24 +121,54 @@ func (f *bindingsUnboundField) evaluate(i *interpreter, sb selfBinding, origBind
 	return f.inner.evaluate(i, sb, upValues, fieldName)
 }
 
+func (f *bindingsUnboundField) loc() *ast.LocationRange {
+	return f.inner.loc()
+}
+
 // plusSuperUnboundField represents a `field+: ...` that hasn't been bound to an object.
 type plusSuperUnboundField struct {
 	inner unboundField
 }
 
 func (f *plusSuperUnboundField) evaluate(i *interpreter, sb selfBinding, origBinding bindingFrame, fieldName string) (value, error) {
+	err := i.newCall(environment{}, false)
+	if err != nil {
+		return nil, err
+	}
+	stackSize := len(i.stack.stack)
+	defer i.stack.popIfExists(stackSize)
+
+	context := "+:"
+	i.stack.setCurrentTrace(traceElement{
+		loc:     f.loc(),
+		context: &context,
+	})
+	defer i.stack.clearCurrentTrace()
+
 	right, err := f.inner.evaluate(i, sb, origBinding, fieldName)
 	if err != nil {
 		return nil, err
 	}
-	if !objectHasField(sb.super(), fieldName, withHidden) {
+
+	if !objectHasField(sb.super(), fieldName) {
 		return right, nil
 	}
+
 	left, err := objectIndex(i, sb.super(), fieldName)
 	if err != nil {
 		return nil, err
 	}
-	return builtinPlus(i, left, right)
+
+	value, err := builtinPlus(i, left, right)
+	if err != nil {
+		return nil, err
+	}
+
+	return value, nil
+}
+
+func (f *plusSuperUnboundField) loc() *ast.LocationRange {
+	return f.inner.loc()
 }
 
 // evalCallables
@@ -152,7 +193,7 @@ func forceThunks(i *interpreter, args *bindingFrame) error {
 }
 
 func (closure *closure) evalCall(arguments callArguments, i *interpreter) (value, error) {
-	argThunks := make(bindingFrame)
+	argThunks := make(bindingFrame, len(arguments.named)+len(arguments.positional))
 	parameters := closure.parameters()
 	for i, arg := range arguments.positional {
 		argThunks[parameters[i].name] = arg
@@ -214,9 +255,9 @@ func makeClosure(env environment, function *ast.Function) *closure {
 
 // NativeFunction represents a function implemented in Go.
 type NativeFunction struct {
+	Name   string
 	Func   func([]interface{}) (interface{}, error)
 	Params ast.Identifiers
-	Name   string
 }
 
 // evalCall evaluates a call to a NativeFunction and returns the result.
@@ -234,7 +275,15 @@ func (native *NativeFunction) evalCall(arguments callArguments, i *interpreter) 
 		}
 		nativeArgs = append(nativeArgs, json)
 	}
-	resultJSON, err := native.Func(nativeArgs)
+	call := func() (resultJSON interface{}, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("native function %#v panicked: %v", native.Name, r)
+			}
+		}()
+		return native.Func(nativeArgs)
+	}
+	resultJSON, err := call()
 	if err != nil {
 		return nil, i.Error(err.Error())
 	}
