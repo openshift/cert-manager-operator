@@ -20,7 +20,7 @@ const (
 	awsCredentialsDir = "/.aws"
 
 	// credentials for GCP.
-	gcpCredentialsDir       = "/.config/gcloud" //nolint:gosec // G101: path constant, not a credential
+	gcpCredentialsDir       = "/.config/gcloud"
 	gcpCredentialsFileName  = "application_default_credentials.json"
 	gcpCredentialsSecretKey = "service_account.json"
 
@@ -47,12 +47,12 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 		if err != nil && apierrors.IsNotFound(err) {
 			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
 		} else if err != nil {
-			return err //nolint:wrapcheck // error from lister is already contextual
+			return err
 		}
 
 		infra, err := infraInformer.Lister().Get("cluster")
 		if err != nil {
-			return err //nolint:wrapcheck // error from lister is already contextual
+			return err
 		}
 
 		var volume *corev1.Volume

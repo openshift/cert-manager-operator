@@ -55,5 +55,5 @@ func (c *DefaultCertManagerController) createDefaultCertManager(ctx context.Cont
 			},
 		},
 	}
-	return c.certManagerClient.CertManagers().Create(ctx, cm, metav1.CreateOptions{}) //nolint:wrapcheck // error from client is already contextual
+	return c.certManagerClient.CertManagers().Create(ctx, cm, metav1.CreateOptions{})
 }

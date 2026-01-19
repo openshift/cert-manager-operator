@@ -124,7 +124,7 @@ func (c OperatorClient) PatchOperatorStatus(ctx context.Context, jsonPatch *json
 func (c OperatorClient) GetObjectMeta() (*metav1.ObjectMeta, error) {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return nil, err //nolint:wrapcheck // error from lister is already contextual
+		return nil, err
 	}
 
 	return &instance.ObjectMeta, nil
@@ -137,7 +137,7 @@ func (c OperatorClient) Informer() cache.SharedIndexInformer {
 func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return nil, nil, "", err //nolint:wrapcheck // error from lister is already contextual
+		return nil, nil, "", err
 	}
 
 	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
@@ -146,7 +146,7 @@ func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv
 func (c OperatorClient) GetOperatorStateWithQuorum(ctx context.Context) (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
 	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
-		return nil, nil, "", err //nolint:wrapcheck // error from client is already contextual
+		return nil, nil, "", err
 	}
 
 	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
@@ -157,7 +157,7 @@ func GetUnsupportedConfigOverrides(operatorSpec *operatorv1.OperatorSpec) (*v1al
 		out := &v1alpha1.UnsupportedConfigOverrides{}
 		err := json.Unmarshal(operatorSpec.UnsupportedConfigOverrides.Raw, out)
 		if err != nil {
-			return nil, err //nolint:wrapcheck // json.Unmarshal error is already clear
+			return nil, err
 		}
 		return out, nil
 	}
@@ -167,7 +167,7 @@ func GetUnsupportedConfigOverrides(operatorSpec *operatorv1.OperatorSpec) (*v1al
 func (c OperatorClient) UpdateOperatorSpec(ctx context.Context, resourceVersion string, spec *operatorv1.OperatorSpec) (*operatorv1.OperatorSpec, string, error) {
 	original, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return nil, "", err //nolint:wrapcheck // error from lister is already contextual
+		return nil, "", err
 	}
 	updated := original.DeepCopy()
 	updated.ResourceVersion = resourceVersion
@@ -175,7 +175,7 @@ func (c OperatorClient) UpdateOperatorSpec(ctx context.Context, resourceVersion 
 
 	ret, err := c.Client.CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, "", err //nolint:wrapcheck // error from client is already contextual
+		return nil, "", err
 	}
 
 	return &ret.Spec.OperatorSpec, ret.ResourceVersion, nil
@@ -184,7 +184,7 @@ func (c OperatorClient) UpdateOperatorSpec(ctx context.Context, resourceVersion 
 func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersion string, status *operatorv1.OperatorStatus) (*operatorv1.OperatorStatus, error) {
 	original, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return nil, err //nolint:wrapcheck // error from lister is already contextual
+		return nil, err
 	}
 	updated := original.DeepCopy()
 	updated.ResourceVersion = resourceVersion
@@ -192,7 +192,7 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 
 	ret, err := c.Client.CertManagers().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, err //nolint:wrapcheck // error from client is already contextual
+		return nil, err
 	}
 
 	return &ret.Status.OperatorStatus, nil
@@ -201,7 +201,7 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) error {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return err //nolint:wrapcheck // error from lister is already contextual
+		return err
 	}
 
 	finalizers := instance.GetFinalizers()
@@ -222,7 +222,7 @@ func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) e
 func (c OperatorClient) RemoveFinalizer(ctx context.Context, finalizer string) error {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return err //nolint:wrapcheck // error from lister is already contextual
+		return err
 	}
 
 	finalizers := instance.GetFinalizers()
@@ -250,5 +250,5 @@ func (c OperatorClient) saveFinalizers(ctx context.Context, instance *v1alpha1.C
 	clone := instance.DeepCopy()
 	clone.SetFinalizers(finalizers)
 	_, err := c.Client.CertManagers().Update(ctx, clone, metav1.UpdateOptions{})
-	return err //nolint:wrapcheck // error from client is already contextual
+	return err
 }

@@ -41,7 +41,7 @@ func withUnsupportedArgsOverrideHook(operatorSpec *operatorv1.OperatorSpec, depl
 	if len(operatorSpec.UnsupportedConfigOverrides.Raw) != 0 {
 		err := json.Unmarshal(operatorSpec.UnsupportedConfigOverrides.Raw, cfg)
 		if err != nil {
-			return err //nolint:wrapcheck // json.Unmarshal error is already clear
+			return err
 		}
 	}
 	deployment = unsupportedConfigOverrides(deployment, cfg) //nolint:staticcheck,wastedassign // SA4006: deployment is modified in place, assignment kept for clarity

@@ -103,7 +103,7 @@ func NewCacheBuilder(config *rest.Config, opts cache.Options) (cache.Cache, erro
 		},
 	}
 
-	return cache.New(config, opts) //nolint:wrapcheck // error from cache.New is already contextual
+	return cache.New(config, opts)
 }
 
 // New returns a new Reconciler instance.
@@ -195,7 +195,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
 	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
 
-	//nolint:wrapcheck // error from builder.Complete() is already contextual
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).

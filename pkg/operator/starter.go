@@ -45,17 +45,17 @@ var UnsupportedAddonFeatures string
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
 	if err != nil {
-		return err //nolint:wrapcheck // error from NewForConfig is already contextual
+		return err
 	}
 
 	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err //nolint:wrapcheck // error from NewForConfig is already contextual
+		return err
 	}
 
 	apiExtensionsClient, err := apiextensionsclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err //nolint:wrapcheck // error from NewForConfig is already contextual
+		return err
 	}
 
 	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
@@ -80,7 +80,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err //nolint:wrapcheck // error from NewForConfig is already contextual
+		return err
 	}
 
 	infraGVR := configv1.GroupVersion.WithResource("infrastructures")

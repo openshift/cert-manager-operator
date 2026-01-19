@@ -54,7 +54,7 @@ func (o *OptionalInformer[GroupInformer]) Discover() (bool, error) {
 			return false, nil
 		}
 
-		return false, err //nolint:wrapcheck // error from discovery is already contextual
+		return false, err
 	}
 
 	for _, res := range resources.APIResources {

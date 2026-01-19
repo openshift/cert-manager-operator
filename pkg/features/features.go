@@ -23,5 +23,5 @@ func SetupWithFlagValue(flagValue string) error {
 	if flagValue == "" {
 		return nil // use defined defaults
 	}
-	return mutableFeatureGate.Set(flagValue) //nolint:wrapcheck // error from featuregate is already contextual
+	return mutableFeatureGate.Set(flagValue)
 }
