@@ -127,7 +127,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
-		//nolint:nestif // complexity is acceptable for label processing logic
 		if objLabels != nil {
 			// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
 			// namespace in the reconcile request will be set same, else since label check matches is an object
@@ -271,7 +270,6 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	}
 
 	var errUpdate error = nil
-	//nolint:nestif // complexity is acceptable for deployment reconciliation
 	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
 		if IsIrrecoverableError(err) {

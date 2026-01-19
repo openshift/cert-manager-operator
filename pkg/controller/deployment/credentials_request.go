@@ -26,7 +26,7 @@ const (
 
 	// cloudCredentialsVolumeName is the volume name for mounting
 	// service account (gcp) or credentials (aws) file.
-	cloudCredentialsVolumeName = "cloud-credentials" //nolint:gosec // G101: volume name constant, not a credential
+	cloudCredentialsVolumeName = "cloud-credentials"
 )
 
 func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, deploymentName, secretName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {

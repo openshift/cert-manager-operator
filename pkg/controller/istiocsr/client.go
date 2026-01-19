@@ -107,7 +107,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to update with retry %q: %w", key, err)
+		return err
 	}
 
 	return nil
@@ -138,7 +138,7 @@ func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj c
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to check if object %q exists: %w", key, err)
+		return false, err
 	}
 	return true, nil
 }

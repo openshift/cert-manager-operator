@@ -43,8 +43,6 @@ type IstioCSRList struct {
 //
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default'",message="istiocsr is a singleton, .metadata.name must be 'default'"
 // +operator-sdk:csv:customresourcedefinitions:displayName="IstioCSR"
-//
-//nolint:godot // operator-sdk annotation doesn't need period
 type IstioCSR struct {
 	metav1.TypeMeta `json:",inline"`
 

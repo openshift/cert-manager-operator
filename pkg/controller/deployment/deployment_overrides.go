@@ -32,7 +32,7 @@ const (
 	// boundSA is the openshift service account
 	// containing bound token.
 	boundSATokenVolumeName = "bound-sa-token"
-	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount" //nolint:gosec // G101: path constant, not a credential
+	boundSATokenDir        = "/var/run/secrets/openshift/serviceaccount"
 	boundSAAudience        = "openshift"
 	boundSAPath            = "token"
 	boundSAExpirySec       = 3600
