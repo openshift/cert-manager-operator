@@ -64,8 +64,8 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 
 func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.Service {
 	service := decodeServiceObjBytes(assets.MustAsset(serviceAssetName))
-	updateNamespace(service, istiocsr.GetNamespace())
-	updateResourceLabels(service, resourceLabels)
+	common.UpdateNamespace(service, istiocsr.GetNamespace())
+	common.UpdateResourceLabels(service, resourceLabels)
 	if istiocsr.Spec.IstioCSRConfig.Server != nil {
 		updateServicePort(service, istiocsr.Spec.IstioCSRConfig.Server.Port)
 	}
@@ -74,8 +74,8 @@ func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabel
 
 func (r *Reconciler) getMetricsServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.Service {
 	service := decodeServiceObjBytes(assets.MustAsset(metricsServiceAssetName))
-	updateNamespace(service, istiocsr.GetNamespace())
-	updateResourceLabels(service, resourceLabels)
+	common.UpdateNamespace(service, istiocsr.GetNamespace())
+	common.UpdateResourceLabels(service, resourceLabels)
 	return service
 }
 

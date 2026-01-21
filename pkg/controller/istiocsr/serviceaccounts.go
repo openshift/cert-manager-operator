@@ -43,8 +43,8 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 
 func (r *Reconciler) getServiceAccountObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.ServiceAccount {
 	serviceAccount := decodeServiceAccountObjBytes(assets.MustAsset(serviceAccountAssetName))
-	updateNamespace(serviceAccount, istiocsr.GetNamespace())
-	updateResourceLabels(serviceAccount, resourceLabels)
+	common.UpdateNamespace(serviceAccount, istiocsr.GetNamespace())
+	common.UpdateResourceLabels(serviceAccount, resourceLabels)
 	return serviceAccount
 }
 

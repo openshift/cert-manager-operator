@@ -86,8 +86,8 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		}
 		if len(clusterRoleList.Items) > 0 {
 			if len(clusterRoleList.Items) != 1 {
-			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
-			return "", common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrole resources exist with matching labels"), "matched clusterrole resources: %+v", clusterRoleList.Items)
+				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
+				return "", common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrole resources exist with matching labels"), "matched clusterrole resources: %+v", clusterRoleList.Items)
 			}
 			clusterRoleList.Items[0].DeepCopyInto(fetched)
 
@@ -179,8 +179,8 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		}
 		if len(clusterRoleBindingsList.Items) > 0 {
 			if len(clusterRoleBindingsList.Items) != 1 {
-			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
-			return common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrolebinding resources exist with matching labels"), "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
+				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
+				return common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrolebinding resources exist with matching labels"), "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
 			}
 			clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
 
@@ -271,7 +271,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 
 func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
 	role := decodeRoleObjBytes(assets.MustAsset(roleAssetName))
-	updateNamespace(role, roleNamespace)
+	common.UpdateNamespace(role, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(role, istiocsrNamespace, resourceLabels)
 	return role
 }
@@ -311,7 +311,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 
 func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
 	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingAssetName))
-	updateNamespace(roleBinding, roleNamespace)
+	common.UpdateNamespace(roleBinding, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(roleBinding, istiocsrNamespace, resourceLabels)
 	updateServiceAccountNamespaceInRBACBindingObject[*rbacv1.RoleBinding](roleBinding, serviceAccount, istiocsrNamespace)
 	return roleBinding
@@ -352,7 +352,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 
 func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
 	role := decodeRoleObjBytes(assets.MustAsset(roleLeasesAssetName))
-	updateNamespace(role, roleNamespace)
+	common.UpdateNamespace(role, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(role, istiocsrNamespace, resourceLabels)
 	return role
 }
@@ -392,7 +392,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 
 func (r *Reconciler) getRoleBindingForLeasesObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
 	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingLeasesAssetName))
-	updateNamespace(roleBinding, roleNamespace)
+	common.UpdateNamespace(roleBinding, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(roleBinding, istiocsrNamespace, resourceLabels)
 	updateServiceAccountNamespaceInRBACBindingObject[*rbacv1.RoleBinding](roleBinding, serviceAccount, istiocsrNamespace)
 	return roleBinding

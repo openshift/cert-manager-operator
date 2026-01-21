@@ -111,47 +111,19 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, istiocsr *v1alpha1.Ist
 }
 
 func containsProcessedAnnotation(istiocsr *v1alpha1.IstioCSR) bool {
-	_, exist := istiocsr.GetAnnotations()[controllerProcessedAnnotation]
-	return exist
+	return common.ContainsAnnotation(istiocsr, controllerProcessedAnnotation)
 }
 
 func containsProcessingRejectedAnnotation(istiocsr *v1alpha1.IstioCSR) bool {
-	_, exist := istiocsr.GetAnnotations()[controllerProcessingRejectedAnnotation]
-	return exist
+	return common.ContainsAnnotation(istiocsr, controllerProcessingRejectedAnnotation)
 }
 
 func addProcessedAnnotation(istiocsr *v1alpha1.IstioCSR) bool {
-	annotations := istiocsr.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string, 1)
-	}
-	if _, exist := annotations[controllerProcessedAnnotation]; !exist {
-		annotations[controllerProcessedAnnotation] = "true"
-		istiocsr.SetAnnotations(annotations)
-		return true
-	}
-	return false
+	return common.AddAnnotation(istiocsr, controllerProcessedAnnotation, "true")
 }
 
 func addProcessingRejectedAnnotation(istiocsr *v1alpha1.IstioCSR) bool {
-	annotations := istiocsr.GetAnnotations()
-	if annotations == nil {
-		annotations = make(map[string]string, 1)
-	}
-	if _, exist := annotations[controllerProcessingRejectedAnnotation]; !exist {
-		annotations[controllerProcessingRejectedAnnotation] = "true"
-		istiocsr.SetAnnotations(annotations)
-		return true
-	}
-	return false
-}
-
-func updateNamespace(obj client.Object, newNamespace string) {
-	obj.SetNamespace(newNamespace)
-}
-
-func updateResourceLabels(obj client.Object, labels map[string]string) {
-	obj.SetLabels(labels)
+	return common.AddAnnotation(istiocsr, controllerProcessingRejectedAnnotation, "true")
 }
 
 func updateResourceLabelsWithIstioMapperLabels(obj client.Object, istiocsrNamespace string, labels map[string]string) {
@@ -323,11 +295,7 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
-	return objectModified || objectMetadataModified(desired, fetched)
-}
-
-func objectMetadataModified(desired, fetched client.Object) bool {
-	return !reflect.DeepEqual(desired.GetLabels(), fetched.GetLabels())
+	return objectModified || common.ObjectMetadataModified(desired, fetched)
 }
 
 func certificateSpecModified(desired, fetched *certmanagerv1.Certificate) bool {

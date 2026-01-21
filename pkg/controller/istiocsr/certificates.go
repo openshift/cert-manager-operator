@@ -55,7 +55,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 func (r *Reconciler) getCertificateObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) (*certmanagerv1.Certificate, error) {
 	certificate := decodeCertificateObjBytes(assets.MustAsset(certificateAssetName))
 
-	updateNamespace(certificate, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
+	common.UpdateNamespace(certificate, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
 	// add custom label for identification on the object created in different namespace.
 	labels := make(map[string]string, len(resourceLabels)+1)
 	maps.Copy(labels, resourceLabels)
