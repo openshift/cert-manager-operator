@@ -32,6 +32,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 var (
@@ -46,7 +47,7 @@ var (
 
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
-	ctrlClient
+	common.CtrlClient
 
 	ctx           context.Context
 	eventRecorder record.EventRecorder
@@ -108,12 +109,12 @@ func NewCacheBuilder(config *rest.Config, opts cache.Options) (cache.Cache, erro
 
 // New returns a new Reconciler instance.
 func New(mgr ctrl.Manager) (*Reconciler, error) {
-	c, err := NewClient(mgr)
+	c, err := common.NewClient(mgr)
 	if err != nil {
 		return nil, err
 	}
 	return &Reconciler{
-		ctrlClient:    c,
+		CtrlClient:    c,
 		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
@@ -262,7 +263,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	}
 
 	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
-		if IsMultipleInstanceError(err) {
+		if common.IsMultipleInstanceError(err) {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
 			err = nil
 		}
@@ -272,7 +273,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	var errUpdate error = nil
 	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
-		if IsIrrecoverableError(err) {
+		if common.IsIrrecoverableError(err) {
 			// Set both conditions atomically before updating status
 			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
 			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")

@@ -21,6 +21,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 var (
@@ -527,7 +528,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
-		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
+		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
@@ -573,5 +574,5 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
 
-	return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+	return common.NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
 }

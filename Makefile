@@ -228,9 +228,13 @@ manifests: $(CONTROLLER_GEN) ## Generate WebhookConfiguration, ClusterRole and C
 		output:rbac:artifacts:config=$(PROJECT_ROOT)/config/rbac
 
 .PHONY: generate
-generate: $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: generate-fakes $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="$(PROJECT_ROOT)/hack/boilerplate.go.txt" paths="$(PROJECT_ROOT)/api/..."
 	hack/update-clientgen.sh
+
+.PHONY: generate-fakes
+generate-fakes: ## Generate fake implementations for testing using counterfeiter.
+	go generate ./...
 
 # Targets that need Go workspace mode (CI sets GOFLAGS=-mod=vendor which conflicts with go.work)
 fmt vet test test-e2e run update-vendor update-dep: GOFLAGS=

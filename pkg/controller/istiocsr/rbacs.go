@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
@@ -72,7 +73,7 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		}
 		exist, err = r.Exists(r.ctx, key, fetched)
 		if err != nil {
-			return "", FromClientError(err, "failed to check %s clusterrole resource already exists", roleName)
+			return "", common.FromClientError(err, "failed to check %s clusterrole resource already exists", roleName)
 		}
 	}
 	if istiocsr.Status.ClusterRole == "" {
@@ -81,12 +82,12 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		// make sure required resource does not exist already.
 		clusterRoleList := &rbacv1.ClusterRoleList{}
 		if err := r.List(r.ctx, clusterRoleList, client.MatchingLabels(desired.GetLabels())); err != nil {
-			return "", FromClientError(err, "failed to list clusterrole resources, impacted namespace %s", istiocsr.GetNamespace())
+			return "", common.FromClientError(err, "failed to list clusterrole resources, impacted namespace %s", istiocsr.GetNamespace())
 		}
 		if len(clusterRoleList.Items) > 0 {
 			if len(clusterRoleList.Items) != 1 {
-				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
-				return "", NewIrrecoverableError(fmt.Errorf("more than 1 clusterrole resources exist with matching labels"), "matched clusterrole resources: %+v", clusterRoleList.Items)
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
+			return "", common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrole resources exist with matching labels"), "matched clusterrole resources: %+v", clusterRoleList.Items)
 			}
 			clusterRoleList.Items[0].DeepCopyInto(fetched)
 
@@ -101,7 +102,7 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("clusterrole has been modified, updating to desired state", "name", roleName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return "", FromClientError(err, "failed to update %s clusterrole resource", roleName)
+			return "", common.FromClientError(err, "failed to update %s clusterrole resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s reconciled back to desired state", roleName)
 	} else {
@@ -109,12 +110,12 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return "", FromClientError(err, "failed to create %s clusterrole resource", roleName)
+			return "", common.FromClientError(err, "failed to create %s clusterrole resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s created", roleName)
 	}
 	if roleName, err = r.updateClusterRoleNameInStatus(istiocsr, desired, fetched); err != nil {
-		return "", FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrole resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleName)
+		return "", common.FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrole resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleName)
 	}
 
 	return roleName, nil
@@ -165,7 +166,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		}
 		exist, err = r.Exists(r.ctx, key, fetched)
 		if err != nil {
-			return FromClientError(err, "failed to check %s clusterrolebinding resource already exists", roleBindingName)
+			return common.FromClientError(err, "failed to check %s clusterrolebinding resource already exists", roleBindingName)
 		}
 	}
 	if istiocsr.Status.ClusterRoleBinding == "" {
@@ -174,12 +175,12 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		// make sure required resource does not exist already.
 		clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
 		if err := r.List(r.ctx, clusterRoleBindingsList, client.MatchingLabels(desired.GetLabels())); err != nil {
-			return FromClientError(err, "failed to list clusterrolebinding resources, impacted namespace %s", istiocsr.GetNamespace())
+			return common.FromClientError(err, "failed to list clusterrolebinding resources, impacted namespace %s", istiocsr.GetNamespace())
 		}
 		if len(clusterRoleBindingsList.Items) > 0 {
 			if len(clusterRoleBindingsList.Items) != 1 {
-				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
-				return NewIrrecoverableError(fmt.Errorf("more than 1 clusterrolebinding resources exist with matching labels"), "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
+			return common.NewIrrecoverableError(fmt.Errorf("more than 1 clusterrolebinding resources exist with matching labels"), "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
 			}
 			clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
 
@@ -194,7 +195,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("clusterrolebinding has been modified, updating to desired state", "name", roleBindingName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s clusterrolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to update %s clusterrolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s reconciled back to desired state", roleBindingName)
 	} else {
@@ -202,12 +203,12 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s clusterrolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to create %s clusterrolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s created", roleBindingName)
 	}
 	if err := r.updateClusterRoleBindingNameInStatus(istiocsr, desired, fetched); err != nil {
-		return FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrolebinding resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleBindingName)
+		return common.FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrolebinding resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleBindingName)
 	}
 
 	return nil
@@ -243,7 +244,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 	fetched := &rbacv1.Role{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
-		return FromClientError(err, "failed to check %s role resource already exists", roleName)
+		return common.FromClientError(err, "failed to check %s role resource already exists", roleName)
 	}
 
 	if exist && istioCSRCreateRecon {
@@ -252,7 +253,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s role resource", roleName)
+			return common.FromClientError(err, "failed to update %s role resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s reconciled back to desired state", roleName)
 	} else {
@@ -260,7 +261,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s role resource", roleName)
+			return common.FromClientError(err, "failed to create %s role resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s created", roleName)
 	}
@@ -283,7 +284,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 	fetched := &rbacv1.RoleBinding{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
-		return FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
+		return common.FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
 	}
 
 	if exist && istioCSRCreateRecon {
@@ -292,7 +293,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s reconciled back to desired state", roleBindingName)
 	} else {
@@ -300,7 +301,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s created", roleBindingName)
 	}
@@ -324,7 +325,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 	fetched := &rbacv1.Role{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
-		return FromClientError(err, "failed to check %s role resource already exists", roleName)
+		return common.FromClientError(err, "failed to check %s role resource already exists", roleName)
 	}
 
 	if exist && istioCSRCreateRecon {
@@ -333,7 +334,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s role resource", roleName)
+			return common.FromClientError(err, "failed to update %s role resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s reconciled back to desired state", roleName)
 	} else {
@@ -341,7 +342,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s role resource", roleName)
+			return common.FromClientError(err, "failed to create %s role resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s created", roleName)
 	}
@@ -364,7 +365,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 	fetched := &rbacv1.RoleBinding{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
-		return FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
+		return common.FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
 	}
 
 	if exist && istioCSRCreateRecon {
@@ -373,7 +374,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s reconciled back to desired state", roleBindingName)
 	} else {
@@ -381,7 +382,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s created", roleBindingName)
 	}
