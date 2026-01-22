@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -69,10 +70,6 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		Expect(baseDomain).NotTo(BeEmpty(), "base domain should not be empty")
 		appsDomain = "apps." + baseDomain
 
-		By("waiting for operator status to become available")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
-		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
-
 		By("adding required args to cert-manager controller")
 		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
 			// for Issuer to use ambient credentials
@@ -86,9 +83,48 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		By("waiting for operator status to become available")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
-		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+		proxy, err := configClient.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			Expect(err).NotTo(HaveOccurred(), "failed to get cluster proxy config")
+		}
+		if err == nil && proxy.Spec.TrustedCA.Name != "" {
+			By("creating trusted CA ConfigMap for HTTPS proxy")
+			trustedCA := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "trusted-ca",
+					Namespace: "cert-manager",
+					Labels: map[string]string{
+						"config.openshift.io/inject-trusted-cabundle": "true",
+					},
+				},
+			}
+			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			DeferCleanup(func(cleanupCtx context.Context) {
+				loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(cleanupCtx, "trusted-ca", metav1.DeleteOptions{})
+			})
+
+			By("setting trusted CA ConfigMap name via subscription env var")
+			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+				"TRUSTED_CA_CONFIGMAP_NAME": "trusted-ca",
+			})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with 'TRUSTED_CA_CONFIGMAP_NAME' environment variable")
+
+			DeferCleanup(func(cleanupCtx context.Context) {
+				By("removing 'TRUSTED_CA_CONFIGMAP_NAME' from subscription")
+				if err := patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
+					"TRUSTED_CA_CONFIGMAP_NAME": "",
+				}); err != nil {
+					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
+					return
+				}
+			})
+
+			By("waiting for operator deployment to restart with trusted CA configuration")
+			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "TRUSTED_CA_CONFIGMAP_NAME", "trusted-ca", lowTimeout)
+			Expect(err).NotTo(HaveOccurred())
+		}
 
 		DeferCleanup(func() {
 			By("resetting cert-manager state")
@@ -101,6 +137,10 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		var err error
 		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
 		DeferCleanup(cancel)
+
+		By("waiting for operator status to become available")
+		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
 		ns, err = loader.CreateTestingNS("e2e-acme-dns01", false)
@@ -246,6 +286,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with env vars")
+
+		DeferCleanup(func(cleanupCtx context.Context) {
+			By("removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+			if err := patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
+				"CLOUD_CREDENTIALS_SECRET_NAME": "",
+			}); err != nil {
+				fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
+				return
+			}
+		})
 	}
 
 	// getGCPProjectID retrieves GCP project ID from Infrastructure object
@@ -307,6 +357,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			"CLOUD_CREDENTIALS_SECRET_NAME": "gcp-credentials",
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with env vars")
+
+		DeferCleanup(func(cleanupCtx context.Context) {
+			By("removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+			if err := patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
+				"CLOUD_CREDENTIALS_SECRET_NAME": "",
+			}); err != nil {
+				fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
+				return
+			}
+		})
 	}
 
 	// removeGCPMemberFromPolicy removes a member from a role binding in a GCP IAM policy
@@ -834,9 +894,11 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 			DeferCleanup(func(ctx context.Context) {
 				By("Removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
-				err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{})
-				if err != nil {
+				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+					"CLOUD_CREDENTIALS_SECRET_NAME": "",
+				}); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
+					return
 				}
 			})
 
@@ -1097,9 +1159,11 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 			DeferCleanup(func(ctx context.Context) {
 				By("Removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
-				err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{})
-				if err != nil {
+				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+					"CLOUD_CREDENTIALS_SECRET_NAME": "",
+				}); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
+					return
 				}
 			})
 
