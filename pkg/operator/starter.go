@@ -142,13 +142,27 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	// enable controller-runtime and istio-csr controller
 	// only when "IstioCSR" feature is turned on from --addon-features
 	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
-		manager, err := NewControllerManager()
+		manager, err := NewIstioCSRControllerManager()
 		if err != nil {
-			return fmt.Errorf("failed to create controller manager: %w", err)
+			return fmt.Errorf("failed to create istiocsr controller manager: %w", err)
 		}
-		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil { //nolint:contextcheck // SetupSignalHandler creates a new context for signal handling, which is intentional
-			return fmt.Errorf("failed to start istiocsr controller: %w", err)
+		go func() {
+			if err := manager.StartIstioCSR(ctrl.SetupSignalHandler()); err != nil {
+				ctrl.Log.Error(err, "failed to start istiocsr controller")
+			}
+		}()
+	}
+
+	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager) {
+		manager, err := NewTrustManagerControllerManager()
+		if err != nil {
+			return fmt.Errorf("failed to create trustmanager controller manager: %w", err)
 		}
+		go func() {
+			if err := manager.StartTrustManager(ctrl.SetupSignalHandler()); err != nil {
+				ctrl.Log.Error(err, "failed to start trustmanager controller")
+			}
+		}()
 	}
 
 	<-ctx.Done()
