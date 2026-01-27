@@ -139,28 +139,23 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return fmt.Errorf("failed to parse addon features: %w", err)
 	}
 
-	// enable controller-runtime and istio-csr controller
-	// only when "IstioCSR" feature is turned on from --addon-features
-	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
-		manager, err := NewIstioCSRControllerManager()
-		if err != nil {
-			return fmt.Errorf("failed to create istiocsr controller manager: %w", err)
-		}
-		go func() {
-			if err := manager.StartIstioCSR(ctrl.SetupSignalHandler()); err != nil {
-				ctrl.Log.Error(err, "failed to start istiocsr controller")
-			}
-		}()
-	}
+	// Check if any operand controllers are enabled
+	istioCSREnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR)
+	trustManagerEnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager)
 
-	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager) {
-		manager, err := NewTrustManagerControllerManager()
+	if istioCSREnabled || trustManagerEnabled {
+		// Create unified manager for all enabled operand controllers
+		manager, err := NewControllerManager(ControllerConfig{
+			EnableIstioCSR:     istioCSREnabled,
+			EnableTrustManager: trustManagerEnabled,
+		})
 		if err != nil {
-			return fmt.Errorf("failed to create trustmanager controller manager: %w", err)
+			return fmt.Errorf("failed to create unified controller manager: %w", err)
 		}
+
 		go func() {
-			if err := manager.StartTrustManager(ctrl.SetupSignalHandler()); err != nil {
-				ctrl.Log.Error(err, "failed to start trustmanager controller")
+			if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+				ctrl.Log.Error(err, "failed to start unified controller manager")
 			}
 		}()
 	}

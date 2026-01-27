@@ -12,16 +12,12 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -35,15 +31,10 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-var (
-	// requestEnqueueLabelKey is the label key name used for filtering reconcile
-	// events to include only the resources created by the controller.
-	requestEnqueueLabelKey = "app"
-
-	// requestEnqueueLabelValue is the label value used for filtering reconcile
-	// events to include only the resources created by the controller.
-	requestEnqueueLabelValue = "cert-manager-istio-csr"
-)
+// RequestEnqueueLabelValue is the label value used for filtering reconcile
+// events to include only the resources created by the IstioCSR controller.
+// The label key is common.ManagedResourceLabelKey.
+const RequestEnqueueLabelValue = "cert-manager-istio-csr"
 
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
@@ -59,53 +50,6 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
-
-// NewCacheBuilder returns a cache builder function configured with label selectors
-// for managed resources. This function is used by the manager to create its cache
-// to ensure the reconciler reads from the same cache that the controller's watches use.
-func NewCacheBuilder(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-	managedResourceLabelReq, err := labels.NewRequirement(requestEnqueueLabelKey, selection.Equals, []string{requestEnqueueLabelValue})
-	if err != nil {
-		return nil, fmt.Errorf("invalid cache label requirement for %q: %w", requestEnqueueLabelKey, err)
-	}
-	managedResourceLabelReqSelector := labels.NewSelector().Add(*managedResourceLabelReq)
-
-	// Configure cache with label selectors for managed resources
-	opts.ByObject = map[client.Object]cache.ByObject{
-		// Explicitly include IstioCSR to ensure the cache properly watches and syncs all IstioCSR objects
-		&v1alpha1.IstioCSR{}: {},
-		// Resources managed by controller (with label selectors)
-		&certmanagerv1.Certificate{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&appsv1.Deployment{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.ClusterRole{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.ClusterRoleBinding{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.Role{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.RoleBinding{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&corev1.Service{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&corev1.ServiceAccount{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&networkingv1.NetworkPolicy{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-	}
-
-	return cache.New(config, opts)
-}
 
 // New returns a new Reconciler instance.
 func New(mgr ctrl.Manager) (*Reconciler, error) {
@@ -138,7 +82,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 
 			labelOk := func() bool {
-				if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
+				if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
 					return true
 				}
 				value := objLabels[IstiocsrResourceWatchLabelName]
@@ -172,7 +116,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// predicate function to ignore events for objects not managed by controller.
 	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue
+		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
 	})
 
 	// predicate function to filter events for objects which controller is interested in, but
@@ -186,7 +130,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		}
 		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue ||
+		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
 			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
