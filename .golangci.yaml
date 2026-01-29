@@ -16,7 +16,7 @@ linters:
     - copyloopvar
     - decorder
     - depguard
-    - dupword    
+    - dupword
     - errcheck
     - errchkjson
     - errname
@@ -28,6 +28,7 @@ linters:
     - gocheckcompilerdirectives
     - goconst
     - gocritic
+    - gocyclo
     - godot
     - goheader
     - goprintffuncname
@@ -61,7 +62,6 @@ linters:
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - dupl
     - cyclop
-    - gocyclo
     - gocognit
     - err113
     - revive
@@ -72,7 +72,6 @@ linters:
     #- godoclint
     #- iotamixing
     #- modernize
-    
   exclusions:
     # Mode of the generated files analysis.
     #
@@ -100,7 +99,6 @@ linters:
       # Exclude some linters from running on tests files.
       - path: _test\.go
         linters:
-          - gocyclo
           - errcheck
           - dupl
           - gosec
