@@ -27,6 +27,7 @@ linters:
     - forcetypeassert
     - funcorder
     - gocheckcompilerdirectives
+    - gocognit
     - goconst
     - gocritic
     - gocyclo
@@ -59,12 +60,11 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
+    - revive
   disable:
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - cyclop
-    - gocognit
     - err113
-    - revive
     - maintidx
     - mnd
     # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.

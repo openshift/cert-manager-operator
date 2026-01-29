@@ -1166,37 +1166,46 @@ func TestUpdateArgList(t *testing.T) {
 
 			updateArgList(deployment, istiocsr)
 
-			// Find the istio-csr container and check its arguments
-			var containerArgs []string
-			for _, container := range deployment.Spec.Template.Spec.Containers {
-				if container.Name == istiocsrContainerName {
-					containerArgs = container.Args
-					break
-				}
-			}
+			containerArgs := getContainerArgs(t, deployment)
+			verifyExpectedArgs(t, containerArgs, tt.expectedArgs)
+			verifyNotExpectedArgs(t, containerArgs, tt.notExpectedArgs)
+		})
+	}
+}
 
-			if len(containerArgs) == 0 {
+// Helper functions to reduce cognitive complexity
+
+func getContainerArgs(t *testing.T, deployment *appsv1.Deployment) []string {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == istiocsrContainerName {
+			if len(container.Args) == 0 {
 				t.Fatalf("Expected container args to be set, but got empty args")
 			}
+			return container.Args
+		}
+	}
+	t.Fatalf("Expected to find container %q, but it was not found", istiocsrContainerName)
+	return nil
+}
 
-			// Verify each expected argument
-			for argName, expectedValue := range tt.expectedArgs {
-				expectedArg := fmt.Sprintf("--%s=%s", argName, expectedValue)
-				if !containsArg(containerArgs, expectedArg) {
-					t.Errorf("Expected to find argument %q in container args, but it was not found. Args: %v", expectedArg, containerArgs)
-				}
-			}
+func verifyExpectedArgs(t *testing.T, containerArgs []string, expectedArgs map[string]string) {
+	for argName, expectedValue := range expectedArgs {
+		expectedArg := fmt.Sprintf("--%s=%s", argName, expectedValue)
+		if !containsArg(containerArgs, expectedArg) {
+			t.Errorf("Expected to find argument %q in container args, but it was not found. Args: %v", expectedArg, containerArgs)
+		}
+	}
+}
 
-			// Verify arguments that should NOT be present
-			for _, argName := range tt.notExpectedArgs {
-				for _, arg := range containerArgs {
-					if strings.HasPrefix(arg, fmt.Sprintf("--%s=", argName)) {
-						t.Errorf("Expected NOT to find argument %q in container args. Args: %v", arg, containerArgs)
-						break
-					}
-				}
+func verifyNotExpectedArgs(t *testing.T, containerArgs []string, notExpectedArgs []string) {
+	for _, argName := range notExpectedArgs {
+		prefix := fmt.Sprintf("--%s=", argName)
+		for _, arg := range containerArgs {
+			if strings.HasPrefix(arg, prefix) {
+				t.Errorf("Expected NOT to find argument %q in container args. Args: %v", arg, containerArgs)
+				break
 			}
-		})
+		}
 	}
 }
 
