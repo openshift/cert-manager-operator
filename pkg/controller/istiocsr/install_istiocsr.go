@@ -56,6 +56,6 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		}
 	}
 
-	r.log.V(4).Info("finished reconciliation of istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	r.log.V(logVerbosityLevelDebug).Info("finished reconciliation of istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 	return nil
 }

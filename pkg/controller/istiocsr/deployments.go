@@ -41,6 +41,8 @@ var (
 
 const (
 	caVolumeMountPath = "/var/run/configmaps/istio-csr"
+	// defaultVolumeMode is the default file permission mode for volumes (0644 in octal = 420 in decimal).
+	defaultVolumeMode = int32(420)
 )
 
 var invalidIssuerRefConfigError = fmt.Errorf("invalid issuerRef config")
@@ -52,7 +54,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	}
 
 	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling deployment resource", "name", deploymentName)
 	fetched := &appsv1.Deployment{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -69,7 +71,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
 	} else {
-		r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
+		r.log.V(logVerbosityLevelDebug).Info("deployment resource already exists and is in expected state", "name", deploymentName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
@@ -411,7 +413,7 @@ func updateVolumeWithIssuerCA(deployment *appsv1.Deployment) {
 		caVolumeName = "root-ca"
 	)
 	var (
-		defaultMode = int32(420)
+		defaultMode = defaultVolumeMode
 	)
 
 	desiredVolumeMount := corev1.VolumeMount{
@@ -575,7 +577,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "configmap resource %s reconciled back to desired state", configmapKey)
 	} else {
-		r.log.V(4).Info("configmap resource already exists and is in expected state", "name", configmapKey)
+		r.log.V(logVerbosityLevelDebug).Info("configmap resource already exists and is in expected state", "name", configmapKey)
 	}
 
 	if !exist {

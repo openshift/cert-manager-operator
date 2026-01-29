@@ -60,7 +60,7 @@ func init() {
 func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCSR) error {
 	namespacedName := client.ObjectKeyFromObject(changed)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		r.log.V(4).Info("updating istiocsr.openshift.operator.io status", "request", namespacedName)
+		r.log.V(logVerbosityLevelDebug).Info("updating istiocsr.openshift.operator.io status", "request", namespacedName)
 		current := &v1alpha1.IstioCSR{}
 		if err := r.Get(ctx, namespacedName, current); err != nil {
 			return fmt.Errorf("failed to fetch istiocsr.openshift.operator.io %q for status update: %w", namespacedName, err)
@@ -415,7 +415,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
 	if containsProcessingRejectedAnnotation(istiocsr) {
-		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
+		r.log.V(logVerbosityLevelDebug).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
 		// ensure status is updated.
 		var updateErr error
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {

@@ -27,7 +27,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	certificateName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling certificate resource", "name", certificateName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling certificate resource", "name", certificateName)
 	fetched := &certmanagerv1.Certificate{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -44,7 +44,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
 	} else {
-		r.log.V(4).Info("certificate resource already exists and is in expected state", "name", certificateName)
+		r.log.V(logVerbosityLevelDebug).Info("certificate resource already exists and is in expected state", "name", certificateName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {

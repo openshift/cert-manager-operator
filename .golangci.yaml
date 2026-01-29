@@ -63,10 +63,10 @@ linters:
     - revive
     - maintidx
     - err113
+    - mnd
   disable:
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - cyclop
-    - mnd
     # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.
     #- embeddedstructfieldcheck
     #- godoclint

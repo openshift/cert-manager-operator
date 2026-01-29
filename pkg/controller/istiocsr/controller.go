@@ -127,7 +127,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
-		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+		r.log.V(logVerbosityLevelDebug).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
 		if objLabels != nil {
@@ -148,7 +148,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return false
 				}
 				key := strings.Split(value, "_")
-				if len(key) != 2 {
+				const expectedLabelParts = 2
+				if len(key) != expectedLabelParts {
 					r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}
@@ -168,7 +169,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		}
 
-		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+		r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 		return []reconcile.Request{}
 	}
 
@@ -281,7 +282,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
 
 			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on irrecoverable error",
+				r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on irrecoverable error",
 					"namespace", istiocsr.GetNamespace(),
 					"name", istiocsr.GetName(),
 					"degradedChanged", degradedChanged,
@@ -296,7 +297,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
 
 			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
+				r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on recoverable error",
 					"namespace", istiocsr.GetNamespace(),
 					"name", istiocsr.GetName(),
 					"degradedChanged", degradedChanged,
@@ -318,7 +319,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
 
 	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating istiocsr conditions on successful reconciliation",
+		r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on successful reconciliation",
 			"namespace", istiocsr.GetNamespace(),
 			"name", istiocsr.GetName(),
 			"degradedChanged", degradedChanged,
