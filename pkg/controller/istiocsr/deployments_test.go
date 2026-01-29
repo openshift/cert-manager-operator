@@ -826,6 +826,146 @@ func updateIstioCSRWithCACertConfigMapCustomNamespace(i *v1alpha1.IstioCSR, name
 	}
 }
 
+// Helper functions to reduce Halstead Volume in TestCreateOrApplyDeployments
+func updateIstioCSRWithImage(i *v1alpha1.IstioCSR) {
+	i.Status.IstioCSRImage = image
+}
+
+func setupDeploymentSuccessfulWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentSuccessful(m)
+}
+
+func setupDeploymentIssuerNotFoundWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentIssuerNotFound(m)
+}
+
+func setupDeploymentImageEnvVarEmpty(r *Reconciler, m *fakes.FakeCtrlClient) {
+	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+		switch o := obj.(type) {
+		case *appsv1.Deployment:
+			deployment := testDeployment()
+			deployment.DeepCopyInto(o)
+		}
+		return true, nil
+	})
+}
+
+func setupDeploymentConfigMapCreateErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentConfigMapCreateError(m)
+}
+
+func setupDeploymentExistsErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentExistsError(m)
+}
+
+func setupDeploymentUpdateErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentUpdateError(m)
+}
+
+func setupDeploymentWithClusterIssuerWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentWithClusterIssuer(m)
+}
+
+func setupDeploymentCreateWithStatusErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentCreateWithStatusError(m)
+}
+
+func setupDeploymentInvalidIssuerRefWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentInvalidIssuerRef(m)
+}
+
+func setupDeploymentACMEIssuerErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentACMEIssuerError(m)
+}
+
+func setupDeploymentIssuerFetchErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentIssuerFetchError(m)
+}
+
+func setupDeploymentSecretFetchErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentSecretFetchError(m)
+}
+
+func setupDeploymentSecretUpdateErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentSecretUpdateError(m)
+}
+
+func setupDeploymentConfigMapExistsErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentConfigMapExistsError(m)
+}
+
+func setupDeploymentConfigMapUpdateErrorWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentConfigMapUpdateError(m)
+}
+
+func setupDeploymentConfigMapCreateSuccessWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentConfigMapCreateSuccess(m)
+}
+
+func setupDeploymentInvalidConfigWrapper(r *Reconciler, m *fakes.FakeCtrlClient) {
+	setupDeploymentInvalidConfig(m)
+}
+
+func setupDeploymentCACertConfigMapWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMap(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapCustomNamespaceWrapper(name, namespace string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapCustomNamespace(m, name, namespace)
+	}
+}
+
+func setupDeploymentCACertConfigMapMissingWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapMissing(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapMissingKeyWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapMissingKey(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapInvalidPEMWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapInvalidPEM(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapWatchLabelErrorWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapWatchLabelError(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapNonCAWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapNonCA(m, name)
+	}
+}
+
+func setupDeploymentCACertConfigMapMissingCertSignWrapper(name string) func(*Reconciler, *fakes.FakeCtrlClient) {
+	return func(r *Reconciler, m *fakes.FakeCtrlClient) {
+		setupDeploymentCACertConfigMapMissingCertSign(m, name)
+	}
+}
+
+func updateIstioCSRWithCACertConfigMapWrapper(name string) func(*v1alpha1.IstioCSR) {
+	return func(i *v1alpha1.IstioCSR) {
+		updateIstioCSRWithCACertConfigMap(i, name)
+	}
+}
+
+func updateIstioCSRWithCACertConfigMapCustomNamespaceWrapper(name, namespace string) func(*v1alpha1.IstioCSR) {
+	return func(i *v1alpha1.IstioCSR) {
+		updateIstioCSRWithCACertConfigMapCustomNamespace(i, name, namespace)
+	}
+}
+
 func TestCreateOrApplyDeployments(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -835,252 +975,167 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		wantErr        string
 	}{
 		{
-			name: "deployment reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentSuccessful(m)
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Status.IstioCSRImage = image
-			},
+			name:           "deployment reconciliation successful",
+			preReq:         setupDeploymentSuccessfulWrapper,
+			updateIstioCSR: updateIstioCSRWithImage,
 		},
 		{
-			name: "deployment reconciliation fails as issuerRef does not exist",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentIssuerNotFound(m)
-			},
+			name:           "deployment reconciliation fails as issuerRef does not exist",
+			preReq:         setupDeploymentIssuerNotFoundWrapper,
 			updateIstioCSR: updateIstioCSRWithClusterIssuer,
 			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch "istio-test-ns/istiocsr-test-resource" issuer: issuers.cert-manager.io "istiocsr-test-resource" not found`,
 		},
 		{
-			name: "deployment reconciliation fails as image env var is empty",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						deployment := testDeployment()
-						deployment.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-			},
+			name:       "deployment reconciliation fails as image env var is empty",
+			preReq:     setupDeploymentImageEnvVarEmpty,
 			skipEnvVar: true,
 			wantErr:    `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update image istiocsr-test-ns/istiocsr-test-resource: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR environment variable with istiocsr image not set`,
 		},
 		{
-			name: "deployment reconciliation fails while creating configmap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentConfigMapCreateError(m)
-			},
+			name:    "deployment reconciliation fails while creating configmap",
+			preReq:  setupDeploymentConfigMapCreateErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
-			name: "deployment reconciliation updating volume successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentSuccessful(m)
-			},
+			name:   "deployment reconciliation updating volume successful",
+			preReq: setupDeploymentSuccessfulWrapper,
 		},
 		{
-			name: "deployment reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentExistsError(m)
-			},
+			name:    "deployment reconciliation fails while checking if exists",
+			preReq:  setupDeploymentExistsErrorWrapper,
 			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr deployment resource already exists: test client error`,
 		},
 		{
-			name: "deployment reconciliation failed while restoring to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentUpdateError(m)
-			},
+			name:    "deployment reconciliation failed while restoring to desired state",
+			preReq:  setupDeploymentUpdateErrorWrapper,
 			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr deployment resource: test client error`,
 		},
 		{
-			name: "deployment reconciliation with user custom config successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentWithClusterIssuer(m)
-			},
+			name:           "deployment reconciliation with user custom config successful",
+			preReq:         setupDeploymentWithClusterIssuerWrapper,
 			updateIstioCSR: updateIstioCSRWithCustomConfig,
 		},
 		{
-			name: "deployment reconciliation fails while updating image in istiocsr status",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCreateWithStatusError(m)
-			},
+			name:    "deployment reconciliation fails while updating image in istiocsr status",
+			preReq:  setupDeploymentCreateWithStatusErrorWrapper,
 			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with image info: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
-			name: "deployment reconciliation fails as invalid kind in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidIssuerRef(m)
-			},
+			name:           "deployment reconciliation fails as invalid kind in issuerRef",
+			preReq:         setupDeploymentInvalidIssuerRefWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidKind,
 			wantErr:        "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be anyof `clusterissuer` or `issuer`, configured: issuer: invalid issuerRef config",
 		},
 		{
-			name: "deployment reconciliation fails as invalid group in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidIssuerRef(m)
-			},
+			name:           "deployment reconciliation fails as invalid group in issuerRef",
+			preReq:         setupDeploymentInvalidIssuerRefWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidGroup,
 			wantErr:        "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.group can be only `cert-manager.io`, configured: invalid: invalid issuerRef config",
 		},
 		{
-			name: "deployment reconciliation fails as unsupported ACME issuer is used",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentACMEIssuerError(m)
-			},
+			name:           "deployment reconciliation fails as unsupported ACME issuer is used",
+			preReq:         setupDeploymentACMEIssuerErrorWrapper,
 			updateIstioCSR: updateIstioCSRWithClusterIssuer,
 			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer: invalid issuerRef config`,
 		},
 		{
-			name: "deployment reconciliation while fetching issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentIssuerFetchError(m)
-			},
+			name:    "deployment reconciliation while fetching issuer",
+			preReq:  setupDeploymentIssuerFetchErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch "istio-test-ns/istiocsr-test-resource" issuer: no access`,
 		},
 		{
-			name: "deployment reconciliation fails while fetching secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentSecretFetchError(m)
-			},
+			name:    "deployment reconciliation fails while fetching secret referenced in issuer",
+			preReq:  setupDeploymentSecretFetchErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to fetch secret in issuer: no access`,
 		},
 		{
-			name: "deployment reconciliation fails while updating labels on secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentSecretUpdateError(m)
-			},
+			name:    "deployment reconciliation fails while updating labels on secret referenced in issuer",
+			preReq:  setupDeploymentSecretUpdateErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update  resource with watch label: no access`,
 		},
 		{
-			name: "deployment reconciliation fails while checking configmap exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentConfigMapExistsError(m)
-			},
+			name:    "deployment reconciliation fails while checking configmap exists",
+			preReq:  setupDeploymentConfigMapExistsErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to check if CA configmap exists: test client error`,
 		},
 		{
-			name: "deployment reconciliation fails while updating configmap to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentConfigMapUpdateError(m)
-			},
+			name:    "deployment reconciliation fails while updating configmap to desired state",
+			preReq:  setupDeploymentConfigMapUpdateErrorWrapper,
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
-			name: "deployment reconciliation configmap creation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentConfigMapCreateSuccess(m)
-			},
+			name:   "deployment reconciliation configmap creation successful",
+			preReq: setupDeploymentConfigMapCreateSuccessWrapper,
 		},
 		{
-			name: "deployment reconciliation with invalid toleration configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidConfig(m)
-			},
+			name:           "deployment reconciliation with invalid toleration configuration",
+			preReq:         setupDeploymentInvalidConfigWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidToleration,
 			wantErr:        "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
 		},
 		{
-			name: "deployment reconciliation with invalid nodeSelector configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidConfig(m)
-			},
+			name:           "deployment reconciliation with invalid nodeSelector configuration",
+			preReq:         setupDeploymentInvalidConfigWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidNodeSelector,
 			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
 		},
 		{
-			name: "deployment reconciliation with invalid affinity configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidConfig(m)
-			},
+			name:           "deployment reconciliation with invalid affinity configuration",
+			preReq:         setupDeploymentInvalidConfigWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidAffinity,
 			wantErr:        "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update affinity rules: [spec.istioCSRConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when `operator` is 'In' or 'NotIn', spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]'), spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')]",
 		},
 		{
-			name: "deployment reconciliation with invalid resource requirement configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentInvalidConfig(m)
-			},
+			name:           "deployment reconciliation with invalid resource requirement configuration",
+			preReq:         setupDeploymentInvalidConfigWrapper,
 			updateIstioCSR: updateIstioCSRWithInvalidResources,
 			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: test: must be a standard resource for containers]`,
 		},
 		{
-			name: "deployment reconciliation successful with CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMap(m, "ca-cert-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "ca-cert-test")
-			},
+			name:           "deployment reconciliation successful with CA certificate ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapWrapper("ca-cert-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("ca-cert-test"),
 		},
 		{
-			name: "deployment reconciliation successful with CA certificate ConfigMap in custom namespace",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapCustomNamespace(m, "ca-cert-test", "custom-namespace")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMapCustomNamespace(i, "ca-cert-test", "custom-namespace")
-			},
+			name:           "deployment reconciliation successful with CA certificate ConfigMap in custom namespace",
+			preReq:         setupDeploymentCACertConfigMapCustomNamespaceWrapper("ca-cert-test", "custom-namespace"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapCustomNamespaceWrapper("ca-cert-test", "custom-namespace"),
 		},
 		{
-			name: "deployment reconciliation fails with missing CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapMissing(m, "ca-cert-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "ca-cert-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to fetch CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: configmaps "ca-cert-test" not found`,
+			name:           "deployment reconciliation fails with missing CA certificate ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapMissingWrapper("ca-cert-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("ca-cert-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to fetch CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: configmaps "ca-cert-test" not found`,
 		},
 		{
-			name: "deployment reconciliation fails with missing key in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapMissingKey(m, "ca-cert-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "ca-cert-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test`,
+			name:           "deployment reconciliation fails with missing key in CA certificate ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapMissingKeyWrapper("ca-cert-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("ca-cert-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test`,
 		},
 		{
-			name: "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapInvalidPEM(m, "ca-cert-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "ca-cert-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-cert-test key "ca-cert.pem": no valid PEM data found`,
+			name:           "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapInvalidPEMWrapper("ca-cert-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("ca-cert-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-cert-test key "ca-cert.pem": no valid PEM data found`,
 		},
 		{
-			name: "deployment reconciliation fails while updating watch label on CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapWatchLabelError(m, "watch-label-fail-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "watch-label-fail-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to update watch label on CA certificate ConfigMap istiocsr-test-ns/watch-label-fail-test: failed to update watch-label-fail-test resource with watch label: no access to update watch label`,
+			name:           "deployment reconciliation fails while updating watch label on CA certificate ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapWatchLabelErrorWrapper("watch-label-fail-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("watch-label-fail-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to update watch label on CA certificate ConfigMap istiocsr-test-ns/watch-label-fail-test: failed to update watch-label-fail-test resource with watch label: no access to update watch label`,
 		},
 		{
-			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapNonCA(m, "non-ca-cert-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "non-ca-cert-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
+			name:           "deployment reconciliation fails with non-CA certificate in ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapNonCAWrapper("non-ca-cert-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("non-ca-cert-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
 		},
 		{
-			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupDeploymentCACertConfigMapMissingCertSign(m, "ca-without-certsign-test")
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithCACertConfigMap(i, "ca-without-certsign-test")
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
+			name:           "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
+			preReq:         setupDeploymentCACertConfigMapMissingCertSignWrapper("ca-without-certsign-test"),
+			updateIstioCSR: updateIstioCSRWithCACertConfigMapWrapper("ca-without-certsign-test"),
+			wantErr:        `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
 		},
 	}
 

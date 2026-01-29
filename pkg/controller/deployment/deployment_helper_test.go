@@ -422,6 +422,30 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 	}
 }
 
+// Helper functions to reduce Halstead Volume in TestMergePodScheduling
+func testToleration(key, operator, effect, value string) corev1.Toleration {
+	tol := corev1.Toleration{
+		Key:      key,
+		Operator: corev1.TolerationOperator(operator),
+		Effect:   corev1.TaintEffect(effect),
+	}
+	if value != "" {
+		tol.Value = value
+	}
+	return tol
+}
+
+func testNodeSelector(key, value string) map[string]string {
+	return map[string]string{key: value}
+}
+
+func testScheduling(nodeSelector map[string]string, tolerations []corev1.Toleration) v1alpha1.CertManagerScheduling {
+	return v1alpha1.CertManagerScheduling{
+		NodeSelector: nodeSelector,
+		Tolerations:  tolerations,
+	}
+}
+
 func TestMergePodScheduling(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -431,299 +455,123 @@ func TestMergePodScheduling(t *testing.T) {
 	}{
 		{
 			name: "empty override scheduling doesn't replace source scheduling",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 			overrideScheduling: v1alpha1.CertManagerScheduling{},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 		},
 		{
 			name:             "override scheduling replaces empty source scheduling",
 			sourceScheduling: v1alpha1.CertManagerScheduling{},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 		},
 		{
 			name: "override scheduling merges with source scheduling for both nodeSelector and tolerations",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel1": "value1",
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel1", "value1"),
+				[]corev1.Toleration{testToleration("toleration1", "Exists", "NoSchedule", "")},
+			),
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel2", "value2"),
+				[]corev1.Toleration{testToleration("toleration2", "Equal", "NoSchedule", "")},
+			),
+			expected: testScheduling(
+				map[string]string{"nodeLabel1": "value1", "nodeLabel2": "value2"},
+				[]corev1.Toleration{
+					testToleration("toleration1", "Exists", "NoSchedule", ""),
+					testToleration("toleration2", "Equal", "NoSchedule", ""),
 				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration1",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel2": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration2",
-						Operator: "Equal",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel1": "value1",
-					"nodeLabel2": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration1",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-					{
-						Key:      "toleration2",
-						Operator: "Equal",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			),
 		},
 		{
 			name: "override scheduling overrides source scheduling for both nodeSelector and tolerations",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value1",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				}},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value1"),
+				[]corev1.Toleration{testToleration("toleration", "Equals", "NoSchedule", "value")},
+			),
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 		},
 		{
 			name: "override scheduling overrides source scheduling only for nodeSelector",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value1",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				}},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value1"),
+				[]corev1.Toleration{testToleration("toleration", "Equals", "NoSchedule", "value")},
+			),
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{},
+			),
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{testToleration("toleration", "Equals", "NoSchedule", "value")},
+			),
 		},
 		{
 			name: "override scheduling overrides source scheduling only for tolerations",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value1",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				}},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value1",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value1"),
+				[]corev1.Toleration{testToleration("toleration", "Equals", "NoSchedule", "value")},
+			),
+			overrideScheduling: testScheduling(
+				map[string]string{},
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value1"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 		},
 		{
 			name: "override scheduling overrides source nodeSelector and merges tolerations",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value1",
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value1"),
+				[]corev1.Toleration{testToleration("toleration1", "Exists", "NoSchedule", "")},
+			),
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{testToleration("toleration2", "Equals", "NoSchedule", "value")},
+			),
+			expected: testScheduling(
+				testNodeSelector("nodeLabel", "value2"),
+				[]corev1.Toleration{
+					testToleration("toleration1", "Exists", "NoSchedule", ""),
+					testToleration("toleration2", "Equals", "NoSchedule", "value"),
 				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration1",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				}},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration2",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration1",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-					{
-						Key:      "toleration2",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			),
 		},
 		{
 			name: "override scheduling merges source tolerations with same key and Exists operator; merges nodeSelector",
-			sourceScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel1": "value1",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				}},
-			overrideScheduling: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel2": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Equals",
-						Value:    "value",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
-			expected: v1alpha1.CertManagerScheduling{
-				NodeSelector: map[string]string{
-					"nodeLabel1": "value1",
-					"nodeLabel2": "value2",
-				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "toleration",
-						Operator: "Exists",
-						Effect:   "NoSchedule",
-					},
-				},
-			},
+			sourceScheduling: testScheduling(
+				testNodeSelector("nodeLabel1", "value1"),
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
+			overrideScheduling: testScheduling(
+				testNodeSelector("nodeLabel2", "value2"),
+				[]corev1.Toleration{testToleration("toleration", "Equals", "NoSchedule", "value")},
+			),
+			expected: testScheduling(
+				map[string]string{"nodeLabel1": "value1", "nodeLabel2": "value2"},
+				[]corev1.Toleration{testToleration("toleration", "Exists", "NoSchedule", "")},
+			),
 		},
 	}
 
