@@ -16,6 +16,7 @@ linters:
     - copyloopvar
     - decorder
     - depguard
+    - dupl
     - dupword
     - errcheck
     - errchkjson
@@ -60,7 +61,6 @@ linters:
     - wrapcheck
   disable:
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
-    - dupl
     - cyclop
     - gocognit
     - err113
