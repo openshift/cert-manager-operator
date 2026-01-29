@@ -233,6 +233,42 @@ metadata:
               }
             }
           }
+        },
+        {
+          "apiVersion": "operator.openshift.io/v1alpha1",
+          "kind": "TrustManager",
+          "metadata": {
+            "name": "cluster"
+          },
+          "spec": {
+            "trustManagerConfig": {
+              "defaultCAPackage": {
+                "policy": "Enabled"
+              },
+              "logFormat": "text",
+              "logLevel": 1,
+              "trustNamespace": "cert-manager"
+            }
+          }
+        },
+        {
+          "apiVersion": "trust.cert-manager.io/v1alpha1",
+          "kind": "Bundle",
+          "metadata": {
+            "name": "example-bundle"
+          },
+          "spec": {
+            "sources": [
+              {
+                "useDefaultCAs": true
+              }
+            ],
+            "target": {
+              "configMap": {
+                "key": "ca-certificates.crt"
+              }
+            }
+          }
         }
       ]
     capabilities: Seamless Upgrades
@@ -277,6 +313,12 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: A Bundle is used to distribute trust bundles across a Kubernetes
+        cluster.
+      displayName: Bundle
+      kind: Bundle
+      name: bundles.trust.cert-manager.io
+      version: v1alpha1
     - description: |-
         A CertificateRequest is used to request a signed certificate from one of the
         configured issuers.
@@ -344,6 +386,14 @@ spec:
       kind: Order
       name: orders.acme.cert-manager.io
       version: v1
+    - description: |-
+        TrustManager describes the configuration and information about the managed trust-manager deployment.
+        The name must be 'cluster' to make TrustManager a singleton, allowing only one instance per cluster.
+        When a TrustManager is created, trust-manager is deployed in the cert-manager namespace.
+      displayName: TrustManager
+      kind: TrustManager
+      name: trustmanagers.operator.openshift.io
+      version: v1alpha1
   description: |
     The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.19.2](https://github.com/cert-manager/cert-manager/tree/v1.19.2), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
@@ -803,6 +853,7 @@ spec:
   - security
   - TLS
   - istio-csr
+  - trust-manager
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
