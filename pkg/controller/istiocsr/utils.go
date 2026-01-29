@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -21,6 +22,15 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+)
+
+var (
+	errFailedToCreateIstioCSRWithFinalizersAdded   = errors.New("failed to create istiocsr.openshift.operator.io object with finalizers added")
+	errFailedToCreateIstioCSRWithFinalizersRemoved = errors.New("failed to create istiocsr.openshift.operator.io object with finalizers removed")
+	errIstioCSRConfigEmpty                         = errors.New("spec.istioCSRConfig config cannot be empty")
+	errIstiodTLSConfigEmpty                        = errors.New("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+	errIstioConfigEmpty                            = errors.New("spec.istioCSRConfig.istio config cannot be empty")
+	errCertManagerConfigEmpty                      = errors.New("spec.istioCSRConfig.certManager config cannot be empty")
 )
 
 var (
@@ -97,7 +107,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, istiocsr *v1alpha1.Ist
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.RemoveFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers removed", namespacedName)
+			return fmt.Errorf("%w: %q", errFailedToCreateIstioCSRWithFinalizersRemoved, namespacedName)
 		}
 
 		if err := r.UpdateWithRetry(ctx, istiocsr); err != nil {
@@ -376,16 +386,16 @@ func networkPolicySpecModified(desired, fetched *networkingv1.NetworkPolicy) boo
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig config cannot be empty")
+		return errIstioCSRConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+		return errIstiodTLSConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Istio).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istio config cannot be empty")
+		return errIstioConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.CertManager).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.certManager config cannot be empty")
+		return errCertManagerConfigEmpty
 	}
 	return nil
 }
@@ -411,7 +421,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
-		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
+		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
@@ -453,5 +463,5 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		}
 	}
 
-	return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+	return NewMultipleInstanceError(errors.New(statusMessage))
 }

@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -13,6 +14,10 @@ import (
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+)
+
+var (
+	errUnsupportedCloudProvider = errors.New("unsupported cloud provider for mounting cloud credentials secret")
 )
 
 const (
@@ -101,7 +106,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			}
 
 		default:
-			return fmt.Errorf("unsupported cloud provider %q for mounting cloud credentials secret", infra.Status.PlatformStatus.Type)
+			return fmt.Errorf("%w: %q", errUnsupportedCloudProvider, infra.Status.PlatformStatus.Type)
 		}
 
 		deployment.Spec.Template.Spec.Volumes = append(

@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -13,6 +14,10 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
+)
+
+var (
+	errCertificateParamsNotCompliant = errors.New("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 )
 
 func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
@@ -123,7 +128,7 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 	}
 	if (certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm && certificate.Spec.PrivateKey.Size < DefaultRSAPrivateKeySize) ||
 		(certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm && certificate.Spec.PrivateKey.Size != DefaultECDSA256PrivateKeySize && certificate.Spec.PrivateKey.Size != DefaultECDSA384PrivateKeySize) {
-		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
+		return errCertificateParamsNotCompliant
 	}
 
 	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{

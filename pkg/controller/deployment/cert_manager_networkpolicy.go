@@ -2,10 +2,11 @@ package deployment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -19,6 +20,11 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+)
+
+var (
+	errNetworkPolicyNameEmpty   = errors.New("network policy name cannot be empty")
+	errUnsupportedComponentName = errors.New("unsupported component name")
 )
 
 const (
@@ -125,7 +131,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) sync(ctx context.Context
 	// Get the current CertManager configuration
 	certManager, err := c.certManagerOperatorInformers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// No CertManager found, nothing to do
 			return nil
 		}
@@ -160,7 +166,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) validateNetworkPolicyCon
 	// Validate each user-defined network policy
 	for i, policy := range certManager.Spec.NetworkPolicies {
 		if policy.Name == "" {
-			return fmt.Errorf("network policy at index %d: name cannot be empty", i)
+			return fmt.Errorf("network policy at index %d: %w", i, errNetworkPolicyNameEmpty)
 		}
 		// Note: Empty egress rules are allowed and create a deny-all egress policy
 		if err := c.validateComponentName(policy.ComponentName); err != nil {
@@ -175,7 +181,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) validateComponentName(co
 	case v1alpha1.CoreController, v1alpha1.CAInjector, v1alpha1.Webhook:
 		return nil
 	default:
-		return fmt.Errorf("unsupported component name: %s", componentName)
+		return fmt.Errorf("%w: %s", errUnsupportedComponentName, componentName)
 	}
 }
 

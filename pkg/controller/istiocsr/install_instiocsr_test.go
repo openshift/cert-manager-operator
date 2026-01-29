@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -18,6 +19,10 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
+)
+
+var (
+	errLabelsMismatch = errors.New("labels mismatch in resource")
 )
 
 // Helper functions to reduce cognitive complexity
@@ -39,14 +44,14 @@ func setupCreateCallsWithLabelValidation(m *fakes.FakeCtrlClient, labels map[str
 		switch o := obj.(type) {
 		case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
 			if !reflect.DeepEqual(o.GetLabels(), labels) {
-				return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), labels)
+				return fmt.Errorf("%w %v; got: %v, want: %v", errLabelsMismatch, o, o.GetLabels(), labels)
 			}
 		case *certmanagerv1.Certificate, *rbacv1.Role, *rbacv1.RoleBinding, *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
 			expectedLabels := make(map[string]string)
 			maps.Copy(expectedLabels, labels)
 			expectedLabels[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
 			if !reflect.DeepEqual(o.GetLabels(), expectedLabels) {
-				return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), expectedLabels)
+				return fmt.Errorf("%w %v; got: %v, want: %v", errLabelsMismatch, o, o.GetLabels(), expectedLabels)
 			}
 		}
 		return nil

@@ -3,10 +3,12 @@ package operatorclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -23,6 +25,10 @@ import (
 	operatorclientinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 )
 
+var (
+	errApplyConfigurationMustHaveValue = errors.New("applyConfiguration must have a value")
+)
+
 type OperatorClient struct {
 	Informers operatorclientinformers.SharedInformerFactory
 	Client    operatorconfigclient.CertManagersGetter
@@ -37,7 +43,7 @@ func (c OperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager stri
 
 func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
 	if desiredConfiguration == nil {
-		return fmt.Errorf("applyConfiguration must have a value")
+		return errApplyConfigurationMustHaveValue
 	}
 
 	desired := applyconfig.CertManager("cluster")
