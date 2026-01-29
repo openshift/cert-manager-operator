@@ -7,7 +7,6 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -147,7 +146,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
-		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil { //nolint:contextcheck // SetupSignalHandler creates a new context for signal handling, which is intentional
 			return fmt.Errorf("failed to start istiocsr controller: %w", err)
 		}
 	}

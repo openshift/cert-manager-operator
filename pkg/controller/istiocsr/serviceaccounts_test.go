@@ -42,7 +42,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
-						return false, testError
+						return false, errTestClient
 					}
 					return false, nil
 				})
@@ -55,12 +55,12 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
-						return testError
+						return errTestClient
 					}
 					return nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 	}
 

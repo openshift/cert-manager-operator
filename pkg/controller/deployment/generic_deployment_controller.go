@@ -66,7 +66,7 @@ func newGenericDeploymentController(
 			cloudCredentialsSecretName,
 		))
 
-		informers = append(informers, (*infraInformers.InformerFactory).Config().V1().Infrastructures().Informer())
+		informers = append(informers, infraInformerFactory.Config().V1().Infrastructures().Informer())
 	}
 
 	return deploymentcontroller.NewDeploymentController(
@@ -76,7 +76,7 @@ func newGenericDeploymentController(
 		operatorClient,
 		kubeClient,
 		kubeInformersForTargetNamespace.Apps().V1().Deployments(),
-		nil,
+		informers,
 		[]deploymentcontroller.ManifestHookFunc{},
 		hooks...,
 	)

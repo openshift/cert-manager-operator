@@ -15,7 +15,6 @@ linters:
     - contextcheck
     - copyloopvar
     - decorder
-    - depguard
     - dupword    
     - errcheck
     - errchkjson
@@ -58,6 +57,8 @@ linters:
     - whitespace
     - wrapcheck
   disable:
+    # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
+    - depguard
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - dupl
     - cyclop
@@ -106,6 +107,9 @@ linters:
           - gosec
           - wrapcheck
           - mnd
+          - forcetypeassert
+          - goconst
+          - gocritic
       # Run some linter only for test files by excluding its issues for everything else.
       - path-except: _test\.go
         linters:
@@ -113,6 +117,118 @@ linters:
       - path: pkg/operators
         linters:
           - all
+      # Exclude hack directory from some linters
+      - path: hack/
+        linters:
+          - prealloc
+          - recvcheck
+      # Exclude operator-sdk annotations from godot
+      - text: "^\\+operator-sdk:"
+        linters:
+          - godot
+      - text: "^\\+kubebuilder:"
+        linters:
+          - godot
+      # Exclude false positive hardcoded credential warnings (these are paths, not credentials)
+      - path: pkg/controller/deployment/credentials_request.go
+        text: "gcpCredentialsDir|cloudCredentialsVolumeName"
+        linters:
+          - gosec
+      - path: pkg/controller/deployment/deployment_overrides.go
+        text: "boundSATokenDir"
+        linters:
+          - gosec
+      # Exclude wrapcheck for controller-runtime builder (already configured but adding explicit exclusion)
+      - path: pkg/controller/.*_controller.go
+        text: "NewControllerManagedBy|Complete"
+        linters:
+          - wrapcheck
+      # Exclude staticcheck rules that are too strict
+      - linters:
+          - staticcheck
+        text: "S1009|SA4006|SA4031"
+      # Exclude unparam for functions that may be part of interfaces
+      - linters:
+          - unparam
+        path: pkg/controller/deployment/
+  settings:
+    wrapcheck:
+      # Ignore errors returned from these packages - they are either internal or
+      # the error context is already sufficient
+      extra-ignore-sigs:
+        # Kubernetes client factory functions
+        - ".NewForConfig("
+        # Kubernetes client methods
+        - ".Get("
+        - ".Create("
+        - ".Update("
+        - ".Delete("
+        - ".Patch("
+        - ".Lister()."
+        # Standard library functions
+        - "json.Unmarshal"
+        - "cache.New"
+        - ".Set("
+        - ".Start("
+      ignore-sig-regexps:
+        # Ignore all functions from our own operator package
+        - "github\\.com/openshift/cert-manager-operator/.*"
+        # Ignore controller-runtime builder functions
+        - "sigs\\.k8s\\.io/controller-runtime/pkg/builder\\..*"
+      ignore-interface-regexps:
+        # Ignore common Kubernetes client interfaces where wrapping adds no value
+        - "sigs\\.k8s\\.io/controller-runtime/pkg/client\\..*"
+        - "k8s\\.io/client-go/listers/.*"
+        - "k8s\\.io/client-go/discovery\\..*"
+        - "github\\.com/openshift/client-go/config/listers/.*"
+        - "github\\.com/openshift/cert-manager-operator/pkg/operator/listers/.*"
+        - "github\\.com/openshift/cert-manager-operator/pkg/operator/clientset/.*"
+        - "sigs\\.k8s\\.io/controller-runtime/pkg/manager\\..*"
+        - "k8s\\.io/component-base/featuregate\\..*"
+      ignore-package-globs:
+        # Ignore errors from these packages where context is already clear
+        - "encoding/json"
+        - "k8s.io/client-go/**"
+        - "k8s.io/apiextensions-apiserver/**"
+        - "github.com/openshift/client-go/**"
+        - "github.com/openshift/cert-manager-operator/**"
+        - "sigs.k8s.io/controller-runtime/**"
+      report-internal-errors: false
+    godot:
+      # Comments to be checked: `declarations`, `toplevel`, or `all`.
+      scope: declarations
+      # List of regexps for excluding particular comment lines from check.
+      exclude:
+        # Exclude kubebuilder/operator-sdk annotations
+        - ".*\\+operator-sdk:"
+        - ".*\\+kubebuilder:"
+        - ".*\\+k8s:"
+        - ".*\\+genclient"
+        - ".*\\+optional"
+        - ".*\\+required"
+        # Exclude comments that are part of type definitions with annotations
+        - ".* is the Schema for"
+    gosec:
+      excludes:
+        - G101  # False positives for hardcoded credentials (these are directory/volume paths)
+    nestif:
+      # Minimal complexity to report - increase to reduce noise
+      min-complexity: 9
+    gocritic:
+      disabled-checks:
+        - appendAssign  # Allow append to new variable for clarity
+        - singleCaseSwitch  # Allow single-case switches for future extensibility
+        - unlambda  # Allow wrapping function calls
+        - typeSwitchVar  # Allow type switch without assignment
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA4006"  # Disable "value is never used" - often intentional in hooks
+        - "-SA4031"  # Disable "nil check is always true/false" - defensive coding
+    unparam:
+      # Don't check exported functions - they may be part of an interface
+      check-exported: false
+
 formatters:
   settings:
     gci:

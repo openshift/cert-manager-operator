@@ -326,6 +326,8 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
+//
+//nolint:unparam // error return is kept for future implementation
 func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
 	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
 	// This might require a validation webhook to check for usage of service as GRPC endpoint in
