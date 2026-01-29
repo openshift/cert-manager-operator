@@ -14,6 +14,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -652,14 +653,51 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 		return err
 	}
 
-	env := make([]interface{}, len(envVars))
-	i := 0
-	for k, v := range envVars {
-		env[i] = map[string]interface{}{
-			"name":  k,
-			"value": v,
+	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
+
+	// Get current subscription to read existing env vars
+	sub, err := subscriptionClient.Get(ctx, subName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	// Preserve existing env items (including valueFrom entries)
+	existingEnvItems := make(map[string]interface{})
+	if config, ok := sub.Object["spec"].(map[string]interface{})["config"].(map[string]interface{}); ok {
+		if envList, ok := config["env"].([]interface{}); ok {
+			for _, envItem := range envList {
+				if envMap, ok := envItem.(map[string]interface{}); ok {
+					if name, ok := envMap["name"].(string); ok {
+						existingEnvItems[name] = envMap
+					}
+				}
+			}
 		}
-		i++
+	}
+
+	// Apply changes: add/update/delete only the specified env vars
+	// If a value is empty string, it means we want to remove that env var
+	for k, v := range envVars {
+		if v == "" {
+			delete(existingEnvItems, k)
+		} else {
+			existingEnvItems[k] = map[string]interface{}{
+				"name":  k,
+				"value": v,
+			}
+		}
+	}
+
+	// Convert back to array, sorted by name for deterministic output
+	keys := make([]string, 0, len(existingEnvItems))
+	for k := range existingEnvItems {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	env := make([]interface{}, 0, len(keys))
+	for _, k := range keys {
+		env = append(env, existingEnvItems[k])
 	}
 
 	patch := map[string]interface{}{
@@ -674,7 +712,6 @@ func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicRes
 		return err
 	}
 
-	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
 	_, err = subscriptionClient.Patch(ctx, subName, types.MergePatchType, payload, metav1.PatchOptions{})
 	return err
 }
@@ -1195,6 +1232,10 @@ func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoper
 							{
 								Protocol: ptr.To(corev1.ProtocolTCP),
 								Port:     ptr.To(intstr.FromInt32(3128)),
+							},
+							{
+								Protocol: ptr.To(corev1.ProtocolTCP),
+								Port:     ptr.To(intstr.FromInt32(3130)),
 							},
 						},
 					},

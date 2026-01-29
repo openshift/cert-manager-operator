@@ -24,12 +24,6 @@ import (
 var _ = Describe("Logging Configuration", Label("TechPreview"), Ordered, func() {
 	var ctx context.Context
 
-	const (
-		operatorNamespace      = "cert-manager-operator"
-		operandNamespace       = "cert-manager"
-		operatorDeploymentName = "cert-manager-operator-controller-manager"
-	)
-
 	BeforeAll(func() {
 		ctx = context.Background()
 	})
@@ -50,7 +44,9 @@ var _ = Describe("Logging Configuration", Label("TechPreview"), Ordered, func() 
 
 			DeferCleanup(func(ctx context.Context) {
 				By("removing OPERATOR_LOG_LEVEL from subscription")
-				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{}); err != nil {
+				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+					"OPERATOR_LOG_LEVEL": "",
+				}); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
 					return
 				}

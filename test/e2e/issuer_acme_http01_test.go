@@ -12,6 +12,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -34,9 +35,10 @@ var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
 	var baseDomain string
 
 	BeforeAll(func() {
+		ctx = context.Background()
 		By("getting cluster base domain")
 		var err error
-		baseDomain, err = library.GetClusterBaseDomain(context.Background(), configClient)
+		baseDomain, err = library.GetClusterBaseDomain(ctx, configClient)
 		Expect(err).NotTo(HaveOccurred(), "failed to get cluster base domain")
 		Expect(baseDomain).NotTo(BeEmpty(), "base domain should not be empty")
 		appsDomain = "apps." + baseDomain
@@ -49,7 +51,47 @@ var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
 			"--acme-http01-solver-resource-request-cpu=100m",
 			"--acme-http01-solver-resource-request-memory=100Mi",
 		})
-		Expect(err).NotTo(HaveOccurred(), "failed to add override args to cert-manager controller")
+		Expect(err).NotTo(HaveOccurred())
+
+		proxy, err := configClient.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			Expect(err).NotTo(HaveOccurred(), "failed to get cluster proxy config")
+		}
+		if err == nil && proxy.Spec.TrustedCA.Name != "" {
+			By("creating trusted CA ConfigMap for HTTPS proxy")
+			trustedCA := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "trusted-ca",
+					Namespace: "cert-manager",
+					Labels: map[string]string{
+						"config.openshift.io/inject-trusted-cabundle": "true",
+					},
+				},
+			}
+			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			DeferCleanup(func(cleanupCtx context.Context) {
+				loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(cleanupCtx, "trusted-ca", metav1.DeleteOptions{})
+			})
+
+			By("setting trusted CA ConfigMap name via subscription env var")
+			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+				"TRUSTED_CA_CONFIGMAP_NAME": "trusted-ca",
+			})
+			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with 'TRUSTED_CA_CONFIGMAP_NAME' environment variable")
+
+			DeferCleanup(func(cleanupCtx context.Context) {
+				By("removing 'TRUSTED_CA_CONFIGMAP_NAME' from subscription")
+				patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
+					"TRUSTED_CA_CONFIGMAP_NAME": "",
+				})
+			})
+
+			By("waiting for operator deployment to restart with trusted CA configuration")
+			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "TRUSTED_CA_CONFIGMAP_NAME", "trusted-ca", lowTimeout)
+			Expect(err).NotTo(HaveOccurred())
+		}
 
 		DeferCleanup(func(ctx context.Context) {
 			By("Resetting cert-manager state")
@@ -246,57 +288,10 @@ var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
 
 	Context("with Certificate object", Label("TechPreview"), func() {
 
-		It("should obtain a valid certificate in HTTPS proxy with trusted CA", func() {
+		It("should obtain a valid certificate", func() {
+			var err error
 			issuerName := "letsencrypt-http01-proxy"
 			secretName := "cert-from-" + issuerName
-
-			By("verifying cluster has HTTPS proxy with trusted CA")
-			proxy, err := configClient.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			if proxy.Spec.TrustedCA.Name == "" {
-				Skip("Test requires HTTPS proxy with trusted CA bundle")
-			}
-
-			By("creating trusted CA configmap for injection")
-			trustedCA := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "trusted-ca",
-					Namespace: "cert-manager",
-					Labels: map[string]string{
-						"config.openshift.io/inject-trusted-cabundle": "true",
-					},
-				},
-			}
-			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create trusted CA configmap")
-
-			DeferCleanup(func(ctx context.Context) {
-				err := loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(ctx, "trusted-ca", metav1.DeleteOptions{})
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "failed to delete trusted CA configmap during cleanup: %v\n", err)
-				}
-			})
-
-			By("patching CertManager to use trusted CA configmap")
-			err = addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, []corev1.EnvVar{
-				{
-					Name:  "TRUSTED_CA_CONFIGMAP_NAME",
-					Value: "trusted-ca",
-				},
-			})
-			Expect(err).NotTo(HaveOccurred(), "failed to add override env to cert-manager controller")
-
-			DeferCleanup(func(ctx context.Context) {
-				err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, nil)
-				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "failed to remove override env during cleanup: %v\n", err)
-				}
-			})
-
-			By("waiting for cert-manager deployment to rollout with new config")
-			err = waitForDeploymentRollout(ctx, "cert-manager", "cert-manager", 2*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "timeout waiting for cert-manager deployment rollout")
 
 			By("creating HTTP01 issuer")
 			issuer := &certmanagerv1.Issuer{
@@ -335,7 +330,6 @@ var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
 					Namespace: ns.Name,
 				},
 				Spec: certmanagerv1.CertificateSpec{
-					CommonName: dnsName,
 					DNSNames:   []string{dnsName},
 					SecretName: secretName,
 					IssuerRef: certmanagermetav1.ObjectReference{

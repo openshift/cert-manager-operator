@@ -39,7 +39,9 @@ const (
 	certmanagerWebhookDeployment    = "cert-manager-webhook"
 	certmanagerCAinjectorDeployment = "cert-manager-cainjector"
 
-	operandNamespace = "cert-manager"
+	operandNamespace       = "cert-manager"
+	operatorNamespace      = "cert-manager-operator"
+	operatorDeploymentName = "cert-manager-operator-controller-manager"
 )
 
 var (

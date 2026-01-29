@@ -15,9 +15,8 @@ spec:
       containers:
         - args:
             - |
-              go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.2 >/dev/null 2>&1 && \
               TOKEN=$(cat /var/run/secrets/istio-ca/token) && \
-              /tmp/go/bin/grpcurl \
+              grpcurl \
                 -import-path /proto \
                 -proto /proto/ca.proto \
                 -H "Authorization: Bearer $TOKEN" \
@@ -29,18 +28,7 @@ spec:
           command:
             - /bin/sh
             - -c
-          env:
-            - name: GOCACHE
-              value: /tmp/go-cache
-            - name: GOPATH
-              value: /tmp/go
-            - name: HTTP_PROXY
-              value: {{.HTTPProxy}}
-            - name: HTTPS_PROXY
-              value: {{.HTTPSProxy}}
-            - name: NO_PROXY
-              value: {{.NoProxy}}
-          image: registry.redhat.io/rhel9/go-toolset
+          image: fullstorydev/grpcurl:v1.9.2-alpine
           name: grpcurl
           volumeMounts:
             - mountPath: /etc/root-secret
