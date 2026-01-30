@@ -12,7 +12,7 @@ mkdir -p ./_output
 echo "---- Downloading manifest file from $MANIFEST_SOURCE ----"
 curl -NLs "$MANIFEST_SOURCE" -o ./_output/manifest.yaml
 
-go install ./vendor/github.com/google/go-jsonnet/cmd/jsonnet
+GOFLAGS="" go install -C tools github.com/google/go-jsonnet/cmd/jsonnet
 
 echo "---- Patching manifest ----"
 # Upstream manifest includes yaml items in a single file as separate yaml documents.

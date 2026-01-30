@@ -3,16 +3,16 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the BUNDLE_VERSION as arg of the bundle target (e.g make bundle BUNDLE_VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export BUNDLE_VERSION=0.0.2)
-BUNDLE_VERSION ?= 1.18.0
-CERT_MANAGER_VERSION ?= "v1.18.3"
-ISTIO_CSR_VERSION ?= "v0.14.2"
+BUNDLE_VERSION ?= 1.19.0
+CERT_MANAGER_VERSION ?= "v1.19.2"
+ISTIO_CSR_VERSION ?= "v0.15.0"
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
 # - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
 # - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
-CHANNELS ?= "stable-v1,stable-v1.18"
+CHANNELS ?= "stable-v1,stable-v1.19"
 ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
@@ -63,20 +63,20 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-
-CONTROLLER_GEN := go run sigs.k8s.io/controller-tools/cmd/controller-gen
-
-SETUP_ENVTEST := go run sigs.k8s.io/controller-runtime/tools/setup-envtest
-
-KUSTOMIZE := go run sigs.k8s.io/kustomize/kustomize/v5
-
-K8S_ENVTEST_VERSION := 1.21.4
-
 PACKAGE=github.com/openshift/cert-manager-operator
+PROJECT_ROOT := $(shell pwd)
 
 BIN=$(lastword $(subst /, ,$(PACKAGE)))
-BIN_DIR=$(shell pwd)/bin
+BIN_DIR=$(PROJECT_ROOT)/bin
+TOOLS_DIR=$(PROJECT_ROOT)/tools
+
+GOLANGCI_LINT := $(BIN_DIR)/golangci-lint
+
+CONTROLLER_GEN := cd $(TOOLS_DIR) && GOFLAGS="" go run sigs.k8s.io/controller-tools/cmd/controller-gen
+
+SETUP_ENVTEST := cd $(TOOLS_DIR) && GOFLAGS="" go run sigs.k8s.io/controller-runtime/tools/setup-envtest
+
+KUSTOMIZE := $(BIN_DIR)/kustomize
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -86,15 +86,13 @@ SHELL = /usr/bin/env bash -o pipefail
 CONTAINER_ENGINE ?= podman
 CONTAINER_PUSH_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, docker), , --tls-verify=${TLS_VERIFY})
 TLS_VERIFY ?= true
-CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20
+CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21
 
 BUNDLE_DIR := bundle
 BUNDLE_MANIFEST_DIR := $(BUNDLE_DIR)/manifests
 BUNDLE_IMG ?= olm-bundle:latest
 INDEX_IMG ?= olm-bundle-index:latest
 OPM_VERSION ?= v1.23.0
-
-GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 
 OPERATOR_SDK_BIN=$(BIN_DIR)/operator-sdk
 
@@ -123,26 +121,26 @@ $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/binda
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="$(PROJECT_ROOT)/..." output:crd:artifacts:config=$(PROJECT_ROOT)/config/crd/bases output:rbac:artifacts:config=$(PROJECT_ROOT)/config/rbac
 
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."
+	$(CONTROLLER_GEN) object:headerFile="$(PROJECT_ROOT)/hack/boilerplate.go.txt" paths="$(PROJECT_ROOT)/api/..."
 	hack/update-clientgen.sh
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
-	go fmt ./...
+	GOFLAGS="" go fmt ./...
 
 .PHONY: vet
 vet: ## Run go vet against code.
-	go vet ./...
+	GOFLAGS="" go vet ./...
 
-ENVTEST_ASSETS_DIR ?= $(shell pwd)/testbin
+ENVTEST_ASSETS_DIR ?= $(PROJECT_ROOT)/testbin
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
 	mkdir -p "$(ENVTEST_ASSETS_DIR)"
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" GOFLAGS="" go test ./... -coverprofile cover.out
 
 update-manifests: $(HELM_BIN)
 	hack/update-cert-manager-manifests.sh $(MANIFEST_SOURCE)
@@ -154,24 +152,43 @@ update: generate update-manifests update-bindata
 
 .PHONY: update-with-container
 update-with-container:
-	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PROJECT_ROOT):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make update
 	 
-verify-scripts:
+verify-scripts: verify-bindata
 	hack/verify-deepcopy.sh
 	hack/verify-clientgen.sh
 	hack/verify-bundle.sh
 .PHONY: verify-scripts
 
 .PHONY: verify
-verify: verify-scripts fmt
+verify: verify-scripts verify-deps fmt vet
 
 .PHONY: verify-with-container
 verify-with-container:
-	$(CONTAINER_ENGINE) run -ti --rm -v $(PWD):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make verify
+	$(CONTAINER_ENGINE) run -ti --rm -v $(PROJECT_ROOT):/go/src/github.com/openshift/cert-manager-operator:z -w /go/src/github.com/openshift/cert-manager-operator $(CONTAINER_IMAGE_NAME) make verify
 
 .PHONY: verify-deps
 verify-deps:
 	hack/verify-deps.sh
+
+.PHONY: update-vendor
+update-vendor: ## Update vendor directory for all modules in the workspace.
+	go mod tidy
+	cd tools && go mod tidy
+	cd test/e2e && go mod tidy
+	go work vendor
+
+.PHONY: update-dep
+update-dep: ## Update a dependency across all modules. Usage: make update-dep PKG=k8s.io/api@v0.35.0
+	@if [ -z "$(PKG)" ]; then echo "Usage: make update-dep PKG=package@version"; exit 1; fi
+	@echo "Updating $(PKG) in main module..."
+	go get $(PKG)
+	@echo "Updating $(PKG) in tools module..."
+	-cd tools && go get $(PKG)
+	@echo "Updating $(PKG) in test/e2e module..."
+	-cd test/e2e && go get $(PKG)
+	@echo "Running update-vendor..."
+	$(MAKE) update-vendor
 
 .PHONY: local-run
 local-run: build
@@ -222,7 +239,7 @@ image-push: check-tools ## Push container image with the operator.
 ##@ Deployment
 
 .PHONY: deploy
-deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: $(KUSTOMIZE) manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	@kubectl get namespace cert-manager-operator >/dev/null 2>&1 || { \
 		echo "Namespace 'cert-manager-operator' does not exist. Creating it..."; \
 		kubectl create namespace cert-manager-operator; \
@@ -231,12 +248,12 @@ deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/c
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
+undeploy: $(KUSTOMIZE) ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found -f -
 	kubectl delete namespace cert-manager-operator --ignore-not-found
 
 .PHONY: bundle
-bundle: check-tools $(OPERATOR_SDK_BIN) manifests
+bundle: check-tools $(OPERATOR_SDK_BIN) $(KUSTOMIZE) manifests
 	$(OPERATOR_SDK_BIN) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK_BIN) generate bundle -q --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS)
@@ -274,14 +291,14 @@ endef
 
 .PHONY: test-e2e
 test-e2e: test-e2e-wait-for-stable-state
-	go test \
+	cd test/e2e && GOFLAGS="" go test \
 	-timeout $(E2E_TIMEOUT) \
 	-count 1 \
 	-v \
 	-p 1 \
 	-tags e2e \
 	-run "$(TEST)" \
-	./test/e2e \
+	. \
 	-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
 .PHONY: test-e2e-wait-for-stable-state
@@ -306,16 +323,16 @@ test-e2e-debug-cluster:
 	@echo "---- /Debugging the current state ----"
  
 .PHONY: lint
-lint:
-	$(GOLANGCI_LINT) run --verbose --config .golangci.yaml
+lint: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) run --verbose --config $(PROJECT_ROOT)/.golangci.yaml $(PROJECT_ROOT)/...
 
 .PHONY: lint-fix
-lint-fix:
-	$(GOLANGCI_LINT) run --config .golangci.yaml --fix
+lint-fix: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) run --config $(PROJECT_ROOT)/.golangci.yaml --fix $(PROJECT_ROOT)/...
 
-$(GOLANGCI_LINT_BIN):
+$(GOLANGCI_LINT):
 	mkdir -p $(BIN_DIR)
-	hack/golangci-lint.sh $(GOLANGCI_LINT_BIN)
+	cd $(TOOLS_DIR) && GOFLAGS="" go build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 $(OPERATOR_SDK_BIN):
 	mkdir -p $(BIN_DIR)
@@ -324,6 +341,10 @@ $(OPERATOR_SDK_BIN):
 $(HELM_BIN):
 	mkdir -p $(BIN_DIR)
 	hack/helm.sh $(HELM_BIN)
+
+$(KUSTOMIZE):
+	mkdir -p $(BIN_DIR)
+	cd $(TOOLS_DIR) && GOFLAGS="" go build -o $(KUSTOMIZE) sigs.k8s.io/kustomize/kustomize/v5
 
 .PHONY: clean
 clean:

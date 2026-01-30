@@ -210,11 +210,11 @@ func (c OperatorClient) UpdateOperatorSpec(ctx context.Context, resourceVersion 
 	if err != nil {
 		return nil, "", err
 	}
-	copy := original.DeepCopy()
-	copy.ResourceVersion = resourceVersion
-	copy.Spec.OperatorSpec = *spec
+	updated := original.DeepCopy()
+	updated.ResourceVersion = resourceVersion
+	updated.Spec.OperatorSpec = *spec
 
-	ret, err := c.Client.CertManagers().Update(ctx, copy, metav1.UpdateOptions{})
+	ret, err := c.Client.CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, "", err
 	}
@@ -227,11 +227,11 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 	if err != nil {
 		return nil, err
 	}
-	copy := original.DeepCopy()
-	copy.ResourceVersion = resourceVersion
-	copy.Status.OperatorStatus = *status
+	updated := original.DeepCopy()
+	updated.ResourceVersion = resourceVersion
+	updated.Status.OperatorStatus = *status
 
-	ret, err := c.Client.CertManagers().UpdateStatus(ctx, copy, metav1.UpdateOptions{})
+	ret, err := c.Client.CertManagers().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +251,8 @@ func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) e
 	}
 
 	// updating finalizers
-	newFinalizers := append(finalizers, finalizer)
-	err = c.saveFinalizers(ctx, instance, newFinalizers)
+	finalizers = append(finalizers, finalizer)
+	err = c.saveFinalizers(ctx, instance, finalizers)
 	if err != nil {
 		return err
 	}

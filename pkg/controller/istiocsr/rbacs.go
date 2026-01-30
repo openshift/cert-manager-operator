@@ -163,8 +163,8 @@ func updateToUseGenerateName(obj client.Object) {
 	obj.SetGenerateName("cert-manager-istio-csr-")
 }
 
-func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, new, existing *rbacv1.ClusterRole) (string, error) {
-	name := new.GetName()
+func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, desired, existing *rbacv1.ClusterRole) (string, error) {
+	name := desired.GetName()
 	if name == "" {
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()
@@ -275,8 +275,8 @@ func (r *Reconciler) getClusterRoleBindingObject(clusterRoleName, serviceAccount
 	return clusterRoleBinding
 }
 
-func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.IstioCSR, new, existing *rbacv1.ClusterRoleBinding) error {
-	name := new.GetName()
+func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.IstioCSR, desired, existing *rbacv1.ClusterRoleBinding) error {
+	name := desired.GetName()
 	if name == "" {
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()

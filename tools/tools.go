@@ -21,8 +21,11 @@ package tools
 
 import (
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
+	_ "github.com/google/go-jsonnet/cmd/jsonnet"
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
 	_ "github.com/openshift/api/openapi"
+	_ "k8s.io/code-generator/cmd/go-to-protobuf"
+	_ "k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo"
 	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 	_ "sigs.k8s.io/kustomize/kustomize/v5"

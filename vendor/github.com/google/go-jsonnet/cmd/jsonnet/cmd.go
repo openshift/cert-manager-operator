@@ -19,7 +19,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -32,7 +31,7 @@ import (
 )
 
 func version(o io.Writer) {
-	fmt.Fprintf(o, "Jsonnet commandline interpreter %s\n", jsonnet.Version())
+	fmt.Fprintf(o, "Jsonnet commandline interpreter (Go implementation) %s\n", jsonnet.Version())
 }
 
 func usage(o io.Writer) {
@@ -93,15 +92,14 @@ func usage(o io.Writer) {
 }
 
 type config struct {
-	inputFiles     []string
-	outputFile     string
-	filenameIsCode bool
-
+	outputFile           string
+	evalMultiOutputDir   string
+	inputFiles           []string
+	evalJpath            []string
+	filenameIsCode       bool
 	evalMulti            bool
 	evalStream           bool
-	evalMultiOutputDir   string
 	evalCreateOutputDirs bool
-	evalJpath            []string
 }
 
 func makeConfig() config {
@@ -328,7 +326,7 @@ func writeMultiOutputFiles(output map[string]string, outputDir, outputFile strin
 		}
 
 		if _, err := os.Stat(filename); !os.IsNotExist(err) {
-			existingContent, err := ioutil.ReadFile(filename)
+			existingContent, err := os.ReadFile(filename)
 			if err != nil {
 				return err
 			}
@@ -345,17 +343,7 @@ func writeMultiOutputFiles(output map[string]string, outputDir, outputFile strin
 			}
 		}
 
-		f, err := os.Create(filename)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if ferr := f.Close(); ferr != nil {
-				err = ferr
-			}
-		}()
-
-		_, err = f.WriteString(newContent)
+		err = os.WriteFile(filename, []byte(newContent), 0666)
 		if err != nil {
 			return err
 		}

@@ -18,9 +18,9 @@ package jsonnet
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
+	"unsafe"
 
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/internal/program"
@@ -58,19 +58,34 @@ type Importer interface {
 }
 
 // Contents is a representation of imported data. It is a simple
-// string wrapper, which makes it easier to enforce the caching policy.
+// byte wrapper, which makes it easier to enforce the caching policy.
 type Contents struct {
-	data *string
+	data *[]byte
 }
 
 func (c Contents) String() string {
+	// Construct string without copying underlying bytes.
+	// NB: This only works because c.data is not modified.
+	return *(*string)(unsafe.Pointer(c.data))
+}
+
+// Data returns content bytes
+func (c Contents) Data() []byte {
 	return *c.data
 }
 
 // MakeContents creates Contents from a string.
 func MakeContents(s string) Contents {
+	data := []byte(s)
 	return Contents{
-		data: &s,
+		data: &data,
+	}
+}
+
+// MakeContentsRaw creates Contents from (possibly non-utf8) []byte data.
+func MakeContentsRaw(bytes []byte) Contents {
+	return Contents{
+		data: &bytes,
 	}
 }
 
@@ -139,6 +154,29 @@ func (cache *importCache) importString(importedFrom, importedPath string, i *int
 	return makeValueString(data.String()), nil
 }
 
+// ImportString imports an array of bytes, caches it and then returns it.
+func (cache *importCache) importBinary(importedFrom, importedPath string, i *interpreter) (*valueArray, error) {
+	data, _, err := cache.importData(importedFrom, importedPath)
+	if err != nil {
+		return nil, i.Error(err.Error())
+	}
+	bytes := data.Data()
+	elements := make([]*cachedThunk, len(bytes))
+	for i := range bytes {
+		elements[i] = readyThunk(intToValue(int(bytes[i])))
+	}
+	return makeValueArray(elements), nil
+}
+
+func nodeToPV(i *interpreter, filename string, node ast.Node) *cachedThunk {
+	env := makeInitialEnv(filename, i.baseStd)
+	return &cachedThunk{
+		env:     &env,
+		body:    node,
+		content: nil,
+	}
+}
+
 func codeToPV(i *interpreter, filename string, code string) *cachedThunk {
 	node, err := program.SnippetToAST(ast.DiagnosticFileName(filename), "", code)
 	if err != nil {
@@ -149,12 +187,7 @@ func codeToPV(i *interpreter, filename string, code string) *cachedThunk {
 		// The same thinking applies to external variables.
 		return &cachedThunk{err: err}
 	}
-	env := makeInitialEnv(filename, i.baseStd)
-	return &cachedThunk{
-		env:     &env,
-		body:    node,
-		content: nil,
-	}
+	return nodeToPV(i, filename, node)
 }
 
 // ImportCode imports code from a path.
@@ -184,13 +217,13 @@ func (cache *importCache) importCode(importedFrom, importedPath string, i *inter
 
 // FileImporter imports data from the filesystem.
 type FileImporter struct {
-	JPaths  []string
 	fsCache map[string]*fsCacheEntry
+	JPaths  []string
 }
 
 type fsCacheEntry struct {
-	exists   bool
 	contents Contents
+	exists   bool
 }
 
 func (importer *FileImporter) tryPath(dir, importedPath string) (found bool, contents Contents, foundHere string, err error) {
@@ -198,16 +231,16 @@ func (importer *FileImporter) tryPath(dir, importedPath string) (found bool, con
 		importer.fsCache = make(map[string]*fsCacheEntry)
 	}
 	var absPath string
-	if path.IsAbs(importedPath) {
+	if filepath.IsAbs(importedPath) {
 		absPath = importedPath
 	} else {
-		absPath = path.Join(dir, importedPath)
+		absPath = filepath.Join(dir, importedPath)
 	}
 	var entry *fsCacheEntry
 	if cacheEntry, isCached := importer.fsCache[absPath]; isCached {
 		entry = cacheEntry
 	} else {
-		contentBytes, err := ioutil.ReadFile(absPath)
+		contentBytes, err := os.ReadFile(absPath)
 		if err != nil {
 			if os.IsNotExist(err) {
 				entry = &fsCacheEntry{
@@ -219,7 +252,7 @@ func (importer *FileImporter) tryPath(dir, importedPath string) (found bool, con
 		} else {
 			entry = &fsCacheEntry{
 				exists:   true,
-				contents: MakeContents(string(contentBytes)),
+				contents: MakeContentsRaw(contentBytes),
 			}
 		}
 		importer.fsCache[absPath] = entry
@@ -234,7 +267,7 @@ func (importer *FileImporter) Import(importedFrom, importedPath string) (content
 	// in the importer.
 	// We need to relativize the paths in the error formatter, so that the stack traces
 	// don't have ugly absolute paths (less readable and messy with golden tests).
-	dir, _ := path.Split(importedFrom)
+	dir, _ := filepath.Split(importedFrom)
 	found, content, foundHere, err := importer.tryPath(dir, importedPath)
 	if err != nil {
 		return Contents{}, "", err

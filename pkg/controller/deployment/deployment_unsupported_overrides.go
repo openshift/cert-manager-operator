@@ -44,6 +44,6 @@ func withUnsupportedArgsOverrideHook(operatorSpec *operatorv1.OperatorSpec, depl
 			return err
 		}
 	}
-	deployment = unsupportedConfigOverrides(deployment, cfg)
+	deployment = unsupportedConfigOverrides(deployment, cfg) //nolint:staticcheck,wastedassign // SA4006: deployment is modified in place, assignment kept for clarity
 	return nil
 }

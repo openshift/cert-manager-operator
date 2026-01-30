@@ -2,12 +2,12 @@
 
 set -e
 
-PYTHON_COMMAND=${PYTHON_COMMAND:=python}
+PYTHON_COMMAND=${PYTHON_COMMAND:=python3}
 JSONNET_CPP_DIR=${JSONNET_CPP_DIR:=$PWD/cpp-jsonnet}
 
 set -x
 
-[ "$SKIP_GO_TESTS" == 1 ] || go test ./...
+go test -covermode atomic -coverprofile=coverage.out ./...
 
 if [ "$SKIP_PYTHON_BINDINGS_TESTS" == 1 ]
 then
@@ -24,6 +24,7 @@ export OVERRIDE_DIR="$PWD/testdata/cpp-tests-override/"
 
 go build ./cmd/jsonnet
 go build ./cmd/jsonnetfmt
+GOOS=js GOARCH=wasm go build -o libjsonnet.wasm ./cmd/wasm
 
 export DISABLE_LIB_TESTS=true
 export DISABLE_ERROR_TESTS=true
