@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -33,7 +34,7 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 
 func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
 	serviceName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	r.log.V(4).Info("reconciling service resource", "name", serviceName)
+	klog.V(4).InfoS("reconciling service resource", "name", serviceName)
 	fetched := &corev1.Service{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(svc), fetched)
 	if err != nil {
@@ -44,13 +45,13 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s service resource already exists, maybe from previous installation", serviceName)
 	}
 	if exist && hasObjectChanged(svc, fetched) {
-		r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
+		klog.V(1).InfoS("service has been modified, updating to desired state", "name", serviceName)
 		if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
 			return FromClientError(err, "failed to update %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
 	} else {
-		r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
+		klog.V(4).InfoS("service resource already exists and is in expected state", "name", serviceName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, svc); err != nil {

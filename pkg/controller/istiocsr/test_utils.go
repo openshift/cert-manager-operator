@@ -18,8 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/go-logr/logr/testr"
-
 	cmacme "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -46,7 +44,6 @@ func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
 		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
-		log:           testr.New(t),
 		scheme:        testutil.Scheme,
 	}
 }
