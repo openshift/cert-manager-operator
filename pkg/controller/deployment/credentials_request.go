@@ -48,10 +48,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return nil
 		}
 
-		_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
-		if err != nil && apierrors.IsNotFound(err) {
-			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
-		} else if err != nil {
+		if err := verifyCloudSecretExists(secretsInformer, secretName); err != nil {
 			return err
 		}
 
@@ -60,71 +57,94 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return err
 		}
 
-		var volume *corev1.Volume
-		var volumeMount *corev1.VolumeMount
-		var envVar *corev1.EnvVar
-
-		switch infra.Status.PlatformStatus.Type {
-		// supported cloud platform for mounting secrets
-		case configv1.AWSPlatformType:
-			volume = &corev1.Volume{
-				Name: cloudCredentialsVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secretName,
-					},
-				},
-			}
-			volumeMount = &corev1.VolumeMount{
-				Name:      cloudCredentialsVolumeName,
-				MountPath: awsCredentialsDir,
-			}
-
-			// this is required as without this env var, aws sdk
-			// doesn't properly bind role_arn from credentials file
-			envVar = &corev1.EnvVar{
-				Name:  "AWS_SDK_LOAD_CONFIG",
-				Value: "1",
-			}
-
-		case configv1.GCPPlatformType:
-			volume = &corev1.Volume{
-				Name: cloudCredentialsVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secretName,
-						Items: []corev1.KeyToPath{{
-							Key:  gcpCredentialsSecretKey,
-							Path: gcpCredentialsFileName,
-						}},
-					},
-				},
-			}
-			volumeMount = &corev1.VolumeMount{
-				Name:      cloudCredentialsVolumeName,
-				MountPath: gcpCredentialsDir,
-			}
-
-		default:
-			return fmt.Errorf("%w: %q", errUnsupportedCloudProvider, infra.Status.PlatformStatus.Type)
+		volume, volumeMount, envVar, err := createCloudCredentialsResources(infra.Status.PlatformStatus.Type, secretName)
+		if err != nil {
+			return err
 		}
 
-		deployment.Spec.Template.Spec.Volumes = append(
-			deployment.Spec.Template.Spec.Volumes,
-			*volume,
-		)
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			*volumeMount,
-		)
-
-		if envVar != nil {
-			deployment.Spec.Template.Spec.Containers[0].Env = append(
-				deployment.Spec.Template.Spec.Containers[0].Env,
-				*envVar,
-			)
-		}
-
+		applyCloudCredentialsToDeployment(deployment, volume, volumeMount, envVar)
 		return nil
+	}
+}
+
+func verifyCloudSecretExists(secretsInformer coreinformersv1.SecretInformer, secretName string) error {
+	_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
+	if err != nil && apierrors.IsNotFound(err) {
+		return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createCloudCredentialsResources(platformType configv1.PlatformType, secretName string) (*corev1.Volume, *corev1.VolumeMount, *corev1.EnvVar, error) {
+	switch platformType {
+	case configv1.AWSPlatformType:
+		volume, volumeMount, envVar := createAWSCredentialsResources(secretName)
+		return volume, volumeMount, envVar, nil
+	case configv1.GCPPlatformType:
+		volume, volumeMount, envVar := createGCPCredentialsResources(secretName)
+		return volume, volumeMount, envVar, nil
+	default:
+		return nil, nil, nil, fmt.Errorf("%w: %q", errUnsupportedCloudProvider, platformType)
+	}
+}
+
+func createAWSCredentialsResources(secretName string) (*corev1.Volume, *corev1.VolumeMount, *corev1.EnvVar) {
+	volume := &corev1.Volume{
+		Name: cloudCredentialsVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secretName,
+			},
+		},
+	}
+	volumeMount := &corev1.VolumeMount{
+		Name:      cloudCredentialsVolumeName,
+		MountPath: awsCredentialsDir,
+	}
+	envVar := &corev1.EnvVar{
+		Name:  "AWS_SDK_LOAD_CONFIG",
+		Value: "1",
+	}
+	return volume, volumeMount, envVar
+}
+
+func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.VolumeMount, *corev1.EnvVar) {
+	volume := &corev1.Volume{
+		Name: cloudCredentialsVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secretName,
+				Items: []corev1.KeyToPath{{
+					Key:  gcpCredentialsSecretKey,
+					Path: gcpCredentialsFileName,
+				}},
+			},
+		},
+	}
+	volumeMount := &corev1.VolumeMount{
+		Name:      cloudCredentialsVolumeName,
+		MountPath: gcpCredentialsDir,
+	}
+	return volume, volumeMount, nil
+}
+
+func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *corev1.Volume, volumeMount *corev1.VolumeMount, envVar *corev1.EnvVar) {
+	deployment.Spec.Template.Spec.Volumes = append(
+		deployment.Spec.Template.Spec.Volumes,
+		*volume,
+	)
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+		*volumeMount,
+	)
+
+	if envVar != nil {
+		deployment.Spec.Template.Spec.Containers[0].Env = append(
+			deployment.Spec.Template.Spec.Containers[0].Env,
+			*envVar,
+		)
 	}
 }

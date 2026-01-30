@@ -48,77 +48,113 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 
 	desired := applyconfig.CertManager("cluster")
 	instance, err := c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-	switch {
-	// no certmanager.operator/cluster resource found, proceed with apply by setting Conditions[*].LastTransitionTime
-	case apierrors.IsNotFound(err):
-		v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
-		desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
-			OperatorStatusApplyConfiguration: *desiredConfiguration,
-		}
-		desired.WithStatus(desiredStatus)
-
-	// certmanager.operator/cluster resource found, but some other error from client get
-	case err != nil:
+	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("unable to get operator configuration: %w", err)
-
-	// no error during client get
-	default:
-		previous, err := applyconfig.ExtractCertManagerStatus(instance, fieldManager)
-		if err != nil {
-			return fmt.Errorf("unable to extract operator configuration: %w", err)
-		}
-
-		operatorStatus := &applyoperatorv1.OperatorStatusApplyConfiguration{}
-		if previous.Status != nil {
-			jsonBytes, err := json.Marshal(previous.Status)
-			if err != nil {
-				return fmt.Errorf("unable to serialize operator configuration: %w", err)
-			}
-			if err := json.Unmarshal(jsonBytes, operatorStatus); err != nil {
-				return fmt.Errorf("unable to deserialize operator configuration: %w", err)
-			}
-		}
-
-		switch {
-		// the conditions from the applied status is not nil AND existing operator status is also not nil
-		case desiredConfiguration.Conditions != nil && operatorStatus != nil:
-			v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, operatorStatus.Conditions)
-
-		// the conditions from the applied status is not nil,
-		// existing operator status is NOT nil
-		case desiredConfiguration.Conditions != nil && operatorStatus == nil:
-			v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
-		}
-
-		v1helpers.CanonicalizeOperatorStatus(desiredConfiguration)
-		v1helpers.CanonicalizeOperatorStatus(operatorStatus)
-
-		original := applyconfig.CertManager("cluster")
-		if operatorStatus != nil {
-			originalStatus := &applyconfig.CertManagerStatusApplyConfiguration{
-				OperatorStatusApplyConfiguration: *operatorStatus,
-			}
-			original.WithStatus(originalStatus)
-		}
-
-		desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
-			OperatorStatusApplyConfiguration: *desiredConfiguration,
-		}
-		desired.WithStatus(desiredStatus)
-
-		if equality.Semantic.DeepEqual(original, desired) {
-			return nil
-		}
 	}
 
-	_, err = c.Client.CertManagers().ApplyStatus(ctx, desired, metav1.ApplyOptions{
+	if apierrors.IsNotFound(err) {
+		return c.applyStatusForNewInstance(ctx, fieldManager, desired, desiredConfiguration)
+	}
+
+	return c.applyStatusForExistingInstance(ctx, fieldManager, desired, desiredConfiguration, instance)
+}
+
+func (c OperatorClient) applyStatusForNewInstance(ctx context.Context, fieldManager string, desired *applyconfig.CertManagerApplyConfiguration, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) error {
+	v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
+	desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+		OperatorStatusApplyConfiguration: *desiredConfiguration,
+	}
+	desired.WithStatus(desiredStatus)
+	return c.applyStatus(ctx, fieldManager, desired)
+}
+
+func (c OperatorClient) applyStatusForExistingInstance(ctx context.Context, fieldManager string, desired *applyconfig.CertManagerApplyConfiguration, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration, instance *v1alpha1.CertManager) error {
+	previous, err := applyconfig.ExtractCertManagerStatus(instance, fieldManager)
+	if err != nil {
+		return fmt.Errorf("unable to extract operator configuration: %w", err)
+	}
+
+	operatorStatus, err := c.extractOperatorStatus(previous)
+	if err != nil {
+		return err
+	}
+
+	c.setConditionTransitionTimes(desiredConfiguration, operatorStatus)
+	c.canonicalizeStatuses(desiredConfiguration, operatorStatus)
+
+	if c.isStatusUnchanged(desiredConfiguration, operatorStatus) {
+		return nil
+	}
+
+	c.prepareStatusForApply(desired, desiredConfiguration, operatorStatus)
+	return c.applyStatus(ctx, fieldManager, desired)
+}
+
+func (c OperatorClient) extractOperatorStatus(previous *applyconfig.CertManagerApplyConfiguration) (*applyoperatorv1.OperatorStatusApplyConfiguration, error) {
+	operatorStatus := &applyoperatorv1.OperatorStatusApplyConfiguration{}
+	if previous == nil || previous.Status == nil {
+		return operatorStatus, nil
+	}
+
+	jsonBytes, err := json.Marshal(previous.Status.OperatorStatusApplyConfiguration)
+	if err != nil {
+		return nil, fmt.Errorf("unable to serialize operator configuration: %w", err)
+	}
+	if err := json.Unmarshal(jsonBytes, operatorStatus); err != nil {
+		return nil, fmt.Errorf("unable to deserialize operator configuration: %w", err)
+	}
+	return operatorStatus, nil
+}
+
+func (c OperatorClient) setConditionTransitionTimes(desiredConfiguration, operatorStatus *applyoperatorv1.OperatorStatusApplyConfiguration) {
+	if desiredConfiguration.Conditions == nil {
+		return
+	}
+	if operatorStatus != nil {
+		v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, operatorStatus.Conditions)
+	} else {
+		v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
+	}
+}
+
+func (c OperatorClient) canonicalizeStatuses(desiredConfiguration, operatorStatus *applyoperatorv1.OperatorStatusApplyConfiguration) {
+	v1helpers.CanonicalizeOperatorStatus(desiredConfiguration)
+	v1helpers.CanonicalizeOperatorStatus(operatorStatus)
+}
+
+func (c OperatorClient) isStatusUnchanged(desiredConfiguration, operatorStatus *applyoperatorv1.OperatorStatusApplyConfiguration) bool {
+	original := applyconfig.CertManager("cluster")
+	if operatorStatus != nil {
+		originalStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+			OperatorStatusApplyConfiguration: *operatorStatus,
+		}
+		original.WithStatus(originalStatus)
+	}
+
+	desired := applyconfig.CertManager("cluster")
+	desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+		OperatorStatusApplyConfiguration: *desiredConfiguration,
+	}
+	desired.WithStatus(desiredStatus)
+
+	return equality.Semantic.DeepEqual(original, desired)
+}
+
+func (c OperatorClient) prepareStatusForApply(desired *applyconfig.CertManagerApplyConfiguration, desiredConfiguration, operatorStatus *applyoperatorv1.OperatorStatusApplyConfiguration) {
+	desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+		OperatorStatusApplyConfiguration: *desiredConfiguration,
+	}
+	desired.WithStatus(desiredStatus)
+}
+
+func (c OperatorClient) applyStatus(ctx context.Context, fieldManager string, desired *applyconfig.CertManagerApplyConfiguration) error {
+	_, err := c.Client.CertManagers().ApplyStatus(ctx, desired, metav1.ApplyOptions{
 		Force:        true,
 		FieldManager: fieldManager,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to Apply for operator using fieldManager %q: %w", fieldManager, err)
 	}
-
 	return nil
 }
 

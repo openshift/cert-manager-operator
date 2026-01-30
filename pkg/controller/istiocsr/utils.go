@@ -239,32 +239,66 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 		panic("both objects to be compared must be of same type")
 	}
 
-	var objectModified bool
-	switch desired.(type) {
+	objectModified := checkObjectSpecModified(desired, fetched)
+	return objectModified || objectMetadataModified(desired, fetched)
+}
+
+func checkObjectSpecModified(desired, fetched client.Object) bool {
+	if modified := checkRBACObjectSpecModified(desired, fetched); modified != nil {
+		return *modified
+	}
+
+	switch d := desired.(type) {
 	case *certmanagerv1.Certificate:
-		objectModified = certificateSpecModified(desired.(*certmanagerv1.Certificate), fetched.(*certmanagerv1.Certificate))
-	case *rbacv1.ClusterRole:
-		objectModified = rbacRoleRulesModified[*rbacv1.ClusterRole](desired.(*rbacv1.ClusterRole), fetched.(*rbacv1.ClusterRole))
-	case *rbacv1.ClusterRoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desired.(*rbacv1.ClusterRoleBinding), fetched.(*rbacv1.ClusterRoleBinding))
+		return certificateSpecModified(d, fetched.(*certmanagerv1.Certificate))
 	case *appsv1.Deployment:
-		objectModified = deploymentSpecModified(desired.(*appsv1.Deployment), fetched.(*appsv1.Deployment))
-	case *rbacv1.Role:
-		objectModified = rbacRoleRulesModified[*rbacv1.Role](desired.(*rbacv1.Role), fetched.(*rbacv1.Role))
-	case *rbacv1.RoleBinding:
-		objectModified = rbacRoleBindingRefModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding)) ||
-			rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desired.(*rbacv1.RoleBinding), fetched.(*rbacv1.RoleBinding))
+		return deploymentSpecModified(d, fetched.(*appsv1.Deployment))
 	case *corev1.Service:
-		objectModified = serviceSpecModified(desired.(*corev1.Service), fetched.(*corev1.Service))
+		return serviceSpecModified(d, fetched.(*corev1.Service))
 	case *corev1.ConfigMap:
-		objectModified = configMapDataModified(desired.(*corev1.ConfigMap), fetched.(*corev1.ConfigMap))
+		return configMapDataModified(d, fetched.(*corev1.ConfigMap))
 	case *networkingv1.NetworkPolicy:
-		objectModified = networkPolicySpecModified(desired.(*networkingv1.NetworkPolicy), fetched.(*networkingv1.NetworkPolicy))
+		return networkPolicySpecModified(d, fetched.(*networkingv1.NetworkPolicy))
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
-	return objectModified || objectMetadataModified(desired, fetched)
+}
+
+func checkRBACObjectSpecModified(desired, fetched client.Object) *bool {
+	switch d := desired.(type) {
+	case *rbacv1.ClusterRole:
+		result := checkRBACClusterRoleModified(d, fetched)
+		return &result
+	case *rbacv1.ClusterRoleBinding:
+		result := checkClusterRoleBindingModified(d, fetched.(*rbacv1.ClusterRoleBinding))
+		return &result
+	case *rbacv1.Role:
+		result := checkRBACRoleModified(d, fetched)
+		return &result
+	case *rbacv1.RoleBinding:
+		result := checkRoleBindingModified(d, fetched.(*rbacv1.RoleBinding))
+		return &result
+	default:
+		return nil
+	}
+}
+
+func checkRBACClusterRoleModified(desired, fetched client.Object) bool {
+	return rbacRoleRulesModified[*rbacv1.ClusterRole](desired.(*rbacv1.ClusterRole), fetched.(*rbacv1.ClusterRole))
+}
+
+func checkRBACRoleModified(desired, fetched client.Object) bool {
+	return rbacRoleRulesModified[*rbacv1.Role](desired.(*rbacv1.Role), fetched.(*rbacv1.Role))
+}
+
+func checkClusterRoleBindingModified(desired, fetched *rbacv1.ClusterRoleBinding) bool {
+	return rbacRoleBindingRefModified[*rbacv1.ClusterRoleBinding](desired, fetched) ||
+		rbacRoleBindingSubjectsModified[*rbacv1.ClusterRoleBinding](desired, fetched)
+}
+
+func checkRoleBindingModified(desired, fetched *rbacv1.RoleBinding) bool {
+	return rbacRoleBindingRefModified[*rbacv1.RoleBinding](desired, fetched) ||
+		rbacRoleBindingSubjectsModified[*rbacv1.RoleBinding](desired, fetched)
 }
 
 func objectMetadataModified(desired, fetched client.Object) bool {
@@ -276,32 +310,61 @@ func certificateSpecModified(desired, fetched *certmanagerv1.Certificate) bool {
 }
 
 func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
-	// check just the fields which are set by the controller and set in static manifest,
-	// as fields with default values end up in manifest and causes plain check to fail.
-	if *desired.Spec.Replicas != *fetched.Spec.Replicas ||
-		!reflect.DeepEqual(desired.Spec.Selector.MatchLabels, fetched.Spec.Selector.MatchLabels) {
+	if checkDeploymentBasicSpec(desired, fetched) {
 		return true
 	}
-
-	if !reflect.DeepEqual(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
-		len(desired.Spec.Template.Spec.Containers) != len(fetched.Spec.Template.Spec.Containers) {
+	if checkDeploymentTemplate(desired, fetched) {
 		return true
 	}
+	if checkDeploymentContainer(desired, fetched) {
+		return true
+	}
+	if checkDeploymentPodSpec(desired, fetched) {
+		return true
+	}
+	return false
+}
 
+func checkDeploymentBasicSpec(desired, fetched *appsv1.Deployment) bool {
+	return *desired.Spec.Replicas != *fetched.Spec.Replicas ||
+		!reflect.DeepEqual(desired.Spec.Selector.MatchLabels, fetched.Spec.Selector.MatchLabels)
+}
+
+func checkDeploymentTemplate(desired, fetched *appsv1.Deployment) bool {
+	return !reflect.DeepEqual(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
+		len(desired.Spec.Template.Spec.Containers) != len(fetched.Spec.Template.Spec.Containers)
+}
+
+func checkDeploymentContainer(desired, fetched *appsv1.Deployment) bool {
 	desiredContainer := desired.Spec.Template.Spec.Containers[0]
 	fetchedContainer := fetched.Spec.Template.Spec.Containers[0]
-	if !reflect.DeepEqual(desiredContainer.Args, fetchedContainer.Args) ||
-		desiredContainer.Name != fetchedContainer.Name || desiredContainer.Image != fetchedContainer.Image ||
-		desiredContainer.ImagePullPolicy != fetchedContainer.ImagePullPolicy {
-		return true
-	}
 
-	if len(desiredContainer.Ports) != len(fetchedContainer.Ports) {
+	if checkContainerBasicFields(desiredContainer, fetchedContainer) {
 		return true
 	}
-	for _, fetchedPort := range fetchedContainer.Ports {
+	if checkContainerPorts(desiredContainer, fetchedContainer) {
+		return true
+	}
+	if checkContainerProbe(desiredContainer, fetchedContainer) {
+		return true
+	}
+	return checkContainerResources(desiredContainer, fetchedContainer)
+}
+
+func checkContainerBasicFields(desired, fetched corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Args, fetched.Args) ||
+		desired.Name != fetched.Name ||
+		desired.Image != fetched.Image ||
+		desired.ImagePullPolicy != fetched.ImagePullPolicy
+}
+
+func checkContainerPorts(desired, fetched corev1.Container) bool {
+	if len(desired.Ports) != len(fetched.Ports) {
+		return true
+	}
+	for _, fetchedPort := range fetched.Ports {
 		matched := false
-		for _, desiredPort := range desiredContainer.Ports {
+		for _, desiredPort := range desired.Ports {
 			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
 				matched = true
 				break
@@ -311,26 +374,25 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 			return true
 		}
 	}
-
-	if desiredContainer.ReadinessProbe.HTTPGet.Path != fetchedContainer.ReadinessProbe.HTTPGet.Path ||
-		desiredContainer.ReadinessProbe.InitialDelaySeconds != fetchedContainer.ReadinessProbe.InitialDelaySeconds ||
-		desiredContainer.ReadinessProbe.PeriodSeconds != fetchedContainer.ReadinessProbe.PeriodSeconds {
-		return true
-	}
-
-	if !reflect.DeepEqual(desiredContainer.Resources, fetchedContainer.Resources) ||
-		!reflect.DeepEqual(*desiredContainer.SecurityContext, *fetchedContainer.SecurityContext) ||
-		!reflect.DeepEqual(desiredContainer.VolumeMounts, fetchedContainer.VolumeMounts) {
-		return true
-	}
-
-	if desired.Spec.Template.Spec.ServiceAccountName != fetched.Spec.Template.Spec.ServiceAccountName ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes) {
-		return true
-	}
-
 	return false
+}
+
+func checkContainerProbe(desired, fetched corev1.Container) bool {
+	return desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path ||
+		desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
+		desired.ReadinessProbe.PeriodSeconds != fetched.ReadinessProbe.PeriodSeconds
+}
+
+func checkContainerResources(desired, fetched corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Resources, fetched.Resources) ||
+		!reflect.DeepEqual(*desired.SecurityContext, *fetched.SecurityContext) ||
+		!reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
+}
+
+func checkDeploymentPodSpec(desired, fetched *appsv1.Deployment) bool {
+	return desired.Spec.Template.Spec.ServiceAccountName != fetched.Spec.Template.Spec.ServiceAccountName ||
+		!reflect.DeepEqual(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) ||
+		!reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes)
 }
 
 func serviceSpecModified(desired, fetched *corev1.Service) bool {
@@ -412,18 +474,25 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 }
 
 func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
-	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
-
 	if containsProcessingRejectedAnnotation(istiocsr) {
-		r.log.V(logVerbosityLevelDebug).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
-		// ensure status is updated.
-		var updateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			updateErr = r.updateCondition(istiocsr, nil)
-		}
-		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
+		return r.handleProcessingRejectedAnnotation(istiocsr)
 	}
 
+	return r.checkForMultipleInstances(istiocsr)
+}
+
+func (r *Reconciler) handleProcessingRejectedAnnotation(istiocsr *v1alpha1.IstioCSR) error {
+	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
+	r.log.V(logVerbosityLevelDebug).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
+
+	var updateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		updateErr = r.updateCondition(istiocsr, nil)
+	}
+	return NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
+}
+
+func (r *Reconciler) checkForMultipleInstances(istiocsr *v1alpha1.IstioCSR) error {
 	istiocsrList := &v1alpha1.IstioCSRList{}
 	if err := r.List(r.ctx, istiocsrList); err != nil {
 		return fmt.Errorf("failed to fetch list of istiocsr resources: %w", err)
@@ -433,35 +502,51 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return nil
 	}
 
-	ignoreProcessing := false
-	for _, item := range istiocsrList.Items {
-		if item.GetNamespace() == istiocsr.Namespace {
-			continue
-		}
-		if item.CreationTimestamp.Time.Before(istiocsr.CreationTimestamp.Time) ||
-			// Even when timestamps are equal will skip processing. And if this ends
-			// up in ignoring all istiocsr instances, which means user must have created
-			// all in parallel, onus is on user to delete all and recreate just one required
-			// instance of istiocsr.
-			item.CreationTimestamp.Time.Equal(istiocsr.CreationTimestamp.Time) {
-			ignoreProcessing = true
-		}
-	}
+	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
+	ignoreProcessing := r.shouldIgnoreProcessing(istiocsr, istiocsrList.Items)
 	if ignoreProcessing {
-		var condUpdateErr, annUpdateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			condUpdateErr = r.updateCondition(istiocsr, nil)
-		}
-		if addProcessingRejectedAnnotation(istiocsr) {
-			if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
-				annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
-			}
-		}
-		if condUpdateErr != nil || annUpdateErr != nil {
-			return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
+		if err := r.handleIgnoreProcessing(istiocsr, statusMessage); err != nil {
+			return err
 		}
 	}
 
 	return NewMultipleInstanceError(errors.New(statusMessage))
+}
+
+func (r *Reconciler) shouldIgnoreProcessing(istiocsr *v1alpha1.IstioCSR, items []v1alpha1.IstioCSR) bool {
+	for _, item := range items {
+		if item.GetNamespace() == istiocsr.Namespace {
+			continue
+		}
+		if r.isOlderOrEqualInstance(&item, istiocsr) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Reconciler) isOlderOrEqualInstance(item, istiocsr *v1alpha1.IstioCSR) bool {
+	// Even when timestamps are equal will skip processing. And if this ends
+	// up in ignoring all istiocsr instances, which means user must have created
+	// all in parallel, onus is on user to delete all and recreate just one required
+	// instance of istiocsr.
+	return item.CreationTimestamp.Time.Before(istiocsr.CreationTimestamp.Time) ||
+		item.CreationTimestamp.Time.Equal(istiocsr.CreationTimestamp.Time)
+}
+
+func (r *Reconciler) handleIgnoreProcessing(istiocsr *v1alpha1.IstioCSR, statusMessage string) error {
+	var condUpdateErr, annUpdateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		condUpdateErr = r.updateCondition(istiocsr, nil)
+	}
+	if addProcessingRejectedAnnotation(istiocsr) {
+		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
+		}
+	}
+	if condUpdateErr != nil || annUpdateErr != nil {
+		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
+	}
+	return nil
 }

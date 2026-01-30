@@ -61,28 +61,44 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		return FromClientError(err, "failed to check %s deployment resource already exists", deploymentName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
-	} else {
-		r.log.V(logVerbosityLevelDebug).Info("deployment resource already exists and is in expected state", "name", deploymentName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s created", deploymentName)
+	if err := r.reconcileDeploymentResource(istiocsr, desired, fetched, deploymentName, exist, istioCSRCreateRecon); err != nil {
+		return err
 	}
 
 	if err := r.updateImageInStatus(istiocsr, desired); err != nil {
 		return FromClientError(err, "failed to update %s/%s istiocsr status with image info", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
+	return nil
+}
+
+func (r *Reconciler) reconcileDeploymentResource(istiocsr *v1alpha1.IstioCSR, desired, fetched *appsv1.Deployment, deploymentName string, exist, istioCSRCreateRecon bool) error {
+	if exist && istioCSRCreateRecon {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
+	}
+	if exist && hasObjectChanged(desired, fetched) {
+		return r.updateDeploymentResource(istiocsr, desired, deploymentName)
+	}
+	if exist {
+		r.log.V(logVerbosityLevelDebug).Info("deployment resource already exists and is in expected state", "name", deploymentName)
+		return nil
+	}
+	return r.createDeploymentResource(istiocsr, desired, deploymentName)
+}
+
+func (r *Reconciler) updateDeploymentResource(istiocsr *v1alpha1.IstioCSR, desired *appsv1.Deployment, deploymentName string) error {
+	r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
+	if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+		return FromClientError(err, "failed to update %s deployment resource", deploymentName)
+	}
+	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
+	return nil
+}
+
+func (r *Reconciler) createDeploymentResource(istiocsr *v1alpha1.IstioCSR, desired *appsv1.Deployment, deploymentName string) error {
+	if err := r.Create(r.ctx, desired); err != nil {
+		return FromClientError(err, "failed to create %s deployment resource", deploymentName)
+	}
+	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s created", deploymentName)
 	return nil
 }
 
@@ -339,7 +355,7 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 
 	// Validate that the specified key exists in the ConfigMap
 	if _, exists := sourceConfigMap.Data[caCertConfig.Key]; !exists {
-		return NewIrrecoverableError(fmt.Errorf("%w: %q in ConfigMap %s/%s", errKeyNotFoundInConfigMap, caCertConfig.Key, sourceConfigMapKey.Namespace, sourceConfigMapKey.Name), "invalid CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
+		return NewIrrecoverableError(fmt.Errorf("key %q not found in ConfigMap %s/%s", caCertConfig.Key, sourceConfigMapKey.Namespace, sourceConfigMapKey.Name), "invalid CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
 	}
 
 	// Validate that the key contains PEM-formatted content
