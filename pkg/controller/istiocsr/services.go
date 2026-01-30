@@ -33,7 +33,7 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 
 func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
 	serviceName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	r.log.V(4).Info("reconciling service resource", "name", serviceName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling service resource", "name", serviceName)
 	fetched := &corev1.Service{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(svc), fetched)
 	if err != nil {
@@ -50,7 +50,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
 	} else {
-		r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
+		r.log.V(logVerbosityLevelDebug).Info("service resource already exists and is in expected state", "name", serviceName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, svc); err != nil {

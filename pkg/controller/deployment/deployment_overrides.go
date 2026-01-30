@@ -37,6 +37,9 @@ const (
 	boundSAPath            = "token"
 	boundSAExpirySec       = 3600
 
+	// defaultVolumeMode is the default file permission mode for volumes (0644 in octal = 420 in decimal).
+	defaultVolumeMode = int32(420)
+
 	// upstreamACMESolverImage is the upstream that needs to be overridden
 	// within the cert-manager controller deployment.
 	upstreamACMESolverImage = "quay.io/jetstack/cert-manager-acmesolver"
@@ -244,7 +247,7 @@ func withSABoundToken(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.
 		Name: boundSATokenVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
-				DefaultMode: ptr.To(int32(420)),
+				DefaultMode: ptr.To(defaultVolumeMode),
 				Sources: []corev1.VolumeProjection{{
 					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 						Audience:          boundSAAudience,

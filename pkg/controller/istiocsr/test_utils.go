@@ -34,6 +34,11 @@ const (
 	testIstioCSRNamespace = "istiocsr-test-ns"
 	testIstiodNamespace   = "istio-test-ns"
 	image                 = "registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9:latest"
+
+	// Test constants
+	testFakeRecorderBufferSize = 100
+	testCertificateDuration    = 24 * time.Hour
+	testRenewBeforeDuration    = 30 * time.Minute
 )
 
 var (
@@ -45,7 +50,7 @@ type CertificateTweak func(*x509.Certificate)
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
 		ctx:           context.Background(),
-		eventRecorder: record.NewFakeRecorder(100),
+		eventRecorder: record.NewFakeRecorder(testFakeRecorderBufferSize),
 		log:           testr.New(t),
 		scheme:        testutil.Scheme,
 	}
@@ -68,7 +73,7 @@ func testIstioCSR() *v1alpha1.IstioCSR {
 				},
 				IstiodTLSConfig: v1alpha1.IstiodTLSConfig{
 					CertificateDuration:    &metav1.Duration{Duration: time.Hour},
-					CertificateRenewBefore: &metav1.Duration{Duration: time.Minute * 30},
+					CertificateRenewBefore: &metav1.Duration{Duration: testRenewBeforeDuration},
 					MaxCertificateDuration: &metav1.Duration{Duration: time.Hour},
 					PrivateKeySize:         DefaultRSAPrivateKeySize,
 					PrivateKeyAlgorithm:    string(DefaultPrivateKeyAlgorithm),
@@ -291,7 +296,7 @@ func testCertificateWithoutCertSignConfigMap() *corev1.ConfigMap {
 // GenerateCertificate creates a certificate with specified tweaks.
 func GenerateCertificate(commonName string, organization []string, tweak CertificateTweak) string {
 	// Generate RSA private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, DefaultRSAPrivateKeySize)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to generate private key: %v", err))
 	}
@@ -302,7 +307,7 @@ func GenerateCertificate(commonName string, organization []string, tweak Certifi
 			Organization: organization,
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(24 * time.Hour),
+		NotAfter:              time.Now().Add(testCertificateDuration),
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
