@@ -2,6 +2,6 @@ go 1.25.0
 
 use (
 	.
+	./test
 	./tools
-	./test/e2e
 )
