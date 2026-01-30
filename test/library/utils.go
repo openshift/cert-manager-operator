@@ -42,7 +42,7 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 	var got *corev1.Namespace
 	if err := wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
 		var err error
-		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespace, metav1.CreateOptions{})
+		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 		if err != nil {
 			log.Printf("Error creating namespace: %v", err)
 			return false, nil
@@ -55,7 +55,7 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 }
 
 func (d DynamicResourceLoader) DeleteTestingNS(name string, shouldDumpEvents func() bool) (bool, error) {
-	ctx := context.Background()
+	ctx := context.TODO()
 	if shouldDumpEvents() {
 		d.DumpEventsInNamespace(name)
 	}
