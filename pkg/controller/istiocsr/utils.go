@@ -73,7 +73,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.IstioCS
 
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("failed to update status for %q: %w", namespacedName, err)
 	}
 
 	return nil

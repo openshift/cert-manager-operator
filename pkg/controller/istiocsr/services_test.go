@@ -17,50 +17,6 @@ const (
 	grpcEndpoint = "cert-manager-istio-csr.istiocsr-test-ns.svc:443"
 )
 
-// Helper functions to reduce cognitive complexity
-
-func setupExistsCallsForService(m *fakes.FakeCtrlClient, exists bool, err error, modifyService func(*corev1.Service)) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		if svc, ok := obj.(*corev1.Service); ok {
-			if modifyService != nil {
-				modifyService(svc)
-			}
-			return exists, err
-		}
-		return false, nil
-	})
-}
-
-func setupCreateCallsForService(m *fakes.FakeCtrlClient, err error) {
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		if _, ok := obj.(*corev1.Service); ok {
-			return err
-		}
-		return nil
-	})
-}
-
-func setupUpdateWithRetryCallsForService(m *fakes.FakeCtrlClient, err error) {
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
-		if _, ok := obj.(*corev1.Service); ok {
-			return err
-		}
-		return nil
-	})
-}
-
-func runServiceTest(t *testing.T, r *Reconciler, mock *fakes.FakeCtrlClient, istiocsr *v1alpha1.IstioCSR, wantGRPCEndpoint, wantErr string) {
-	r.ctrlClient = mock
-	err := r.createOrApplyServices(istiocsr, controllerDefaultResourceLabels, false)
-	if (wantErr != "" || err != nil) && (err == nil || err.Error() != wantErr) {
-		t.Errorf("createOrApplyServices() err: %v, wantErr: %v", err, wantErr)
-		return
-	}
-	if wantErr == "" && istiocsr.Status.IstioCSRGRPCEndpoint != wantGRPCEndpoint {
-		t.Errorf("createOrApplyServices() got: %v, want: %s", istiocsr.Status.IstioCSRGRPCEndpoint, wantGRPCEndpoint)
-	}
-}
-
 func TestCreateOrApplyServices(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -72,8 +28,13 @@ func TestCreateOrApplyServices(t *testing.T) {
 		{
 			name: "service reconciliation successful",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupExistsCallsForService(m, true, nil, func(svc *corev1.Service) {
-					testService().DeepCopyInto(svc)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *corev1.Service:
+						service := testService()
+						service.DeepCopyInto(o)
+					}
+					return true, nil
 				})
 			},
 			wantGRPCEndpoint: grpcEndpoint,
@@ -81,18 +42,35 @@ func TestCreateOrApplyServices(t *testing.T) {
 		{
 			name: "service reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupExistsCallsForService(m, false, testError, nil)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *corev1.Service:
+						return false, errTestClient
+					}
+					return false, nil
+				})
 			},
 			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr service resource already exists: test client error`,
 		},
 		{
 			name: "service reconciliation fails while updating to desired state",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupUpdateWithRetryCallsForService(m, testError)
-				setupExistsCallsForService(m, true, nil, func(svc *corev1.Service) {
-					testSvc := testService()
-					testSvc.SetLabels(nil)
-					testSvc.DeepCopyInto(svc)
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *corev1.Service:
+						return errTestClient
+					}
+					return nil
+				})
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *corev1.Service:
+						service := testService()
+						service.SetLabels(nil)
+						service.DeepCopyInto(o)
+						return true, nil
+					}
+					return false, nil
 				})
 			},
 			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
@@ -100,7 +78,13 @@ func TestCreateOrApplyServices(t *testing.T) {
 		{
 			name: "service reconciliation fails while creating",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupCreateCallsForService(m, testError)
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *corev1.Service:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
 		},
@@ -122,11 +106,20 @@ func TestCreateOrApplyServices(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
+			r.ctrlClient = mock
 			istiocsr := testIstioCSR()
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
-			runServiceTest(t, r, mock, istiocsr, tt.wantGRPCEndpoint, tt.wantErr)
+			err := r.createOrApplyServices(istiocsr, controllerDefaultResourceLabels, false)
+			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
+				t.Errorf("createOrApplyServices() err: %v, wantErr: %v", err, tt.wantErr)
+			}
+			if tt.wantErr == "" {
+				if istiocsr.Status.IstioCSRGRPCEndpoint != tt.wantGRPCEndpoint {
+					t.Errorf("createOrApplyServices() got: %v, want: %s", istiocsr.Status.IstioCSRGRPCEndpoint, tt.wantGRPCEndpoint)
+				}
+			}
 		})
 	}
 }

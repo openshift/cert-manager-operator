@@ -14,429 +14,6 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
 )
 
-// Helper functions for TestCreateOrApplyRBACResource to reduce complexity
-
-func setupRBACClusterRoleExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.ClusterRole:
-			return false, testError
-		}
-		return true, nil
-	})
-}
-
-func setupRBACClusterRoleBindingExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			return false, testError
-		}
-		return true, nil
-	})
-}
-
-func setupRBACRoleExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			return false, testError
-		}
-		return true, nil
-	})
-}
-
-func setupRBACRoleBindingExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			return false, testError
-		}
-		return true, nil
-	})
-}
-
-func setupRBACRoleLeasesExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				return false, testError
-			}
-		}
-		return true, nil
-	})
-}
-
-func setupRBACRoleBindingLeasesExistsError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				return false, testError
-			}
-		}
-		return true, nil
-	})
-}
-
-func setupRBACClusterRoleBindingListError(m *fakes.FakeCtrlClient) {
-	m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
-		switch obj.(type) {
-		case *rbacv1.ClusterRoleBindingList:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleBindingMultipleResources(m *fakes.FakeCtrlClient) {
-	m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
-		switch o := obj.(type) {
-		case *rbacv1.ClusterRoleBindingList:
-			clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-			clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
-				*testClusterRoleBinding(),
-				*testClusterRoleBindingExtra(),
-			}
-			clusterRoleBindingsList.DeepCopyInto(o)
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleBindingSingleResource(m *fakes.FakeCtrlClient) {
-	m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
-		switch o := obj.(type) {
-		case *rbacv1.ClusterRoleBindingList:
-			clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-			clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
-				*testClusterRoleBinding(),
-			}
-			clusterRoleBindingsList.DeepCopyInto(o)
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleBindingUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			clusterRoleBinding := testClusterRoleBinding()
-			clusterRoleBinding.Labels = nil
-			clusterRoleBinding.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleBindingUpdateSuccess(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			clusterRoleBinding := testClusterRoleBinding()
-			clusterRoleBinding.Labels = nil
-			clusterRoleBinding.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-}
-
-func setupRBACClusterRoleUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.ClusterRole:
-			clusterRole := testClusterRole()
-			clusterRole.Labels = nil
-			clusterRole.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.ClusterRole:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.ClusterRole:
-			return false, nil
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.ClusterRole:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.Role:
-			role := testRole()
-			role.Labels = nil
-			role.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.Role:
-			return false, nil
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleLeasesUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.Role:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				role := testRoleLeases()
-				role.Labels = nil
-				role.DeepCopyInto(o)
-			}
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			if strings.HasSuffix(obj.GetName(), "-leases") {
-				return testError
-			}
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleLeasesCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.Role:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.Role:
-			if strings.HasSuffix(obj.GetName(), "-leases") {
-				return testError
-			}
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleBindingUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.RoleBinding:
-			roleBinding := testRoleBinding()
-			roleBinding.Labels = nil
-			roleBinding.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleBindingCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.RoleBinding:
-			return false, nil
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleBindingLeasesUpdateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.RoleBinding:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				roleBinding := testRoleBindingLeases()
-				roleBinding.Labels = nil
-				roleBinding.DeepCopyInto(o)
-			}
-		}
-		return true, nil
-	})
-	m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			if strings.HasSuffix(obj.GetName(), "-leases") {
-				return testError
-			}
-		}
-		return nil
-	})
-}
-
-func setupRBACRoleBindingLeasesCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.RoleBinding:
-			if strings.HasSuffix(ns.Name, "-leases") {
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.RoleBinding:
-			if strings.HasSuffix(obj.GetName(), "-leases") {
-				return testError
-			}
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleBindingStatusUpdateError(m *fakes.FakeCtrlClient) {
-	setupRBACClusterRoleBindingSingleResource(m)
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.ClusterRole:
-			clusterRole := testClusterRole()
-			clusterRole.Labels = nil
-			clusterRole.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
-		switch o := obj.(type) {
-		case *v1alpha1.IstioCSR:
-			if o.Status.ClusterRoleBinding != "" {
-				return testError
-			}
-		}
-		return nil
-	})
-}
-
-func runRBACTest(t *testing.T, r *Reconciler, mock *fakes.FakeCtrlClient, istiocsr *v1alpha1.IstioCSR, wantClusterRoleBindingName, wantErr string) {
-	err := r.createOrApplyRBACResource(istiocsr, controllerDefaultResourceLabels, true)
-	if (wantErr != "" || err != nil) && (err == nil || err.Error() != wantErr) {
-		t.Errorf("createOrApplyRBACResource() err: %v, wantErr: %v", err, wantErr)
-	}
-	if wantClusterRoleBindingName != "" {
-		if istiocsr.Status.ClusterRoleBinding != wantClusterRoleBindingName {
-			t.Errorf("createOrApplyRBACResource() got: %v, want: %v", istiocsr.Status.ClusterRoleBinding, wantClusterRoleBindingName)
-		}
-	}
-}
-
-// Helper functions to reduce cyclomatic complexity in TestCreateOrApplyRBACResource
-
-func updateIstioCSRWithClusterRole(i *v1alpha1.IstioCSR, name string) {
-	i.Status.ClusterRole = name
-}
-
-func updateIstioCSRWithClusterRoleBinding(i *v1alpha1.IstioCSR, name string) {
-	i.Status.ClusterRoleBinding = name
-}
-
-func setupRBACClusterRoleBindingCreateError(m *fakes.FakeCtrlClient) {
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch object.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			return false, nil
-		}
-		return true, nil
-	})
-	m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-		switch obj.(type) {
-		case *rbacv1.ClusterRoleBinding:
-			return testError
-		}
-		return nil
-	})
-}
-
-func setupRBACClusterRoleStatusUpdateError(m *fakes.FakeCtrlClient) {
-	m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
-		switch o := obj.(type) {
-		case *rbacv1.ClusterRoleBindingList:
-			clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-			clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
-				*testClusterRoleBinding(),
-			}
-			clusterRoleBindingsList.DeepCopyInto(o)
-		}
-		return nil
-	})
-	m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
-		switch o := object.(type) {
-		case *rbacv1.ClusterRole:
-			clusterRole := testClusterRole()
-			clusterRole.Labels = nil
-			clusterRole.DeepCopyInto(o)
-		}
-		return true, nil
-	})
-	m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
-		switch obj.(type) {
-		case *v1alpha1.IstioCSR:
-			return testError
-		}
-		return nil
-	})
-}
-
 func TestCreateOrApplyRBACResource(t *testing.T) {
 	tests := []struct {
 		name                       string
@@ -448,189 +25,502 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		{
 			name: "clusterrole reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.ClusterRole:
+						return false, errTestClient
+					}
+					return true, nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRole(i, "cert-manager-istio-csr-sdghj")
+				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
 			wantErr: `failed to check /cert-manager-istio-csr-sdghj clusterrole resource already exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return false, errTestClient
+					}
+					return true, nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRoleBinding(i, "cert-manager-istio-csr-dfkhk")
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
 			wantErr: `failed to check /cert-manager-istio-csr-dfkhk clusterrolebinding resource already exists: test client error`,
 		},
 		{
 			name: "role reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						return false, errTestClient
+					}
+					return true, nil
+				})
 			},
 			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr role resource already exists: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						return false, errTestClient
+					}
+					return true, nil
+				})
 			},
 			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr rolebinding resource already exists: test client error`,
 		},
 		{
 			name: "role-leases reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleLeasesExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							return false, errTestClient
+						}
+					}
+					return true, nil
+				})
 			},
 			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases role resource already exists: test client error`,
 		},
 		{
 			name: "rolebindings-leases reconciliation fails while checking if exists",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingLeasesExistsError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							return false, errTestClient
+						}
+					}
+					return true, nil
+				})
 			},
 			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding resource already exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing existing resources",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingListError(m)
+				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBindingList:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to list clusterrolebinding resources, impacted namespace istiocsr-test-ns: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing multiple existing resources",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingMultipleResources(m)
+				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBindingList:
+						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
+						clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
+							*testClusterRoleBinding(),
+							*testClusterRoleBindingExtra(),
+						}
+						clusterRoleBindingsList.DeepCopyInto(o)
+					}
+					return nil
+				})
 			},
 			wantErr: `matched clusterrolebinding resources: [{TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfkhk GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}} {TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfmfj GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}}]: more than 1 clusterrolebinding resources exist with matching labels`,
 		},
 		{
 			name: "clusterrolebindings reconciliation successful",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingSingleResource(m)
+				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBindingList:
+						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
+						clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
+							*testClusterRoleBinding(),
+						}
+						clusterRoleBindingsList.DeepCopyInto(o)
+					}
+					return nil
+				})
 			},
 			wantClusterRoleBindingName: "cert-manager-istio-csr-dfkhk",
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						clusterRoleBinding := testClusterRoleBinding()
+						clusterRoleBinding.Labels = nil
+						clusterRoleBinding.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRoleBinding(i, "cert-manager-istio-csr-dfkhk")
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
 			wantErr: `failed to update /cert-manager-istio-csr-dfkhk clusterrolebinding resource: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state successful",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingUpdateSuccess(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						clusterRoleBinding := testClusterRoleBinding()
+						clusterRoleBinding.Labels = nil
+						clusterRoleBinding.DeepCopyInto(o)
+					}
+					return true, nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRoleBinding(i, "cert-manager-istio-csr-dfkhk")
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
 			wantClusterRoleBindingName: "cert-manager-istio-csr-dfkhk",
 		},
 		{
 			name: "clusterrolebindings reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return false, nil
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create  clusterrolebinding resource: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating name in status fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleStatusUpdateError(m)
+				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBindingList:
+						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
+						clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
+							*testClusterRoleBinding(),
+						}
+						clusterRoleBindingsList.DeepCopyInto(o)
+					}
+					return nil
+				})
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						clusterRole := testClusterRole()
+						clusterRole.Labels = nil
+						clusterRole.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+					switch obj.(type) {
+					case *v1alpha1.IstioCSR:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRole(i, "cert-manager-istio-csr-sdghj")
+				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation updating name in status fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleBindingStatusUpdateError(m)
+				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBindingList:
+						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
+						clusterRoleBindingsList.Items = []rbacv1.ClusterRoleBinding{
+							*testClusterRoleBinding(),
+						}
+						clusterRoleBindingsList.DeepCopyInto(o)
+					}
+					return nil
+				})
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						clusterRole := testClusterRole()
+						clusterRole.Labels = nil
+						clusterRole.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+					switch o := obj.(type) {
+					case *v1alpha1.IstioCSR:
+						if o.Status.ClusterRoleBinding != "" {
+							return errTestClient
+						}
+					}
+					return nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRole(i, "cert-manager-istio-csr-sdghj")
+				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						clusterRole := testClusterRole()
+						clusterRole.Labels = nil
+						clusterRole.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRole:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				updateIstioCSRWithClusterRole(i, "cert-manager-istio-csr-sdghj")
+				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
 			wantErr: `failed to update /cert-manager-istio-csr-sdghj clusterrole resource: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACClusterRoleCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.ClusterRole:
+						return false, nil
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRole:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create  clusterrole resource: test client error`,
 		},
 		{
 			name: "role reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.Role:
+						role := testRole()
+						role.Labels = nil
+						role.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr role resource: test client error`,
 		},
 		{
 			name: "role reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.Role:
+						return false, nil
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
 		},
 		{
 			name: "role-leases reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleLeasesUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.Role:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							role := testRoleLeases()
+							role.Labels = nil
+							role.DeepCopyInto(o)
+						}
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						if strings.HasSuffix(obj.GetName(), "-leases") {
+							return errTestClient
+						}
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
 		},
 		{
 			name: "role-leases reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleLeasesCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.Role:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							return false, nil
+						}
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.Role:
+						if strings.HasSuffix(obj.GetName(), "-leases") {
+							return errTestClient
+						}
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.RoleBinding:
+						role := testRoleBinding()
+						role.Labels = nil
+						role.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.RoleBinding:
+						return false, nil
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation updating to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingLeasesUpdateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.RoleBinding:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							role := testRoleBindingLeases()
+							role.Labels = nil
+							role.DeepCopyInto(o)
+						}
+					}
+					return true, nil
+				})
+				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						if strings.HasSuffix(obj.GetName(), "-leases") {
+							return errTestClient
+						}
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation creation fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				setupRBACRoleBindingLeasesCreateError(m)
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.RoleBinding:
+						if strings.HasSuffix(ns.Name, "-leases") {
+							return false, nil
+						}
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.RoleBinding:
+						if strings.HasSuffix(obj.GetName(), "-leases") {
+							return errTestClient
+						}
+					}
+					return nil
+				})
 			},
 			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
 		},
@@ -648,7 +538,15 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
-			runRBACTest(t, r, mock, istiocsr, tt.wantClusterRoleBindingName, tt.wantErr)
+			err := r.createOrApplyRBACResource(istiocsr, controllerDefaultResourceLabels, true)
+			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
+				t.Errorf("createOrApplyRBACResource() err: %v, wantErr: %v", err, tt.wantErr)
+			}
+			if tt.wantClusterRoleBindingName != "" {
+				if istiocsr.Status.ClusterRoleBinding != tt.wantClusterRoleBindingName {
+					t.Errorf("createOrApplyRBACResource() got: %v, want: %v", istiocsr.Status.ClusterRoleBinding, tt.wantClusterRoleBindingName)
+				}
+			}
 		})
 	}
 }
