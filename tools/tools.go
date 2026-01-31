@@ -20,13 +20,40 @@ limitations under the License.
 package tools
 
 import (
+	// golangci-lint is used for linting the go code
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
+
+	// go-bindata embeds static assets into Go binaries (used by bindata.mk)
+	// Note: Using +incompatible version (not v3 module) for compatibility with bindata.mk
+	_ "github.com/go-bindata/go-bindata/go-bindata"
+
+	// jsonnet is used for templating cert-manager manifests (update-cert-manager-manifests.sh)
 	_ "github.com/google/go-jsonnet/cmd/jsonnet"
+
+	// counterfeiter generates test fakes/mocks for interfaces
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
+
+	// openshift/api/openapi is used for OpenAPI spec generation
 	_ "github.com/openshift/api/openapi"
+
+	// build-machinery-go provides Makefile includes (bindata.mk, targets)
+	_ "github.com/openshift/build-machinery-go"
+
+	// go-to-protobuf generates protobuf definitions from Go types
 	_ "k8s.io/code-generator/cmd/go-to-protobuf"
+
+	// protoc-gen-gogo is a protobuf compiler plugin for gogo/protobuf
 	_ "k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo"
+
+	// setup-envtest downloads and configures envtest binaries for controller tests
 	_ "sigs.k8s.io/controller-runtime/tools/setup-envtest"
+
+	// controller-gen generates CRDs, RBAC, and webhook manifests from Go types
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
+
+	// kustomize is used for building and customizing Kubernetes manifests
 	_ "sigs.k8s.io/kustomize/kustomize/v5"
+
+	// govulncheck is used for scanning the vulnerabilities in the used go packages
+	_ "golang.org/x/vuln/cmd/govulncheck"
 )

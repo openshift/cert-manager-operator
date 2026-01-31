@@ -1,7 +1,9 @@
 #!/bin/sh -eu
 
+SCRIPT_ROOT=$(git rev-parse --show-toplevel)
+
 builtins='[a-z0-9]+|struct{}'
-pkgs='k8s\.io/api/.*|k8s\.io/apimachinery/.*|github\.com/openshift/api/.*'
+pkgs='k8s\.io/api/.*|k8s\.io/apimachinery/.*|github\.com/openshift/api/.*|github\.com/openshift/cert-manager-operator/api/.*|github\.com/cert-manager/cert-manager/pkg/apis/.*'
 
 # Check that types used in OpenShift API are designed to be used in API.
 #
@@ -16,10 +18,10 @@ pkgs='k8s\.io/api/.*|k8s\.io/apimachinery/.*|github\.com/openshift/api/.*'
 #   * types that are defined in this package (FooSpec, FooStatus, etc.)
 #   * types from k8s.io API packages
 #
-go run ./hack/typelinter \
+go run -C tools ./typelinter \
     -whitelist="^(?:\[]|\*|map\[string])*(?:$builtins|(?:$pkgs)\.[A-Za-z0-9]+)\$" \
     -excluded=github.com/openshift/api/build/v1.BuildStatus:Duration \
     -excluded=github.com/openshift/api/image/dockerpre012.Config:ExposedPorts \
     -excluded=github.com/openshift/api/image/dockerpre012.ImagePre012:Created \
     -excluded=github.com/openshift/api/imageregistry/v1.ImagePrunerSpec:KeepYoungerThan \
-    ./...
+    "${SCRIPT_ROOT}"/api/...

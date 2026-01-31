@@ -2,7 +2,7 @@
 
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE}")/..
+SCRIPT_ROOT=$(git rev-parse --show-toplevel)
 TMP_ROOT="${SCRIPT_ROOT}/_tmp"
 
 cleanup() {
