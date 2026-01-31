@@ -2,7 +2,7 @@
 
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
-SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
+SCRIPT_ROOT=$(git rev-parse --show-toplevel)
 
 # Generates types_swagger_doc_generated file for the given group version.
 # $1: Name of the group version

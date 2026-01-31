@@ -28,12 +28,15 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/analysis/passes/ctrlflow"
+	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/packages"
 
 	"github.com/securego/gosec/v2/analyzers"
@@ -186,7 +189,6 @@ type Analyzer struct {
 	trackSuppressions bool
 	concurrency       int
 	analyzerSet       *analyzers.AnalyzerSet
-	mu                sync.Mutex
 }
 
 // NewAnalyzer builds a new analyzer.
@@ -250,12 +252,6 @@ func (gosec *Analyzer) LoadAnalyzers(analyzerDefinitions map[string]analyzers.An
 
 // Process kicks off the analysis process for a given package
 func (gosec *Analyzer) Process(buildTags []string, packagePaths ...string) error {
-	config := &packages.Config{
-		Mode:       LoadMode,
-		BuildFlags: buildTags,
-		Tests:      gosec.tests,
-	}
-
 	type result struct {
 		pkgPath string
 		pkgs    []*packages.Package
@@ -272,7 +268,7 @@ func (gosec *Analyzer) Process(buildTags []string, packagePaths ...string) error
 		for {
 			select {
 			case s := <-j:
-				pkgs, err := gosec.load(s, config)
+				pkgs, err := gosec.load(s, buildTags)
 				select {
 				case r <- result{pkgPath: s, pkgs: pkgs, err: err}:
 				case <-quit:
@@ -325,7 +321,7 @@ func (gosec *Analyzer) Process(buildTags []string, packagePaths ...string) error
 	return nil
 }
 
-func (gosec *Analyzer) load(pkgPath string, conf *packages.Config) ([]*packages.Package, error) {
+func (gosec *Analyzer) load(pkgPath string, buildTags []string) ([]*packages.Package, error) {
 	abspath, err := GetPkgAbsPath(pkgPath)
 	if err != nil {
 		gosec.logger.Printf("Skipping: %s. Path doesn't exist.", abspath)
@@ -333,12 +329,10 @@ func (gosec *Analyzer) load(pkgPath string, conf *packages.Config) ([]*packages.
 	}
 
 	gosec.logger.Println("Import directory:", abspath)
-	// step 1/3 create build context.
+
+	// step 1/2: build context requires the array of build tags.
 	buildD := build.Default
-	// step 2/3: add build tags to get env dependent files into basePackage.
-	gosec.mu.Lock()
-	buildD.BuildTags = conf.BuildFlags
-	gosec.mu.Unlock()
+	buildD.BuildTags = buildTags
 	basePackage, err := buildD.ImportDir(pkgPath, build.ImportComment)
 	if err != nil {
 		return []*packages.Package{}, fmt.Errorf("importing dir %q: %w", pkgPath, err)
@@ -361,10 +355,12 @@ func (gosec *Analyzer) load(pkgPath string, conf *packages.Config) ([]*packages.
 		}
 	}
 
-	// step 3/3 remove build tags from conf to proceed build correctly.
-	gosec.mu.Lock()
-	conf.BuildFlags = nil
-	defer gosec.mu.Unlock()
+	// step 2/2: pass in cli encoded build flags to build correctly.
+	conf := &packages.Config{
+		Mode:       LoadMode,
+		BuildFlags: CLIBuildTags(buildTags),
+		Tests:      gosec.tests,
+	}
 	pkgs, err := packages.Load(conf, packageFiles...)
 	if err != nil {
 		return []*packages.Package{}, fmt.Errorf("loading files from package %q: %w", pkgPath, err)
@@ -411,9 +407,24 @@ func (gosec *Analyzer) CheckRules(pkg *packages.Package) {
 
 // CheckAnalyzers runs analyzers on a given package.
 func (gosec *Analyzer) CheckAnalyzers(pkg *packages.Package) {
+	// significant performance improvement if no analyzers are loaded
+	if len(gosec.analyzerSet.Analyzers) == 0 {
+		return
+	}
+
 	ssaResult, err := gosec.buildSSA(pkg)
 	if err != nil || ssaResult == nil {
-		gosec.logger.Printf("Error building the SSA representation of the package %q: %s", pkg.Name, err)
+		errMessage := "Error building the SSA representation of the package " + pkg.Name + ": "
+		if err != nil {
+			errMessage += err.Error()
+		}
+		if ssaResult == nil {
+			if err != nil {
+				errMessage += ", "
+			}
+			errMessage += "no ssa result"
+		}
+		gosec.logger.Print(errMessage)
 		return
 	}
 
@@ -421,7 +432,7 @@ func (gosec *Analyzer) CheckAnalyzers(pkg *packages.Package) {
 		buildssa.Analyzer: &analyzers.SSAAnalyzerResult{
 			Config: gosec.Config(),
 			Logger: gosec.logger,
-			SSA:    ssaResult.(*buildssa.SSA),
+			SSA:    ssaResult,
 		},
 	}
 
@@ -482,32 +493,63 @@ func (gosec *Analyzer) generatedFiles(pkg *packages.Package) map[string]bool {
 }
 
 // buildSSA runs the SSA pass which builds the SSA representation of the package. It handles gracefully any panic.
-func (gosec *Analyzer) buildSSA(pkg *packages.Package) (interface{}, error) {
+func (gosec *Analyzer) buildSSA(pkg *packages.Package) (*buildssa.SSA, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			gosec.logger.Printf("Panic when running SSA analyser on package: %s", pkg.Name)
+			gosec.logger.Printf(
+				"Panic when running SSA analyzer on package: %s. Panic: %v\nStack trace:\n%s",
+				pkg.Name, r, debug.Stack(),
+			)
 		}
 	}()
-	ssaPass := &analysis.Pass{
-		Analyzer:          buildssa.Analyzer,
-		Fset:              pkg.Fset,
-		Files:             pkg.Syntax,
-		OtherFiles:        pkg.OtherFiles,
-		IgnoredFiles:      pkg.IgnoredFiles,
-		Pkg:               pkg.Types,
-		TypesInfo:         pkg.TypesInfo,
-		TypesSizes:        pkg.TypesSizes,
-		ResultOf:          nil,
-		Report:            nil,
-		ImportObjectFact:  nil,
-		ExportObjectFact:  nil,
-		ImportPackageFact: nil,
-		ExportPackageFact: nil,
-		AllObjectFacts:    nil,
-		AllPackageFacts:   nil,
+	if pkg == nil {
+		return nil, errors.New("nil package provided")
+	}
+	if pkg.Types == nil {
+		return nil, fmt.Errorf("package %s has no type information (compilation failed?)", pkg.Name)
+	}
+	if pkg.TypesInfo == nil {
+		return nil, fmt.Errorf("package %s has no type information", pkg.Name)
+	}
+	pass := &analysis.Pass{
+		Fset:             pkg.Fset,
+		Files:            pkg.Syntax,
+		OtherFiles:       pkg.OtherFiles,
+		IgnoredFiles:     pkg.IgnoredFiles,
+		Pkg:              pkg.Types,
+		TypesInfo:        pkg.TypesInfo,
+		TypesSizes:       pkg.TypesSizes,
+		ResultOf:         make(map[*analysis.Analyzer]interface{}),
+		Report:           func(d analysis.Diagnostic) {},
+		ImportObjectFact: func(obj types.Object, fact analysis.Fact) bool { return false },
+		ExportObjectFact: func(obj types.Object, fact analysis.Fact) {},
 	}
 
-	return ssaPass.Analyzer.Run(ssaPass)
+	pass.Analyzer = inspect.Analyzer
+	i, err := inspect.Analyzer.Run(pass)
+	if err != nil {
+		return nil, fmt.Errorf("running inspect analysis: %w", err)
+	}
+	pass.ResultOf[inspect.Analyzer] = i
+
+	pass.Analyzer = ctrlflow.Analyzer
+	cf, err := ctrlflow.Analyzer.Run(pass)
+	if err != nil {
+		return nil, fmt.Errorf("running control flow analysis: %w", err)
+	}
+	pass.ResultOf[ctrlflow.Analyzer] = cf
+
+	pass.Analyzer = buildssa.Analyzer
+	result, err := buildssa.Analyzer.Run(pass)
+	if err != nil {
+		return nil, fmt.Errorf("running SSA analysis: %w", err)
+	}
+
+	ssaResult, ok := result.(*buildssa.SSA)
+	if !ok {
+		return nil, fmt.Errorf("unexpected SSA analysis result type: %T", result)
+	}
+	return ssaResult, nil
 }
 
 // ParseErrors parses the errors from given package

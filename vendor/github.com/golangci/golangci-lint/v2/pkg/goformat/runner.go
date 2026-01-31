@@ -57,7 +57,7 @@ func (c *Runner) Run(paths []string) error {
 	}
 
 	if c.opts.stdin {
-		return c.process("<standard input>", savedStdout, os.Stdin)
+		return c.formatStdIn("<standard input>", savedStdout, os.Stdin)
 	}
 
 	for _, path := range paths {
@@ -121,15 +121,6 @@ func (c *Runner) process(path string, stdout io.Writer, in io.Reader) error {
 
 	output := c.metaFormatter.Format(path, input)
 
-	if c.opts.stdin {
-		_, err = stdout.Write(output)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	if bytes.Equal(input, output) {
 		return nil
 	}
@@ -168,6 +159,38 @@ func (c *Runner) process(path string, stdout io.Writer, in io.Reader) error {
 	return os.WriteFile(path, output, perms)
 }
 
+func (c *Runner) formatStdIn(path string, stdout io.Writer, in io.Reader) error {
+	input, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+
+	match, err := c.matcher.IsGeneratedFile(path, input)
+	if err != nil {
+		return err
+	}
+
+	if match {
+		// If the file is generated,
+		// the input should be written to the stdout to avoid emptied the file.
+		_, err = stdout.Write(input)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	output := c.metaFormatter.Format(path, input)
+
+	_, err = stdout.Write(output)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Runner) setOutputToDevNull() {
 	devNull, err := os.Open(os.DevNull)
 	if err != nil {
@@ -200,8 +223,14 @@ func NewRunnerOptions(cfg *config.Config, diff, diffColored, stdin bool) (Runner
 		return RunnerOptions{}, fmt.Errorf("get base path: %w", err)
 	}
 
+	// Required to be consistent with `RunnerOptions.MatchAnyPattern`.
+	absBasePath, err := filepath.Abs(basePath)
+	if err != nil {
+		return RunnerOptions{}, err
+	}
+
 	opts := RunnerOptions{
-		basePath:            basePath,
+		basePath:            absBasePath,
 		generated:           cfg.Formatters.Exclusions.Generated,
 		diff:                diff || diffColored,
 		colors:              diffColored,
@@ -228,7 +257,12 @@ func (o RunnerOptions) MatchAnyPattern(path string) (bool, error) {
 		return false, nil
 	}
 
-	rel, err := filepath.Rel(o.basePath, path)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false, err
+	}
+
+	rel, err := filepath.Rel(o.basePath, abs)
 	if err != nil {
 		return false, err
 	}
@@ -249,7 +283,7 @@ func skipDir(name string) bool {
 		return true
 
 	default:
-		return strings.HasPrefix(name, ".")
+		return strings.HasPrefix(name, ".") && name != "."
 	}
 }
 

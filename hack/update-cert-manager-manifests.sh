@@ -5,14 +5,13 @@ set -e
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 source "$(dirname "${BASH_SOURCE}")/lib/yq.sh"
 
-MANIFEST_SOURCE=${1:?"missing Cert Manager manifest url. You can use either http:// or file://"}
+CERT_MANAGER_VERSION=${1:?"missing cert-manager version. Please specify a version from https://github.com/cert-manager/cert-manager/releases"}
+MANIFEST_SOURCE="https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
 
 mkdir -p ./_output
 
 echo "---- Downloading manifest file from $MANIFEST_SOURCE ----"
 curl -NLs "$MANIFEST_SOURCE" -o ./_output/manifest.yaml
-
-GOFLAGS="" go install -C tools github.com/google/go-jsonnet/cmd/jsonnet
 
 echo "---- Patching manifest ----"
 # Upstream manifest includes yaml items in a single file as separate yaml documents.
@@ -25,7 +24,7 @@ echo "---- Patching manifest ----"
 
 # Patch manifest using jsonnet.
 # This produces a map of patched target items having the filename as key and the patched item as value.
-jsonnet \
+./bin/jsonnet \
     --tla-code-file manifest=_output/manifest_as_array.json \
     jsonnet/main.jsonnet \
     | ./bin/yq e '.' - \
