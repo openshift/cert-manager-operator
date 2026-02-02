@@ -27,9 +27,6 @@ type IstioCSRGRPCurlJobConfig struct {
 	IstioCSRStatus            v1alpha1.IstioCSRStatus
 	ClusterID                 string
 	JobName                   string
-	HTTPProxy                 string
-	HTTPSProxy                string
-	NoProxy                   string
 }
 
 // ServiceMonitorConfig customizes fields in the ServiceMonitor spec
