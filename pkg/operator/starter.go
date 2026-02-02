@@ -9,8 +9,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/clock"
 
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
@@ -66,7 +64,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return err
 	}
 
-	if err := startIstioCSRController(); err != nil {
+	if err := startIstioCSRController(ctx); err != nil {
 		return err
 	}
 
@@ -206,7 +204,11 @@ func setupFeatures() error {
 	return nil
 }
 
-func startIstioCSRController() error {
+// startIstioCSRController starts the IstioCSR controller using the parent context.
+// This ensures the controller respects the same cancellation signals as the rest of the operator,
+// rather than creating a separate signal handler. ctrl.SetupSignalHandler() should only be called
+// once at the application's entry point.
+func startIstioCSRController(ctx context.Context) error {
 	if !features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
 		return nil
 	}
@@ -215,8 +217,10 @@ func startIstioCSRController() error {
 	if err != nil {
 		return fmt.Errorf("failed to create controller manager: %w", err)
 	}
-	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
-		return fmt.Errorf("failed to start istiocsr controller: %w", err)
-	}
+	go func() {
+		if err := manager.Start(ctx); err != nil {
+			setupLog.Error(err, "failed to start istiocsr controller")
+		}
+	}()
 	return nil
 }

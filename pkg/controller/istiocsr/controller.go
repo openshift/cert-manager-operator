@@ -131,63 +131,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return r.buildController(mgr, mapFunc, predicates)
 }
 
-func (r *Reconciler) createReconcileMapFunc() handler.MapFunc {
-	return func(ctx context.Context, obj client.Object) []reconcile.Request {
-		r.log.V(logVerbosityLevelDebug).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-
-		objLabels := obj.GetLabels()
-		if objLabels == nil {
-			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-			return []reconcile.Request{}
-		}
-
-		namespace := r.extractNamespaceFromLabels(objLabels, obj.GetNamespace())
-		if !r.isObjectOfInterest(objLabels, obj, &namespace) {
-			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-			return []reconcile.Request{}
-		}
-
-		if namespace == "" {
-			return []reconcile.Request{}
-		}
-
-		return []reconcile.Request{
-			{
-				NamespacedName: types.NamespacedName{
-					Name:      istiocsrObjectName,
-					Namespace: namespace,
-				},
-			},
-		}
-	}
-}
-
-func (r *Reconciler) extractNamespaceFromLabels(objLabels map[string]string, defaultNamespace string) string {
-	namespace := objLabels[istiocsrNamespaceMappingLabelName]
-	if namespace == "" {
-		namespace = defaultNamespace
-	}
-	return namespace
-}
-
-func (r *Reconciler) isObjectOfInterest(objLabels map[string]string, obj client.Object, namespace *string) bool {
-	if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
-		return true
-	}
-	value := objLabels[IstiocsrResourceWatchLabelName]
-	if value == "" {
-		return false
-	}
-	key := strings.Split(value, "_")
-	const expectedLabelParts = 2
-	if len(key) != expectedLabelParts {
-		r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
-		return false
-	}
-	*namespace = key[0]
-	return true
-}
-
 func (r *Reconciler) createControllerPredicates() controllerPredicates {
 	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
 		return object.GetLabels() != nil && object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue
@@ -283,6 +226,63 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.processReconcileRequest(istiocsr, req.NamespacedName)
 }
 
+func (r *Reconciler) createReconcileMapFunc() handler.MapFunc {
+	return func(ctx context.Context, obj client.Object) []reconcile.Request {
+		r.log.V(logVerbosityLevelDebug).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+
+		objLabels := obj.GetLabels()
+		if objLabels == nil {
+			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
+
+		namespace := r.extractNamespaceFromLabels(objLabels, obj.GetNamespace())
+		if !r.isObjectOfInterest(objLabels, obj, &namespace) {
+			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
+
+		if namespace == "" {
+			return []reconcile.Request{}
+		}
+
+		return []reconcile.Request{
+			{
+				NamespacedName: types.NamespacedName{
+					Name:      istiocsrObjectName,
+					Namespace: namespace,
+				},
+			},
+		}
+	}
+}
+
+func (r *Reconciler) extractNamespaceFromLabels(objLabels map[string]string, defaultNamespace string) string {
+	namespace := objLabels[istiocsrNamespaceMappingLabelName]
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
+	return namespace
+}
+
+func (r *Reconciler) isObjectOfInterest(objLabels map[string]string, obj client.Object, namespace *string) bool {
+	if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
+		return true
+	}
+	value := objLabels[IstiocsrResourceWatchLabelName]
+	if value == "" {
+		return false
+	}
+	key := strings.Split(value, "_")
+	const expectedLabelParts = 2
+	if len(key) != expectedLabelParts {
+		r.log.Error(errInvalidLabelFormat, "label value not in expected format", "label", IstiocsrResourceWatchLabelName, "value", value, "resource", obj.GetName())
+		return false
+	}
+	*namespace = key[0]
+	return true
+}
+
 func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
 	istioCSRCreateRecon := r.determineIfCreateReconciliation(istiocsr)
 
@@ -330,7 +330,7 @@ func (r *Reconciler) handleReconciliationError(istiocsr *v1alpha1.IstioCSR, req 
 
 func (r *Reconciler) handleIrrecoverableError(istiocsr *v1alpha1.IstioCSR, err error) (ctrl.Result, error) {
 	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, "")
 
 	if degradedChanged || readyChanged {
 		r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on irrecoverable error",

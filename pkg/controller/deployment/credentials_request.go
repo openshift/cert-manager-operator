@@ -62,7 +62,9 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return err
 		}
 
-		applyCloudCredentialsToDeployment(deployment, volume, volumeMount, envVar)
+		if err := applyCloudCredentialsToDeployment(deployment, volume, volumeMount, envVar); err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -131,7 +133,11 @@ func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.V
 	return volume, volumeMount, nil
 }
 
-func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *corev1.Volume, volumeMount *corev1.VolumeMount, envVar *corev1.EnvVar) {
+func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *corev1.Volume, volumeMount *corev1.VolumeMount, envVar *corev1.EnvVar) error {
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("deployment %s/%s has no containers, cannot apply cloud credentials", deployment.GetNamespace(), deployment.GetName())
+	}
+
 	deployment.Spec.Template.Spec.Volumes = append(
 		deployment.Spec.Template.Spec.Volumes,
 		*volume,
@@ -147,4 +153,5 @@ func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *co
 			*envVar,
 		)
 	}
+	return nil
 }

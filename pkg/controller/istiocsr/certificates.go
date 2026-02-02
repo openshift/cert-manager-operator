@@ -43,7 +43,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 			return FromClientError(err, "failed to update %s certificate resource", certificateName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
-	} else {
+	} else if exist {
 		r.log.V(logVerbosityLevelDebug).Info("certificate resource already exists and is in expected state", "name", certificateName)
 	}
 	if !exist {

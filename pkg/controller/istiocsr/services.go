@@ -49,7 +49,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 			return FromClientError(err, "failed to update %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
-	} else {
+	} else if exist {
 		r.log.V(logVerbosityLevelDebug).Info("service resource already exists and is in expected state", "name", serviceName)
 	}
 	if !exist {

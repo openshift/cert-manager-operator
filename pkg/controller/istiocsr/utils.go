@@ -31,6 +31,7 @@ var (
 	errIstiodTLSConfigEmpty                        = errors.New("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
 	errIstioConfigEmpty                            = errors.New("spec.istioCSRConfig.istio config cannot be empty")
 	errCertManagerConfigEmpty                      = errors.New("spec.istioCSRConfig.certManager config cannot be empty")
+	errMultipleInstances                           = errors.New("multiple instances of istiocsr exists")
 )
 
 var (
@@ -84,7 +85,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, istiocsr *v1alpha1.IstioC
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if !controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.AddFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers added", namespacedName)
+			return fmt.Errorf("%w: %q", errFailedToCreateIstioCSRWithFinalizersAdded, namespacedName)
 		}
 
 		// update istiocsr.openshift.operator.io on adding finalizer.
@@ -270,13 +271,21 @@ func checkRBACObjectSpecModified(desired, fetched client.Object) *bool {
 		result := checkRBACClusterRoleModified(d, fetched)
 		return &result
 	case *rbacv1.ClusterRoleBinding:
-		result := checkClusterRoleBindingModified(d, fetched.(*rbacv1.ClusterRoleBinding))
+		fetchedCRB, ok := fetched.(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not of type *rbacv1.ClusterRoleBinding, got %T", fetched))
+		}
+		result := checkClusterRoleBindingModified(d, fetchedCRB)
 		return &result
 	case *rbacv1.Role:
 		result := checkRBACRoleModified(d, fetched)
 		return &result
 	case *rbacv1.RoleBinding:
-		result := checkRoleBindingModified(d, fetched.(*rbacv1.RoleBinding))
+		fetchedRB, ok := fetched.(*rbacv1.RoleBinding)
+		if !ok {
+			panic(fmt.Sprintf("fetched object is not of type *rbacv1.RoleBinding, got %T", fetched))
+		}
+		result := checkRoleBindingModified(d, fetchedRB)
 		return &result
 	default:
 		return nil
@@ -489,7 +498,7 @@ func (r *Reconciler) handleProcessingRejectedAnnotation(istiocsr *v1alpha1.Istio
 	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 		updateErr = r.updateCondition(istiocsr, nil)
 	}
-	return NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
+	return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%w: %s", errMultipleInstances, statusMessage), updateErr}))
 }
 
 func (r *Reconciler) checkForMultipleInstances(istiocsr *v1alpha1.IstioCSR) error {
@@ -511,7 +520,7 @@ func (r *Reconciler) checkForMultipleInstances(istiocsr *v1alpha1.IstioCSR) erro
 		}
 	}
 
-	return NewMultipleInstanceError(errors.New(statusMessage))
+	return NewMultipleInstanceError(fmt.Errorf("%w: %s", errMultipleInstances, statusMessage))
 }
 
 func (r *Reconciler) shouldIgnoreProcessing(istiocsr *v1alpha1.IstioCSR, items []v1alpha1.IstioCSR) bool {

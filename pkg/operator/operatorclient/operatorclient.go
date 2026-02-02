@@ -86,7 +86,7 @@ func (c OperatorClient) applyStatusForExistingInstance(ctx context.Context, fiel
 		return nil
 	}
 
-	c.prepareStatusForApply(desired, desiredConfiguration, operatorStatus)
+	c.prepareStatusForApply(desired, desiredConfiguration)
 	return c.applyStatus(ctx, fieldManager, desired)
 }
 
@@ -140,7 +140,7 @@ func (c OperatorClient) isStatusUnchanged(desiredConfiguration, operatorStatus *
 	return equality.Semantic.DeepEqual(original, desired)
 }
 
-func (c OperatorClient) prepareStatusForApply(desired *applyconfig.CertManagerApplyConfiguration, desiredConfiguration, operatorStatus *applyoperatorv1.OperatorStatusApplyConfiguration) {
+func (c OperatorClient) prepareStatusForApply(desired *applyconfig.CertManagerApplyConfiguration, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) {
 	desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
 		OperatorStatusApplyConfiguration: *desiredConfiguration,
 	}

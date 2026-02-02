@@ -28,7 +28,6 @@ import (
 
 var (
 	errIstioCSRImageNotSet           = errors.New("environment variable with istiocsr image not set")
-	errKeyNotFoundInConfigMap        = errors.New("key not found in ConfigMap")
 	errFailedToFetchCACertificate    = errors.New("failed to fetch CA certificate configured for the issuer of CA type")
 	errFailedToFindCACertificate     = errors.New("failed to find CA certificate")
 	errPEMDataEmpty                  = errors.New("PEM data is empty")
@@ -608,7 +607,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 			return fmt.Errorf("failed to update %s configmap resource: %w", configmapKey, err)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "configmap resource %s reconciled back to desired state", configmapKey)
-	} else {
+	} else if exist {
 		r.log.V(logVerbosityLevelDebug).Info("configmap resource already exists and is in expected state", "name", configmapKey)
 	}
 

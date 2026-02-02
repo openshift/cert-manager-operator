@@ -85,7 +85,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 			return FromClientError(err, "failed to update %s network policy resource", policyName)
 		}
 		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
-	} else {
+	} else if exist {
 		r.log.V(logVerbosityLevelDebug).Info("network policy resource already exists and is in expected state", "name", policyName)
 	}
 	if !exist {

@@ -338,7 +338,7 @@ func (r *Reconciler) reconcileRBACResource(istiocsr *v1alpha1.IstioCSR, desired 
 			return FromClientError(err, "failed to update %s %s resource", resourceName, resourceType)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s resource %s reconciled back to desired state", resourceType, resourceName)
-	} else {
+	} else if exist {
 		r.log.V(logVerbosityLevelDebug).Info(resourceType+" resource already exists and is in expected state", "name", resourceName)
 	}
 	if !exist {
