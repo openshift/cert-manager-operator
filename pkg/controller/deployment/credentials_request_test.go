@@ -16,6 +16,66 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
+// checkVolumeSecretName verifies that a volume has the expected secret name.
+// Uses embedded field access: vol.Secret.SecretName instead of vol.VolumeSource.Secret.SecretName
+func checkVolumeSecretName(t *testing.T, vol *corev1.Volume, expectedSecretName string) {
+	t.Helper()
+	if vol == nil {
+		t.Fatal("volume is nil")
+	}
+	if vol.Secret == nil {
+		t.Fatalf("expected volume to have Secret, got nil")
+	}
+	if vol.Secret.SecretName != expectedSecretName {
+		t.Errorf("expected secret name %s, got %s", expectedSecretName, vol.Secret.SecretName)
+	}
+}
+
+// checkVolumeName verifies that a volume has the expected name.
+func checkVolumeName(t *testing.T, vol *corev1.Volume, expectedName string) {
+	t.Helper()
+	if vol == nil {
+		t.Fatal("volume is nil")
+	}
+	if vol.Name != expectedName {
+		t.Errorf("expected volume name %s, got %s", expectedName, vol.Name)
+	}
+}
+
+// checkAWSVolume verifies that a volume is correctly configured for AWS credentials.
+func checkAWSVolume(t *testing.T, vol *corev1.Volume, expectedSecretName string) {
+	t.Helper()
+	checkVolumeName(t, vol, cloudCredentialsVolumeName)
+	checkVolumeSecretName(t, vol, expectedSecretName)
+}
+
+// checkGCPVolume verifies that a volume is correctly configured for GCP credentials.
+func checkGCPVolume(t *testing.T, vol *corev1.Volume, expectedSecretName string) {
+	t.Helper()
+	checkVolumeName(t, vol, cloudCredentialsVolumeName)
+	checkVolumeSecretName(t, vol, expectedSecretName)
+}
+
+// checkAWSEnvVar verifies that an environment variable is correctly configured for AWS.
+func checkAWSEnvVar(t *testing.T, env *corev1.EnvVar) {
+	t.Helper()
+	if env == nil {
+		t.Error("expected env var for AWS, got nil")
+		return
+	}
+	if env.Name != "AWS_SDK_LOAD_CONFIG" {
+		t.Errorf("expected env var name AWS_SDK_LOAD_CONFIG, got %s", env.Name)
+	}
+}
+
+// checkGCPEnvVar verifies that no environment variable is set for GCP (should be nil).
+func checkGCPEnvVar(t *testing.T, env *corev1.EnvVar) {
+	t.Helper()
+	if env != nil {
+		t.Errorf("expected no env var for GCP, got %+v", env)
+	}
+}
+
 func TestVerifyCloudSecretExists(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -144,6 +204,7 @@ func TestApplyCloudCredentialsToDeployment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := applyCloudCredentialsToDeployment(tt.deployment, tt.volume, tt.volumeMount, tt.envVar)
 
+			// Handle error case first and return early
 			if tt.wantErr != nil {
 				if err == nil {
 					t.Errorf("expected error containing %v, got nil", tt.wantErr)
@@ -152,28 +213,28 @@ func TestApplyCloudCredentialsToDeployment(t *testing.T) {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("expected error to wrap %v, got %v", tt.wantErr, err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error, got %v", err)
-					return
-				}
+				return
+			}
 
-				// Verify volume was added
-				if len(tt.deployment.Spec.Template.Spec.Volumes) != 1 {
-					t.Errorf("expected 1 volume, got %d", len(tt.deployment.Spec.Template.Spec.Volumes))
-				}
+			// Success path: verify no error occurred
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+				return
+			}
 
-				// Verify volume mount was added
-				if len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
-					t.Errorf("expected 1 volume mount, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts))
-				}
+			// Verify volume was added
+			if len(tt.deployment.Spec.Template.Spec.Volumes) != 1 {
+				t.Errorf("expected 1 volume, got %d", len(tt.deployment.Spec.Template.Spec.Volumes))
+			}
 
-				// Verify env var was added if provided
-				if tt.envVar != nil {
-					if len(tt.deployment.Spec.Template.Spec.Containers[0].Env) != 1 {
-						t.Errorf("expected 1 env var, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].Env))
-					}
-				}
+			// Verify volume mount was added
+			if len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
+				t.Errorf("expected 1 volume mount, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts))
+			}
+
+			// Verify env var was added if provided
+			if tt.envVar != nil && len(tt.deployment.Spec.Template.Spec.Containers[0].Env) != 1 {
+				t.Errorf("expected 1 env var, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].Env))
 			}
 		})
 	}
@@ -194,22 +255,9 @@ func TestCreateCloudCredentialsResources(t *testing.T) {
 			secretName:   "aws-creds",
 			wantErr:      nil,
 			checkVolume: func(t *testing.T, vol *corev1.Volume) {
-				if vol.Name != cloudCredentialsVolumeName {
-					t.Errorf("expected volume name %s, got %s", cloudCredentialsVolumeName, vol.Name)
-				}
-				if vol.VolumeSource.Secret.SecretName != "aws-creds" {
-					t.Errorf("expected secret name aws-creds, got %s", vol.VolumeSource.Secret.SecretName)
-				}
+				checkAWSVolume(t, vol, "aws-creds")
 			},
-			checkEnvVar: func(t *testing.T, env *corev1.EnvVar) {
-				if env == nil {
-					t.Error("expected env var for AWS, got nil")
-					return
-				}
-				if env.Name != "AWS_SDK_LOAD_CONFIG" {
-					t.Errorf("expected env var name AWS_SDK_LOAD_CONFIG, got %s", env.Name)
-				}
-			},
+			checkEnvVar: checkAWSEnvVar,
 		},
 		{
 			name:         "GCP platform creates correct resources",
@@ -217,18 +265,9 @@ func TestCreateCloudCredentialsResources(t *testing.T) {
 			secretName:   "gcp-creds",
 			wantErr:      nil,
 			checkVolume: func(t *testing.T, vol *corev1.Volume) {
-				if vol.Name != cloudCredentialsVolumeName {
-					t.Errorf("expected volume name %s, got %s", cloudCredentialsVolumeName, vol.Name)
-				}
-				if vol.VolumeSource.Secret.SecretName != "gcp-creds" {
-					t.Errorf("expected secret name gcp-creds, got %s", vol.VolumeSource.Secret.SecretName)
-				}
+				checkGCPVolume(t, vol, "gcp-creds")
 			},
-			checkEnvVar: func(t *testing.T, env *corev1.EnvVar) {
-				if env != nil {
-					t.Errorf("expected no env var for GCP, got %+v", env)
-				}
-			},
+			checkEnvVar: checkGCPEnvVar,
 		},
 		{
 			name:         "unsupported platform returns error",
@@ -242,6 +281,7 @@ func TestCreateCloudCredentialsResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			volume, volumeMount, envVar, err := createCloudCredentialsResources(tt.platformType, tt.secretName)
 
+			// Handle error case first and return early
 			if tt.wantErr != nil {
 				if err == nil {
 					t.Errorf("expected error %v, got nil", tt.wantErr)
@@ -250,21 +290,24 @@ func TestCreateCloudCredentialsResources(t *testing.T) {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("expected error to wrap %v, got %v", tt.wantErr, err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error, got %v", err)
-					return
-				}
+				return
+			}
 
-				if tt.checkVolume != nil {
-					tt.checkVolume(t, volume)
-				}
-				if tt.checkEnvVar != nil {
-					tt.checkEnvVar(t, envVar)
-				}
-				if volumeMount == nil {
-					t.Error("expected volume mount, got nil")
-				}
+			// Success path: verify no error occurred
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+				return
+			}
+
+			// Verify resources
+			if tt.checkVolume != nil {
+				tt.checkVolume(t, volume)
+			}
+			if tt.checkEnvVar != nil {
+				tt.checkEnvVar(t, envVar)
+			}
+			if volumeMount == nil {
+				t.Error("expected volume mount, got nil")
 			}
 		})
 	}

@@ -166,6 +166,11 @@ func (r *Reconciler) reconcileClusterRoleResource(istiocsr *v1alpha1.IstioCSR, d
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrole resource already exists, maybe from previous installation", roleName)
 	}
 	if exist && hasObjectChanged(desired, fetched) {
+		// Copy Name and ResourceVersion from fetched to desired for generateName resources.
+		// When resources are created with generateName, desired.Name is empty (cleared by updateToUseGenerateName).
+		// UpdateWithRetry requires Name and ResourceVersion to construct a valid ObjectKey and perform the update.
+		desired.SetName(fetched.GetName())
+		desired.SetResourceVersion(fetched.GetResourceVersion())
 		return r.updateClusterRole(istiocsr, desired, roleName)
 	}
 	if exist {
@@ -289,6 +294,11 @@ func (r *Reconciler) reconcileClusterRoleBindingResource(istiocsr *v1alpha1.Isti
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrolebinding resource already exists, maybe from previous installation", roleBindingName)
 	}
 	if exist && hasObjectChanged(desired, fetched) {
+		// Copy Name and ResourceVersion from fetched to desired for generateName resources.
+		// When resources are created with generateName, desired.Name is empty (cleared by updateToUseGenerateName).
+		// UpdateWithRetry requires Name and ResourceVersion to construct a valid ObjectKey and perform the update.
+		desired.SetName(fetched.GetName())
+		desired.SetResourceVersion(fetched.GetResourceVersion())
 		return r.updateClusterRoleBinding(istiocsr, desired, roleBindingName)
 	}
 	if exist {

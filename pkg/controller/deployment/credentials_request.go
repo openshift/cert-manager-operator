@@ -88,8 +88,8 @@ func createCloudCredentialsResources(platformType configv1.PlatformType, secretN
 		volume, volumeMount, envVar := createAWSCredentialsResources(secretName)
 		return volume, volumeMount, envVar, nil
 	case configv1.GCPPlatformType:
-		volume, volumeMount, envVar := createGCPCredentialsResources(secretName)
-		return volume, volumeMount, envVar, nil
+		volume, volumeMount := createGCPCredentialsResources(secretName)
+		return volume, volumeMount, nil, nil
 	default:
 		return nil, nil, nil, fmt.Errorf("%w: %q", errUnsupportedCloudProvider, platformType)
 	}
@@ -115,7 +115,7 @@ func createAWSCredentialsResources(secretName string) (*corev1.Volume, *corev1.V
 	return volume, volumeMount, envVar
 }
 
-func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.VolumeMount, *corev1.EnvVar) {
+func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.VolumeMount) {
 	volume := &corev1.Volume{
 		Name: cloudCredentialsVolumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -132,7 +132,7 @@ func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.V
 		Name:      cloudCredentialsVolumeName,
 		MountPath: gcpCredentialsDir,
 	}
-	return volume, volumeMount, nil
+	return volume, volumeMount
 }
 
 func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *corev1.Volume, volumeMount *corev1.VolumeMount, envVar *corev1.EnvVar) error {
