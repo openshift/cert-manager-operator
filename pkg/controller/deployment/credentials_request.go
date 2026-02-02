@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	errUnsupportedCloudProvider = errors.New("unsupported cloud provider for mounting cloud credentials secret")
+	errUnsupportedCloudProvider  = errors.New("unsupported cloud provider for mounting cloud credentials secret")
+	errCloudSecretNotFound       = errors.New("cloud secret not found")
+	errDeploymentHasNoContainers = errors.New("deployment has no containers")
 )
 
 const (
@@ -72,7 +74,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 func verifyCloudSecretExists(secretsInformer coreinformersv1.SecretInformer, secretName string) error {
 	_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
 	if err != nil && apierrors.IsNotFound(err) {
-		return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
+		return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w: %w", secretName, errCloudSecretNotFound, err)
 	}
 	if err != nil {
 		return err
@@ -135,7 +137,7 @@ func createGCPCredentialsResources(secretName string) (*corev1.Volume, *corev1.V
 
 func applyCloudCredentialsToDeployment(deployment *appsv1.Deployment, volume *corev1.Volume, volumeMount *corev1.VolumeMount, envVar *corev1.EnvVar) error {
 	if len(deployment.Spec.Template.Spec.Containers) == 0 {
-		return fmt.Errorf("deployment %s/%s has no containers, cannot apply cloud credentials", deployment.GetNamespace(), deployment.GetName())
+		return fmt.Errorf("deployment %s/%s has no containers, cannot apply cloud credentials: %w", deployment.GetNamespace(), deployment.GetName(), errDeploymentHasNoContainers)
 	}
 
 	deployment.Spec.Template.Spec.Volumes = append(

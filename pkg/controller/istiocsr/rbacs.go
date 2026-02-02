@@ -102,22 +102,63 @@ func (r *Reconciler) findClusterRoleByStatus(istiocsr *v1alpha1.IstioCSR, desire
 	return exist, fetched, roleName, nil
 }
 
+// findRBACResourceByLabels is a generic helper to find RBAC resources by labels.
+// It handles the common logic of listing, checking for duplicates, and extracting the resource.
+// The extractItems function should return the Items slice from the list (as pointers).
+// The extractItemsForError function should return the Items slice from the list (as values) for error formatting.
+func findRBACResourceByLabels[T client.Object, L client.ObjectList, V any](
+	r *Reconciler,
+	istiocsr *v1alpha1.IstioCSR,
+	desired client.Object,
+	list L,
+	extractItems func(L) []T,
+	extractItemsForError func(L) []V,
+	resourceType string,
+	duplicateErr error,
+) (bool, T, string, error) {
+	var zero T
+	if err := r.List(r.ctx, list, client.MatchingLabels(desired.GetLabels())); err != nil {
+		return false, zero, "", FromClientError(err, "failed to list %s resources, impacted namespace %s", resourceType, istiocsr.GetNamespace())
+	}
+	items := extractItems(list)
+	if len(items) == 0 {
+		return false, zero, "", nil
+	}
+	if len(items) != 1 {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 %s resources exist with matching labels", resourceType)
+		// Use the original list items (values) for error formatting to match expected format
+		itemsForError := extractItemsForError(list)
+		return false, zero, "", NewIrrecoverableError(duplicateErr, "matched %s resources: %+v", resourceType, itemsForError)
+	}
+	fetched := items[0]
+	resourceName := fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
+	return true, fetched, resourceName, nil
+}
+
 func (r *Reconciler) findClusterRoleByLabels(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRole) (bool, *rbacv1.ClusterRole, string, error) {
 	clusterRoleList := &rbacv1.ClusterRoleList{}
-	if err := r.List(r.ctx, clusterRoleList, client.MatchingLabels(desired.GetLabels())); err != nil {
-		return false, nil, "", FromClientError(err, "failed to list clusterrole resources, impacted namespace %s", istiocsr.GetNamespace())
+	exist, fetched, roleName, err := findRBACResourceByLabels(r, istiocsr, desired, clusterRoleList,
+		func(l *rbacv1.ClusterRoleList) []*rbacv1.ClusterRole {
+			items := make([]*rbacv1.ClusterRole, len(l.Items))
+			for i := range l.Items {
+				items[i] = &l.Items[i]
+			}
+			return items
+		},
+		func(l *rbacv1.ClusterRoleList) []rbacv1.ClusterRole {
+			return l.Items
+		},
+		"clusterrole", errMultipleClusterRolesExist)
+	if err != nil {
+		return false, nil, "", err
 	}
-	if len(clusterRoleList.Items) == 0 {
+	if !exist {
 		return false, nil, "", nil
 	}
-	if len(clusterRoleList.Items) != 1 {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
-		return false, nil, "", NewIrrecoverableError(errMultipleClusterRolesExist, "matched clusterrole resources: %+v", clusterRoleList.Items)
-	}
-	fetched := &rbacv1.ClusterRole{}
-	clusterRoleList.Items[0].DeepCopyInto(fetched)
-	roleName := fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-	return true, fetched, roleName, nil
+	// Deep copy to avoid returning a reference to the list item
+	result := &rbacv1.ClusterRole{}
+	fetched.DeepCopyInto(result)
+	return true, result, roleName, nil
 }
 
 func (r *Reconciler) reconcileClusterRoleResource(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRole, roleName string, exist, istioCSRCreateRecon bool) error {
@@ -219,20 +260,28 @@ func (r *Reconciler) findClusterRoleBindingByStatus(istiocsr *v1alpha1.IstioCSR,
 
 func (r *Reconciler) findClusterRoleBindingByLabels(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRoleBinding) (bool, *rbacv1.ClusterRoleBinding, string, error) {
 	clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-	if err := r.List(r.ctx, clusterRoleBindingsList, client.MatchingLabels(desired.GetLabels())); err != nil {
-		return false, nil, "", FromClientError(err, "failed to list clusterrolebinding resources, impacted namespace %s", istiocsr.GetNamespace())
+	exist, fetched, roleBindingName, err := findRBACResourceByLabels(r, istiocsr, desired, clusterRoleBindingsList,
+		func(l *rbacv1.ClusterRoleBindingList) []*rbacv1.ClusterRoleBinding {
+			items := make([]*rbacv1.ClusterRoleBinding, len(l.Items))
+			for i := range l.Items {
+				items[i] = &l.Items[i]
+			}
+			return items
+		},
+		func(l *rbacv1.ClusterRoleBindingList) []rbacv1.ClusterRoleBinding {
+			return l.Items
+		},
+		"clusterrolebinding", errMultipleClusterRoleBindingsExist)
+	if err != nil {
+		return false, nil, "", err
 	}
-	if len(clusterRoleBindingsList.Items) == 0 {
+	if !exist {
 		return false, nil, "", nil
 	}
-	if len(clusterRoleBindingsList.Items) != 1 {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
-		return false, nil, "", NewIrrecoverableError(errMultipleClusterRoleBindingsExist, "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
-	}
-	fetched := &rbacv1.ClusterRoleBinding{}
-	clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
-	roleBindingName := fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-	return true, fetched, roleBindingName, nil
+	// Deep copy to avoid returning a reference to the list item
+	result := &rbacv1.ClusterRoleBinding{}
+	fetched.DeepCopyInto(result)
+	return true, result, roleBindingName, nil
 }
 
 func (r *Reconciler) reconcileClusterRoleBindingResource(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRoleBinding, roleBindingName string, exist, istioCSRCreateRecon bool) error {

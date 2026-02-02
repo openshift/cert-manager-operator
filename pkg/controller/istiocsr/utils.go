@@ -387,15 +387,61 @@ func checkContainerPorts(desired, fetched corev1.Container) bool {
 }
 
 func checkContainerProbe(desired, fetched corev1.Container) bool {
-	return desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path ||
-		desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
-		desired.ReadinessProbe.PeriodSeconds != fetched.ReadinessProbe.PeriodSeconds
+	desiredProbe := desired.ReadinessProbe
+	fetchedProbe := fetched.ReadinessProbe
+
+	// If both probes are nil, they're equal (no change)
+	if desiredProbe == nil && fetchedProbe == nil {
+		return false
+	}
+
+	// If one probe is nil and the other isn't, they're different (change detected)
+	if (desiredProbe == nil) != (fetchedProbe == nil) {
+		return true
+	}
+
+	// Both probes exist, now check HTTPGet
+	desiredHTTPGet := desiredProbe.HTTPGet
+	fetchedHTTPGet := fetchedProbe.HTTPGet
+
+	// If both HTTPGet are nil, compare other fields
+	if desiredHTTPGet == nil && fetchedHTTPGet == nil {
+		return desiredProbe.InitialDelaySeconds != fetchedProbe.InitialDelaySeconds ||
+			desiredProbe.PeriodSeconds != fetchedProbe.PeriodSeconds
+	}
+
+	// If one HTTPGet is nil and the other isn't, they're different (change detected)
+	if (desiredHTTPGet == nil) != (fetchedHTTPGet == nil) {
+		return true
+	}
+
+	// Both HTTPGet exist, compare all fields
+	return desiredHTTPGet.Path != fetchedHTTPGet.Path ||
+		desiredProbe.InitialDelaySeconds != fetchedProbe.InitialDelaySeconds ||
+		desiredProbe.PeriodSeconds != fetchedProbe.PeriodSeconds
 }
 
 func checkContainerResources(desired, fetched corev1.Container) bool {
-	return !reflect.DeepEqual(desired.Resources, fetched.Resources) ||
-		!reflect.DeepEqual(*desired.SecurityContext, *fetched.SecurityContext) ||
-		!reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
+	if !reflect.DeepEqual(desired.Resources, fetched.Resources) {
+		return true
+	}
+
+	// Check SecurityContext with nil safety
+	desiredSecCtx := desired.SecurityContext
+	fetchedSecCtx := fetched.SecurityContext
+
+	// If both SecurityContext are nil, they're equal (no change)
+	if desiredSecCtx == nil && fetchedSecCtx == nil {
+		// Continue to check VolumeMounts
+	} else if (desiredSecCtx == nil) != (fetchedSecCtx == nil) {
+		// If one SecurityContext is nil and the other isn't, they're different (change detected)
+		return true
+	} else if !reflect.DeepEqual(desiredSecCtx, fetchedSecCtx) {
+		// Both exist, compare them
+		return true
+	}
+
+	return !reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
 }
 
 func checkDeploymentPodSpec(desired, fetched *appsv1.Deployment) bool {
