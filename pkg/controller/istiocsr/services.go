@@ -18,7 +18,7 @@ const (
 func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	service := r.getServiceObject(istiocsr, resourceLabels)
 	if err := r.createOrApplyService(istiocsr, service, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to create or apply service: %w", err)
 	}
 	if err := r.updateGRPCEndpointInStatus(istiocsr, service); err != nil {
 		return FromClientError(err, "failed to update %s/%s istiocsr status with %s service endpoint info", istiocsr.GetNamespace(), istiocsr.GetName(), service.GetName())
@@ -26,7 +26,7 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 
 	metricsService := r.getMetricsServiceObject(istiocsr, resourceLabels)
 	if err := r.createOrApplyService(istiocsr, metricsService, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to create or apply metrics service: %w", err)
 	}
 	return nil
 }

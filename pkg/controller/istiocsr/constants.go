@@ -124,8 +124,8 @@ const (
 	DefaultECDSA384PrivateKeySize         = 384
 
 	// Log verbosity levels
+
 	logVerbosityLevelDebug = 4 // Debug level logging
-	logVerbosityLevelInfo  = 2 // Info level logging
 )
 
 var istioCSRNetworkPolicyAssets = []string{

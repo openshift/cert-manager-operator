@@ -80,7 +80,7 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 	updateCertificateDuration(istiocsr, certificate)
 	updateCertificateRenewBefore(istiocsr, certificate)
 	if err := updateCertificatePrivateKey(istiocsr, certificate); err != nil {
-		return err
+		return fmt.Errorf("failed to update certificate private key: %w", err)
 	}
 	updateCertificateIssuerRef(istiocsr, certificate)
 	return nil

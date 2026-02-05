@@ -51,21 +51,21 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 		}
 
 		if err := verifyCloudSecretExists(secretsInformer, secretName); err != nil {
-			return err
+			return fmt.Errorf("failed to verify cloud secret exists: %w", err)
 		}
 
 		infra, err := infraInformer.Lister().Get("cluster")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get infrastructure cluster: %w", err)
 		}
 
 		volume, volumeMount, envVar, err := createCloudCredentialsResources(infra.Status.PlatformStatus.Type, secretName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create cloud credentials resources: %w", err)
 		}
 
 		if err := applyCloudCredentialsToDeployment(deployment, volume, volumeMount, envVar); err != nil {
-			return err
+			return fmt.Errorf("failed to apply cloud credentials to deployment: %w", err)
 		}
 		return nil
 	}
@@ -74,10 +74,10 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 func verifyCloudSecretExists(secretsInformer coreinformersv1.SecretInformer, secretName string) error {
 	_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
 	if err != nil && apierrors.IsNotFound(err) {
-		return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w: %w", secretName, errCloudSecretNotFound, err)
+		return fmt.Errorf("cloud secret %q doesn't exist due to %w: %w", secretName, errCloudSecretNotFound, err)
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get cloud secret %q: %w", secretName, err)
 	}
 	return nil
 }

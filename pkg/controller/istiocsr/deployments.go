@@ -61,7 +61,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	}
 
 	if err := r.reconcileDeploymentResource(istiocsr, desired, fetched, deploymentName, exist, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to reconcile deployment resource: %w", err)
 	}
 
 	if err := r.updateImageInStatus(istiocsr, desired); err != nil {
@@ -220,7 +220,7 @@ func updateResourceRequirement(deployment *appsv1.Deployment, istiocsr *v1alpha1
 	}
 	if err := validateResourceRequirements(istiocsr.Spec.IstioCSRConfig.Resources,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
-		return err
+		return fmt.Errorf("failed to validate resource requirements: %w", err)
 	}
 	for i := range deployment.Spec.Template.Spec.Containers {
 		deployment.Spec.Template.Spec.Containers[i].Resources = istiocsr.Spec.IstioCSRConfig.Resources
@@ -234,7 +234,7 @@ func updateAffinityRules(deployment *appsv1.Deployment, istiocsr *v1alpha1.Istio
 	}
 	if err := validateAffinityRules(istiocsr.Spec.IstioCSRConfig.Affinity,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
-		return err
+		return fmt.Errorf("failed to validate affinity rules: %w", err)
 	}
 	deployment.Spec.Template.Spec.Affinity = istiocsr.Spec.IstioCSRConfig.Affinity
 	return nil
@@ -246,7 +246,7 @@ func updatePodTolerations(deployment *appsv1.Deployment, istiocsr *v1alpha1.Isti
 	}
 	if err := validateTolerationsConfig(istiocsr.Spec.IstioCSRConfig.Tolerations,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
-		return err
+		return fmt.Errorf("failed to validate tolerations config: %w", err)
 	}
 	deployment.Spec.Template.Spec.Tolerations = istiocsr.Spec.IstioCSRConfig.Tolerations
 	return nil
@@ -258,7 +258,7 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 	}
 	if err := validateNodeSelectorConfig(istiocsr.Spec.IstioCSRConfig.NodeSelector,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
-		return err
+		return fmt.Errorf("failed to validate node selector config: %w", err)
 	}
 	deployment.Spec.Template.Spec.NodeSelector = istiocsr.Spec.IstioCSRConfig.NodeSelector
 	return nil
@@ -314,7 +314,7 @@ func (r *Reconciler) updateVolumes(deployment *appsv1.Deployment, istiocsr *v1al
 	// Fall back to issuer-based CA certificate if CA certificate is not configured
 	// Handle issuer-based CA configuration
 	if err := r.handleIssuerBasedCA(deployment, istiocsr, resourceLabels); err != nil {
-		return err
+		return fmt.Errorf("failed to handle issuer-based CA: %w", err)
 	}
 
 	return nil
@@ -546,7 +546,7 @@ func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.I
 		return fmt.Errorf("failed to fetch secret in issuer: %w", err)
 	}
 	if err := r.updateWatchLabel(secret, istiocsr); err != nil {
-		return err
+		return fmt.Errorf("failed to update watch label on secret: %w", err)
 	}
 
 	certData := string(secret.Data[IstiocsrCAKeyName])
@@ -567,7 +567,7 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 		return fmt.Errorf("failed to fetch secret in issuer: %w", err)
 	}
 	if err := r.updateWatchLabel(secret, istiocsr); err != nil {
-		return err
+		return fmt.Errorf("failed to update watch label on secret: %w", err)
 	}
 
 	certData := string(secret.Data[IstiocsrCAKeyName])

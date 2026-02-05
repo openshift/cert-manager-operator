@@ -562,7 +562,7 @@ func (r *Reconciler) checkForMultipleInstances(istiocsr *v1alpha1.IstioCSR) erro
 	ignoreProcessing := r.shouldIgnoreProcessing(istiocsr, istiocsrList.Items)
 	if ignoreProcessing {
 		if err := r.handleIgnoreProcessing(istiocsr, statusMessage); err != nil {
-			return err
+			return fmt.Errorf("failed to handle ignore processing: %w", err)
 		}
 	}
 

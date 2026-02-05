@@ -76,7 +76,7 @@ func (c OperatorClient) applyStatusForExistingInstance(ctx context.Context, fiel
 
 	operatorStatus, err := c.extractOperatorStatus(previous)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract operator status: %w", err)
 	}
 
 	c.setConditionTransitionTimes(desiredConfiguration, operatorStatus)
@@ -242,7 +242,7 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) error {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get certmanager instance: %w", err)
 	}
 
 	finalizers := instance.GetFinalizers()
@@ -254,7 +254,7 @@ func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) e
 	finalizers = append(finalizers, finalizer)
 	err = c.saveFinalizers(ctx, instance, finalizers)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to save finalizers: %w", err)
 	}
 
 	return nil
@@ -263,7 +263,7 @@ func (c OperatorClient) EnsureFinalizer(ctx context.Context, finalizer string) e
 func (c OperatorClient) RemoveFinalizer(ctx context.Context, finalizer string) error {
 	instance, err := c.Informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get certmanager instance: %w", err)
 	}
 
 	finalizers := instance.GetFinalizers()
@@ -282,7 +282,7 @@ func (c OperatorClient) RemoveFinalizer(ctx context.Context, finalizer string) e
 
 	err = c.saveFinalizers(ctx, instance, newFinalizers)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to save finalizers: %w", err)
 	}
 	return nil
 }
@@ -291,5 +291,8 @@ func (c OperatorClient) saveFinalizers(ctx context.Context, instance *v1alpha1.C
 	clone := instance.DeepCopy()
 	clone.SetFinalizers(finalizers)
 	_, err := c.Client.CertManagers().Update(ctx, clone, metav1.UpdateOptions{})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update certmanager finalizers: %w", err)
+	}
+	return nil
 }

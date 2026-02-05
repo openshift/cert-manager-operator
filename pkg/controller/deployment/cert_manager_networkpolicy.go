@@ -181,7 +181,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) validateComponentName(co
 	case v1alpha1.CoreController, v1alpha1.CAInjector, v1alpha1.Webhook:
 		return nil
 	default:
-		return fmt.Errorf("%w: %s", errUnsupportedComponentName, componentName)
+		return fmt.Errorf("%s: %w", componentName, errUnsupportedComponentName)
 	}
 }
 

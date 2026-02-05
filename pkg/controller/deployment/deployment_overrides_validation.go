@@ -97,7 +97,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		argMap := make(map[string]string, 0)
 		supportedArgs, err := getSupportedArgsForDeployment(deploymentName, certmanager, supportedCertManagerArgs, supportedCertManagerWebhookArgs, supportedCertManageCainjectorArgs)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get supported args for deployment: %w", err)
 		}
 		if supportedArgs == nil {
 			return nil
@@ -135,7 +135,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 		envMap := make(map[string]corev1.EnvVar, 0)
 		supportedEnv, err := getSupportedEnvForDeployment(deploymentName, certmanager, supportedCertManagerEnv, supportedCertManagerWebhookEnv, supportedCertManageCainjectorEnv)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get supported env for deployment: %w", err)
 		}
 		if supportedEnv == nil {
 			return nil
@@ -172,7 +172,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 
 		supportedLabelKeys, overrideLabels, err := getSupportedLabelsForDeployment(deploymentName, certmanager, supportedCertManagerLabelKeys, supportedCertManagerWebhookLabelKeys, supportedCertManagerCainjectorLabelKeys)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get supported labels for deployment: %w", err)
 		}
 		if supportedLabelKeys == nil {
 			return nil

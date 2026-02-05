@@ -29,32 +29,32 @@ func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, reso
 	clusterRoleName, err := r.createOrApplyClusterRoles(istiocsr, resourceLabels, istioCSRCreateRecon)
 	if err != nil {
 		r.log.Error(err, "failed to reconcile clusterrole resource")
-		return err
+		return fmt.Errorf("failed to create or apply cluster roles: %w", err)
 	}
 
 	if err := r.createOrApplyClusterRoleBindings(istiocsr, clusterRoleName, serviceAccount, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile clusterrolebinding resource")
-		return err
+		return fmt.Errorf("failed to create or apply cluster role bindings: %w", err)
 	}
 
 	if err := r.createOrApplyRoles(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile role resource")
-		return err
+		return fmt.Errorf("failed to create or apply roles: %w", err)
 	}
 
 	if err := r.createOrApplyRoleBindings(istiocsr, serviceAccount, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile rolebinding resource")
-		return err
+		return fmt.Errorf("failed to create or apply role bindings: %w", err)
 	}
 
 	if err := r.createOrApplyRoleForLeases(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile role for leases resource")
-		return err
+		return fmt.Errorf("failed to create or apply role for leases: %w", err)
 	}
 
 	if err := r.createOrApplyRoleBindingForLeases(istiocsr, serviceAccount, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile rolebinding for leases resource")
-		return err
+		return fmt.Errorf("failed to create or apply role binding for leases: %w", err)
 	}
 
 	return nil
@@ -66,11 +66,11 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 
 	exist, fetched, roleName, err := r.findExistingClusterRole(istiocsr, desired)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to find existing cluster role: %w", err)
 	}
 
 	if err := r.reconcileClusterRoleResource(istiocsr, desired, fetched, roleName, exist, istioCSRCreateRecon); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to reconcile cluster role resource: %w", err)
 	}
 
 	roleName, err = r.updateClusterRoleNameInStatus(istiocsr, desired, fetched)
@@ -228,11 +228,11 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 
 	exist, fetched, roleBindingName, err := r.findExistingClusterRoleBinding(istiocsr, desired)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find existing cluster role binding: %w", err)
 	}
 
 	if err := r.reconcileClusterRoleBindingResource(istiocsr, desired, fetched, roleBindingName, exist, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to reconcile cluster role binding resource: %w", err)
 	}
 
 	if err := r.updateClusterRoleBindingNameInStatus(istiocsr, desired, fetched); err != nil {

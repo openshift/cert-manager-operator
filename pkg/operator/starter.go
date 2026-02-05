@@ -45,7 +45,7 @@ var UnsupportedAddonFeatures string
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	clients, err := initializeClients(cc)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize clients: %w", err)
 	}
 
 	operatorClient, versionRecorder := initializeOperatorComponents(clients.certManagerInformers, clients.certManagerOperatorClient, cc.Clock)
@@ -53,7 +53,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	kubeInformersForNamespaces := initializeKubeInformers(clients.kubeClient)
 	optInfraInformer, err := initializeInfraInformer(ctx, clients.configClient)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize infrastructure informer: %w", err)
 	}
 
 	controllersToStart := buildControllers(clients, operatorClient, versionRecorder, kubeInformersForNamespaces, optInfraInformer, cc)
@@ -61,11 +61,11 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	startControllers(ctx, controllersToStart)
 
 	if err := setupFeatures(); err != nil {
-		return err
+		return fmt.Errorf("failed to setup features: %w", err)
 	}
 
 	if err := startIstioCSRController(ctx); err != nil {
-		return err
+		return fmt.Errorf("failed to start IstioCSR controller: %w", err)
 	}
 
 	<-ctx.Done()

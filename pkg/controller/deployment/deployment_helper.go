@@ -159,7 +159,7 @@ func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInfor
 			return certmanager.Spec.CAInjectorConfig.OverrideArgs, nil
 		}
 	default:
-		return nil, fmt.Errorf("%w: %q", errUnsupportedDeploymentName, deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -186,7 +186,7 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 			return certmanager.Spec.CAInjectorConfig.OverrideEnv, nil
 		}
 	default:
-		return nil, fmt.Errorf("%w: %q", errUnsupportedDeploymentName, deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -213,7 +213,7 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
 		}
 	default:
-		return nil, fmt.Errorf("%w: %q", errUnsupportedDeploymentName, deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }

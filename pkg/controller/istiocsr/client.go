@@ -107,7 +107,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		}
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("failed to update with retry: %w", err)
 	}
 
 	return nil

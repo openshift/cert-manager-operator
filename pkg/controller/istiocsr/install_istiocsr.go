@@ -15,11 +15,11 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 	resourceLabels := r.buildResourceLabels(istiocsr)
 
 	if err := r.reconcileAllResources(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to reconcile all resources: %w", err)
 	}
 
 	if err := r.updateProcessedAnnotation(istiocsr); err != nil {
-		return err
+		return fmt.Errorf("failed to update processed annotation: %w", err)
 	}
 
 	r.log.V(logVerbosityLevelDebug).Info("finished reconciliation of istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
@@ -51,7 +51,7 @@ func (r *Reconciler) reconcileAllResources(istiocsr *v1alpha1.IstioCSR, resource
 	for _, reconcileFunc := range reconcileFuncs {
 		if err := reconcileFunc.fn(); err != nil {
 			r.log.Error(err, fmt.Sprintf("failed to reconcile %s resource", reconcileFunc.name))
-			return err
+			return fmt.Errorf("failed to reconcile %s resource: %w", reconcileFunc.name, err)
 		}
 	}
 	return nil

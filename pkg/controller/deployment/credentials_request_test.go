@@ -17,7 +17,7 @@ import (
 )
 
 // checkVolumeSecretName verifies that a volume has the expected secret name.
-// Uses embedded field access: vol.Secret.SecretName instead of vol.VolumeSource.Secret.SecretName
+// Uses embedded field access: vol.Secret.SecretName instead of vol.VolumeSource.Secret.SecretName.
 func checkVolumeSecretName(t *testing.T, vol *corev1.Volume, expectedSecretName string) {
 	t.Helper()
 	if vol == nil {
@@ -127,7 +127,10 @@ func TestVerifyCloudSecretExists(t *testing.T) {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("expected error to wrap %v, got %v", tt.wantErr, err)
 				}
-			} else if err != nil {
+				return
+			}
+
+			if err != nil {
 				t.Errorf("expected no error, got %v", err)
 			}
 		})
@@ -225,15 +228,20 @@ func TestApplyCloudCredentialsToDeployment(t *testing.T) {
 			// Verify volume was added
 			if len(tt.deployment.Spec.Template.Spec.Volumes) != 1 {
 				t.Errorf("expected 1 volume, got %d", len(tt.deployment.Spec.Template.Spec.Volumes))
+				return
 			}
 
 			// Verify volume mount was added
 			if len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts) != 1 {
 				t.Errorf("expected 1 volume mount, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].VolumeMounts))
+				return
 			}
 
 			// Verify env var was added if provided
-			if tt.envVar != nil && len(tt.deployment.Spec.Template.Spec.Containers[0].Env) != 1 {
+			if tt.envVar == nil {
+				return
+			}
+			if len(tt.deployment.Spec.Template.Spec.Containers[0].Env) != 1 {
 				t.Errorf("expected 1 env var, got %d", len(tt.deployment.Spec.Template.Spec.Containers[0].Env))
 			}
 		})
