@@ -1,6 +1,7 @@
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: selfsigned-issuer
+  name: ca-cluster-issuer
 spec:
-  selfSigned: {}
+  ca:
+    secretName: ca-root-secret

@@ -80,7 +80,7 @@ metadata:
             "issuerRef": {
               "group": "cert-manager.io",
               "kind": "ClusterIssuer",
-              "name": "selfsigned-issuer"
+              "name": "ca-cluster-issuer"
             },
             "privateKey": {
               "algorithm": "ECDSA",
@@ -139,10 +139,12 @@ metadata:
           "apiVersion": "cert-manager.io/v1",
           "kind": "ClusterIssuer",
           "metadata": {
-            "name": "selfsigned-issuer"
+            "name": "ca-cluster-issuer"
           },
           "spec": {
-            "selfSigned": {}
+            "ca": {
+              "secretName": "ca-root-secret"
+            }
           }
         },
         {
