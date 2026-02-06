@@ -36,7 +36,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to check /cert-manager-istio-csr-sdghj clusterrole resource already exists: test client error`,
+			wantErr: `failed to create or apply cluster roles: failed to find existing cluster role: failed to check /cert-manager-istio-csr-sdghj clusterrole resource already exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while checking if exists",
@@ -52,7 +52,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
-			wantErr: `failed to check /cert-manager-istio-csr-dfkhk clusterrolebinding resource already exists: test client error`,
+			wantErr: `failed to create or apply cluster role bindings: failed to find existing cluster role binding: failed to check /cert-manager-istio-csr-dfkhk clusterrolebinding resource already exists: test client error`,
 		},
 		{
 			name: "role reconciliation fails while checking if exists",
@@ -65,7 +65,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr role resource already exists: test client error`,
+			wantErr: `failed to create or apply roles: failed to check istio-test-ns/cert-manager-istio-csr role resource already exists: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation fails while checking if exists",
@@ -78,7 +78,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr rolebinding resource already exists: test client error`,
+			wantErr: `failed to create or apply role bindings: failed to check istio-test-ns/cert-manager-istio-csr rolebinding resource already exists: test client error`,
 		},
 		{
 			name: "role-leases reconciliation fails while checking if exists",
@@ -93,7 +93,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases role resource already exists: test client error`,
+			wantErr: `failed to create or apply role for leases: failed to check istio-test-ns/cert-manager-istio-csr-leases role resource already exists: test client error`,
 		},
 		{
 			name: "rolebindings-leases reconciliation fails while checking if exists",
@@ -108,7 +108,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding resource already exists: test client error`,
+			wantErr: `failed to create or apply role binding for leases: failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding resource already exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing existing resources",
@@ -121,7 +121,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to list clusterrolebinding resources, impacted namespace istiocsr-test-ns: test client error`,
+			wantErr: `failed to create or apply cluster role bindings: failed to find existing cluster role binding: failed to list clusterrolebinding resources, impacted namespace istiocsr-test-ns: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing multiple existing resources",
@@ -139,7 +139,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `matched clusterrolebinding resources: [{TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfkhk GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}} {TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfmfj GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}}]: more than 1 clusterrolebinding resources exist with matching labels`,
+			wantErr: `failed to create or apply cluster role bindings: failed to find existing cluster role binding: matched clusterrolebinding resources: [{TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfkhk GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}} {TypeMeta:{Kind:ClusterRoleBinding APIVersion:rbac.authorization.k8s.io/v1} ObjectMeta:{Name:cert-manager-istio-csr-dfmfj GenerateName:cert-manager-istio-csr- Namespace: SelfLink: UID: ResourceVersion: Generation:0 CreationTimestamp:0001-01-01 00:00:00 +0000 UTC DeletionTimestamp:<nil> DeletionGracePeriodSeconds:<nil> Labels:map[app:cert-manager-istio-csr app.kubernetes.io/instance:cert-manager-istio-csr app.kubernetes.io/managed-by:cert-manager-operator app.kubernetes.io/name:cert-manager-istio-csr app.kubernetes.io/part-of:cert-manager-operator app.kubernetes.io/version:] Annotations:map[] OwnerReferences:[] Finalizers:[] ManagedFields:[]} Subjects:[{Kind:ServiceAccount APIGroup: Name:cert-manager-istio-csr Namespace:cert-manager}] RoleRef:{APIGroup:rbac.authorization.k8s.io Kind:ClusterRole Name:cert-manager-istio-csr}}]: more than 1 clusterrolebinding resources exist with matching labels`,
 		},
 		{
 			name: "clusterrolebindings reconciliation successful",
@@ -181,7 +181,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
-			wantErr: `failed to update /cert-manager-istio-csr-dfkhk clusterrolebinding resource: test client error`,
+			wantErr: `failed to create or apply cluster role bindings: failed to reconcile cluster role binding resource: failed to update /cert-manager-istio-csr-dfkhk clusterrolebinding resource: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state successful",
@@ -219,7 +219,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create  clusterrolebinding resource: test client error`,
+			wantErr: `failed to create or apply cluster role bindings: failed to reconcile cluster role binding resource: failed to create  clusterrolebinding resource: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating name in status fails",
@@ -255,7 +255,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to create or apply cluster roles: failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr-sdghj clusterrole resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation updating name in status fails",
@@ -293,7 +293,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to create or apply cluster role bindings: failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with /cert-manager-istio-csr-dfkhk clusterrolebinding resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating to desired state fails",
@@ -318,7 +318,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
-			wantErr: `failed to update /cert-manager-istio-csr-sdghj clusterrole resource: test client error`,
+			wantErr: `failed to create or apply cluster roles: failed to reconcile cluster role resource: failed to update /cert-manager-istio-csr-sdghj clusterrole resource: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation creation fails",
@@ -338,7 +338,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create  clusterrole resource: test client error`,
+			wantErr: `failed to create or apply cluster roles: failed to reconcile cluster role resource: failed to create  clusterrole resource: test client error`,
 		},
 		{
 			name: "role reconciliation updating to desired state fails",
@@ -360,7 +360,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr role resource: test client error`,
+			wantErr: `failed to create or apply roles: failed to update istio-test-ns/cert-manager-istio-csr role resource: test client error`,
 		},
 		{
 			name: "role reconciliation creation fails",
@@ -380,7 +380,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
+			wantErr: `failed to create or apply roles: failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
 		},
 		{
 			name: "role-leases reconciliation updating to desired state fails",
@@ -406,7 +406,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to create or apply role for leases: failed to update istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
 		},
 		{
 			name: "role-leases reconciliation creation fails",
@@ -430,7 +430,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to create or apply role for leases: failed to create istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation updating to desired state fails",
@@ -452,7 +452,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
+			wantErr: `failed to create or apply role bindings: failed to update istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation creation fails",
@@ -472,7 +472,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
+			wantErr: `failed to create or apply role bindings: failed to create istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation updating to desired state fails",
@@ -498,7 +498,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to create or apply role binding for leases: failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation creation fails",
@@ -522,7 +522,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to create or apply role binding for leases: failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
 		},
 	}
 

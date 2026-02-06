@@ -50,7 +50,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr service resource already exists: test client error`,
+			wantErr: `failed to create or apply service: failed to check istiocsr-test-ns/cert-manager-istio-csr service resource already exists: test client error`,
 		},
 		{
 			name: "service reconciliation fails while updating to desired state",
@@ -73,7 +73,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
+			wantErr: `failed to create or apply service: failed to update istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
 		},
 		{
 			name: "service reconciliation fails while creating",
@@ -86,7 +86,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
+			wantErr: `failed to create or apply service: failed to create istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
 		},
 		{
 			name: "service reconciliation when server config is not empty",

@@ -204,7 +204,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate certificate resource for creation in istiocsr-test-ns: failed to update certificate resource for istiocsr-test-ns/istiocsr-test-resource istiocsr deployment: certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply`,
+			wantErr: `failed to generate certificate resource for creation in istiocsr-test-ns: failed to update certificate resource for istiocsr-test-ns/istiocsr-test-resource istiocsr deployment: failed to update certificate private key: certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply`,
 		},
 	}
 

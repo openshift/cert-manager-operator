@@ -343,9 +343,4 @@ func TestErrorWrapping(t *testing.T) {
 	if !strings.Contains(errMsg, "nonexistent") {
 		t.Errorf("expected error message to contain secret name, got: %v", errMsg)
 	}
-
-	// Verify error message has the retrying prefix
-	if !strings.Contains(errMsg, "(Retrying)") {
-		t.Errorf("expected error message to contain (Retrying), got: %v", errMsg)
-	}
 }

@@ -335,8 +335,27 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 }
 
 func checkDeploymentBasicSpec(desired, fetched *appsv1.Deployment) bool {
-	return *desired.Spec.Replicas != *fetched.Spec.Replicas ||
-		!reflect.DeepEqual(desired.Spec.Selector.MatchLabels, fetched.Spec.Selector.MatchLabels)
+	// Handle nil Replicas pointers safely
+	desiredReplicas := desired.Spec.Replicas
+	fetchedReplicas := fetched.Spec.Replicas
+
+	// If both are nil, treat as equal (no difference)
+	if desiredReplicas == nil && fetchedReplicas == nil {
+		// Continue to check Selector.MatchLabels
+	} else if desiredReplicas == nil || fetchedReplicas == nil {
+		// One is nil and the other is not, they differ
+		return true
+	}
+
+	// Both are non-nil at this point, safely compare values
+	// Additional explicit nil check for static analyzer
+	if desiredReplicas != nil && fetchedReplicas != nil {
+		if *desiredReplicas != *fetchedReplicas {
+			return true
+		}
+	}
+
+	return !reflect.DeepEqual(desired.Spec.Selector.MatchLabels, fetched.Spec.Selector.MatchLabels)
 }
 
 func checkDeploymentTemplate(desired, fetched *appsv1.Deployment) bool {
@@ -345,8 +364,17 @@ func checkDeploymentTemplate(desired, fetched *appsv1.Deployment) bool {
 }
 
 func checkDeploymentContainer(desired, fetched *appsv1.Deployment) bool {
-	desiredContainer := desired.Spec.Template.Spec.Containers[0]
-	fetchedContainer := fetched.Spec.Template.Spec.Containers[0]
+	// Validate that both Containers slices are non-empty before accessing [0]
+	desiredContainers := desired.Spec.Template.Spec.Containers
+	fetchedContainers := fetched.Spec.Template.Spec.Containers
+
+	if len(desiredContainers) == 0 || len(fetchedContainers) == 0 {
+		// If either is empty, they differ (one has containers, the other doesn't)
+		return true
+	}
+
+	desiredContainer := desiredContainers[0]
+	fetchedContainer := fetchedContainers[0]
 
 	if checkContainerBasicFields(desiredContainer, fetchedContainer) {
 		return true

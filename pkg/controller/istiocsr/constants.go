@@ -125,6 +125,7 @@ const (
 
 	// Log verbosity levels
 
+	logVerbosityLevelInfo  = 0 // Info level logging
 	logVerbosityLevelDebug = 4 // Debug level logging
 )
 
