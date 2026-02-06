@@ -182,7 +182,7 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			requeue: false,
-			wantErr: `failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
+			wantErr: `failed to update processed annotation: failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
 		},
 		{
 			name: "reconciliation failed with irrecoverable error",
@@ -697,7 +697,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			expectedAnnotations: map[string]string{
 				controllerProcessingRejectedAnnotation: "true",
 			},
-			wantErr: `failed to update istiocsr3/istiocsr-test-resource status: failed to update status for "istiocsr3/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr3/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to handle ignore processing: failed to update istiocsr3/istiocsr-test-resource status: failed to update status for "istiocsr3/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr3/istiocsr-test-resource" status: test client error`,
 		},
 		{
 			name: "validating multiple istiocsrs' failed to update annotations",
@@ -746,7 +746,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			expectedAnnotations: map[string]string{
 				controllerProcessingRejectedAnnotation: "true",
 			},
-			wantErr: `failed to update reject processing annotation to istiocsr3/istiocsr-test-resource: test client error`,
+			wantErr: `failed to handle ignore processing: failed to update reject processing annotation to istiocsr3/istiocsr-test-resource: test client error`,
 		},
 	}
 

@@ -18,7 +18,7 @@ const (
 func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	service := r.getServiceObject(istiocsr, resourceLabels)
 	if err := r.createOrApplyService(istiocsr, service, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to create or apply service: %w", err)
 	}
 	if err := r.updateGRPCEndpointInStatus(istiocsr, service); err != nil {
 		return FromClientError(err, "failed to update %s/%s istiocsr status with %s service endpoint info", istiocsr.GetNamespace(), istiocsr.GetName(), service.GetName())
@@ -26,14 +26,14 @@ func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resource
 
 	metricsService := r.getMetricsServiceObject(istiocsr, resourceLabels)
 	if err := r.createOrApplyService(istiocsr, metricsService, istioCSRCreateRecon); err != nil {
-		return err
+		return fmt.Errorf("failed to create or apply metrics service: %w", err)
 	}
 	return nil
 }
 
 func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
 	serviceName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
-	r.log.V(4).Info("reconciling service resource", "name", serviceName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling service resource", "name", serviceName)
 	fetched := &corev1.Service{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(svc), fetched)
 	if err != nil {
@@ -49,8 +49,8 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 			return FromClientError(err, "failed to update %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
-	} else {
-		r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
+	} else if exist {
+		r.log.V(logVerbosityLevelDebug).Info("service resource already exists and is in expected state", "name", serviceName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, svc); err != nil {

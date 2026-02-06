@@ -14,7 +14,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 	desired := r.getServiceAccountObject(istiocsr, resourceLabels)
 
 	serviceAccountName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling serviceaccount resource", "name", serviceAccountName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling serviceaccount resource", "name", serviceAccountName)
 	fetched := &corev1.ServiceAccount{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -25,7 +25,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s serviceaccount resource already exists, maybe from previous installation", serviceAccountName)
 		}
-		r.log.V(4).Info("serviceaccount resource already exists and is in expected state", "name", serviceAccountName)
+		r.log.V(logVerbosityLevelDebug).Info("serviceaccount resource already exists and is in expected state", "name", serviceAccountName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {

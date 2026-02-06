@@ -132,7 +132,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
 			name: "deployment reconciliation updating volume successful",
@@ -222,7 +222,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr deployment resource: test client error`,
+			wantErr: `failed to reconcile deployment resource: failed to update istiocsr-test-ns/cert-manager-istio-csr deployment resource: test client error`,
 		},
 		{
 			name: "deployment reconciliation with user custom config successful",
@@ -484,7 +484,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to fetch secret in issuer: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to fetch secret in issuer: no access`,
 		},
 		{
 			name: "deployment reconciliation fails while updating labels on secret referenced in issuer",
@@ -516,7 +516,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update  resource with watch label: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to update watch label on secret: failed to update  resource with watch label: no access`,
 		},
 		{
 			name: "deployment reconciliation fails while checking configmap exists",
@@ -543,7 +543,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to check if CA configmap exists: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to check if CA configmap exists: test client error`,
 		},
 		{
 			name: "deployment reconciliation fails while updating configmap to desired state",
@@ -579,7 +579,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to update istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
 			name: "deployment reconciliation configmap creation successful",
@@ -640,7 +640,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: failed to validate tolerations config: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
 		},
 		{
 			name: "deployment reconciliation with invalid nodeSelector configuration",
@@ -669,7 +669,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
 				i.Spec.IstioCSRConfig.NodeSelector = map[string]string{"node/Label/2": "value2"}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: failed to validate node selector config: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
 		},
 		{
 			name: "deployment reconciliation with invalid affinity configuration",
@@ -746,7 +746,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update affinity rules: [spec.istioCSRConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when `operator` is 'In' or 'NotIn', spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]'), spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')]",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update affinity rules: failed to validate affinity rules: [spec.istioCSRConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when `operator` is 'In' or 'NotIn', spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]'), spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')]",
 		},
 		{
 			name: "deployment reconciliation with invalid resource requirement configuration",
@@ -785,7 +785,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource for containers]`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: failed to validate resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource for containers]`,
 		},
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap",

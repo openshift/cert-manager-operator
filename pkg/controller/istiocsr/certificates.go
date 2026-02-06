@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
+var (
+	errCertificateParamsNotCompliant = errors.New("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
+)
+
 func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getCertificateObject(istiocsr, resourceLabels)
 	if err != nil {
@@ -22,7 +27,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	certificateName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling certificate resource", "name", certificateName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling certificate resource", "name", certificateName)
 	fetched := &certmanagerv1.Certificate{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -38,8 +43,8 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 			return FromClientError(err, "failed to update %s certificate resource", certificateName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
-	} else {
-		r.log.V(4).Info("certificate resource already exists and is in expected state", "name", certificateName)
+	} else if exist {
+		r.log.V(logVerbosityLevelDebug).Info("certificate resource already exists and is in expected state", "name", certificateName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
@@ -69,13 +74,28 @@ func (r *Reconciler) getCertificateObject(istiocsr *v1alpha1.IstioCSR, resourceL
 }
 
 func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) error {
+	updateCertificateCommonName(istiocsr, certificate)
+	updateCertificateDNSNames(istiocsr, certificate)
+	updateCertificateURIs(istiocsr, certificate)
+	updateCertificateDuration(istiocsr, certificate)
+	updateCertificateRenewBefore(istiocsr, certificate)
+	if err := updateCertificatePrivateKey(istiocsr, certificate); err != nil {
+		return fmt.Errorf("failed to update certificate private key: %w", err)
+	}
+	updateCertificateIssuerRef(istiocsr, certificate)
+	return nil
+}
+
+func updateCertificateCommonName(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
 	certificate.Spec.CommonName = istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CommonName
-	if istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CommonName == "" {
+	if certificate.Spec.CommonName == "" {
 		certificate.Spec.CommonName = fmt.Sprintf(istiodCertificateCommonNameFmt, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
 	}
+}
 
-	dnsNames := make([]string, 0, len(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames)+len(istiocsr.Spec.IstioCSRConfig.Istio.Revisions))
-	dnsNames = append(dnsNames, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames...)
+func updateCertificateDNSNames(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
+	dnsNames := make([]string, len(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames))
+	copy(dnsNames, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames)
 
 	// Also need to add a DNS SAN for every requested revision, except for default revision, which will not be
 	// included in the DNS name.
@@ -92,21 +112,29 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		dnsNames = append(dnsNames, name)
 	}
 	certificate.Spec.DNSNames = dnsNames
+}
 
+func updateCertificateURIs(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
 	certificate.Spec.URIs = []string{
 		fmt.Sprintf(istiodCertificateSpiffeURIFmt, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.TrustDomain, istiocsr.Spec.IstioCSRConfig.Istio.Namespace),
 	}
+}
 
+func updateCertificateDuration(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
 	certificate.Spec.Duration = istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDuration
 	if certificate.Spec.Duration == nil {
 		certificate.Spec.Duration = &metav1.Duration{Duration: DefaultCertificateDuration}
 	}
+}
 
+func updateCertificateRenewBefore(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
 	certificate.Spec.RenewBefore = istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateRenewBefore
 	if certificate.Spec.RenewBefore == nil {
 		certificate.Spec.RenewBefore = &metav1.Duration{Duration: DefaultCertificateRenewBeforeDuration}
 	}
+}
 
+func updateCertificatePrivateKey(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) error {
 	certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm)
 	if certificate.Spec.PrivateKey.Algorithm == "" {
 		certificate.Spec.PrivateKey.Algorithm = DefaultPrivateKeyAlgorithm
@@ -114,22 +142,38 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 
 	certificate.Spec.PrivateKey.Size = int(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize)
 	if certificate.Spec.PrivateKey.Size == 0 {
-		if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm {
-			certificate.Spec.PrivateKey.Size = DefaultRSAPrivateKeySize
-		}
-		if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm {
-			certificate.Spec.PrivateKey.Size = DefaultECDSA384PrivateKeySize
-		}
-	}
-	if (certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm && certificate.Spec.PrivateKey.Size < DefaultRSAPrivateKeySize) ||
-		(certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm && certificate.Spec.PrivateKey.Size != DefaultECDSA256PrivateKeySize && certificate.Spec.PrivateKey.Size != DefaultECDSA384PrivateKeySize) {
-		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
+		setDefaultPrivateKeySize(certificate)
 	}
 
+	if !isPrivateKeySizeCompliant(certificate) {
+		return errCertificateParamsNotCompliant
+	}
+	return nil
+}
+
+func setDefaultPrivateKeySize(certificate *certmanagerv1.Certificate) {
+	if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm {
+		certificate.Spec.PrivateKey.Size = DefaultRSAPrivateKeySize
+	}
+	if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm {
+		certificate.Spec.PrivateKey.Size = DefaultECDSA384PrivateKeySize
+	}
+}
+
+func isPrivateKeySizeCompliant(certificate *certmanagerv1.Certificate) bool {
+	if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm {
+		return certificate.Spec.PrivateKey.Size >= DefaultRSAPrivateKeySize
+	}
+	if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm {
+		return certificate.Spec.PrivateKey.Size == DefaultECDSA256PrivateKeySize || certificate.Spec.PrivateKey.Size == DefaultECDSA384PrivateKeySize
+	}
+	return true
+}
+
+func updateCertificateIssuerRef(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) {
 	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{
 		Kind:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind,
 		Group: istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group,
 		Name:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,
 	}
-	return nil
 }

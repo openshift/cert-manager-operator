@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -40,8 +41,15 @@ func (c *DefaultCertManagerController) sync(ctx context.Context, syncCtx factory
 	if apierrors.IsNotFound(err) {
 		syncCtx.Recorder().Eventf("StatusNotFound", "Creating \"cluster\" certmanager")
 		_, err = c.createDefaultCertManager(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create default certmanager: %w", err)
+		}
+		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to get operator state: %w", err)
+	}
+	return nil
 }
 
 func (c *DefaultCertManagerController) createDefaultCertManager(ctx context.Context) (*v1alpha1.CertManager, error) {

@@ -77,7 +77,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource: test client error`,
+			wantErr: `failed to reconcile all resources: failed to reconcile serviceaccount resource: failed to create istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource: test client error`,
 		},
 		{
 			name: "istiocsr reconciliation fails with role creation error",
@@ -93,7 +93,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
+			wantErr: `failed to reconcile all resources: failed to reconcile rbac resource: failed to create or apply roles: failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
 		},
 		{
 			name: "istiocsr reconciliation fails with certificate creation error",
@@ -109,7 +109,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/istiod certificate resource: test client error`,
+			wantErr: `failed to reconcile all resources: failed to reconcile certificate resource: failed to create istio-test-ns/istiod certificate resource: test client error`,
 		},
 	}
 
