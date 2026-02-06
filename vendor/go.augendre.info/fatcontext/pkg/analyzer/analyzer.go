@@ -9,7 +9,6 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
-	"slices"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -172,6 +171,9 @@ func getBody(node ast.Node) (*ast.BlockStmt, error) {
 }
 
 func findNestedContext(pass *analysis.Pass, node ast.Node, stmts []ast.Stmt) *ast.AssignStmt {
+	// Track which context variables have been reset to a known empty context
+	resetContexts := make(map[string]bool)
+
 	for _, stmt := range stmts {
 		// Recurse if necessary
 		stmtList := getStmtList(stmt)
@@ -198,8 +200,21 @@ func findNestedContext(pass *analysis.Pass, node ast.Node, stmts []ast.Stmt) *as
 			continue
 		}
 
-		// Ignore [context.Background] & [context.TODO].
-		if isContextFunction(assignStmt.Rhs[0], "Background", "TODO") {
+		// Get the variable name being assigned to
+		varName := getVarName(pass, assignStmt)
+
+		// If the assignment is to a known empty context, mark this variable as reset
+		if isEmptyContext(assignStmt.Rhs[0]) {
+			if varName != "" {
+				resetContexts[varName] = true
+			}
+
+			continue
+		}
+
+		// If this variable was previously reset to a known empty context in this block,
+		// it's safe to modify it
+		if varName != "" && resetContexts[varName] {
 			continue
 		}
 
@@ -216,6 +231,21 @@ func findNestedContext(pass *analysis.Pass, node ast.Node, stmts []ast.Stmt) *as
 	}
 
 	return nil
+}
+
+func getVarName(pass *analysis.Pass, assignStmt *ast.AssignStmt) string {
+	varName := ""
+
+	if ident, ok := assignStmt.Lhs[0].(*ast.Ident); ok {
+		varName = ident.Name
+	} else if sel, ok := assignStmt.Lhs[0].(*ast.SelectorExpr); ok {
+		// For struct fields like tc.ctx
+		if rendered, err := render(pass.Fset, sel); err == nil {
+			varName = string(rendered)
+		}
+	}
+
+	return varName
 }
 
 func getStmtList(stmt ast.Stmt) []ast.Stmt {
@@ -240,14 +270,16 @@ func getStmtList(stmt ast.Stmt) []ast.Stmt {
 // render returns the pretty-print of the given node.
 func render(fset *token.FileSet, x interface{}) ([]byte, error) {
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, fset, x); err != nil {
+
+	err := printer.Fprint(&buf, fset, x)
+	if err != nil {
 		return nil, fmt.Errorf("printing node: %w", err)
 	}
 
 	return buf.Bytes(), nil
 }
 
-func isContextFunction(exp ast.Expr, fnName ...string) bool {
+func isEmptyContext(exp ast.Expr) bool {
 	call, typeValid := exp.(*ast.CallExpr)
 	if !typeValid {
 		return false
@@ -263,7 +295,54 @@ func isContextFunction(exp ast.Expr, fnName ...string) bool {
 		return false
 	}
 
-	return ident.Name == "context" && slices.Contains(fnName, selector.Sel.Name)
+	isContextPackage := ident.Name == "context"
+	isSafeFunc := selector.Sel.Name == "Background" || selector.Sel.Name == "TODO"
+
+	// context.Background and context.TODO are safe
+	if isContextPackage && isSafeFunc {
+		return true
+	}
+
+	// Looking for a call to testing.T.Context or testing.B.Context or testing.TB.Context.
+	// Checking if the called function is Context, to avoid unnecessary work.
+	if selector.Sel.Name != "Context" {
+		return false
+	}
+
+	if ident.Obj == nil || ident.Obj.Decl == nil {
+		return false
+	}
+
+	decl, typeValid := ident.Obj.Decl.(*ast.Field)
+	if !typeValid {
+		return false
+	}
+
+	// Unpack the StarExpr if necessary (as in *testing.T vs. testing.TB)
+	//             This makes it a StarExpr ---^
+	var declType any = decl.Type
+
+	if star, typeValid := decl.Type.(*ast.StarExpr); typeValid {
+		declType = star.X
+	}
+
+	declSelector, typeValid := declType.(*ast.SelectorExpr)
+	if !typeValid {
+		return false
+	}
+
+	declIdent, typeValid := declSelector.X.(*ast.Ident)
+	if !typeValid {
+		return false
+	}
+
+	isTestingPackage := declIdent.Name == "testing"
+	isValidType := declSelector.Sel.Name == "T" ||
+		declSelector.Sel.Name == "B" ||
+		declSelector.Sel.Name == "TB"
+	isSafeFunc = selector.Sel.Name == "Context"
+
+	return isTestingPackage && isValidType && isSafeFunc
 }
 
 func isWithinLoop(exp ast.Expr, node ast.Node, pass *analysis.Pass) bool {

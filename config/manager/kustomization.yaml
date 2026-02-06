@@ -5,3 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: openshift.io/cert-manager-operator
+  newTag: latest

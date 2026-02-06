@@ -4,8 +4,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../../../k8s.io/code-generator)}
+# kube_codegen.sh runs from module cache which has no vendor directory
+# so all Go commands it runs need module mode
+export GOFLAGS=""
+
+SCRIPT_ROOT=$(git rev-parse --show-toplevel)
+
+# code-generator shell scripts aren't vendored (go work vendor only copies .go files)
+# so we fetch the module path from the module cache
+CODEGEN_PKG=${CODEGEN_PKG:-$(go mod download -json k8s.io/code-generator | grep '"Dir"' | cut -d'"' -f4)}
 
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
