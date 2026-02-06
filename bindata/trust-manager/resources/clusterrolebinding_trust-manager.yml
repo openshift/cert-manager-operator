@@ -1,0 +1,19 @@
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-trust-manager
+    app.kubernetes.io/instance: cert-manager-trust-manager
+    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: trust-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: trust-manager
+subjects:
+  - kind: ServiceAccount
+    name: trust-manager
+    namespace: cert-manager
