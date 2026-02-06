@@ -11,10 +11,11 @@ import (
 // with apply.
 type TrustManagerStatusApplyConfiguration struct {
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
-	TrustManagerImage                   *string                                  `json:"trustManagerImage,omitempty"`
-	TrustNamespace                      *string                                  `json:"trustNamespace,omitempty"`
-	SecretTargetsPolicy                 *operatorv1alpha1.SecretTargetsPolicy    `json:"secretTargetsPolicy,omitempty"`
-	DefaultCAPackagePolicy              *operatorv1alpha1.DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
+	TrustManagerImage                   *string                                           `json:"trustManagerImage,omitempty"`
+	TrustNamespace                      *string                                           `json:"trustNamespace,omitempty"`
+	SecretTargetsPolicy                 *operatorv1alpha1.SecretTargetsPolicy             `json:"secretTargetsPolicy,omitempty"`
+	DefaultCAPackagePolicy              *operatorv1alpha1.DefaultCAPackagePolicy          `json:"defaultCAPackagePolicy,omitempty"`
+	FilterExpiredCertificatesPolicy     *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
 }
 
 // TrustManagerStatusApplyConfiguration constructs a declarative configuration of the TrustManagerStatus type for use with
@@ -65,5 +66,13 @@ func (b *TrustManagerStatusApplyConfiguration) WithSecretTargetsPolicy(value ope
 // If called multiple times, the DefaultCAPackagePolicy field is set to the value of the last call.
 func (b *TrustManagerStatusApplyConfiguration) WithDefaultCAPackagePolicy(value operatorv1alpha1.DefaultCAPackagePolicy) *TrustManagerStatusApplyConfiguration {
 	b.DefaultCAPackagePolicy = &value
+	return b
+}
+
+// WithFilterExpiredCertificatesPolicy sets the FilterExpiredCertificatesPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FilterExpiredCertificatesPolicy field is set to the value of the last call.
+func (b *TrustManagerStatusApplyConfiguration) WithFilterExpiredCertificatesPolicy(value operatorv1alpha1.FilterExpiredCertificatesPolicy) *TrustManagerStatusApplyConfiguration {
+	b.FilterExpiredCertificatesPolicy = &value
 	return b
 }

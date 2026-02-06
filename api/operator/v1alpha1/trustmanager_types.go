@@ -160,9 +160,8 @@ type TrustManagerConfig struct {
 // +kubebuilder:validation:XValidation:rule="self.policy == 'Custom' || !has(self.authorizedSecrets) || size(self.authorizedSecrets) == 0",message="authorizedSecrets must be empty when policy is not Custom"
 type SecretTargetsConfig struct {
 	// policy controls whether and how trust-manager can write trust bundles to Secrets.
-	// Allowed values are "Disabled", "All", or "Custom".
+	// Allowed values are "Disabled" or "Custom".
 	// "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
-	// "All" grants trust-manager permission to create and update ALL secrets across all namespaces.
 	// "Custom" grants trust-manager permission to create and update only the secrets listed in authorizedSecrets.
 	// +kubebuilder:default:="Disabled"
 	// +kubebuilder:validation:Optional
@@ -221,14 +220,12 @@ const (
 )
 
 // SecretTargetsPolicy defines the policy for writing trust bundles to Secrets.
-// +kubebuilder:validation:Enum:=Disabled;All;Custom
+// +kubebuilder:validation:Enum:=Disabled;Custom
 type SecretTargetsPolicy string
 
 const (
 	// SecretTargetsPolicyDisabled means trust-manager cannot write trust bundles to Secrets.
 	SecretTargetsPolicyDisabled SecretTargetsPolicy = "Disabled"
-	// SecretTargetsPolicyAll grants trust-manager permission to write to ALL secrets.
-	SecretTargetsPolicyAll SecretTargetsPolicy = "All"
 	// SecretTargetsPolicyCustom grants trust-manager permission to write to specific secrets only.
 	SecretTargetsPolicyCustom SecretTargetsPolicy = "Custom"
 )
@@ -260,4 +257,7 @@ type TrustManagerStatus struct {
 
 	// defaultCAPackagePolicy indicates the current default CA package policy.
 	DefaultCAPackagePolicy DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
+
+	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
+	FilterExpiredCertificatesPolicy FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
 }
