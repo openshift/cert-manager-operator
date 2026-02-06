@@ -1139,13 +1139,11 @@ spec:
                         default: Disabled
                         description: |-
                           policy controls whether and how trust-manager can write trust bundles to Secrets.
-                          Allowed values are "Disabled", "All", or "Custom".
+                          Allowed values are "Disabled" or "Custom".
                           "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
-                          "All" grants trust-manager permission to create and update ALL secrets across all namespaces.
                           "Custom" grants trust-manager permission to create and update only the secrets listed in authorizedSecrets.
                         enum:
                         - Disabled
-                        - All
                         - Custom
                         type: string
                     type: object
@@ -1291,12 +1289,18 @@ spec:
                 - Enabled
                 - Disabled
                 type: string
+              filterExpiredCertificatesPolicy:
+                description: filterExpiredCertificatesPolicy indicates the current
+                  policy for filtering expired certificates.
+                enum:
+                - Enabled
+                - Disabled
+                type: string
               secretTargetsPolicy:
                 description: secretTargetsPolicy indicates the current secret targets
                   policy.
                 enum:
                 - Disabled
-                - All
                 - Custom
                 type: string
               trustManagerImage:
