@@ -114,7 +114,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		ctrlClient:    c,
-		ctx:           context.Background(),
+		ctx:           context.TODO(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
