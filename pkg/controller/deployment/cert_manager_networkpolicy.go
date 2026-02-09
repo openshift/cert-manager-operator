@@ -118,7 +118,7 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 		WithInformersQueueKeyFunc(
 			// Watch NetworkPolicy resources in cert-manager namespace
 			// Always queue reconciliation for the singleton "cluster" CertManager CR
-			func(obj runtime.Object) string {
+			func(_ runtime.Object) string {
 				return "cluster"
 			},
 			kubeInformersForNamespaces.InformersFor(certManagerNamespace).Networking().V1().NetworkPolicies().Informer(),
@@ -127,7 +127,7 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 		ToController(certManagerNetworkPolicyUserDefinedControllerName, c.eventRecorder)
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+func (c *CertManagerNetworkPolicyUserDefinedController) sync(ctx context.Context, _ factory.SyncContext) error {
 	// Get the current CertManager configuration
 	certManager, err := c.certManagerOperatorInformers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {

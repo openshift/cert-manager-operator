@@ -40,12 +40,12 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 	// cloud credentials is only required for the controller deployment,
 	// other deployments should be left untouched
 	if deploymentName != certmanagerControllerDeployment {
-		return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+		return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 			return nil
 		}
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		if len(secretName) == 0 {
 			return nil
 		}

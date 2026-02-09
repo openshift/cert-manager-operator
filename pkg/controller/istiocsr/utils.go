@@ -341,7 +341,8 @@ func checkDeploymentBasicSpec(desired, fetched *appsv1.Deployment) bool {
 
 	// If both are nil, treat as equal (no difference)
 	if desiredReplicas == nil && fetchedReplicas == nil {
-		// Continue to check Selector.MatchLabels
+		// Continue to check Selector.MatchLabels - no change needed
+		_ = true
 	} else if desiredReplicas == nil || fetchedReplicas == nil {
 		// One is nil and the other is not, they differ
 		return true
@@ -460,7 +461,8 @@ func checkContainerResources(desired, fetched corev1.Container) bool {
 
 	// If both SecurityContext are nil, they're equal (no change)
 	if desiredSecCtx == nil && fetchedSecCtx == nil {
-		// Continue to check VolumeMounts
+		// Continue to check VolumeMounts - no change needed
+		_ = true
 	} else if (desiredSecCtx == nil) != (fetchedSecCtx == nil) {
 		// If one SecurityContext is nil and the other isn't, they're different (change detected)
 		return true

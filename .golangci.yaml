@@ -59,23 +59,16 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
-  disable:
-    # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
-    - depguard
-    # Below linters will be enabled once the issues reported by enabled linters are fixed.
-    - dupl
-    - cyclop
-    - gocyclo
-    - gocognit
-    - err113
-    - revive
     - maintidx
-    - err113
     - mnd
+    - gocognit
+    - revive
+
   disable:
     # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
     - depguard
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
+    - err113
     # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.
     #- embeddedstructfieldcheck
     #- godoclint
@@ -116,6 +109,11 @@ linters:
           - forcetypeassert
           - goconst
           - gocritic
+      # Exclude var-naming from revive for test files (test helper functions use underscores for clarity)
+      - path: _test\.go
+        linters:
+          - revive
+        text: "var-naming"
       # Run some linter only for test files by excluding its issues for everything else.
       - path-except: _test\.go
         linters:
@@ -220,6 +218,9 @@ linters:
     nestif:
       # Minimal complexity to report - increase to reduce noise
       min-complexity: 9
+    gocyclo:
+      # Minimal complexity to report - test files often have higher complexity due to table-driven tests
+      min-complexity: 70
     gocritic:
       disabled-checks:
         - appendAssign  # Allow append to new variable for clarity

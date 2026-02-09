@@ -114,11 +114,17 @@ func validatePodAffinityTerm(podAffinityTerm core.PodAffinityTerm, allowInvalidL
 	return append(allErrs, metav1validation.ValidateLabelName(podAffinityTerm.TopologyKey, fldPath.Child("topologyKey"))...)
 }
 
+const (
+	// maxPodAffinityWeight is the maximum allowed weight for pod affinity terms.
+	// Kubernetes pod affinity weight must be in the range 1-100.
+	maxPodAffinityWeight = 100
+)
+
 // validateWeightedPodAffinityTerms tests that the specified weightedPodAffinityTerms fields have valid data.
 func validateWeightedPodAffinityTerms(weightedPodAffinityTerms []core.WeightedPodAffinityTerm, allowInvalidLabelValueInSelector bool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for j, weightedTerm := range weightedPodAffinityTerms {
-		if weightedTerm.Weight <= 0 || weightedTerm.Weight > 100 {
+		if weightedTerm.Weight <= 0 || weightedTerm.Weight > maxPodAffinityWeight {
 			allErrs = append(allErrs, field.Invalid(fldPath.Index(j).Child("weight"), weightedTerm.Weight, "must be in the range 1-100"))
 		}
 		allErrs = append(allErrs, validatePodAffinityTerm(weightedTerm.PodAffinityTerm, allowInvalidLabelValueInSelector, fldPath.Index(j).Child("podAffinityTerm"))...)

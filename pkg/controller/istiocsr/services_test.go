@@ -18,6 +18,15 @@ const (
 )
 
 func TestCreateOrApplyServices(t *testing.T) {
+	t.Run("successful cases", func(t *testing.T) {
+		testCreateOrApplyServices_Successful(t)
+	})
+	t.Run("error cases", func(t *testing.T) {
+		testCreateOrApplyServices_Errors(t)
+	})
+}
+
+func testCreateOrApplyServices_Successful(t *testing.T) {
 	tests := []struct {
 		name             string
 		preReq           func(*Reconciler, *fakes.FakeCtrlClient)
@@ -27,8 +36,8 @@ func TestCreateOrApplyServices(t *testing.T) {
 	}{
 		{
 			name: "service reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.Service:
 						service := testService()
@@ -40,9 +49,30 @@ func TestCreateOrApplyServices(t *testing.T) {
 			wantGRPCEndpoint: grpcEndpoint,
 		},
 		{
+			name: "service reconciliation when server config is not empty",
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Spec.IstioCSRConfig.Server = &v1alpha1.ServerConfig{
+					Port: 1234,
+				}
+			},
+			wantGRPCEndpoint: "cert-manager-istio-csr.istiocsr-test-ns.svc:1234",
+		},
+	}
+	runServiceTests(t, tests)
+}
+
+func testCreateOrApplyServices_Errors(t *testing.T) {
+	tests := []struct {
+		name             string
+		preReq           func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR   func(*v1alpha1.IstioCSR)
+		wantGRPCEndpoint string
+		wantErr          string
+	}{
+		{
 			name: "service reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Service:
 						return false, errTestClient
@@ -54,15 +84,15 @@ func TestCreateOrApplyServices(t *testing.T) {
 		},
 		{
 			name: "service reconciliation fails while updating to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
 						return errTestClient
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.Service:
 						service := testService()
@@ -77,8 +107,8 @@ func TestCreateOrApplyServices(t *testing.T) {
 		},
 		{
 			name: "service reconciliation fails while creating",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
 						return errTestClient
@@ -88,17 +118,17 @@ func TestCreateOrApplyServices(t *testing.T) {
 			},
 			wantErr: `failed to create or apply service: failed to create istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
 		},
-		{
-			name: "service reconciliation when server config is not empty",
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Spec.IstioCSRConfig.Server = &v1alpha1.ServerConfig{
-					Port: 1234,
-				}
-			},
-			wantGRPCEndpoint: "cert-manager-istio-csr.istiocsr-test-ns.svc:1234",
-		},
 	}
+	runServiceTests(t, tests)
+}
 
+func runServiceTests(t *testing.T, tests []struct {
+	name             string
+	preReq           func(*Reconciler, *fakes.FakeCtrlClient)
+	updateIstioCSR   func(*v1alpha1.IstioCSR)
+	wantGRPCEndpoint string
+	wantErr          string
+}) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := testReconciler(t)

@@ -135,9 +135,42 @@ func findRBACResourceByLabels[T client.Object, L client.ObjectList, V any](
 	return true, fetched, resourceName, nil
 }
 
+// findRBACResourceByLabelsWithCopy is a helper that wraps findRBACResourceByLabels and handles deep copying
+// the result to avoid returning a reference to the list item.
+// T must be a pointer type that implements client.Object and has DeepCopyInto(T) method.
+func findRBACResourceByLabelsWithCopy[T client.Object, L client.ObjectList, V any](
+	r *Reconciler,
+	istiocsr *v1alpha1.IstioCSR,
+	desired client.Object,
+	list L,
+	extractItems func(L) []T,
+	extractItemsForError func(L) []V,
+	resourceType string,
+	duplicateErr error,
+	newResult func() T,
+) (bool, T, string, error) {
+	var zero T
+	exist, fetched, resourceName, err := findRBACResourceByLabels(r, istiocsr, desired, list, extractItems, extractItemsForError, resourceType, duplicateErr)
+	if err != nil {
+		return false, zero, "", err
+	}
+	if !exist {
+		return false, zero, "", nil
+	}
+	// Deep copy to avoid returning a reference to the list item
+	result := newResult()
+	// Use type assertion to call DeepCopyInto with the correct type
+	if dc, ok := any(fetched).(interface{ DeepCopyInto(T) }); ok {
+		dc.DeepCopyInto(result)
+	} else {
+		// Fallback: this should not happen for Kubernetes objects
+		return false, zero, "", fmt.Errorf("type %T does not support DeepCopyInto", fetched)
+	}
+	return true, result, resourceName, nil
+}
+
 func (r *Reconciler) findClusterRoleByLabels(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRole) (bool, *rbacv1.ClusterRole, string, error) {
-	clusterRoleList := &rbacv1.ClusterRoleList{}
-	exist, fetched, roleName, err := findRBACResourceByLabels(r, istiocsr, desired, clusterRoleList,
+	return findRBACResourceByLabelsWithCopy(r, istiocsr, desired, &rbacv1.ClusterRoleList{},
 		func(l *rbacv1.ClusterRoleList) []*rbacv1.ClusterRole {
 			items := make([]*rbacv1.ClusterRole, len(l.Items))
 			for i := range l.Items {
@@ -148,17 +181,8 @@ func (r *Reconciler) findClusterRoleByLabels(istiocsr *v1alpha1.IstioCSR, desire
 		func(l *rbacv1.ClusterRoleList) []rbacv1.ClusterRole {
 			return l.Items
 		},
-		"clusterrole", errMultipleClusterRolesExist)
-	if err != nil {
-		return false, nil, "", err
-	}
-	if !exist {
-		return false, nil, "", nil
-	}
-	// Deep copy to avoid returning a reference to the list item
-	result := &rbacv1.ClusterRole{}
-	fetched.DeepCopyInto(result)
-	return true, result, roleName, nil
+		"clusterrole", errMultipleClusterRolesExist,
+		func() *rbacv1.ClusterRole { return &rbacv1.ClusterRole{} })
 }
 
 func (r *Reconciler) reconcileClusterRoleResource(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRole, roleName string, exist, istioCSRCreateRecon bool) error {
@@ -264,8 +288,7 @@ func (r *Reconciler) findClusterRoleBindingByStatus(istiocsr *v1alpha1.IstioCSR,
 }
 
 func (r *Reconciler) findClusterRoleBindingByLabels(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRoleBinding) (bool, *rbacv1.ClusterRoleBinding, string, error) {
-	clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-	exist, fetched, roleBindingName, err := findRBACResourceByLabels(r, istiocsr, desired, clusterRoleBindingsList,
+	return findRBACResourceByLabelsWithCopy(r, istiocsr, desired, &rbacv1.ClusterRoleBindingList{},
 		func(l *rbacv1.ClusterRoleBindingList) []*rbacv1.ClusterRoleBinding {
 			items := make([]*rbacv1.ClusterRoleBinding, len(l.Items))
 			for i := range l.Items {
@@ -276,17 +299,8 @@ func (r *Reconciler) findClusterRoleBindingByLabels(istiocsr *v1alpha1.IstioCSR,
 		func(l *rbacv1.ClusterRoleBindingList) []rbacv1.ClusterRoleBinding {
 			return l.Items
 		},
-		"clusterrolebinding", errMultipleClusterRoleBindingsExist)
-	if err != nil {
-		return false, nil, "", err
-	}
-	if !exist {
-		return false, nil, "", nil
-	}
-	// Deep copy to avoid returning a reference to the list item
-	result := &rbacv1.ClusterRoleBinding{}
-	fetched.DeepCopyInto(result)
-	return true, result, roleBindingName, nil
+		"clusterrolebinding", errMultipleClusterRoleBindingsExist,
+		func() *rbacv1.ClusterRoleBinding { return &rbacv1.ClusterRoleBinding{} })
 }
 
 func (r *Reconciler) reconcileClusterRoleBindingResource(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRoleBinding, roleBindingName string, exist, istioCSRCreateRecon bool) error {
