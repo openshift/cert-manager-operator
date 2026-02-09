@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,11 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/go-logr/logr"
-
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	"github.com/go-logr/logr"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+)
 
-	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+var (
+	errInvalidLabelFormat = errors.New("invalid label format")
 )
 
 var (
@@ -123,59 +126,16 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
-		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+	mapFunc := r.createReconcileMapFunc()
+	predicates := r.createControllerPredicates()
+	return r.buildController(mgr, mapFunc, predicates)
+}
 
-		objLabels := obj.GetLabels()
-		if objLabels != nil {
-			// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
-			// namespace in the reconcile request will be set same, else since label check matches is an object
-			// created by controller, and we safely assume, it's in the istiocsr namespace.
-			namespace := objLabels[istiocsrNamespaceMappingLabelName]
-			if namespace == "" {
-				namespace = obj.GetNamespace()
-			}
-
-			labelOk := func() bool {
-				if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
-					return true
-				}
-				value := objLabels[IstiocsrResourceWatchLabelName]
-				if value == "" {
-					return false
-				}
-				key := strings.Split(value, "_")
-				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
-					return false
-				}
-				namespace = key[0]
-				return true
-			}
-
-			if labelOk() && namespace != "" {
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name:      istiocsrObjectName,
-							Namespace: namespace,
-						},
-					},
-				}
-			}
-		}
-
-		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-		return []reconcile.Request{}
-	}
-
-	// predicate function to ignore events for objects not managed by controller.
+func (r *Reconciler) createControllerPredicates() controllerPredicates {
 	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
 		return object.GetLabels() != nil && object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue
 	})
 
-	// predicate function to filter events for objects which controller is interested in, but
-	// not managed or created by controller.
 	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
 		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
@@ -184,30 +144,42 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		if object.GetLabels() == nil {
 			return false
 		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
 		return object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue ||
 			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
-	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
-	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
-	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
-	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
+	return controllerPredicates{
+		withIgnoreStatusUpdate:     builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources),
+		watchResource:              builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources),
+		managedResource:            builder.WithPredicates(controllerManagedResources),
+		configMapWatch:             builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates),
+		controllerManagedResources: controllerManagedResources,
+	}
+}
 
+type controllerPredicates struct {
+	withIgnoreStatusUpdate     builder.Predicates
+	watchResource              builder.Predicates
+	managedResource            builder.Predicates
+	configMapWatch             builder.Predicates
+	controllerManagedResources predicate.Predicate
+}
+
+func (r *Reconciler) buildController(mgr ctrl.Manager, mapFunc handler.MapFunc, predicates controllerPredicates) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
-		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
-		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
-		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.withIgnoreStatusUpdate).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.withIgnoreStatusUpdate).
+		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.configMapWatch).
+		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.watchResource).
+		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), predicates.managedResource).
 		Complete(r)
 }
 
@@ -219,7 +191,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Fetch the istiocsr.openshift.operator.io CR
 	istiocsr := &v1alpha1.IstioCSR{}
 	if err := r.Get(ctx, req.NamespacedName, istiocsr); err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// NotFound errors, since they can't be fixed by an immediate
 			// requeue (have to wait for a new notification), and can be processed
 			// on deleted requests.
@@ -254,75 +226,158 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.processReconcileRequest(istiocsr, req.NamespacedName)
 }
 
+func (r *Reconciler) createReconcileMapFunc() handler.MapFunc {
+	return func(_ context.Context, obj client.Object) []reconcile.Request {
+		r.log.V(logVerbosityLevelDebug).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+
+		objLabels := obj.GetLabels()
+		if objLabels == nil {
+			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
+
+		namespace := r.extractNamespaceFromLabels(objLabels, obj.GetNamespace())
+		if !r.isObjectOfInterest(objLabels, obj, &namespace) {
+			r.log.V(logVerbosityLevelDebug).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
+
+		if namespace == "" {
+			return []reconcile.Request{}
+		}
+
+		return []reconcile.Request{
+			{
+				NamespacedName: types.NamespacedName{
+					Name:      istiocsrObjectName,
+					Namespace: namespace,
+				},
+			},
+		}
+	}
+}
+
+func (r *Reconciler) extractNamespaceFromLabels(objLabels map[string]string, defaultNamespace string) string {
+	namespace := objLabels[istiocsrNamespaceMappingLabelName]
+	if namespace == "" {
+		namespace = defaultNamespace
+	}
+	return namespace
+}
+
+func (r *Reconciler) isObjectOfInterest(objLabels map[string]string, obj client.Object, namespace *string) bool {
+	if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
+		return true
+	}
+	value := objLabels[IstiocsrResourceWatchLabelName]
+	if value == "" {
+		return false
+	}
+	key := strings.Split(value, "_")
+	const expectedLabelParts = 2
+	if len(key) != expectedLabelParts {
+		r.log.Error(errInvalidLabelFormat, "label value not in expected format", "label", IstiocsrResourceWatchLabelName, "value", value, "resource", obj.GetName())
+		return false
+	}
+	*namespace = key[0]
+	return true
+}
+
 func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
-	istioCSRCreateRecon := false
-	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
-		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
-		istioCSRCreateRecon = true
+	istioCSRCreateRecon := r.determineIfCreateReconciliation(istiocsr)
+
+	shouldStop, err := r.handleMultipleInstanceCheck(istiocsr)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if shouldStop {
+		return ctrl.Result{}, nil
 	}
 
+	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
+		return r.handleReconciliationError(istiocsr, req, err)
+	}
+
+	return r.handleReconciliationSuccess(istiocsr)
+}
+
+func (r *Reconciler) determineIfCreateReconciliation(istiocsr *v1alpha1.IstioCSR) bool {
+	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
+		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+		return true
+	}
+	return false
+}
+
+func (r *Reconciler) handleMultipleInstanceCheck(istiocsr *v1alpha1.IstioCSR) (bool, error) {
 	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
 		if IsMultipleInstanceError(err) {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
-			err = nil
+			return true, nil // Return true to indicate we should stop processing
 		}
-		return ctrl.Result{}, err
+		return false, err
 	}
+	return false, nil
+}
 
-	var errUpdate error = nil
-	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
-		if IsIrrecoverableError(err) {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+func (r *Reconciler) handleReconciliationError(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName, err error) (ctrl.Result, error) {
+	r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
+	if IsIrrecoverableError(err) {
+		return r.handleIrrecoverableError(istiocsr, err)
+	}
+	return r.handleRecoverableError(istiocsr, err)
+}
 
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on irrecoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, nil)
-			}
+func (r *Reconciler) handleIrrecoverableError(istiocsr *v1alpha1.IstioCSR, err error) (ctrl.Result, error) {
+	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
+	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, "")
+
+	if degradedChanged || readyChanged {
+		r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on irrecoverable error",
+			"namespace", istiocsr.GetNamespace(),
+			"name", istiocsr.GetName(),
+			"degradedChanged", degradedChanged,
+			"readyChanged", readyChanged,
+			"error", err)
+		errUpdate := r.updateCondition(istiocsr, nil)
+		return ctrl.Result{}, errUpdate
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) handleRecoverableError(istiocsr *v1alpha1.IstioCSR, err error) (ctrl.Result, error) {
+	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
+
+	if degradedChanged || readyChanged {
+		r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on recoverable error",
+			"namespace", istiocsr.GetNamespace(),
+			"name", istiocsr.GetName(),
+			"degradedChanged", degradedChanged,
+			"readyChanged", readyChanged,
+			"error", err)
+		errUpdate := r.updateCondition(istiocsr, err)
+		if errUpdate != nil {
 			return ctrl.Result{}, errUpdate
-		} else {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, err)
-			}
-			// For recoverable errors, either requeue manually or return error, not both
-			// If status update failed, return the update error; otherwise return the original error
-			if errUpdate != nil {
-				return ctrl.Result{}, errUpdate
-			}
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 		}
 	}
+	return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
+}
 
-	// Set both conditions atomically before updating status on success
+func (r *Reconciler) handleReconciliationSuccess(istiocsr *v1alpha1.IstioCSR) (ctrl.Result, error) {
 	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
 	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
 
 	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating istiocsr conditions on successful reconciliation",
+		r.log.V(logVerbosityLevelInfo).Info("updating istiocsr conditions on successful reconciliation",
 			"namespace", istiocsr.GetNamespace(),
 			"name", istiocsr.GetName(),
 			"degradedChanged", degradedChanged,
 			"readyChanged", readyChanged)
-		errUpdate = r.updateCondition(istiocsr, nil)
+		errUpdate := r.updateCondition(istiocsr, nil)
+		return ctrl.Result{}, errUpdate
 	}
-	return ctrl.Result{}, errUpdate
+	return ctrl.Result{}, nil
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.

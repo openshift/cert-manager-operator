@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -17,6 +18,13 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
+)
+
+var (
+	errUnsupportedArg           = errors.New("validation failed due to unsupported arg")
+	errUnsupportedLabel         = errors.New("validation failed due to unsupported label")
+	errUnsupportedResourceLimit = errors.New("validation failed due to unsupported resource limits")
+	errUnsupportedResourceReq   = errors.New("validation failed due to unsupported resource requests")
 )
 
 // withContainerArgsValidateHook validates the container args with those that
@@ -74,40 +82,29 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 	validateArgs := func(argMap map[string]string, supportedArgs []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedArgs, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("%w: %q=%q", errUnsupportedArg, k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 		}
 
 		argMap := make(map[string]string, 0)
-		switch deploymentName {
-		case certmanagerControllerDeployment:
-			if certmanager.Spec.ControllerConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.ControllerConfig.OverrideArgs)
-				return validateArgs(argMap, supportedCertManagerArgs)
-			}
-		case certmanagerWebhookDeployment:
-			if certmanager.Spec.WebhookConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.WebhookConfig.OverrideArgs)
-				return validateArgs(argMap, supportedCertManagerWebhookArgs)
-			}
-		case certmanagerCAinjectorDeployment:
-			if certmanager.Spec.CAInjectorConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.CAInjectorConfig.OverrideArgs)
-				return validateArgs(argMap, supportedCertManageCainjectorArgs)
-			}
-		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		supportedArgs, err := getSupportedArgsForDeployment(deploymentName, certmanager, supportedCertManagerArgs, supportedCertManagerWebhookArgs, supportedCertManageCainjectorArgs)
+		if err != nil {
+			return fmt.Errorf("failed to get supported args for deployment: %w", err)
+		}
+		if supportedArgs == nil {
+			return nil
 		}
 
-		return nil
+		parseArgMap(argMap, getOverrideArgsForDeployment(deploymentName, certmanager))
+		return validateArgs(argMap, supportedArgs)
 	}
 }
 
@@ -123,40 +120,29 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 	validateEnv := func(argMap map[string]corev1.EnvVar, supportedEnv []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedEnv, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("%w: %q=%q", errUnsupportedArg, k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 		}
 
 		envMap := make(map[string]corev1.EnvVar, 0)
-		switch deploymentName {
-		case certmanagerControllerDeployment:
-			if certmanager.Spec.ControllerConfig != nil {
-				parseEnvMap(envMap, certmanager.Spec.ControllerConfig.OverrideEnv)
-				return validateEnv(envMap, supportedCertManagerEnv)
-			}
-		case certmanagerWebhookDeployment:
-			if certmanager.Spec.WebhookConfig != nil {
-				parseEnvMap(envMap, certmanager.Spec.WebhookConfig.OverrideEnv)
-				return validateEnv(envMap, supportedCertManagerWebhookEnv)
-			}
-		case certmanagerCAinjectorDeployment:
-			if certmanager.Spec.CAInjectorConfig != nil {
-				parseEnvMap(envMap, certmanager.Spec.CAInjectorConfig.OverrideEnv)
-				return validateEnv(envMap, supportedCertManageCainjectorEnv)
-			}
-		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		supportedEnv, err := getSupportedEnvForDeployment(deploymentName, certmanager, supportedCertManagerEnv, supportedCertManagerWebhookEnv, supportedCertManageCainjectorEnv)
+		if err != nil {
+			return fmt.Errorf("failed to get supported env for deployment: %w", err)
+		}
+		if supportedEnv == nil {
+			return nil
 		}
 
-		return nil
+		parseEnvMap(envMap, getOverrideEnvForDeployment(deploymentName, certmanager))
+		return validateEnv(envMap, supportedEnv)
 	}
 }
 
@@ -172,36 +158,27 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 	validateLabels := func(labels map[string]string, supportedLabelKeys []string) error {
 		for k, v := range labels {
 			if !slices.Contains(supportedLabelKeys, k) {
-				return fmt.Errorf("validation failed due to unsupported label %q=%q", k, v)
+				return fmt.Errorf("%w: %q=%q", errUnsupportedLabel, k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
 		}
 
-		switch deploymentName {
-		case certmanagerControllerDeployment:
-			if certmanager.Spec.ControllerConfig != nil {
-				return validateLabels(certmanager.Spec.ControllerConfig.OverrideLabels, supportedCertManagerLabelKeys)
-			}
-		case certmanagerWebhookDeployment:
-			if certmanager.Spec.WebhookConfig != nil {
-				return validateLabels(certmanager.Spec.WebhookConfig.OverrideLabels, supportedCertManagerWebhookLabelKeys)
-			}
-		case certmanagerCAinjectorDeployment:
-			if certmanager.Spec.CAInjectorConfig != nil {
-				return validateLabels(certmanager.Spec.CAInjectorConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
-			}
-		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		supportedLabelKeys, overrideLabels, err := getSupportedLabelsForDeployment(deploymentName, certmanager, supportedCertManagerLabelKeys, supportedCertManagerWebhookLabelKeys, supportedCertManagerCainjectorLabelKeys)
+		if err != nil {
+			return fmt.Errorf("failed to get supported labels for deployment: %w", err)
+		}
+		if supportedLabelKeys == nil {
+			return nil
 		}
 
-		return nil
+		return validateLabels(overrideLabels, supportedLabelKeys)
 	}
 }
 
@@ -218,7 +195,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -250,12 +227,12 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 	errs := []error{}
 	for k, v := range resources.Limits {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("%w: %q=%s", errUnsupportedResourceLimit, k, v.String()))
 		}
 	}
 	for k, v := range resources.Requests {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("%w: %q=%s", errUnsupportedResourceReq, k, v.String()))
 		}
 	}
 	return utilerrors.NewAggregate(errs)
@@ -263,7 +240,7 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 
 // withPodSchedulingValidateHook validates the overrides scheduling field for each operand.
 func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -290,6 +267,108 @@ func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertM
 		}
 
 		return nil
+	}
+}
+
+func getSupportedArgsForDeployment(deploymentName string, certmanager *v1alpha1.CertManager, supportedCertManagerArgs, supportedCertManagerWebhookArgs, supportedCertManageCainjectorArgs []string) ([]string, error) {
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return supportedCertManagerArgs, nil
+		}
+		return nil, nil
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return supportedCertManagerWebhookArgs, nil
+		}
+		return nil, nil
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return supportedCertManageCainjectorArgs, nil
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+	}
+}
+
+func getOverrideArgsForDeployment(deploymentName string, certmanager *v1alpha1.CertManager) []string {
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return certmanager.Spec.ControllerConfig.OverrideArgs
+		}
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return certmanager.Spec.WebhookConfig.OverrideArgs
+		}
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return certmanager.Spec.CAInjectorConfig.OverrideArgs
+		}
+	}
+	return nil
+}
+
+func getSupportedEnvForDeployment(deploymentName string, certmanager *v1alpha1.CertManager, supportedCertManagerEnv, supportedCertManagerWebhookEnv, supportedCertManageCainjectorEnv []string) ([]string, error) {
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return supportedCertManagerEnv, nil
+		}
+		return nil, nil
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return supportedCertManagerWebhookEnv, nil
+		}
+		return nil, nil
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return supportedCertManageCainjectorEnv, nil
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+	}
+}
+
+func getOverrideEnvForDeployment(deploymentName string, certmanager *v1alpha1.CertManager) []corev1.EnvVar {
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return certmanager.Spec.ControllerConfig.OverrideEnv
+		}
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return certmanager.Spec.WebhookConfig.OverrideEnv
+		}
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return certmanager.Spec.CAInjectorConfig.OverrideEnv
+		}
+	}
+	return nil
+}
+
+func getSupportedLabelsForDeployment(deploymentName string, certmanager *v1alpha1.CertManager, supportedCertManagerLabelKeys, supportedCertManagerWebhookLabelKeys, supportedCertManagerCainjectorLabelKeys []string) ([]string, map[string]string, error) {
+	switch deploymentName {
+	case certmanagerControllerDeployment:
+		if certmanager.Spec.ControllerConfig != nil {
+			return supportedCertManagerLabelKeys, certmanager.Spec.ControllerConfig.OverrideLabels, nil
+		}
+		return nil, nil, nil
+	case certmanagerWebhookDeployment:
+		if certmanager.Spec.WebhookConfig != nil {
+			return supportedCertManagerWebhookLabelKeys, certmanager.Spec.WebhookConfig.OverrideLabels, nil
+		}
+		return nil, nil, nil
+	case certmanagerCAinjectorDeployment:
+		if certmanager.Spec.CAInjectorConfig != nil {
+			return supportedCertManagerCainjectorLabelKeys, certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
+		}
+		return nil, nil, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 }
 

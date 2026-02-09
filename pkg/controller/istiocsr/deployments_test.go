@@ -24,6 +24,27 @@ import (
 )
 
 func TestCreateOrApplyDeployments(t *testing.T) {
+	t.Run("successful cases", func(t *testing.T) {
+		testCreateOrApplyDeployments_Successful(t)
+	})
+	t.Run("basic error cases", func(t *testing.T) {
+		testCreateOrApplyDeployments_BasicErrors(t)
+	})
+	t.Run("issuer-related errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_IssuerErrors(t)
+	})
+	t.Run("configmap and secret errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_ConfigMapErrors(t)
+	})
+	t.Run("configuration validation errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_ConfigValidationErrors(t)
+	})
+	t.Run("CA certificate ConfigMap tests", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap(t)
+	})
+}
+
+func testCreateOrApplyDeployments_Successful(t *testing.T) {
 	tests := []struct {
 		name           string
 		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
@@ -33,8 +54,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 	}{
 		{
 			name: "deployment reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -62,9 +83,158 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 		},
 		{
-			name: "deployment reconciliation fails as issuerRef does not exist",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			name: "deployment reconciliation updating volume successful",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+		},
+		{
+			name: "deployment reconciliation with user custom config successful",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.ClusterIssuer:
+						issuer := testClusterIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
+				i.Spec.IstioCSRConfig.Affinity = &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchExpressions: []corev1.NodeSelectorRequirement{
+										{
+											Key:      "node",
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"test"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{
+									MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "test",
+											Operator: metav1.LabelSelectorOpIn,
+											Values:   []string{"test"},
+										},
+									},
+								},
+								TopologyKey: "topology.kubernetes.io/zone",
+							},
+						},
+					},
+					PodAntiAffinity: &corev1.PodAntiAffinity{
+						PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+							{
+								Weight: 100,
+								PodAffinityTerm: corev1.PodAffinityTerm{
+									LabelSelector: &metav1.LabelSelector{
+										MatchExpressions: []metav1.LabelSelectorRequirement{
+											{
+												Key:      "test",
+												Operator: metav1.LabelSelectorOpIn,
+												Values:   []string{"test"},
+											},
+										},
+									},
+									TopologyKey: "topology.kubernetes.io/zone",
+								},
+							},
+						},
+					},
+				}
+				i.Spec.IstioCSRConfig.Tolerations = []corev1.Toleration{
+					{
+						Key:      "type",
+						Operator: corev1.TolerationOpEqual,
+						Value:    "test",
+						Effect:   corev1.TaintEffectNoSchedule,
+					},
+				}
+				i.Spec.IstioCSRConfig.NodeSelector = map[string]string{"type": "test"}
+				i.Spec.IstioCSRConfig.Resources = corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("100Mi"),
+					},
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("100Mi"),
+					},
+				}
+			},
+		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_BasicErrors(t *testing.T) {
+	t.Run("issuer and env errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_BasicErrors_IssuerAndEnv(t)
+	})
+	t.Run("configmap errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_BasicErrors_ConfigMap(t)
+	})
+}
+
+func testCreateOrApplyDeployments_BasicErrors_IssuerAndEnv(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
+		{
+			name: "deployment reconciliation fails as issuerRef does not exist",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -87,7 +257,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as image env var is empty",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -102,7 +272,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while creating configmap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -132,11 +302,23 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_BasicErrors_ConfigMap(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation updating volume successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -163,7 +345,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -190,7 +372,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation failed while restoring to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -222,11 +404,35 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr deployment resource: test client error`,
+			wantErr: `failed to reconcile deployment resource: failed to update istiocsr-test-ns/cert-manager-istio-csr deployment resource: test client error`,
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_IssuerErrors(t *testing.T) {
+	t.Run("status update errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_IssuerErrors_StatusUpdate(t)
+	})
+	t.Run("issuer validation errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_IssuerErrors_Validation(t)
+	})
+	t.Run("issuer fetch errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_IssuerErrors_Fetch(t)
+	})
+}
+
+func testCreateOrApplyDeployments_IssuerErrors_StatusUpdate(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
-			name: "deployment reconciliation with user custom config successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			name: "deployment reconciliation fails while updating image in istiocsr status",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -327,7 +533,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while updating image in istiocsr status",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -369,7 +575,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as invalid kind in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -389,7 +595,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as invalid group in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -409,7 +615,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as unsupported ACME issuer is used",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -438,9 +644,104 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer: invalid issuerRef config`,
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_IssuerErrors_Validation(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
+		{
+			name: "deployment reconciliation fails as invalid kind in issuerRef",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "invalid"
+			},
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be any of `clusterissuer` or `issuer`, configured: issuer: invalid issuerRef config",
+		},
+		{
+			name: "deployment reconciliation fails as invalid group in issuerRef",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Group = "invalid"
+			},
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.group can be only `cert-manager.io`, configured: invalid: invalid issuerRef config",
+		},
+		{
+			name: "deployment reconciliation fails as unsupported ACME issuer is used",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					case *certmanagerv1.ClusterIssuer:
+						issuer := testACMEIssuer()
+						issuer.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.ClusterIssuer:
+						issuer := testACMEIssuer()
+						issuer.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer: invalid issuerRef config`,
+		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_IssuerErrors_Fetch(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation while fetching issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -461,7 +762,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while fetching secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -484,11 +785,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to fetch secret in issuer: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to fetch secret in issuer: no access`,
 		},
 		{
 			name: "deployment reconciliation fails while updating labels on secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -516,11 +817,57 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update  resource with watch label: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to update watch label on secret: failed to update  resource with watch label: no access`,
+		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_ConfigMapErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
+		{
+			name: "deployment reconciliation fails while creating configmap",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						return false, nil
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, _ ...client.CreateOption) error {
+					switch obj.(type) {
+					case *corev1.ConfigMap:
+						return errTestClient
+					}
+					return nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *certmanagerv1.Issuer:
+						issuer := testIssuer()
+						issuer.DeepCopyInto(o)
+					case *corev1.Secret:
+						secret := testSecret()
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to create istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
 			name: "deployment reconciliation fails while checking configmap exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -543,11 +890,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to check if CA configmap exists: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to check if CA configmap exists: test client error`,
 		},
 		{
 			name: "deployment reconciliation fails while updating configmap to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -579,11 +926,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to create CA ConfigMap: failed to update istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to handle issuer-based CA: failed to create CA ConfigMap: failed to update istiocsr-test-ns/cert-manager-istio-csr-issuer-ca-copy configmap resource: test client error`,
 		},
 		{
 			name: "deployment reconciliation configmap creation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -607,9 +954,21 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				})
 			},
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_ConfigValidationErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation with invalid toleration configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -640,11 +999,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update pod tolerations: failed to validate tolerations config: spec.istioCSRConfig.tolerations[0].operator: Invalid value: \"test\": value must be empty when `operator` is 'Exists'",
 		},
 		{
 			name: "deployment reconciliation with invalid nodeSelector configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -669,11 +1028,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
 				i.Spec.IstioCSRConfig.NodeSelector = map[string]string{"node/Label/2": "value2"}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: failed to validate node selector config: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
 		},
 		{
 			name: "deployment reconciliation with invalid affinity configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -746,11 +1105,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update affinity rules: [spec.istioCSRConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when `operator` is 'In' or 'NotIn', spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]'), spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')]",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to update affinity rules: failed to validate affinity rules: [spec.istioCSRConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when `operator` is 'In' or 'NotIn', spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]'), spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Required value: can not be empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must be non-empty, spec.istioCSRConfig.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey: Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')]",
 		},
 		{
 			name: "deployment reconciliation with invalid resource requirement configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -785,11 +1144,32 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					},
 				}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource for containers]`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update resource requirements: failed to validate resource requirements: [spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource type or fully qualified, spec.istioCSRConfig.resources.requests[test]: Invalid value: "test": must be a standard resource for containers]`,
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_CACertificateConfigMap(t *testing.T) {
+	t.Run("successful cases", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap_Successful(t)
+	})
+	t.Run("error cases", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap_Errors(t)
+	})
+}
+
+func testCreateOrApplyDeployments_CACertificateConfigMap_Successful(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -824,7 +1204,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap in custom namespace",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -855,9 +1235,33 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				}
 			},
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_CACertificateConfigMap_Errors(t *testing.T) {
+	t.Run("fetch and validation errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap_FetchErrors(t)
+	})
+	t.Run("PEM validation errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap_PEMErrors(t)
+	})
+	t.Run("watch label errors", func(t *testing.T) {
+		testCreateOrApplyDeployments_CACertificateConfigMap_WatchLabelErrors(t)
+	})
+}
+
+func testCreateOrApplyDeployments_CACertificateConfigMap_FetchErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation fails with missing CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -887,7 +1291,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails with missing key in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -918,9 +1322,21 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test`,
 		},
+	}
+	runDeploymentTests(t, tests)
+}
+
+func testCreateOrApplyDeployments_CACertificateConfigMap_PEMErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -951,10 +1367,83 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-cert-test key "ca-cert.pem": no valid PEM data found`,
 		},
+		{
+			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "non-ca-cert-test" {
+							configMap := testNonCACertificateConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "non-ca-cert-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
+		},
+		{
+			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *corev1.ConfigMap:
+						if ns.Name == "ca-without-certsign-test" {
+							configMap := testCertificateWithoutCertSignConfigMap()
+							configMap.DeepCopyInto(o)
+						}
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
+					Name: "ca-without-certsign-test",
+					Key:  "ca-cert.pem",
+				}
+			},
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
+		},
+	}
+	runDeploymentTests(t, tests)
+}
 
+func testCreateOrApplyDeployments_CACertificateConfigMap_WatchLabelErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR func(*v1alpha1.IstioCSR)
+		skipEnvVar     bool
+		wantErr        string
+	}{
 		{
 			name: "deployment reconciliation fails while updating watch label on CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
@@ -998,72 +1487,18 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: failed to update watch label on CA certificate ConfigMap istiocsr-test-ns/watch-label-fail-test: failed to update watch-label-fail-test resource with watch label: no access to update watch label`,
 		},
-
-		{
-			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						deployment := testDeployment()
-						deployment.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					switch o := obj.(type) {
-					case *corev1.ConfigMap:
-						if ns.Name == "non-ca-cert-test" {
-							configMap := testNonCACertificateConfigMap()
-							configMap.DeepCopyInto(o)
-						}
-					}
-					return nil
-				})
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Status.IstioCSRImage = image
-				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
-					Name: "non-ca-cert-test",
-					Key:  "ca-cert.pem",
-				}
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/non-ca-cert-test key "ca-cert.pem": certificate is not a CA certificate`,
-		},
-
-		{
-			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						deployment := testDeployment()
-						deployment.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					switch o := obj.(type) {
-					case *corev1.ConfigMap:
-						if ns.Name == "ca-without-certsign-test" {
-							configMap := testCertificateWithoutCertSignConfigMap()
-							configMap.DeepCopyInto(o)
-						}
-					}
-					return nil
-				})
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Status.IstioCSRImage = image
-				i.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
-					Name: "ca-without-certsign-test",
-					Key:  "ca-cert.pem",
-				}
-			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
-		},
 	}
+	runDeploymentTests(t, tests)
+}
 
+// runDeploymentTests is a helper function to run deployment test cases and reduce cyclomatic complexity.
+func runDeploymentTests(t *testing.T, tests []struct {
+	name           string
+	preReq         func(*Reconciler, *fakes.FakeCtrlClient)
+	updateIstioCSR func(*v1alpha1.IstioCSR)
+	skipEnvVar     bool
+	wantErr        string
+}) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := testReconciler(t)
@@ -1093,6 +1528,15 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 }
 
 func TestUpdateArgList(t *testing.T) {
+	t.Run("clusterID cases", func(t *testing.T) {
+		testUpdateArgList_ClusterID(t)
+	})
+	t.Run("namespace selector cases", func(t *testing.T) {
+		testUpdateArgList_NamespaceSelector(t)
+	})
+}
+
+func testUpdateArgList_ClusterID(t *testing.T) {
 	tests := []struct {
 		name            string
 		updateIstioCSR  func(*v1alpha1.IstioCSR)
@@ -1101,7 +1545,7 @@ func TestUpdateArgList(t *testing.T) {
 	}{
 		{
 			name: "clusterID not provided should default to Kubernetes",
-			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
+			updateIstioCSR: func(_ *v1alpha1.IstioCSR) {
 				// Server config is nil, so clusterID should default
 			},
 			expectedArgs: map[string]string{
@@ -1130,6 +1574,17 @@ func TestUpdateArgList(t *testing.T) {
 				"cluster-id": "cluster-123_dev.local",
 			},
 		},
+	}
+	runUpdateArgListTests(t, tests)
+}
+
+func testUpdateArgList_NamespaceSelector(t *testing.T) {
+	tests := []struct {
+		name            string
+		updateIstioCSR  func(*v1alpha1.IstioCSR)
+		expectedArgs    map[string]string // key is arg name (without --), value is expected value
+		notExpectedArgs []string          // arg names (without --) that should NOT be present
+	}{
 		{
 			name: "istioDataPlaneNamespaceSelector not provided should not include argument",
 			notExpectedArgs: []string{
@@ -1146,7 +1601,15 @@ func TestUpdateArgList(t *testing.T) {
 			},
 		},
 	}
+	runUpdateArgListTests(t, tests)
+}
 
+func runUpdateArgListTests(t *testing.T, tests []struct {
+	name            string
+	updateIstioCSR  func(*v1alpha1.IstioCSR)
+	expectedArgs    map[string]string
+	notExpectedArgs []string
+}) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployment := testDeployment()
@@ -1157,37 +1620,42 @@ func TestUpdateArgList(t *testing.T) {
 
 			updateArgList(deployment, istiocsr)
 
-			// Find the istio-csr container and check its arguments
-			var containerArgs []string
-			for _, container := range deployment.Spec.Template.Spec.Containers {
-				if container.Name == istiocsrContainerName {
-					containerArgs = container.Args
-					break
-				}
-			}
-
-			if len(containerArgs) == 0 {
-				t.Fatalf("Expected container args to be set, but got empty args")
-			}
-
-			// Verify each expected argument
-			for argName, expectedValue := range tt.expectedArgs {
-				expectedArg := fmt.Sprintf("--%s=%s", argName, expectedValue)
-				if !containsArg(containerArgs, expectedArg) {
-					t.Errorf("Expected to find argument %q in container args, but it was not found. Args: %v", expectedArg, containerArgs)
-				}
-			}
-
-			// Verify arguments that should NOT be present
-			for _, argName := range tt.notExpectedArgs {
-				for _, arg := range containerArgs {
-					if strings.HasPrefix(arg, fmt.Sprintf("--%s=", argName)) {
-						t.Errorf("Expected NOT to find argument %q in container args. Args: %v", arg, containerArgs)
-						break
-					}
-				}
-			}
+			containerArgs := getContainerArgs(deployment)
+			validateUpdateArgListResults(t, containerArgs, tt.expectedArgs, tt.notExpectedArgs)
 		})
+	}
+}
+
+func getContainerArgs(deployment *appsv1.Deployment) []string {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == istiocsrContainerName {
+			return container.Args
+		}
+	}
+	return nil
+}
+
+func validateUpdateArgListResults(t *testing.T, containerArgs []string, expectedArgs map[string]string, notExpectedArgs []string) {
+	if len(containerArgs) == 0 {
+		t.Fatalf("Expected container args to be set, but got empty args")
+	}
+
+	// Verify each expected argument
+	for argName, expectedValue := range expectedArgs {
+		expectedArg := fmt.Sprintf("--%s=%s", argName, expectedValue)
+		if !containsArg(containerArgs, expectedArg) {
+			t.Errorf("Expected to find argument %q in container args, but it was not found. Args: %v", expectedArg, containerArgs)
+		}
+	}
+
+	// Verify arguments that should NOT be present
+	for _, argName := range notExpectedArgs {
+		for _, arg := range containerArgs {
+			if strings.HasPrefix(arg, fmt.Sprintf("--%s=", argName)) {
+				t.Errorf("Expected NOT to find argument %q in container args. Args: %v", arg, containerArgs)
+				break
+			}
+		}
 	}
 }
 

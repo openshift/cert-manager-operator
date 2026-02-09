@@ -37,6 +37,9 @@ const (
 	boundSAPath            = "token"
 	boundSAExpirySec       = 3600
 
+	// defaultVolumeMode is the default file permission mode for volumes (0644 in octal = 420 in decimal).
+	defaultVolumeMode = int32(420)
+
 	// upstreamACMESolverImage is the upstream that needs to be overridden
 	// within the cert-manager controller deployment.
 	upstreamACMESolverImage = "quay.io/jetstack/cert-manager-acmesolver"
@@ -74,7 +77,7 @@ type overrideSchedulingFunc func(certmanagerinformer.CertManagerInformer, string
 
 // withOperandImageOverrideHook overrides the deployment image with
 // the operand images provided to the operator.
-func withOperandImageOverrideHook(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withOperandImageOverrideHook(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	for index := range deployment.Spec.Template.Spec.Containers {
 		deployment.Spec.Template.Spec.Containers[index].Image = certManagerImage(deployment.Spec.Template.Spec.Containers[index].Image)
 	}
@@ -91,10 +94,10 @@ func withOperandImageOverrideHook(operatorSpec *operatorv1.OperatorSpec, deploym
 // withContainerArgsOverrideHook overrides the container args with those provided by
 // the overrideArgsFunc function.
 func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideArgsFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideArgs, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override args: %w", err)
 		}
 
 		if overrideArgs != nil && len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
@@ -109,10 +112,10 @@ func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertM
 // withContainerEnvOverrideHook verrides the container env with those provided by
 // the overrideEnvFunc function.
 func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideEnvFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideEnv, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override env: %w", err)
 		}
 
 		if overrideEnv != nil && len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
@@ -126,10 +129,10 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 // withContainerResourcesOverrideHook overrides the container resources with those provided by
 // the overrideResourcesFunc function.
 func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideResourcesFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideResources, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override resources: %w", err)
 		}
 
 		if len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
@@ -144,10 +147,10 @@ func withContainerResourcesOverrideHook(certmanagerinformer certmanagerinformer.
 // withDeploymentReplicasOverrideHook overrides the deployment replicas with those provided by
 // the overrideReplicasFunc function.
 func withDeploymentReplicasOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideReplicasFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideReplicas, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override replicas: %w", err)
 		}
 
 		if overrideReplicas != nil && deployment.Name == deploymentName {
@@ -160,10 +163,10 @@ func withDeploymentReplicasOverrideHook(certmanagerinformer certmanagerinformer.
 // withPodSchedulingOverrideHook overrides the pod scheduling with those provided by
 // the overrideSchedulingFunc function.
 func withPodSchedulingOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideSchedulingFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideScheduling, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override scheduling: %w", err)
 		}
 
 		if deployment.Name == deploymentName {
@@ -180,15 +183,15 @@ func withPodSchedulingOverrideHook(certmanagerinformer certmanagerinformer.CertM
 
 // withProxyEnv patches the operand deployment if operator
 // has proxy variables set. Sets HTTPS_PROXY, HTTP_PROXY and NO_PROXY.
-func withProxyEnv(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withProxyEnv(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(deployment.Spec.Template.Spec.Containers[0].Env, proxy.ReadProxyVarsFromEnv())
 	return nil
 }
 
 // withCAConfigMap patches the operand deployment to include the custom
 // ca bundle as a volume. This is set when a trusted ca configmap is provided.
-func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deployment *appsv1.Deployment, trustedCAConfigmapName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, _ *appsv1.Deployment, trustedCAConfigmapName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		if len(trustedCAConfigmapName) == 0 {
 			return nil
 		}
@@ -197,7 +200,7 @@ func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deploy
 		if err != nil && apierrors.IsNotFound(err) {
 			return fmt.Errorf("(Retrying) trusted CA config map %q doesn't exist due to %w", trustedCAConfigmapName, err)
 		} else if err != nil {
-			return err
+			return fmt.Errorf("failed to get trusted CA config map %q: %w", trustedCAConfigmapName, err)
 		}
 
 		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, corev1.Volume{
@@ -225,10 +228,10 @@ func withCAConfigMap(configmapinformer coreinformersv1.ConfigMapInformer, deploy
 
 // withPodLabels patches the operand deployment to include custom pod labels.
 func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideLabelsFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideLabels, err := fn(certmanagerinformer, deploymentName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get override labels: %w", err)
 		}
 
 		if overrideLabels != nil && len(overrideLabels) > 0 && deployment.Name == deploymentName {
@@ -239,12 +242,12 @@ func withPodLabelsOverrideHook(certmanagerinformer certmanagerinformer.CertManag
 	}
 }
 
-func withSABoundToken(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+func withSABoundToken(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	volume := corev1.Volume{
 		Name: boundSATokenVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
-				DefaultMode: ptr.To(int32(420)),
+				DefaultMode: ptr.To(defaultVolumeMode),
 				Sources: []corev1.VolumeProjection{{
 					ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 						Audience:          boundSAAudience,

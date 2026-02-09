@@ -7,7 +7,7 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
@@ -43,46 +43,97 @@ var CloudCredentialSecret string
 var UnsupportedAddonFeatures string
 
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
+	clients, err := initializeClients(cc)
+	if err != nil {
+		return fmt.Errorf("failed to initialize clients: %w", err)
+	}
+
+	operatorClient, versionRecorder := initializeOperatorComponents(clients.certManagerInformers, clients.certManagerOperatorClient, cc.Clock)
+
+	kubeInformersForNamespaces := initializeKubeInformers(clients.kubeClient)
+	optInfraInformer, err := initializeInfraInformer(ctx, clients.configClient)
+	if err != nil {
+		return fmt.Errorf("failed to initialize infrastructure informer: %w", err)
+	}
+
+	controllersToStart := buildControllers(clients, operatorClient, versionRecorder, kubeInformersForNamespaces, optInfraInformer, cc)
+	startInformers(ctx, clients.certManagerInformers, kubeInformersForNamespaces, optInfraInformer)
+	startControllers(ctx, controllersToStart)
+
+	if err := setupFeatures(); err != nil {
+		return fmt.Errorf("failed to setup features: %w", err)
+	}
+
+	if err := startIstioCSRController(ctx); err != nil {
+		return fmt.Errorf("failed to start IstioCSR controller: %w", err)
+	}
+
+	<-ctx.Done()
+	return nil
+}
+
+type operatorClients struct {
+	kubeClient                kubernetes.Interface
+	certManagerOperatorClient certmanoperatorclient.Interface
+	apiExtensionsClient       apiextensionsclient.Interface
+	configClient              configv1client.Interface
+	certManagerInformers      certmanoperatorinformers.SharedInformerFactory
+}
+
+func initializeClients(cc *controllercmd.ControllerContext) (*operatorClients, error) {
 	kubeClient, err := kubernetes.NewForConfig(cc.ProtoKubeConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	certManagerOperatorClient, err := certmanoperatorclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	apiExtensionsClient, err := apiextensionsclient.NewForConfig(cc.KubeConfig)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	certManagerInformers := certmanoperatorinformers.NewSharedInformerFactory(certManagerOperatorClient, resyncInterval)
 
+	return &operatorClients{
+		kubeClient:                kubeClient,
+		certManagerOperatorClient: certManagerOperatorClient,
+		apiExtensionsClient:       apiExtensionsClient,
+		configClient:              configClient,
+		certManagerInformers:      certManagerInformers,
+	}, nil
+}
+
+func initializeOperatorComponents(certManagerInformers certmanoperatorinformers.SharedInformerFactory, certManagerOperatorClient certmanoperatorclient.Interface, clock clock.PassiveClock) (*operatorclient.OperatorClient, status.VersionGetter) {
 	operatorClient := &operatorclient.OperatorClient{
 		Informers: certManagerInformers,
 		Client:    certManagerOperatorClient.OperatorV1alpha1(),
-		Clock:     cc.Clock,
+		Clock:     clock,
 	}
 
-	// perform version changes to the version getter prior to tying it up in the status controller
-	// via change-notification channel so that it only updates operator version in status once
-	// either of the workloads synces
 	versionRecorder := status.NewVersionGetter()
 	versionRecorder.SetVersion("operator", status.VersionForOperatorFromEnv())
 
-	kubeInformersForNamespaces := v1helpers.NewKubeInformersForNamespaces(kubeClient,
+	return operatorClient, versionRecorder
+}
+
+func initializeKubeInformers(kubeClient kubernetes.Interface) v1helpers.KubeInformersForNamespaces {
+	return v1helpers.NewKubeInformersForNamespaces(kubeClient,
 		"",
 		"kube-system",
 		operatorclient.TargetNamespace,
 	)
+}
 
-	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
-	if err != nil {
-		return err
-	}
-
+func initializeInfraInformer(ctx context.Context, configClient configv1client.Interface) (*optionalinformer.OptionalInformer[configinformers.SharedInformerFactory], error) {
 	infraGVR := configv1.GroupVersion.WithResource("infrastructures")
 	optInfraInformer, err := optionalinformer.NewOptionalInformer(
 		ctx, infraGVR, configClient.Discovery(),
@@ -91,17 +142,20 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to discover Infrastructure presence: %w", err)
+		return nil, fmt.Errorf("failed to discover Infrastructure presence: %w", err)
 	}
+	return optInfraInformer, nil
+}
 
+func buildControllers(clients *operatorClients, operatorClient *operatorclient.OperatorClient, versionRecorder status.VersionGetter, kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces, optInfraInformer *optionalinformer.OptionalInformer[configinformers.SharedInformerFactory], cc *controllercmd.ControllerContext) []interface{ Run(context.Context, int) } {
 	certManagerControllerSet := deployment.NewCertManagerControllerSet(
-		kubeClient,
+		clients.kubeClient,
 		kubeInformersForNamespaces,
 		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
 		*optInfraInformer,
 		operatorClient,
-		certManagerInformers,
-		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
+		clients.certManagerInformers,
+		resourceapply.NewKubeClientHolder(clients.kubeClient).WithAPIExtensionsClient(clients.apiExtensionsClient),
 		cc.EventRecorder,
 		status.VersionForOperandFromEnv(),
 		versionRecorder,
@@ -112,12 +166,19 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	defaultCertManagerController := deployment.NewDefaultCertManagerController(
 		operatorClient,
-		certManagerOperatorClient.OperatorV1alpha1(),
+		clients.certManagerOperatorClient.OperatorV1alpha1(),
 		cc.EventRecorder,
 	)
 
-	controllersToStart = append(controllersToStart, defaultCertManagerController)
+	allControllers := make([]interface{ Run(context.Context, int) }, 0, len(controllersToStart)+1)
+	for _, c := range controllersToStart {
+		allControllers = append(allControllers, c)
+	}
+	allControllers = append(allControllers, defaultCertManagerController)
+	return allControllers
+}
 
+func startInformers(ctx context.Context, certManagerInformers certmanoperatorinformers.SharedInformerFactory, kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces, optInfraInformer *optionalinformer.OptionalInformer[configinformers.SharedInformerFactory]) {
 	for _, informer := range []interface{ Start(<-chan struct{}) }{
 		certManagerInformers,
 		kubeInformersForNamespaces,
@@ -125,32 +186,41 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		informer.Start(ctx.Done())
 	}
 
-	// only start the informer if Infrastructure is found applicable
 	if optInfraInformer.Applicable() {
 		(*optInfraInformer.InformerFactory).Start(ctx.Done())
 	}
+}
 
+func startControllers(ctx context.Context, controllersToStart []interface{ Run(context.Context, int) }) {
 	for _, controller := range controllersToStart {
 		go controller.Run(ctx, 1)
 	}
+}
 
-	err = features.SetupWithFlagValue(UnsupportedAddonFeatures)
-	if err != nil {
+func setupFeatures() error {
+	if err := features.SetupWithFlagValue(UnsupportedAddonFeatures); err != nil {
 		return fmt.Errorf("failed to parse addon features: %w", err)
 	}
+	return nil
+}
 
-	// enable controller-runtime and istio-csr controller
-	// only when "IstioCSR" feature is turned on from --addon-features
-	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
-		manager, err := NewControllerManager()
-		if err != nil {
-			return fmt.Errorf("failed to create controller manager: %w", err)
-		}
-		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil { //nolint:contextcheck // SetupSignalHandler creates a new context for signal handling, which is intentional
-			return fmt.Errorf("failed to start istiocsr controller: %w", err)
-		}
+// startIstioCSRController starts the IstioCSR controller using the parent context.
+// This ensures the controller respects the same cancellation signals as the rest of the operator,
+// rather than creating a separate signal handler. ctrl.SetupSignalHandler() should only be called
+// once at the application's entry point.
+func startIstioCSRController(ctx context.Context) error {
+	if !features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
+		return nil
 	}
 
-	<-ctx.Done()
+	manager, err := NewControllerManager()
+	if err != nil {
+		return fmt.Errorf("failed to create controller manager: %w", err)
+	}
+	go func() {
+		if err := manager.Start(ctx); err != nil {
+			setupLog.Error(err, "failed to start istiocsr controller")
+		}
+	}()
 	return nil
 }

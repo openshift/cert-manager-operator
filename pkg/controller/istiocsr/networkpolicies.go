@@ -14,7 +14,7 @@ import (
 )
 
 func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	r.log.V(4).Info("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	r.log.V(logVerbosityLevelDebug).Info("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 
 	// Apply static network policy assets for istio-csr
 	for _, assetPath := range istioCSRNetworkPolicyAssets {
@@ -64,7 +64,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPolicy, istioCSRCreateRecon bool) error {
 	desired := policy.DeepCopy()
 	policyName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling network policy resource", "name", policyName)
+	r.log.V(logVerbosityLevelDebug).Info("reconciling network policy resource", "name", policyName)
 
 	fetched := &networkingv1.NetworkPolicy{}
 	key := types.NamespacedName{
@@ -85,8 +85,8 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 			return FromClientError(err, "failed to update %s network policy resource", policyName)
 		}
 		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
-	} else {
-		r.log.V(4).Info("network policy resource already exists and is in expected state", "name", policyName)
+	} else if exist {
+		r.log.V(logVerbosityLevelDebug).Info("network policy resource already exists and is in expected state", "name", policyName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {

@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
+)
+
+var (
+	errUnsupportedDeploymentName = errors.New("unsupported deployment name provided")
 )
 
 const argKeyValSeparator = "="
@@ -154,7 +159,7 @@ func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInfor
 			return certmanager.Spec.CAInjectorConfig.OverrideArgs, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -181,7 +186,7 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 			return certmanager.Spec.CAInjectorConfig.OverrideEnv, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -208,7 +213,7 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
