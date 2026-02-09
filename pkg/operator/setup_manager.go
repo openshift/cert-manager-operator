@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/klogr"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,7 +30,8 @@ var (
 )
 
 func init() {
-	ctrllog.SetLogger(klog.NewKlogr())
+	// Use klogr to provide a logr.Logger backed by klog/v2 for controller-runtime.
+	ctrllog.SetLogger(klogr.New())
 
 	utilruntime.Must(clientscheme.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))

@@ -6,6 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -22,7 +23,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	certificateName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling certificate resource", "name", certificateName)
+	klog.V(4).InfoS("reconciling certificate resource", "name", certificateName)
 	fetched := &certmanagerv1.Certificate{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -33,13 +34,13 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s certificate resource already exists, maybe from previous installation", certificateName)
 	}
 	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("certificate has been modified, updating to desired state", "name", certificateName)
+		klog.V(1).InfoS("certificate has been modified, updating to desired state", "name", certificateName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 			return FromClientError(err, "failed to update %s certificate resource", certificateName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
 	} else {
-		r.log.V(4).Info("certificate resource already exists and is in expected state", "name", certificateName)
+		klog.V(4).InfoS("certificate resource already exists and is in expected state", "name", certificateName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {

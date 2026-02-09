@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -26,8 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/go-logr/logr"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
@@ -50,7 +49,6 @@ type Reconciler struct {
 
 	ctx           context.Context
 	eventRecorder record.EventRecorder
-	log           logr.Logger
 	scheme        *runtime.Scheme
 }
 
@@ -116,7 +114,6 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 		ctrlClient:    c,
 		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
-		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
 	}, nil
 }
@@ -124,7 +121,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
-		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+		klog.V(4).InfoS("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
 		if objLabels != nil {
@@ -146,7 +143,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+					klog.ErrorS(fmt.Errorf("invalid label format"), "label value not in expected format",
+						"labelName", IstiocsrResourceWatchLabelName,
+						"labelValue", value,
+						"resource", obj.GetName())
 					return false
 				}
 				namespace = key[0]
@@ -165,7 +165,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		}
 
-		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+		klog.V(4).InfoS("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 		return []reconcile.Request{}
 	}
 
@@ -214,7 +214,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile function to compare the state specified by the IstioCSR object against the actual cluster state,
 // and to make the cluster state reflect the state specified by the user.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.log.V(1).Info("reconciling", "request", req)
+	klog.V(1).InfoS("reconciling", "request", req)
 
 	// Fetch the istiocsr.openshift.operator.io CR
 	istiocsr := &v1alpha1.IstioCSR{}
@@ -223,14 +223,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// NotFound errors, since they can't be fixed by an immediate
 			// requeue (have to wait for a new notification), and can be processed
 			// on deleted requests.
-			r.log.V(1).Info("istiocsr.openshift.operator.io object not found, skipping reconciliation", "request", req)
+			klog.V(1).InfoS("istiocsr.openshift.operator.io object not found, skipping reconciliation", "request", req)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to fetch istiocsr.openshift.operator.io %q during reconciliation: %w", req.NamespacedName, err)
 	}
 
 	if !istiocsr.DeletionTimestamp.IsZero() {
-		r.log.V(1).Info("istiocsr.openshift.operator.io is marked for deletion", "namespace", req.NamespacedName)
+		klog.V(1).InfoS("istiocsr.openshift.operator.io is marked for deletion", "namespace", req.NamespacedName)
 
 		if requeue, err := r.cleanUp(istiocsr); err != nil {
 			return ctrl.Result{}, fmt.Errorf("clean up failed for %q istiocsr.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
@@ -242,7 +242,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, err
 		}
 
-		r.log.V(1).Info("removed finalizer, cleanup complete", "request", req.NamespacedName)
+		klog.V(1).InfoS("removed finalizer, cleanup complete", "request", req.NamespacedName)
 		return ctrl.Result{}, nil
 	}
 
@@ -257,7 +257,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
 	istioCSRCreateRecon := false
 	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
-		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+		klog.V(1).InfoS("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 		istioCSRCreateRecon = true
 	}
 
@@ -271,14 +271,14 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 
 	var errUpdate error = nil
 	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
+		klog.ErrorS(err, "failed to reconcile IstioCSR deployment", "request", req)
 		if IsIrrecoverableError(err) {
 			// Set both conditions atomically before updating status
 			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
 			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
 
 			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on irrecoverable error",
+				klog.V(2).InfoS("updating istiocsr conditions on irrecoverable error",
 					"namespace", istiocsr.GetNamespace(),
 					"name", istiocsr.GetName(),
 					"degradedChanged", degradedChanged,
@@ -293,7 +293,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
 
 			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
+				klog.V(2).InfoS("updating istiocsr conditions on recoverable error",
 					"namespace", istiocsr.GetNamespace(),
 					"name", istiocsr.GetName(),
 					"degradedChanged", degradedChanged,
@@ -315,7 +315,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
 
 	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating istiocsr conditions on successful reconciliation",
+		klog.V(2).InfoS("updating istiocsr conditions on successful reconciliation",
 			"namespace", istiocsr.GetNamespace(),
 			"name", istiocsr.GetName(),
 			"degradedChanged", degradedChanged,
