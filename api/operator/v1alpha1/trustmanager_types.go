@@ -113,6 +113,7 @@ type TrustManagerConfig struct {
 	// When set to "Enabled", expired certificates are removed from bundles.
 	// When set to "Disabled", expired certificates are included (default behavior).
 	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
 	FilterExpiredCertificates FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
@@ -165,6 +166,7 @@ type SecretTargetsConfig struct {
 	// "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
 	// "Custom" grants trust-manager permission to create and update only the secrets listed in authorizedSecrets.
 	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Disabled;Custom
 	// +kubebuilder:validation:Optional
 	// +optional
 	Policy SecretTargetsPolicy `json:"policy,omitempty"`
@@ -186,6 +188,7 @@ type DefaultCAPackageConfig struct {
 	// into trust-manager, enabling the "useDefaultCAs: true" source in Bundle resources.
 	// When set to "Disabled", no default CA package is configured and Bundles cannot use useDefaultCAs (default behavior).
 	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
 	Policy DefaultCAPackagePolicy `json:"policy,omitempty"`
@@ -212,7 +215,6 @@ type TrustManagerControllerConfig struct {
 }
 
 // FilterExpiredCertificatesPolicy defines the policy for filtering expired certificates.
-// +kubebuilder:validation:Enum:=Enabled;Disabled
 type FilterExpiredCertificatesPolicy string
 
 const (
@@ -223,7 +225,6 @@ const (
 )
 
 // SecretTargetsPolicy defines the policy for writing trust bundles to Secrets.
-// +kubebuilder:validation:Enum:=Disabled;Custom
 type SecretTargetsPolicy string
 
 const (
@@ -234,7 +235,6 @@ const (
 )
 
 // DefaultCAPackagePolicy defines the policy for the default CA package feature.
-// +kubebuilder:validation:Enum:=Enabled;Disabled
 type DefaultCAPackagePolicy string
 
 const (
@@ -256,11 +256,14 @@ type TrustManagerStatus struct {
 	TrustNamespace string `json:"trustNamespace,omitempty"`
 
 	// secretTargetsPolicy indicates the current secret targets policy.
+	// +kubebuilder:validation:Enum:=Disabled;Custom
 	SecretTargetsPolicy SecretTargetsPolicy `json:"secretTargetsPolicy,omitempty"`
 
 	// defaultCAPackagePolicy indicates the current default CA package policy.
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	DefaultCAPackagePolicy DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
 
 	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	FilterExpiredCertificatesPolicy FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
 }
