@@ -12,5 +12,4 @@ set -o pipefail
 API_GROUP_VERSIONS="
 operator/v1alpha1
 "
-API_PACKAGES="
-"
+API_PACKAGES=""
