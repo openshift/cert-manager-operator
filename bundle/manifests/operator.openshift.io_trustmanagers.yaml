@@ -13,9 +13,13 @@ spec:
   names:
     categories:
     - cert-manager-operator
+    - trust-manager
     kind: TrustManager
     listKind: TrustManagerList
     plural: trustmanagers
+    shortNames:
+    - trustmanager
+    - tm
     singular: trustmanager
   scope: Cluster
   versions:
@@ -35,7 +39,7 @@ spec:
         description: |-
           TrustManager describes the configuration and information about the managed trust-manager deployment.
           The name must be `cluster` to make TrustManager a singleton, allowing only one instance per cluster.
-          When a TrustManager is created, trust-manager is deployed in the cert-manager namespace.
+          When a TrustManager CR is created, trust-manager operand is deployed in the cert-manager namespace.
         properties:
           apiVersion:
             description: |-
@@ -67,6 +71,7 @@ spec:
                       type: string
                     description: annotations to apply to all resources created for
                       the trust-manager deployment.
+                    maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
@@ -75,6 +80,7 @@ spec:
                       type: string
                     description: labels to apply to all resources created for the
                       trust-manager deployment.
+                    maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
@@ -1313,6 +1319,7 @@ spec:
                 type: string
             type: object
         required:
+        - metadata
         - spec
         type: object
         x-kubernetes-validations:

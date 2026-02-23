@@ -24,14 +24,14 @@ type TrustManagerList struct {
 
 // TrustManager describes the configuration and information about the managed trust-manager deployment.
 // The name must be `cluster` to make TrustManager a singleton, allowing only one instance per cluster.
-// When a TrustManager is created, trust-manager is deployed in the cert-manager namespace.
+// When a TrustManager CR is created, trust-manager operand is deployed in the cert-manager namespace.
 //
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=trustmanagers,scope=Cluster,categories={cert-manager-operator}
+// +kubebuilder:resource:path=trustmanagers,scope=Cluster,categories={cert-manager-operator, trust-manager},shortName=trustmanager;tm
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].message"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
@@ -43,6 +43,7 @@ type TrustManager struct {
 
 	// metadata is the standard object's metadata.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +required
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec is the specification of the desired behavior of the TrustManager.
@@ -196,6 +197,7 @@ type TrustManagerControllerConfig struct {
 	// labels to apply to all resources created for the trust-manager deployment.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
+	// +kubebuilder:validation:MaxProperties:=25
 	// +kubebuilder:validation:Optional
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
@@ -203,6 +205,7 @@ type TrustManagerControllerConfig struct {
 	// annotations to apply to all resources created for the trust-manager deployment.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
+	// +kubebuilder:validation:MaxProperties:=25
 	// +kubebuilder:validation:Optional
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
