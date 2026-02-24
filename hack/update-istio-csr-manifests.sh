@@ -36,8 +36,8 @@ mkdir -p bindata/istio-csr
     eval-all '.' -I 0 \
     _output/istio-csr-manifest.yaml | while read -r item; do
 
-  name=$(echo "$item" | ./bin/yq eval '.metadata.name' -)
-  kind=$(echo "$item" | ./bin/yq eval '.kind' - | tr '[:upper:]' '[:lower:]')
+  name=$(echo "$item" | ./bin/yq eval --unwrapScalar '.metadata.name' -)
+  kind=$(echo "$item" | ./bin/yq eval --unwrapScalar '.kind' - | tr '[:upper:]' '[:lower:]')
 
   # skip unused manifests
   if [[ "${name}-${kind}" == "cert-manager-istio-csr-dynamic-istiod-rolebinding" ]]; then
