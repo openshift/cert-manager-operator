@@ -3,6 +3,7 @@ package operatorclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -32,13 +33,15 @@ type OperatorClient struct {
 
 var _ v1helpers.OperatorClient = &OperatorClient{}
 
+var errApplyConfigurationMustHaveValue = errors.New("applyConfiguration must have a value")
+
 func (c OperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorSpecApplyConfiguration) (err error) {
 	return nil
 }
 
 func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
 	if desiredConfiguration == nil {
-		return fmt.Errorf("applyConfiguration must have a value")
+		return errApplyConfigurationMustHaveValue
 	}
 
 	desired := applyconfig.CertManager("cluster")

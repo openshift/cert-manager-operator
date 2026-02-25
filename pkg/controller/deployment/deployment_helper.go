@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +17,8 @@ import (
 )
 
 const argKeyValSeparator = "="
+
+var errUnsupportedDeploymentName = errors.New("unsupported deployment name provided")
 
 // mergeContainerArgs merges the source args with override values
 // using a map that tracks unique keys for each arg containing a
@@ -154,7 +157,7 @@ func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInfor
 			return certmanager.Spec.CAInjectorConfig.OverrideArgs, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -181,7 +184,7 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 			return certmanager.Spec.CAInjectorConfig.OverrideEnv, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -208,7 +211,7 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -235,7 +238,7 @@ func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerI
 			return certmanager.Spec.CAInjectorConfig.OverrideReplicas, nil
 		}
 	default:
-		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return nil, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return nil, nil
 }
@@ -262,7 +265,7 @@ func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideResources, nil
 		}
 	default:
-		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return v1alpha1.CertManagerResourceRequirements{}, nil
 }
@@ -289,7 +292,7 @@ func getOverrideSchedulingFor(certmanagerinformer certmanagerinformer.CertManage
 			return certmanager.Spec.CAInjectorConfig.OverrideScheduling, nil
 		}
 	default:
-		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 	}
 	return v1alpha1.CertManagerScheduling{}, nil
 }

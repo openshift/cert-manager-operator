@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -13,6 +14,13 @@ import (
 
 const (
 	roleBindingSubjectKind = "ServiceAccount"
+)
+
+var (
+	errMultipleClusterRolesWithMatchingLabels          = errors.New("more than 1 clusterrole resources exist with matching labels")
+	errUpdateClusterRoleNameInStatus                   = errors.New("error updating clusterrole name in status")
+	errMultipleClusterRoleBindingsWithMatchingLabels   = errors.New("more than 1 clusterrolebinding resources exist with matching labels")
+	errUpdateClusterRoleBindingNameInStatus            = errors.New("error updating clusterrolebinding name in status")
 )
 
 func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
@@ -86,7 +94,7 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		if len(clusterRoleList.Items) > 0 {
 			if len(clusterRoleList.Items) != 1 {
 				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
-				return "", NewIrrecoverableError(fmt.Errorf("more than 1 clusterrole resources exist with matching labels"), "matched clusterrole resources: %+v", clusterRoleList.Items)
+				return "", NewIrrecoverableError(errMultipleClusterRolesWithMatchingLabels, "matched clusterrole resources: %+v", clusterRoleList.Items)
 			}
 			clusterRoleList.Items[0].DeepCopyInto(fetched)
 
@@ -138,7 +146,7 @@ func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, 
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()
 		} else {
-			r.log.Error(fmt.Errorf("error updating clusterrole name in status"), "istiocsr", istiocsr.GetNamespace())
+			r.log.Error(errUpdateClusterRoleNameInStatus, "istiocsr", istiocsr.GetNamespace())
 		}
 	}
 	istiocsr.Status.ClusterRole = name
@@ -179,7 +187,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		if len(clusterRoleBindingsList.Items) > 0 {
 			if len(clusterRoleBindingsList.Items) != 1 {
 				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
-				return NewIrrecoverableError(fmt.Errorf("more than 1 clusterrolebinding resources exist with matching labels"), "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
+				return NewIrrecoverableError(errMultipleClusterRoleBindingsWithMatchingLabels, "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
 			}
 			clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
 
@@ -228,7 +236,7 @@ func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.Ist
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()
 		} else {
-			r.log.Error(fmt.Errorf("error updating clusterrolebinding name in status"), "istiocsr", istiocsr.GetNamespace())
+			r.log.Error(errUpdateClusterRoleBindingNameInStatus, "istiocsr", istiocsr.GetNamespace())
 		}
 	}
 	istiocsr.Status.ClusterRoleBinding = name

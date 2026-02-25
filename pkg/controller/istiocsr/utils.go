@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -26,6 +27,14 @@ import (
 var (
 	scheme = runtime.NewScheme()
 	codecs = serializer.NewCodecFactory(scheme)
+
+	errFailedToCreateIstioCSRWithFinalizersAdded   = errors.New("failed to create istiocsr.openshift.operator.io object with finalizers added")
+	errFailedToCreateIstioCSRWithFinalizersRemoved = errors.New("failed to create istiocsr.openshift.operator.io object with finalizers removed")
+	errIstioCSRConfigEmpty                         = errors.New("spec.istioCSRConfig config cannot be empty")
+	errIstiodTLSConfigEmpty                        = errors.New("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+	errIstioConfigEmpty                            = errors.New("spec.istioCSRConfig.istio config cannot be empty")
+	errCertManagerConfigEmpty                      = errors.New("spec.istioCSRConfig.certManager config cannot be empty")
+	errMultipleInstancesStatus                     = errors.New("multiple instances of istiocsr exists")
 )
 
 func init() {
@@ -74,7 +83,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, istiocsr *v1alpha1.IstioC
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if !controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.AddFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers added", namespacedName)
+			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers added: %w", namespacedName, errFailedToCreateIstioCSRWithFinalizersAdded)
 		}
 
 		// update istiocsr.openshift.operator.io on adding finalizer.
@@ -97,7 +106,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, istiocsr *v1alpha1.Ist
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.RemoveFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers removed", namespacedName)
+			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers removed: %w", namespacedName, errFailedToCreateIstioCSRWithFinalizersRemoved)
 		}
 
 		if err := r.UpdateWithRetry(ctx, istiocsr); err != nil {
@@ -492,16 +501,16 @@ func networkPolicySpecModified(desired, fetched *networkingv1.NetworkPolicy) boo
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig config cannot be empty")
+		return errIstioCSRConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+		return errIstiodTLSConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Istio).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istio config cannot be empty")
+		return errIstioConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.CertManager).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.certManager config cannot be empty")
+		return errCertManagerConfigEmpty
 	}
 	return nil
 }
@@ -527,7 +536,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
-		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
+		return NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s: %w", statusMessage, errMultipleInstancesStatus), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
@@ -573,5 +582,5 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
 
-	return NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+	return NewMultipleInstanceError(fmt.Errorf("%s: %w", statusMessage, errMultipleInstancesStatus))
 }

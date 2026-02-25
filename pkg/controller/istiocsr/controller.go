@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,6 +44,8 @@ var (
 	// events to include only the resources created by the controller.
 	requestEnqueueLabelValue = "cert-manager-istio-csr"
 )
+
+var errInvalidLabelFormat = errors.New("invalid label format")
 
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
@@ -146,7 +149,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+					r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}
 				namespace = key[0]
@@ -219,7 +222,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Fetch the istiocsr.openshift.operator.io CR
 	istiocsr := &v1alpha1.IstioCSR{}
 	if err := r.Get(ctx, req.NamespacedName, istiocsr); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// NotFound errors, since they can't be fixed by an immediate
 			// requeue (have to wait for a new notification), and can be processed
 			// on deleted requests.

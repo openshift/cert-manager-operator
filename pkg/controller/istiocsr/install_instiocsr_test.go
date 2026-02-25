@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
 )
+
+var errLabelsMismatch = errors.New("labels mismatch in resource")
 
 func TestReconcileIstioCSRDeployment(t *testing.T) {
 	// set the operand image env var
@@ -52,14 +55,14 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
 						if !reflect.DeepEqual(o.GetLabels(), labels) {
-							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), labels)
+							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v: %w", o, o.GetLabels(), labels, errLabelsMismatch)
 						}
 					case *certmanagerv1.Certificate, *rbacv1.Role, *rbacv1.RoleBinding, *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
 						l := make(map[string]string)
 						maps.Copy(l, labels)
 						l[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
 						if !reflect.DeepEqual(o.GetLabels(), l) {
-							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), l)
+							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v: %w", o, o.GetLabels(), l, errLabelsMismatch)
 						}
 					}
 					return nil
