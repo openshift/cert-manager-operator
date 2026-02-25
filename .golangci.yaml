@@ -57,6 +57,7 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
+    - err113
   disable:
     # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
     - depguard
@@ -64,7 +65,6 @@ linters:
     - cyclop
     - gocyclo
     - gocognit
-    - err113
     - revive
     - maintidx
     - mnd

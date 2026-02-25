@@ -2,7 +2,7 @@ package optionalinformer
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,13 +50,15 @@ func createFakeClient(isResourcePresent bool) *fake.Clientset {
 	return fakeClient
 }
 
+var errExpectedFoo = errors.New("expected foo error")
+
 type alwaysErrorFakeDiscovery struct {
 	fakediscovery.FakeDiscovery
 }
 
 // ServerResourcesForGroupVersion is the only func that OptionalInformer's discovery client calls.
 func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
-	return nil, fmt.Errorf("expected foo error")
+	return nil, errExpectedFoo
 }
 
 func createErroneousFakeDiscoveryClient() discovery.DiscoveryInterface {

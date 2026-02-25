@@ -916,7 +916,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					Key:  "ca-cert.pem",
 				}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid CA certificate ConfigMap istiocsr-test-ns/ca-cert-test: key "ca-cert.pem" not found in ConfigMap istiocsr-test-ns/ca-cert-test: key not found in ConfigMap`,
 		},
 		{
 			name: "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",

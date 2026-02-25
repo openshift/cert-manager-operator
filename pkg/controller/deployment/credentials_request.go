@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -28,6 +29,8 @@ const (
 	// service account (gcp) or credentials (aws) file.
 	cloudCredentialsVolumeName = "cloud-credentials"
 )
+
+var errUnsupportedCloudProvider = errors.New("unsupported cloud provider for mounting cloud credentials secret")
 
 func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, deploymentName, secretName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	// cloud credentials is only required for the controller deployment,
@@ -101,7 +104,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			}
 
 		default:
-			return fmt.Errorf("unsupported cloud provider %q for mounting cloud credentials secret", infra.Status.PlatformStatus.Type)
+			return fmt.Errorf("%q: %w", infra.Status.PlatformStatus.Type, errUnsupportedCloudProvider)
 		}
 
 		deployment.Spec.Template.Spec.Volumes = append(

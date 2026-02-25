@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -17,6 +18,13 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
+)
+
+var (
+	errUnsupportedArg             = errors.New("validation failed due to unsupported arg")
+	errUnsupportedLabel            = errors.New("validation failed due to unsupported label")
+	errUnsupportedResourceLimits   = errors.New("validation failed due to unsupported resource limits")
+	errUnsupportedResourceRequests = errors.New("validation failed due to unsupported resource requests")
 )
 
 // withContainerArgsValidateHook validates the container args with those that
@@ -74,7 +82,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 	validateArgs := func(argMap map[string]string, supportedArgs []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedArgs, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("%q=%q: %w", k, v, errUnsupportedArg)
 			}
 		}
 		return nil
@@ -104,7 +112,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 				return validateArgs(argMap, supportedCertManageCainjectorArgs)
 			}
 		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+			return fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 		}
 
 		return nil
@@ -123,7 +131,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 	validateEnv := func(argMap map[string]corev1.EnvVar, supportedEnv []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedEnv, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("%q=%q: %w", k, v.Value, errUnsupportedArg)
 			}
 		}
 		return nil
@@ -153,7 +161,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 				return validateEnv(envMap, supportedCertManageCainjectorEnv)
 			}
 		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+			return fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 		}
 
 		return nil
@@ -172,7 +180,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 	validateLabels := func(labels map[string]string, supportedLabelKeys []string) error {
 		for k, v := range labels {
 			if !slices.Contains(supportedLabelKeys, k) {
-				return fmt.Errorf("validation failed due to unsupported label %q=%q", k, v)
+				return fmt.Errorf("%q=%q: %w", k, v, errUnsupportedLabel)
 			}
 		}
 		return nil
@@ -198,7 +206,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 				return validateLabels(certmanager.Spec.CAInjectorConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
 			}
 		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+			return fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 		}
 
 		return nil
@@ -238,7 +246,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 				return validateResources(certmanager.Spec.CAInjectorConfig.OverrideResources, supportedCertManagerCainjectorResourceNames)
 			}
 		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+			return fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 		}
 
 		return nil
@@ -250,12 +258,12 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 	errs := []error{}
 	for k, v := range resources.Limits {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("%q=%s: %w", k, v.String(), errUnsupportedResourceLimits))
 		}
 	}
 	for k, v := range resources.Requests {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("%q=%s: %w", k, v.String(), errUnsupportedResourceRequests))
 		}
 	}
 	return utilerrors.NewAggregate(errs)
@@ -286,7 +294,7 @@ func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertM
 					field.NewPath("spec", "cainjectorConfig", "overrideScheduling"))
 			}
 		default:
-			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
+			return fmt.Errorf("%q: %w", deploymentName, errUnsupportedDeploymentName)
 		}
 
 		return nil
