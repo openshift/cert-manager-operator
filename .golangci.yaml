@@ -53,6 +53,7 @@ linters:
     - unconvert
     - unparam
     - unused
+    - dupl
     - wastedassign
     - whitespace
     - wrapcheck
@@ -60,7 +61,6 @@ linters:
     # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
     - depguard
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
-    - dupl
     - cyclop
     - gocyclo
     - gocognit
