@@ -61,50 +61,12 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 
 	// no error during client get
 	default:
-		previous, err := applyconfig.ExtractCertManagerStatus(instance, fieldManager)
+		var unchanged bool
+		desired, unchanged, err = c.reconcileExistingOperatorStatus(instance, fieldManager, desiredConfiguration)
 		if err != nil {
-			return fmt.Errorf("unable to extract operator configuration: %w", err)
+			return err
 		}
-
-		operatorStatus := &applyoperatorv1.OperatorStatusApplyConfiguration{}
-		if previous.Status != nil {
-			jsonBytes, err := json.Marshal(previous.Status)
-			if err != nil {
-				return fmt.Errorf("unable to serialize operator configuration: %w", err)
-			}
-			if err := json.Unmarshal(jsonBytes, operatorStatus); err != nil {
-				return fmt.Errorf("unable to deserialize operator configuration: %w", err)
-			}
-		}
-
-		switch {
-		// the conditions from the applied status is not nil AND existing operator status is also not nil
-		case desiredConfiguration.Conditions != nil && operatorStatus != nil:
-			v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, operatorStatus.Conditions)
-
-		// the conditions from the applied status is not nil,
-		// existing operator status is NOT nil
-		case desiredConfiguration.Conditions != nil && operatorStatus == nil:
-			v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, nil)
-		}
-
-		v1helpers.CanonicalizeOperatorStatus(desiredConfiguration)
-		v1helpers.CanonicalizeOperatorStatus(operatorStatus)
-
-		original := applyconfig.CertManager("cluster")
-		if operatorStatus != nil {
-			originalStatus := &applyconfig.CertManagerStatusApplyConfiguration{
-				OperatorStatusApplyConfiguration: *operatorStatus,
-			}
-			original.WithStatus(originalStatus)
-		}
-
-		desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
-			OperatorStatusApplyConfiguration: *desiredConfiguration,
-		}
-		desired.WithStatus(desiredStatus)
-
-		if equality.Semantic.DeepEqual(original, desired) {
+		if unchanged {
 			return nil
 		}
 	}
@@ -254,4 +216,52 @@ func (c OperatorClient) saveFinalizers(ctx context.Context, instance *v1alpha1.C
 	clone.SetFinalizers(finalizers)
 	_, err := c.Client.CertManagers().Update(ctx, clone, metav1.UpdateOptions{})
 	return err
+}
+
+func (c OperatorClient) reconcileExistingOperatorStatus(instance *v1alpha1.CertManager, fieldManager string, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (*applyconfig.CertManagerApplyConfiguration, bool, error) {
+	previous, err := applyconfig.ExtractCertManagerStatus(instance, fieldManager)
+	if err != nil {
+		return nil, false, fmt.Errorf("unable to extract operator configuration: %w", err)
+	}
+
+	operatorStatus := &applyoperatorv1.OperatorStatusApplyConfiguration{}
+	if previous.Status != nil {
+		jsonBytes, err := json.Marshal(previous.Status)
+		if err != nil {
+			return nil, false, fmt.Errorf("unable to serialize operator configuration: %w", err)
+		}
+		if err := json.Unmarshal(jsonBytes, operatorStatus); err != nil {
+			return nil, false, fmt.Errorf("unable to deserialize operator configuration: %w", err)
+		}
+	}
+
+	if desiredConfiguration.Conditions != nil {
+		var existingConditions []applyoperatorv1.OperatorConditionApplyConfiguration
+		if operatorStatus != nil {
+			existingConditions = operatorStatus.Conditions
+		}
+		v1helpers.SetApplyConditionsLastTransitionTime(c.Clock, &desiredConfiguration.Conditions, existingConditions)
+	}
+
+	v1helpers.CanonicalizeOperatorStatus(desiredConfiguration)
+	v1helpers.CanonicalizeOperatorStatus(operatorStatus)
+
+	original := applyconfig.CertManager("cluster")
+	if operatorStatus != nil {
+		originalStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+			OperatorStatusApplyConfiguration: *operatorStatus,
+		}
+		original.WithStatus(originalStatus)
+	}
+
+	desired := applyconfig.CertManager("cluster")
+	desiredStatus := &applyconfig.CertManagerStatusApplyConfiguration{
+		OperatorStatusApplyConfiguration: *desiredConfiguration,
+	}
+	desired.WithStatus(desiredStatus)
+
+	if equality.Semantic.DeepEqual(original, desired) {
+		return desired, true, nil
+	}
+	return desired, false, nil
 }

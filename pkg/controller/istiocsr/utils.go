@@ -269,69 +269,47 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 	if reflect.TypeOf(desired) != reflect.TypeOf(fetched) {
 		panic("both objects to be compared must be of same type")
 	}
+	return objectSpecModified(desired, fetched) || objectMetadataModified(desired, fetched)
+}
 
-	var objectModified bool
+// objectSpecModified and rbacObjectSpecModified use unchecked type assertions because
+// hasObjectChanged (the sole caller) already validates that desired and fetched are the
+// same concrete type via reflect.TypeOf comparison.
+//
+//nolint:forcetypeassert
+func objectSpecModified(desired, fetched client.Object) bool {
 	switch desiredObj := desired.(type) {
 	case *certmanagerv1.Certificate:
-		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
-		if !ok {
-			panic("failed to convert fetched to *certmanagerv1.Certificate")
-		}
-		objectModified = certificateSpecModified(desiredObj, fetchedCert)
-	case *rbacv1.ClusterRole:
-		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRole")
-		}
-		objectModified = rbacRoleRulesModified(desiredObj, fetchedClusterRole)
-	case *rbacv1.ClusterRoleBinding:
-		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
-		}
-		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedClusterRoleBinding) ||
-			rbacRoleBindingSubjectsModified(desiredObj, fetchedClusterRoleBinding)
+		return certificateSpecModified(desiredObj, fetched.(*certmanagerv1.Certificate))
 	case *appsv1.Deployment:
-		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
-		if !ok {
-			panic("failed to convert fetched to *appsv1.Deployment")
-		}
-		objectModified = deploymentSpecModified(desiredObj, fetchedDeployment)
-	case *rbacv1.Role:
-		fetchedRole, ok := fetched.(*rbacv1.Role)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.Role")
-		}
-		objectModified = rbacRoleRulesModified(desiredObj, fetchedRole)
-	case *rbacv1.RoleBinding:
-		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.RoleBinding")
-		}
-		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedRoleBinding) ||
-			rbacRoleBindingSubjectsModified(desiredObj, fetchedRoleBinding)
+		return deploymentSpecModified(desiredObj, fetched.(*appsv1.Deployment))
 	case *corev1.Service:
-		fetchedService, ok := fetched.(*corev1.Service)
-		if !ok {
-			panic("failed to convert fetched to *corev1.Service")
-		}
-		objectModified = serviceSpecModified(desiredObj, fetchedService)
+		return serviceSpecModified(desiredObj, fetched.(*corev1.Service))
 	case *corev1.ConfigMap:
-		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
-		if !ok {
-			panic("failed to convert fetched to *corev1.ConfigMap")
-		}
-		objectModified = configMapDataModified(desiredObj, fetchedConfigMap)
+		return configMapDataModified(desiredObj, fetched.(*corev1.ConfigMap))
 	case *networkingv1.NetworkPolicy:
-		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
-		if !ok {
-			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
-		}
-		objectModified = networkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
+		return networkPolicySpecModified(desiredObj, fetched.(*networkingv1.NetworkPolicy))
+	default:
+		return rbacObjectSpecModified(desired, fetched)
+	}
+}
+
+//nolint:forcetypeassert
+func rbacObjectSpecModified(desired, fetched client.Object) bool {
+	switch desiredObj := desired.(type) {
+	case *rbacv1.ClusterRole:
+		return rbacRoleRulesModified(desiredObj, fetched.(*rbacv1.ClusterRole))
+	case *rbacv1.ClusterRoleBinding:
+		return rbacRoleBindingRefModified(desiredObj, fetched.(*rbacv1.ClusterRoleBinding)) ||
+			rbacRoleBindingSubjectsModified(desiredObj, fetched.(*rbacv1.ClusterRoleBinding))
+	case *rbacv1.Role:
+		return rbacRoleRulesModified(desiredObj, fetched.(*rbacv1.Role))
+	case *rbacv1.RoleBinding:
+		return rbacRoleBindingRefModified(desiredObj, fetched.(*rbacv1.RoleBinding)) ||
+			rbacRoleBindingSubjectsModified(desiredObj, fetched.(*rbacv1.RoleBinding))
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
-	return objectModified || objectMetadataModified(desired, fetched)
 }
 
 func objectMetadataModified(desired, fetched client.Object) bool {
@@ -340,6 +318,49 @@ func objectMetadataModified(desired, fetched client.Object) bool {
 
 func certificateSpecModified(desired, fetched *certmanagerv1.Certificate) bool {
 	return !reflect.DeepEqual(desired.Spec, fetched.Spec)
+}
+
+func containerCoreFieldsModified(desired, fetched *corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Args, fetched.Args) ||
+		desired.Name != fetched.Name || desired.Image != fetched.Image ||
+		desired.ImagePullPolicy != fetched.ImagePullPolicy
+}
+
+func containerPortsModified(desired, fetched *corev1.Container) bool {
+	if len(desired.Ports) != len(fetched.Ports) {
+		return true
+	}
+	for _, fetchedPort := range fetched.Ports {
+		matched := false
+		for _, desiredPort := range desired.Ports {
+			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
+	return false
+}
+
+func containerProbeModified(desired, fetched *corev1.Container) bool {
+	return desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path ||
+		desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
+		desired.ReadinessProbe.PeriodSeconds != fetched.ReadinessProbe.PeriodSeconds
+}
+
+func containerResourcesModified(desired, fetched *corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Resources, fetched.Resources) ||
+		!reflect.DeepEqual(*desired.SecurityContext, *fetched.SecurityContext) ||
+		!reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
+}
+
+func deploymentPodSpecModified(desired, fetched *appsv1.Deployment) bool {
+	return desired.Spec.Template.Spec.ServiceAccountName != fetched.Spec.Template.Spec.ServiceAccountName ||
+		!reflect.DeepEqual(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) ||
+		!reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes)
 }
 
 func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
@@ -357,47 +378,14 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 
 	desiredContainer := desired.Spec.Template.Spec.Containers[0]
 	fetchedContainer := fetched.Spec.Template.Spec.Containers[0]
-	if !reflect.DeepEqual(desiredContainer.Args, fetchedContainer.Args) ||
-		desiredContainer.Name != fetchedContainer.Name || desiredContainer.Image != fetchedContainer.Image ||
-		desiredContainer.ImagePullPolicy != fetchedContainer.ImagePullPolicy {
+	if containerCoreFieldsModified(&desiredContainer, &fetchedContainer) ||
+		containerPortsModified(&desiredContainer, &fetchedContainer) ||
+		containerProbeModified(&desiredContainer, &fetchedContainer) ||
+		containerResourcesModified(&desiredContainer, &fetchedContainer) {
 		return true
 	}
 
-	if len(desiredContainer.Ports) != len(fetchedContainer.Ports) {
-		return true
-	}
-	for _, fetchedPort := range fetchedContainer.Ports {
-		matched := false
-		for _, desiredPort := range desiredContainer.Ports {
-			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return true
-		}
-	}
-
-	if desiredContainer.ReadinessProbe.HTTPGet.Path != fetchedContainer.ReadinessProbe.HTTPGet.Path ||
-		desiredContainer.ReadinessProbe.InitialDelaySeconds != fetchedContainer.ReadinessProbe.InitialDelaySeconds ||
-		desiredContainer.ReadinessProbe.PeriodSeconds != fetchedContainer.ReadinessProbe.PeriodSeconds {
-		return true
-	}
-
-	if !reflect.DeepEqual(desiredContainer.Resources, fetchedContainer.Resources) ||
-		!reflect.DeepEqual(*desiredContainer.SecurityContext, *fetchedContainer.SecurityContext) ||
-		!reflect.DeepEqual(desiredContainer.VolumeMounts, fetchedContainer.VolumeMounts) {
-		return true
-	}
-
-	if desired.Spec.Template.Spec.ServiceAccountName != fetched.Spec.Template.Spec.ServiceAccountName ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes) {
-		return true
-	}
-
-	return false
+	return deploymentPodSpecModified(desired, fetched)
 }
 
 func serviceSpecModified(desired, fetched *corev1.Service) bool {
@@ -526,6 +514,40 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	return prependErr
 }
 
+func shouldRejectInstance(istiocsr *v1alpha1.IstioCSR, items []v1alpha1.IstioCSR) bool {
+	for _, item := range items {
+		if item.GetNamespace() == istiocsr.Namespace {
+			continue
+		}
+		if item.CreationTimestamp.Time.Before(istiocsr.CreationTimestamp.Time) ||
+			// Even when timestamps are equal will skip processing. And if this ends
+			// up in ignoring all istiocsr instances, which means user must have created
+			// all in parallel, onus is on user to delete all and recreate just one required
+			// instance of istiocsr.
+			item.CreationTimestamp.Time.Equal(istiocsr.CreationTimestamp.Time) {
+			return true
+		}
+	}
+	return false
+}
+
+// rejectIstioCSRInstance sets the rejection status condition and annotation on the instance.
+func (r *Reconciler) rejectIstioCSRInstance(istiocsr *v1alpha1.IstioCSR, statusMessage string) error {
+	var condUpdateErr, annUpdateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		condUpdateErr = r.updateCondition(istiocsr, nil)
+	}
+	if addProcessingRejectedAnnotation(istiocsr) {
+		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
+		}
+	}
+	if condUpdateErr != nil || annUpdateErr != nil {
+		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
+	}
+	return NewMultipleInstanceError(fmt.Errorf("%s: %w", statusMessage, errMultipleInstancesStatus))
+}
+
 func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
@@ -548,39 +570,11 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return nil
 	}
 
-	ignoreProcessing := false
-	for _, item := range istiocsrList.Items {
-		if item.GetNamespace() == istiocsr.Namespace {
-			continue
-		}
-		if item.CreationTimestamp.Time.Before(istiocsr.CreationTimestamp.Time) ||
-			// Even when timestamps are equal will skip processing. And if this ends
-			// up in ignoring all istiocsr instances, which means user must have created
-			// all in parallel, onus is on user to delete all and recreate just one required
-			// instance of istiocsr.
-			item.CreationTimestamp.Time.Equal(istiocsr.CreationTimestamp.Time) {
-			ignoreProcessing = true
-		}
-	}
-
-	if !ignoreProcessing {
+	if !shouldRejectInstance(istiocsr, istiocsrList.Items) {
 		// This is the oldest instance, allow it to proceed
 		return nil
 	}
 
 	// This instance should be rejected as there's an older or equally old instance
-	var condUpdateErr, annUpdateErr error
-	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-		condUpdateErr = r.updateCondition(istiocsr, nil)
-	}
-	if addProcessingRejectedAnnotation(istiocsr) {
-		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
-			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
-		}
-	}
-	if condUpdateErr != nil || annUpdateErr != nil {
-		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
-	}
-
-	return NewMultipleInstanceError(fmt.Errorf("%s: %w", statusMessage, errMultipleInstancesStatus))
+	return r.rejectIstioCSRInstance(istiocsr, statusMessage)
 }

@@ -32,6 +32,7 @@ const (
 
 var (
 	errInvalidIssuerRefConfig         = errors.New("invalid issuerRef config")
+	errUnsupportedIssuerKind          = errors.New("unsupported issuer kind")
 	errIstioCSRImageEnvNotSet         = errors.New("environment variable with istiocsr image not set")
 	errConfigMapKeyNotFound           = errors.New("key not found in ConfigMap")
 	errFailedToConvertToClusterIssuer = errors.New("failed to convert to ClusterIssuer")
@@ -60,19 +61,20 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		return FromClientError(err, "failed to check %s deployment resource already exists", deploymentName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s deployment resource", deploymentName)
+	if exist {
+		if istioCSRCreateRecon {
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
 		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
+		if hasObjectChanged(desired, fetched) {
+			r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
+			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+				return FromClientError(err, "failed to update %s deployment resource", deploymentName)
+			}
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
+		} else {
+			r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
+		}
 	} else {
-		r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
-	}
-	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
 			return FromClientError(err, "failed to create %s deployment resource", deploymentName)
 		}
@@ -373,31 +375,36 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 	return nil
 }
 
+func extractIssuerConfig(obj client.Object, issuerRefKind string) (certmanagerv1.IssuerConfig, error) {
+	switch issuerRefKind {
+	case clusterIssuerKind:
+		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
+		if !ok {
+			return certmanagerv1.IssuerConfig{}, errFailedToConvertToClusterIssuer
+		}
+		return clusterIssuer.Spec.IssuerConfig, nil
+	case issuerKind:
+		issuer, ok := obj.(*certmanagerv1.Issuer)
+		if !ok {
+			return certmanagerv1.IssuerConfig{}, errFailedToConvertToIssuer
+		}
+		return issuer.Spec.IssuerConfig, nil
+	default:
+		return certmanagerv1.IssuerConfig{}, fmt.Errorf("%s: %w", issuerRefKind, errUnsupportedIssuerKind)
+	}
+}
+
 // handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
 func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
-	var (
-		issuerConfig certmanagerv1.IssuerConfig
-	)
-
 	obj, err := r.getIssuer(istiocsr)
 	if err != nil {
 		return FromClientError(err, "failed to fetch issuer")
 	}
 
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
-		if !ok {
-			return FromClientError(errFailedToConvertToClusterIssuer, "failed to fetch issuer")
-		}
-		issuerConfig = clusterIssuer.Spec.IssuerConfig
-	case issuerKind:
-		issuer, ok := obj.(*certmanagerv1.Issuer)
-		if !ok {
-			return FromClientError(errFailedToConvertToIssuer, "failed to fetch issuer")
-		}
-		issuerConfig = issuer.Spec.IssuerConfig
+	issuerConfig, err := extractIssuerConfig(obj, issuerRefKind)
+	if err != nil {
+		return FromClientError(err, "failed to fetch issuer")
 	}
 
 	shouldUpdateVolume := false

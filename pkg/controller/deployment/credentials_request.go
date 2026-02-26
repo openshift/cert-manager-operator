@@ -32,6 +32,62 @@ const (
 
 var errUnsupportedCloudProvider = errors.New("unsupported cloud provider for mounting cloud credentials secret")
 
+type cloudCredentialConfig struct {
+	volume      corev1.Volume
+	volumeMount corev1.VolumeMount
+	envVar      *corev1.EnvVar
+}
+
+func cloudCredentialsForPlatform(platformType configv1.PlatformType, secretName string) (*cloudCredentialConfig, error) {
+	switch platformType {
+	// supported cloud platform for mounting secrets
+	case configv1.AWSPlatformType:
+		return &cloudCredentialConfig{
+			volume: corev1.Volume{
+				Name: cloudCredentialsVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: secretName,
+					},
+				},
+			},
+			volumeMount: corev1.VolumeMount{
+				Name:      cloudCredentialsVolumeName,
+				MountPath: awsCredentialsDir,
+			},
+			// this is required as without this env var, aws sdk
+			// doesn't properly bind role_arn from credentials file
+			envVar: &corev1.EnvVar{
+				Name:  "AWS_SDK_LOAD_CONFIG",
+				Value: "1",
+			},
+		}, nil
+
+	case configv1.GCPPlatformType:
+		return &cloudCredentialConfig{
+			volume: corev1.Volume{
+				Name: cloudCredentialsVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: secretName,
+						Items: []corev1.KeyToPath{{
+							Key:  gcpCredentialsSecretKey,
+							Path: gcpCredentialsFileName,
+						}},
+					},
+				},
+			},
+			volumeMount: corev1.VolumeMount{
+				Name:      cloudCredentialsVolumeName,
+				MountPath: gcpCredentialsDir,
+			},
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("%q: %w", platformType, errUnsupportedCloudProvider)
+	}
+}
+
 func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, deploymentName, secretName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	// cloud credentials is only required for the controller deployment,
 	// other deployments should be left untouched
@@ -58,68 +114,24 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return err
 		}
 
-		var volume *corev1.Volume
-		var volumeMount *corev1.VolumeMount
-		var envVar *corev1.EnvVar
-
-		switch infra.Status.PlatformStatus.Type {
-		// supported cloud platform for mounting secrets
-		case configv1.AWSPlatformType:
-			volume = &corev1.Volume{
-				Name: cloudCredentialsVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secretName,
-					},
-				},
-			}
-			volumeMount = &corev1.VolumeMount{
-				Name:      cloudCredentialsVolumeName,
-				MountPath: awsCredentialsDir,
-			}
-
-			// this is required as without this env var, aws sdk
-			// doesn't properly bind role_arn from credentials file
-			envVar = &corev1.EnvVar{
-				Name:  "AWS_SDK_LOAD_CONFIG",
-				Value: "1",
-			}
-
-		case configv1.GCPPlatformType:
-			volume = &corev1.Volume{
-				Name: cloudCredentialsVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secretName,
-						Items: []corev1.KeyToPath{{
-							Key:  gcpCredentialsSecretKey,
-							Path: gcpCredentialsFileName,
-						}},
-					},
-				},
-			}
-			volumeMount = &corev1.VolumeMount{
-				Name:      cloudCredentialsVolumeName,
-				MountPath: gcpCredentialsDir,
-			}
-
-		default:
-			return fmt.Errorf("%q: %w", infra.Status.PlatformStatus.Type, errUnsupportedCloudProvider)
+		config, err := cloudCredentialsForPlatform(infra.Status.PlatformStatus.Type, secretName)
+		if err != nil {
+			return err
 		}
 
 		deployment.Spec.Template.Spec.Volumes = append(
 			deployment.Spec.Template.Spec.Volumes,
-			*volume,
+			config.volume,
 		)
 		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
 			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			*volumeMount,
+			config.volumeMount,
 		)
 
-		if envVar != nil {
+		if config.envVar != nil {
 			deployment.Spec.Template.Spec.Containers[0].Env = append(
 				deployment.Spec.Template.Spec.Containers[0].Env,
-				*envVar,
+				*config.envVar,
 			)
 		}
 
