@@ -404,7 +404,7 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	issuerConfig, err := extractIssuerConfig(obj, issuerRefKind)
 	if err != nil {
-		return FromClientError(err, "failed to fetch issuer")
+		return FromError(err, "failed to extract issuer config")
 	}
 
 	shouldUpdateVolume := false

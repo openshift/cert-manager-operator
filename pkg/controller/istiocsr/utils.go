@@ -346,14 +346,27 @@ func containerPortsModified(desired, fetched *corev1.Container) bool {
 }
 
 func containerProbeModified(desired, fetched *corev1.Container) bool {
-	return desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path ||
-		desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
+	if (desired.ReadinessProbe == nil) != (fetched.ReadinessProbe == nil) {
+		return true
+	}
+	if desired.ReadinessProbe == nil {
+		return false
+	}
+
+	if (desired.ReadinessProbe.HTTPGet == nil) != (fetched.ReadinessProbe.HTTPGet == nil) {
+		return true
+	}
+	if desired.ReadinessProbe.HTTPGet != nil && desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path {
+		return true
+	}
+
+	return desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
 		desired.ReadinessProbe.PeriodSeconds != fetched.ReadinessProbe.PeriodSeconds
 }
 
 func containerResourcesModified(desired, fetched *corev1.Container) bool {
 	return !reflect.DeepEqual(desired.Resources, fetched.Resources) ||
-		!reflect.DeepEqual(*desired.SecurityContext, *fetched.SecurityContext) ||
+		!reflect.DeepEqual(desired.SecurityContext, fetched.SecurityContext) ||
 		!reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
 }
 

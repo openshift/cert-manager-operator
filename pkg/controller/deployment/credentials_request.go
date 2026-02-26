@@ -113,8 +113,16 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 		if err != nil {
 			return err
 		}
+		if infra == nil {
+			return fmt.Errorf("infrastructure %q not found", "cluster")
+		}
 
-		config, err := cloudCredentialsForPlatform(infra.Status.PlatformStatus.Type, secretName)
+		platformType := infra.Status.Platform
+		if infra.Status.PlatformStatus != nil {
+			platformType = infra.Status.PlatformStatus.Type
+		}
+
+		config, err := cloudCredentialsForPlatform(platformType, secretName)
 		if err != nil {
 			return err
 		}

@@ -273,7 +273,7 @@ func (r *Reconciler) reconcileNamespacedRBACResource(istiocsr *v1alpha1.IstioCSR
 			return FromClientError(err, "failed to update %s %s", resourceName, resourceDesc)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s %s reconciled back to desired state", resourceDesc, resourceName)
-	} else {
+	} else if exist {
 		r.log.V(4).Info(resourceDesc+" already exists and is in expected state", "name", resourceName)
 	}
 	if !exist {

@@ -234,7 +234,13 @@ func (r *Reconciler) mapObjectToReconcileRequest(_ context.Context, obj client.O
 			}
 			key := strings.Split(value, "_")
 			if len(key) != 2 {
-				r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+				r.log.Error(
+					errInvalidLabelFormat,
+					"watch label value is not in expected format",
+					"label", IstiocsrResourceWatchLabelName,
+					"value", value,
+					"resource", obj.GetName(),
+				)
 				return false
 			}
 			namespace = key[0]
