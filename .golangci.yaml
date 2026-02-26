@@ -60,13 +60,14 @@ linters:
     - err113
     - gocognit
     - maintidx
+    - revive
   disable:
     # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
     - depguard
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - cyclop
     - gocyclo
-    - revive
+   
     # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.
     #- embeddedstructfieldcheck
     #- godoclint

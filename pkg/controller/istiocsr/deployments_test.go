@@ -33,8 +33,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 	}{
 		{
 			name: "deployment reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -45,7 +45,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -63,8 +63,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as issuerRef does not exist",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -72,7 +72,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						return apierrors.NewNotFound(certmanagerv1.Resource("issuers"), testResourcesName)
@@ -87,8 +87,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as image env var is empty",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -102,8 +102,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while creating configmap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -113,14 +113,14 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, _ ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
 						return errTestClient
 					}
 					return nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -136,8 +136,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation updating volume successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -148,7 +148,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -163,8 +163,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						return false, errTestClient
@@ -174,7 +174,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -190,8 +190,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation failed while restoring to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -203,7 +203,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -214,7 +214,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *appsv1.Deployment:
 						return errTestClient
@@ -226,8 +226,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation with user custom config successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -238,7 +238,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -327,8 +327,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while updating image in istiocsr status",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						return false, nil
@@ -338,7 +338,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -349,7 +349,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -357,7 +357,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return nil
 				})
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
+				m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return errTestClient
@@ -369,8 +369,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as invalid kind in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -389,8 +389,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as invalid group in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -409,8 +409,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails as unsupported ACME issuer is used",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -424,7 +424,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testACMEIssuer()
@@ -440,8 +440,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation while fetching issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -449,7 +449,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch obj.(type) {
 					case *certmanagerv1.Issuer:
 						return apierrors.NewUnauthorized("no access")
@@ -461,8 +461,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while fetching secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -470,7 +470,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.Secret:
 						return apierrors.NewUnauthorized("no access")
@@ -488,8 +488,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while updating labels on secret referenced in issuer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -497,14 +497,14 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.Secret:
 						return apierrors.NewUnauthorized("no access")
 					}
 					return nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						configmap := testConfigMap()
@@ -520,8 +520,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while checking configmap exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -531,7 +531,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -547,8 +547,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails while updating configmap to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -560,14 +560,14 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
 						return errTestClient
 					}
 					return nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -583,8 +583,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation configmap creation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -594,7 +594,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -609,8 +609,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation with invalid toleration configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -621,7 +621,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -644,8 +644,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation with invalid nodeSelector configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -656,7 +656,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -673,8 +673,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation with invalid affinity configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -685,7 +685,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -750,8 +750,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation with invalid resource requirement configuration",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -762,7 +762,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -789,8 +789,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -801,7 +801,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -824,8 +824,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation successful with CA certificate ConfigMap in custom namespace",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -833,7 +833,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" && ns.Namespace == "custom-namespace" {
@@ -857,8 +857,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails with missing CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -866,7 +866,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -887,8 +887,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails with missing key in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -896,7 +896,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -920,8 +920,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		},
 		{
 			name: "deployment reconciliation fails with invalid PEM data in CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -929,7 +929,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -954,8 +954,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 
 		{
 			name: "deployment reconciliation fails while updating watch label on CA certificate ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -966,7 +966,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "watch-label-fail-test" {
@@ -977,7 +977,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.ConfigMap:
 						// Fail when trying to update the source ConfigMap with watch label
@@ -1001,8 +1001,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 
 		{
 			name: "deployment reconciliation fails with non-CA certificate in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -1010,7 +1010,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "non-ca-cert-test" {
@@ -1033,8 +1033,8 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 
 		{
 			name: "deployment reconciliation fails with certificate missing KeyUsageCertSign in ConfigMap",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -1042,7 +1042,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-without-certsign-test" {
@@ -1101,9 +1101,9 @@ func TestUpdateArgList(t *testing.T) {
 	}{
 		{
 			name: "clusterID not provided should default to Kubernetes",
-			updateIstioCSR: func(istiocsr *v1alpha1.IstioCSR) {
-				// Server config is nil, so clusterID should default
-			},
+		updateIstioCSR: func(_ *v1alpha1.IstioCSR) {
+			// Server config is nil, so clusterID should default
+		},
 			expectedArgs: map[string]string{
 				"cluster-id": "Kubernetes",
 			},

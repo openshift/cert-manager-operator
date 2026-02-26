@@ -38,9 +38,9 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "istiocsr reconciliation with user labels successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+		name: "istiocsr reconciliation with user labels successful",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+			m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -51,9 +51,9 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					}
 					return nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
-					switch o := obj.(type) {
-					case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
+			m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+				switch o := obj.(type) {
+				case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
 						if !reflect.DeepEqual(o.GetLabels(), labels) {
 							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v: %w", o, o.GetLabels(), labels, errLabelsMismatch)
 						}
@@ -70,11 +70,11 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 			},
 		},
 		{
-			name: "istiocsr reconciliation fails with serviceaccount creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
-					switch obj.(type) {
-					case *corev1.ServiceAccount:
+		name: "istiocsr reconciliation fails with serviceaccount creation error",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+			m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+				switch obj.(type) {
+				case *corev1.ServiceAccount:
 						return errTestClient
 					}
 					return nil
@@ -83,11 +83,11 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource: test client error`,
 		},
 		{
-			name: "istiocsr reconciliation fails with role creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
-					switch o := obj.(type) {
-					case *rbacv1.Role:
+		name: "istiocsr reconciliation fails with role creation error",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+			m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+				switch o := obj.(type) {
+				case *rbacv1.Role:
 						return errTestClient
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
@@ -100,8 +100,8 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		},
 		{
 			name: "istiocsr reconciliation fails with certificate creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Certificate:
 						return errTestClient

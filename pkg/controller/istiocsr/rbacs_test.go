@@ -24,8 +24,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 	}{
 		{
 			name: "clusterrole reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
 						return false, errTestClient
@@ -40,8 +40,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						return false, errTestClient
@@ -56,8 +56,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						return false, errTestClient
@@ -69,8 +69,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebindings reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						return false, errTestClient
@@ -82,8 +82,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role-leases reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -97,8 +97,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebindings-leases reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -112,8 +112,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing existing resources",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, obj client.ObjectList, _ ...client.ListOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
 						return errTestClient
@@ -125,8 +125,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing multiple existing resources",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, obj client.ObjectList, _ ...client.ListOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
 						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
@@ -143,8 +143,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, obj client.ObjectList, _ ...client.ListOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
 						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
@@ -160,8 +160,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						clusterRoleBinding := testClusterRoleBinding()
@@ -170,7 +170,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						return errTestClient
@@ -185,8 +185,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						clusterRoleBinding := testClusterRoleBinding()
@@ -203,15 +203,15 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						return false, nil
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						return errTestClient
@@ -223,8 +223,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrole reconciliation updating name in status fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, obj client.ObjectList, _ ...client.ListOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
 						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
@@ -235,7 +235,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.ClusterRole:
 						clusterRole := testClusterRole()
@@ -244,7 +244,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+				m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return errTestClient
@@ -259,8 +259,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrolebindings reconciliation updating name in status fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, obj client.ObjectList, _ ...client.ListOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBindingList:
 						clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
@@ -271,7 +271,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.ClusterRole:
 						clusterRole := testClusterRole()
@@ -280,7 +280,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+				m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						if o.Status.ClusterRoleBinding != "" {
@@ -297,8 +297,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrole reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.ClusterRole:
 						clusterRole := testClusterRole()
@@ -307,7 +307,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
 						return errTestClient
@@ -322,15 +322,15 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "clusterrole reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.ClusterRole:
 						return false, nil
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.ClusterRole:
 						return errTestClient
@@ -342,8 +342,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.Role:
 						role := testRole()
@@ -352,7 +352,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
@@ -364,15 +364,15 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.Role:
 						return false, nil
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
@@ -384,8 +384,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role-leases reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -396,7 +396,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -410,8 +410,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "role-leases reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -420,7 +420,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -434,8 +434,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebindings reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.RoleBinding:
 						role := testRoleBinding()
@@ -444,7 +444,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						return errTestClient
@@ -456,15 +456,15 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebindings reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.RoleBinding:
 						return false, nil
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						return errTestClient
@@ -476,8 +476,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebinding-leases reconciliation updating to desired state fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -488,7 +488,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -502,8 +502,8 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		},
 		{
 			name: "rolebinding-leases reconciliation creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch object.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(ns.Name, "-leases") {
@@ -512,7 +512,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {

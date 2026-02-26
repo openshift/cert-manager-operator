@@ -57,7 +57,7 @@ type alwaysErrorFakeDiscovery struct {
 }
 
 // ServerResourcesForGroupVersion is the only func that OptionalInformer's discovery client calls.
-func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(_ string) (*metav1.APIResourceList, error) {
 	return nil, errExpectedFoo
 }
 
