@@ -1,0 +1,42 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-trust-manager
+    app.kubernetes.io/instance: cert-manager-trust-manager
+    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: trust-manager
+rules:
+  - apiGroups:
+      - "trust.cert-manager.io"
+    resources:
+      - "bundles"
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - "trust.cert-manager.io"
+    resources:
+      - "bundles/finalizers"
+    verbs: ["update"]
+  - apiGroups:
+      - "trust.cert-manager.io"
+    resources:
+      - "bundles/status"
+    verbs: ["patch"]
+  - apiGroups:
+      - ""
+    resources:
+      - "namespaces"
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - ""
+    resources:
+      - "configmaps"
+    verbs: ["get", "list", "create", "patch", "watch", "delete"]
+  - apiGroups:
+      - ""
+    resources:
+      - "events"
+    verbs: ["create", "patch"]

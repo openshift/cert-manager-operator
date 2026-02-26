@@ -59,6 +59,7 @@ endif
 # Versions of the cert-manager components managed by this operator
 CERT_MANAGER_VERSION ?= v1.19.2
 ISTIO_CSR_VERSION ?= v0.15.0
+TRUST_MANAGER_VERSION ?= "v0.20.3"
 
 # --- Test Versions ---
 
@@ -418,6 +419,7 @@ update: generate update-manifests update-bindata ## Update all generated code an
 update-manifests: $(HELM) $(JSONNET) ## Update cert-manager and istio-csr operand manifests.
 	hack/update-cert-manager-manifests.sh $(CERT_MANAGER_VERSION)
 	hack/update-istio-csr-manifests.sh $(ISTIO_CSR_VERSION)
+	hack/update-trust-manager-manifests.sh $(TRUST_MANAGER_VERSION)
 
 .PHONY: update-vendor
 update-vendor: ## Update vendor directory for all modules in the workspace.

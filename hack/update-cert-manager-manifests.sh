@@ -36,7 +36,7 @@ rm -rf bindata/cert-manager-deployment
 rm -rf config/crd/bases/*-crd.yaml
 
 # Split the produced target items in separate files and convert back to yaml.
-for file in $(./bin/yq eval 'keys | join(" ")' _output/targets_as_map.json)
+for file in $(./bin/yq eval --unwrapScalar 'keys | join(" ")' _output/targets_as_map.json)
 do
     dir=$(dirname "${file}")
     mkdir -p "${dir}"

@@ -106,6 +106,20 @@ spec:
       kind: IstioCSR
       name: istiocsrs.operator.openshift.io
       version: v1alpha1
+    - description: A Bundle is used to distribute trust bundles across a Kubernetes
+        cluster.
+      displayName: Bundle
+      kind: Bundle
+      name: bundles.trust.cert-manager.io
+      version: v1alpha1
+    - description: |-
+        TrustManager describes the configuration and information about the managed trust-manager deployment.
+        The name must be 'cluster' to make TrustManager a singleton, allowing only one instance per cluster.
+        When a TrustManager is created, trust-manager is deployed in the cert-manager namespace.
+      displayName: TrustManager
+      kind: TrustManager
+      name: trustmanagers.operator.openshift.io
+      version: v1alpha1
     - description: CertManager is the Schema for the certmanagers API
       displayName: CertManager
       kind: CertManager
@@ -139,6 +153,7 @@ spec:
   - security
   - TLS
   - istio-csr
+  - trust-manager
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md

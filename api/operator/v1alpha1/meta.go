@@ -40,8 +40,9 @@ type ConfigMapReference struct {
 	Key string `json:"key"`
 }
 
+// ConditionalStatus represents the status conditions for an operand deployment.
 type ConditionalStatus struct {
-	// conditions holds information about the current state of the istio-csr agent deployment.
+	// conditions holds information about the current state of the operand deployment.
 	// +patchMergeKey=type
 	// +patchStrategy=merge
 	// +listType=map
