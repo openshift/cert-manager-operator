@@ -88,7 +88,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -137,7 +137,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -186,7 +186,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -226,7 +226,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -271,7 +271,7 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 
 // withPodSchedulingValidateHook validates the overrides scheduling field for each operand.
 func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)

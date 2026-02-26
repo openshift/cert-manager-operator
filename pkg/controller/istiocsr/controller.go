@@ -126,7 +126,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapFunc := func(_ context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
@@ -272,7 +272,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		return ctrl.Result{}, err
 	}
 
-	var errUpdate error = nil
+	var errUpdate error
 	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
 		if IsIrrecoverableError(err) {
@@ -290,27 +290,27 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 				errUpdate = r.updateCondition(istiocsr, nil)
 			}
 			return ctrl.Result{}, errUpdate
-		} else {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, err)
-			}
-			// For recoverable errors, either requeue manually or return error, not both
-			// If status update failed, return the update error; otherwise return the original error
-			if errUpdate != nil {
-				return ctrl.Result{}, errUpdate
-			}
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 		}
+
+		// Set both conditions atomically before updating status
+		degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+		readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
+
+		if degradedChanged || readyChanged {
+			r.log.V(2).Info("updating istiocsr conditions on recoverable error",
+				"namespace", istiocsr.GetNamespace(),
+				"name", istiocsr.GetName(),
+				"degradedChanged", degradedChanged,
+				"readyChanged", readyChanged,
+				"error", err)
+			errUpdate = r.updateCondition(istiocsr, err)
+		}
+		// For recoverable errors, either requeue manually or return error, not both
+		// If status update failed, return the update error; otherwise return the original error
+		if errUpdate != nil {
+			return ctrl.Result{}, errUpdate
+		}
+		return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 	}
 
 	// Set both conditions atomically before updating status on success
