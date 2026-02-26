@@ -17,10 +17,10 @@ const (
 )
 
 var (
-	errMultipleClusterRolesWithMatchingLabels          = errors.New("more than 1 clusterrole resources exist with matching labels")
-	errUpdateClusterRoleNameInStatus                   = errors.New("error updating clusterrole name in status")
-	errMultipleClusterRoleBindingsWithMatchingLabels   = errors.New("more than 1 clusterrolebinding resources exist with matching labels")
-	errUpdateClusterRoleBindingNameInStatus            = errors.New("error updating clusterrolebinding name in status")
+	errMultipleClusterRolesWithMatchingLabels        = errors.New("more than 1 clusterrole resources exist with matching labels")
+	errUpdateClusterRoleNameInStatus                 = errors.New("error updating clusterrole name in status")
+	errMultipleClusterRoleBindingsWithMatchingLabels = errors.New("more than 1 clusterrolebinding resources exist with matching labels")
+	errUpdateClusterRoleBindingNameInStatus          = errors.New("error updating clusterrolebinding name in status")
 )
 
 func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {

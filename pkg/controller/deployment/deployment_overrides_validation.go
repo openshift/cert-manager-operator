@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	errUnsupportedArg             = errors.New("validation failed due to unsupported arg")
+	errUnsupportedArg              = errors.New("validation failed due to unsupported arg")
 	errUnsupportedLabel            = errors.New("validation failed due to unsupported label")
 	errUnsupportedResourceLimits   = errors.New("validation failed due to unsupported resource limits")
 	errUnsupportedResourceRequests = errors.New("validation failed due to unsupported resource requests")

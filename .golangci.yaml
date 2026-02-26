@@ -58,16 +58,15 @@ linters:
     - whitespace
     - wrapcheck
     - err113
+    - gocognit
+    - maintidx
   disable:
     # depguard has configuration issues in golangci-lint v2 - see https://github.com/golangci/golangci-lint/issues/3906
     - depguard
     # Below linters will be enabled once the issues reported by enabled linters are fixed.
     - cyclop
     - gocyclo
-    - gocognit
     - revive
-    - maintidx
-    - mnd
     # Below linters will be enabled when the golangci-lint is upgraded to the version supporting these.
     #- embeddedstructfieldcheck
     #- godoclint
@@ -101,7 +100,9 @@ linters:
       # Exclude some linters from running on tests files.
       - path: _test\.go
         linters:
+          - gocognit
           - gocyclo
+          - maintidx
           - errcheck
           - dupl
           - gosec
