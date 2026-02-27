@@ -1,0 +1,1119 @@
+apiVersion: apiextensions.k8s.io/v1 # Hack because controller-gen complains if we don't have this
+name: "CertManager"
+crdName: certmanagers.operator.openshift.io
+tests:
+  onCreate:
+  # ==========================================
+  # Basic/Minimal Tests
+  # ==========================================
+  - name: Should be able to create a minimal CertManager instance
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec: {}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+
+  - name: Should be able to create CertManager with controllerConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+          overrideLabels:
+            app: cert-manager
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+          overrideLabels:
+            app: cert-manager
+
+  - name: Should be able to create CertManager with webhookConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        webhookConfig:
+          overrideArgs:
+            - "--v=2"
+          overrideReplicas: 2
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        webhookConfig:
+          overrideArgs:
+            - "--v=2"
+          overrideReplicas: 2
+
+  - name: Should be able to create CertManager with cainjectorConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        cainjectorConfig:
+          overrideArgs:
+            - "--namespace=cert-manager"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        cainjectorConfig:
+          overrideArgs:
+            - "--namespace=cert-manager"
+
+  - name: Should be able to create CertManager with all component configs
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+        webhookConfig:
+          overrideReplicas: 2
+        cainjectorConfig:
+          overrideArgs:
+            - "--namespace=cert-manager"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+        webhookConfig:
+          overrideReplicas: 2
+        cainjectorConfig:
+          overrideArgs:
+            - "--namespace=cert-manager"
+
+  # ==========================================
+  # logLevel Enum Tests
+  # ==========================================
+  - name: Should allow logLevel Normal
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+
+  - name: Should allow logLevel Debug
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Debug
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Debug
+        operatorLogLevel: Normal
+
+  - name: Should allow logLevel Trace
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Trace
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Trace
+        operatorLogLevel: Normal
+
+  - name: Should allow logLevel TraceAll
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: TraceAll
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: TraceAll
+        operatorLogLevel: Normal
+
+  - name: Should allow empty logLevel
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: ""
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: ""
+        operatorLogLevel: Normal
+
+  - name: Should fail with invalid logLevel
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Invalid
+    expectedError: "spec.logLevel: Unsupported value: \"Invalid\": supported values: \"\", \"Normal\", \"Debug\", \"Trace\", \"TraceAll\""
+
+  # ==========================================
+  # overrideReplicas Validation Tests
+  # ==========================================
+  - name: Should allow overrideReplicas of 1
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideReplicas: 1
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideReplicas: 1
+
+  - name: Should allow overrideReplicas of 10
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        webhookConfig:
+          overrideReplicas: 10
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        webhookConfig:
+          overrideReplicas: 10
+
+  - name: Should fail with overrideReplicas of 0
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideReplicas: 0
+    expectedError: "spec.controllerConfig.overrideReplicas: Invalid value: 0: spec.controllerConfig.overrideReplicas in body should be greater than or equal to 1"
+
+  # ==========================================
+  # defaultNetworkPolicy Enum Tests
+  # ==========================================
+  - name: Should allow defaultNetworkPolicy true
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "true"
+
+  - name: Should allow defaultNetworkPolicy false
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "false"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "false"
+
+  - name: Should allow defaultNetworkPolicy empty string
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: ""
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: ""
+
+  - name: Should fail with invalid defaultNetworkPolicy value
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "yes"
+    expectedError: "spec.defaultNetworkPolicy: Unsupported value: \"yes\": supported values: \"true\", \"false\", \"\""
+
+  # ==========================================
+  # networkPolicies Validation Tests
+  # ==========================================
+  - name: Should allow networkPolicy with CoreController component
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+        networkPolicies:
+          - name: allow-api-server
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "true"
+        networkPolicies:
+          - name: allow-api-server
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+
+  - name: Should fail with invalid componentName
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: test-policy
+            componentName: InvalidComponent
+            egress: []
+    expectedError: "spec.networkPolicies[0].componentName: Unsupported value: \"InvalidComponent\": supported values: \"CoreController\""
+
+  - name: Should fail with componentName Webhook which is not allowed
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: test-policy
+            componentName: Webhook
+            egress: []
+    expectedError: "spec.networkPolicies[0].componentName: Unsupported value: \"Webhook\": supported values: \"CoreController\""
+
+  - name: Should fail with networkPolicy name empty
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: ""
+            componentName: CoreController
+            egress: []
+    expectedError: "spec.networkPolicies[0].name: Invalid value: \"\": spec.networkPolicies[0].name in body should be at least 1 chars long"
+
+  - name: Should fail with networkPolicy name too long
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: "this-network-policy-name-is-extremely-long-and-exceeds-the-kubernetes-maximum-name-length-limit-of-two-hundred-fifty-three-characters-which-is-quite-a-lot-of-characters-but-we-need-to-test-this-validation-constraint-properly-to-ensure-it-works-as-expected-in-all-scenarios"
+            componentName: CoreController
+            egress: []
+    expectedError: "spec.networkPolicies[0].name: Too long: may not be more than 253 bytes"
+
+  - name: Should fail with duplicate name and componentName in networkPolicies
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: same-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+          - name: same-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+    expectedError: "spec.networkPolicies[1]: Duplicate value: map[string]interface {}{\"componentName\":\"CoreController\", \"name\":\"same-policy\"}"
+
+  - name: Should allow networkPolicy with egress rules
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: allow-external
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 0.0.0.0/0
+                      except:
+                        - 10.0.0.0/8
+                ports:
+                  - protocol: TCP
+                    port: 443
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        networkPolicies:
+          - name: allow-external
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 0.0.0.0/0
+                      except:
+                        - 10.0.0.0/8
+                ports:
+                  - protocol: TCP
+                    port: 443
+
+  - name: Should allow empty networkPolicies array
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies: []
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        networkPolicies: []
+
+  # ==========================================
+  # DeploymentConfig Fields Tests
+  # ==========================================
+  - name: Should allow overrideArgs with multiple values
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53"
+            - "--dns01-recursive-nameservers-only"
+            - "--acme-http01-solver-nameservers=8.8.8.8:53"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideArgs:
+            - "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53"
+            - "--dns01-recursive-nameservers-only"
+            - "--acme-http01-solver-nameservers=8.8.8.8:53"
+
+  - name: Should allow overrideEnv with name and value
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideEnv:
+            - name: HTTP_PROXY
+              value: "http://proxy:8080"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideEnv:
+            - name: HTTP_PROXY
+              value: "http://proxy:8080"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1"
+
+  - name: Should allow overrideEnv with valueFrom configMapKeyRef
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideEnv:
+            - name: CONFIG_VALUE
+              valueFrom:
+                configMapKeyRef:
+                  name: my-config
+                  key: config-key
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideEnv:
+            - name: CONFIG_VALUE
+              valueFrom:
+                configMapKeyRef:
+                  name: my-config
+                  key: config-key
+
+  - name: Should allow overrideEnv with valueFrom secretKeyRef
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        webhookConfig:
+          overrideEnv:
+            - name: SECRET_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: secret-key
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        webhookConfig:
+          overrideEnv:
+            - name: SECRET_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: secret-key
+
+  - name: Should allow overrideLabels
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideLabels:
+            app: cert-manager
+            environment: production
+            team: platform
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideLabels:
+            app: cert-manager
+            environment: production
+            team: platform
+
+  - name: Should allow overrideResources with limits and requests
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideResources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideResources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+
+  - name: Should allow overrideScheduling with nodeSelector
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideScheduling:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              node-type: worker
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideScheduling:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              node-type: worker
+
+  - name: Should allow overrideScheduling with tolerations
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideScheduling:
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+              - key: "node.kubernetes.io/not-ready"
+                operator: "Exists"
+                effect: "NoExecute"
+                tolerationSeconds: 300
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideScheduling:
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+              - key: "node.kubernetes.io/not-ready"
+                operator: "Exists"
+                effect: "NoExecute"
+                tolerationSeconds: 300
+
+  - name: Should allow complete DeploymentConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--v=2"
+          overrideEnv:
+            - name: HTTP_PROXY
+              value: "http://proxy:8080"
+          overrideLabels:
+            app: cert-manager
+          overrideReplicas: 3
+          overrideResources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+          overrideScheduling:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideArgs:
+            - "--v=2"
+          overrideEnv:
+            - name: HTTP_PROXY
+              value: "http://proxy:8080"
+          overrideLabels:
+            app: cert-manager
+          overrideReplicas: 3
+          overrideResources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+          overrideScheduling:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+
+  onUpdate:
+  # ==========================================
+  # defaultNetworkPolicy Immutability Tests
+  # ==========================================
+  - name: Should not allow changing defaultNetworkPolicy from true to false
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "false"
+    expectedError: "spec.defaultNetworkPolicy: Invalid value: \"string\": defaultNetworkPolicy cannot be changed from 'true' to 'false' once set"
+
+  - name: Should not allow changing defaultNetworkPolicy from true to empty
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: ""
+    expectedError: "spec.defaultNetworkPolicy: Invalid value: \"string\": defaultNetworkPolicy cannot be changed from 'true' to 'false' once set"
+
+  - name: Should allow changing defaultNetworkPolicy from false to true
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "false"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "true"
+
+  - name: Should allow changing defaultNetworkPolicy from empty to true
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: ""
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "true"
+
+  - name: Should allow changing defaultNetworkPolicy from empty to false
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: ""
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "false"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "false"
+
+  - name: Should allow keeping defaultNetworkPolicy as true
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        defaultNetworkPolicy: "true"
+        logLevel: Debug
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Debug
+        operatorLogLevel: Normal
+        defaultNetworkPolicy: "true"
+
+  # ==========================================
+  # networkPolicies Immutability Tests
+  # ==========================================
+  - name: Should not allow changing networkPolicy name
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: original-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: renamed-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+    expectedError: "spec.networkPolicies: Invalid value: \"array\": name and componentName fields in networkPolicies are immutable"
+
+  - name: Should allow adding new networkPolicy
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: original-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: original-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+          - name: new-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        networkPolicies:
+          - name: original-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+          - name: new-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+
+  - name: Should allow updating egress rules in existing networkPolicy
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: api-server-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: api-server-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+              - to:
+                  - ipBlock:
+                      cidr: 172.16.0.0/12
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        networkPolicies:
+          - name: api-server-policy
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+              - to:
+                  - ipBlock:
+                      cidr: 172.16.0.0/12
+
+  - name: Should not allow removing networkPolicy
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: policy-to-remove
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 10.0.0.0/8
+          - name: policy-to-keep
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        networkPolicies:
+          - name: policy-to-keep
+            componentName: CoreController
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 192.168.0.0/16
+    expectedError: "spec.networkPolicies: Invalid value: \"array\": name and componentName fields in networkPolicies are immutable"
+
+  # ==========================================
+  # Mutable Fields Tests
+  # ==========================================
+  - name: Should allow updating controllerConfig overrideArgs
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--v=1"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideArgs:
+            - "--v=2"
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideArgs:
+            - "--v=2"
+            - "--dns01-recursive-nameservers=8.8.8.8:53"
+
+  - name: Should allow updating webhookConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        webhookConfig:
+          overrideReplicas: 1
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        webhookConfig:
+          overrideReplicas: 3
+          overrideArgs:
+            - "--v=2"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        webhookConfig:
+          overrideReplicas: 3
+          overrideArgs:
+            - "--v=2"
+
+  - name: Should allow updating cainjectorConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        cainjectorConfig:
+          overrideArgs:
+            - "--v=1"
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        cainjectorConfig:
+          overrideArgs:
+            - "--v=3"
+          overrideReplicas: 2
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        cainjectorConfig:
+          overrideArgs:
+            - "--v=3"
+          overrideReplicas: 2
+
+  - name: Should allow updating logLevel
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Debug
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Debug
+        operatorLogLevel: Normal
+
+  - name: Should allow updating overrideReplicas
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideReplicas: 1
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        controllerConfig:
+          overrideReplicas: 5
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: CertManager
+      spec:
+        logLevel: Normal
+        operatorLogLevel: Normal
+        controllerConfig:
+          overrideReplicas: 5
