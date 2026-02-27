@@ -363,7 +363,9 @@ k8s.io/client-go v0.34.4/go.mod h1:tXIVJTQabT5QRGlFdxZQFxrIhcGUPpKL5DAc4gSWTE8=
 k8s.io/component-base v0.34.4 h1:jP4XqR48YelfXIlRpOHQgms5GebU23zSE6xcvTwpXDE=
 k8s.io/component-base v0.34.4/go.mod h1:uujRfLNOwNiFWz47eBjNZEj/Swn2cdhqI7lW2MeFdrU=
 k8s.io/component-helpers v0.34.4 h1:NsYzF6cDjmACfNLhPuInNSeUhCOERZWITvWb4sQPpmE=
+k8s.io/component-helpers v0.34.4/go.mod h1:LRO0sHo5LAGIh0jrZKngorJC1W54oJrk90q9pQDHM/4=
 k8s.io/controller-manager v0.34.4 h1:eBj1Obdj29dS6rtk69jzdnTtu5L7RYwzU6QSiQ2bH4Y=
+k8s.io/controller-manager v0.34.4/go.mod h1:j1a3/NhjnAIcY8i5mHppvc1v5ZBJ86c/WadjveCLA68=
 k8s.io/klog/v2 v2.130.1 h1:n9Xl7H1Xvksem4KFG4PYbdQCQxqc/tTUyrgXaOhHSzk=
 k8s.io/klog/v2 v2.130.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
 k8s.io/kms v0.34.4 h1:jF1s1e0CZsM8UXtzqz8JYIBhI4EQIvZHQ15K28StUJA=
@@ -373,6 +375,7 @@ k8s.io/kube-aggregator v0.34.1/go.mod h1:RU8j+5ERfp0h+gIvWtxRPfsa5nK7rboDm8RST8B
 k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 h1:Y3gxNAuB0OBLImH611+UDZcmKS3g6CthxToOb37KgwE=
 k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912/go.mod h1:kdmbQkyfwUagLfXIad1y2TdrjPFWp2Q89B3qkRwf/pQ=
 k8s.io/kubelet v0.34.4 h1:+8aLwtoZSUnE7HLxjrAYNtlJFzlwxQ4UBleyaW4JzA8=
+k8s.io/kubelet v0.34.4/go.mod h1:UXC4EdusJtlx041deQJ/h+xTaI9QsYPb3WEgcRTg46g=
 k8s.io/kubernetes v1.34.4 h1:Yy6R4QB8C9kJPp25GFqEvX5XQwY5qzKeqD0Xx6oAcmk=
 k8s.io/kubernetes v1.34.4/go.mod h1:m6pZk6a179pRo2wsTiCPORJ86iOEQmfIzUvtyEF8BwA=
 k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 h1:SjGebBtkBqHFOli+05xYbK8YF1Dzkbzn+gDM4X9T4Ck=
