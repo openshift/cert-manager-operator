@@ -25,9 +25,7 @@ fi
 
 # Print the command we are going to run as Make would.
 echo ${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ${REPO_ROOT}/test/apis
-${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ${REPO_ROOT}/test/apis
-# Capture the test result to exit on error.
-TEST_RESULT=$?
+${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ${REPO_ROOT}/test/apis || TEST_RESULT=$?
 
 # Ensure we exit based on the test result
-exit ${TEST_RESULT}
+exit ${TEST_RESULT:-0}

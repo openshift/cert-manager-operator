@@ -129,7 +129,7 @@ require (
 	k8s.io/component-helpers v0.34.4 // indirect
 	k8s.io/controller-manager v0.34.4 // indirect
 	k8s.io/kms v0.34.4 // indirect
-	k8s.io/kube-aggregator v0.34.1 // indirect
+	k8s.io/kube-aggregator v0.34.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/kubelet v0.34.4 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.33.0 // indirect
