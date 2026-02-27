@@ -56,4 +56,7 @@ import (
 
 	// govulncheck is used for scanning the vulnerabilities in the used go packages
 	_ "golang.org/x/vuln/cmd/govulncheck"
+
+	// ginkgo is a BDD testing framework used for running validation tests
+	_ "github.com/onsi/ginkgo/v2/ginkgo"
 )
