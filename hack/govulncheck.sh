@@ -18,16 +18,12 @@ set -o errexit
 # Each vulnerability ID has been reviewed and deemed acceptable.
 #
 ## Below vulnerabilities are in the kubernetes package, which impacts the server and not the operator, which is the client.
-# - https://pkg.go.dev/vuln/GO-2025-3547 - Kubernetes kube-apiserver Vulnerable to Race Condition in k8s.io/kubernetes
 # - https://pkg.go.dev/vuln/GO-2025-3521 - Kubernetes GitRepo Volume Inadvertent Local Repository Access in k8s.io/kubernetes
-# - https://pkg.go.dev/vuln/GO-2025-4240 - Half-blind Server Side Request Forgery in kube-controller-manager through in-tree Portworx StorageClass in k8s.io/kubernetes
+# - https://pkg.go.dev/vuln/GO-2025-3547 - Kubernetes kube-apiserver Vulnerable to Race Condition in k8s.io/kubernetes
 #
 ## Below vulnerabilities are in the go packages, which impacts the operator code and fixed in 1.25.6, but is not available downstream yet.
-# - https://pkg.go.dev/vuln/GO-2026-4341 - Memory exhaustion in query parameter parsing in net/url
-# - https://pkg.go.dev/vuln/GO-2026-4340 - Handshake messages may be processed at the incorrect encryption level in crypto/tls
-# - https://pkg.go.dev/vuln/GO-2025-4175 - Improper application of excluded DNS name constraints when verifying wildcard names in crypto/x509
-# - https://pkg.go.dev/vuln/GO-2025-4155 - Excessive resource consumption when printing error string for host certificate validation in crypto/x509
-KNOWN_VULNS_PATTERN="GO-2025-3547|GO-2025-3521|GO-2025-4240|GO-2026-4341|GO-2026-4340|GO-2025-4175|GO-2025-4155"
+#
+KNOWN_VULNS_PATTERN="GO-2025-3521|GO-2025-3547"
 
 GOVULNCHECK_BIN="${1:-}"
 OUTPUT_DIR="${2:-}"
