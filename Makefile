@@ -1,5 +1,5 @@
 # Project path.
-PROJECT_ROOT := $(shell git rev-parse --show-toplevel)
+PROJECT_ROOT := $(shell git rev-parse --show-toplevel 2>/dev/null || pwd)
 
 # Warn when an undefined variable is referenced, helping catch typos and missing definitions.
 MAKEFLAGS += --warn-undefined-variables
@@ -64,7 +64,7 @@ TRUST_MANAGER_VERSION ?= "v0.20.3"
 # --- Test Versions ---
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION ?= 1.25.0
+ENVTEST_K8S_VERSION ?= 1.32.0
 
 # ============================================================================
 # Path Configuration
@@ -98,6 +98,7 @@ OPERATOR_SDK := $(BIN_DIR)/operator-sdk
 OPM := $(BIN_DIR)/opm
 SETUP_ENVTEST := $(BIN_DIR)/setup-envtest
 JSONNET := $(BIN_DIR)/jsonnet
+GINKGO := $(BIN_DIR)/ginkgo
 
 # ============================================================================
 # Image Configuration
@@ -243,10 +244,16 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet $(SETUP_ENVTEST) ## Run unit tests.
-	mkdir -p "$(ENVTEST_ASSETS_DIR)"
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(ENVTEST_ASSETS_DIR) -p path)" \
-	go test ./... -coverprofile cover.out
+test: manifests generate vet test-apis test-unit ## Run tests.
+
+.PHONY: test-unit
+test-unit: ## Run unit tests.
+	go test $$(go list ./... | grep -vE 'test/[e2e|apis|utils]') -coverprofile cover.out
+
+# Utilize controller-runtime provided envtest for API integration test
+.PHONY: test-apis  ## Run only the api integration tests.
+test-apis: $(SETUP_ENVTEST) $(GINKGO)
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(BIN_DIR) -p path)" ./hack/test-apis.sh
 
 # Test name pattern for -run flag (TEST="TestIssuer|TestCertificate" or TEST="" to run all)
 TEST ?=
@@ -515,6 +522,9 @@ $(GOVULNCHECK): $(BIN_DIR) ## Build govulncheck from vendor.
 
 $(JSONNET): $(BIN_DIR) ## Build jsonnet from vendor.
 	$(call go-install-tool,$(JSONNET),github.com/google/go-jsonnet/cmd/jsonnet)
+
+$(GINKGO): $(BIN_DIR) ## Download ginkgo locally if necessary.
+	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo)
 
 # Tools downloaded as binaries (with checksum verification)
 $(HELM): ## Download helm locally if necessary.

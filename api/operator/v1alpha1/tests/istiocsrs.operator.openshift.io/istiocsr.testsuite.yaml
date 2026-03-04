@@ -1,0 +1,1540 @@
+apiVersion: apiextensions.k8s.io/v1 # Hack because controller-gen complains if we don't have this
+name: "IstioCSR"
+crdName: istiocsrs.operator.openshift.io
+tests:
+  onCreate:
+  # ==========================================
+  # Metadata Tests
+  # ==========================================
+  - name: Should create IstioCSR with valid name
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  - name: Should not allow creating IstioCSR with invalid name
+    resourceName: invalid-name
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expectedError: "istiocsr is a singleton, .metadata.name must be 'default'"
+
+  # ==========================================
+  # IstioCSRConfig - CertManager Tests
+  # ==========================================
+  - name: Should create with issuerRef kind Issuer
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: Issuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: Issuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  - name: Should not allow issuerRef kind other than Issuer or ClusterIssuer
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: InvalidKind
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expectedError: "kind must be either 'Issuer' or 'ClusterIssuer'"
+
+  - name: Should not allow issuerRef group other than cert-manager.io
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: invalid-group.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expectedError: "group must be 'cert-manager.io'"
+
+  # ==========================================
+  # IstioCSRConfig - IstiodTLSConfig Tests
+  # ==========================================
+  - name: Should not allow invalid privateKeyAlgorithm
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: INVALID
+    expectedError: "privateKeyAlgorithm"
+
+  - name: Should not allow RSA with invalid privateKeySize 1024
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 1024
+    expectedError: "privateKeySize"
+
+  - name: Should not allow ECDSA with invalid privateKeySize 2048
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 2048
+    expectedError: "privateKeySize"
+
+  - name: Should create with ECDSA and valid privateKeySize 256
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 256
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 256
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with ECDSA and valid privateKeySize 384
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 384
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 384
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - Istio Tests
+  # ==========================================
+  - name: Should create with custom istio revisions
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - stable
+              - canary
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - stable
+              - canary
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - LogLevel Tests
+  # ==========================================
+  - name: Should create with logLevel 5
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logLevel: 5
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 5
+
+  - name: Should not allow logLevel below minimum
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logLevel: 0
+    expectedError: "logLevel"
+
+  - name: Should not allow logLevel above maximum
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logLevel: 6
+    expectedError: "logLevel"
+
+  # ==========================================
+  # IstioCSRConfig - LogFormat Tests
+  # ==========================================
+  - name: Should create with logFormat json
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logFormat: json
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: json
+          logLevel: 1
+
+  - name: Should not allow invalid logFormat
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logFormat: xml
+    expectedError: "logFormat"
+
+  # ==========================================
+  # IstioCSRConfig - RSA Key Size Tests
+  # ==========================================
+  - name: Should create with RSA and privateKeySize 4096
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 4096
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 4096
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with RSA and privateKeySize 8192
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 8192
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 8192
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - ServerConfig Tests
+  # ==========================================
+  - name: Should create with custom server port
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            port: 8443
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          server:
+            clusterID: Kubernetes
+            port: 8443
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with custom server clusterID
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            clusterID: my-cluster
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          server:
+            clusterID: my-cluster
+            port: 443
+          logFormat: text
+          logLevel: 1
+
+  - name: Should not allow server port below minimum
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            port: 0
+    expectedError: "port"
+
+  - name: Should not allow server port above maximum
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            port: 65536
+    expectedError: "port"
+
+  # ==========================================
+  # IstioCSRConfig - IstiodTLSConfig Duration Tests
+  # ==========================================
+  - name: Should create with custom certificate durations
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 24h
+            certificateRenewBefore: 6h
+            maxCertificateDuration: 48h
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 24h
+            certificateRenewBefore: 6h
+            maxCertificateDuration: 48h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - IstiodTLSConfig Optional Fields Tests
+  # ==========================================
+  - name: Should create with custom commonName
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            commonName: istiod.istio-system.svc
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            commonName: istiod.istio-system.svc
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with certificateDNSNames
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDNSNames:
+              - istiod.istio-system.svc
+              - istiod.istio-system.svc.cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDNSNames:
+              - istiod.istio-system.svc
+              - istiod.istio-system.svc.cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - istioDataPlaneNamespaceSelector Tests
+  # ==========================================
+  - name: Should create with istioDataPlaneNamespaceSelector
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          istioDataPlaneNamespaceSelector: "maistra.io/member-of=istio-system"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          istioDataPlaneNamespaceSelector: "maistra.io/member-of=istio-system"
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - CertManager istioCACertificate Tests
+  # ==========================================
+  - name: Should create with istioCACertificate ConfigMap reference
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+            istioCACertificate:
+              name: my-ca-configmap
+              key: ca.crt
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+            istioCACertificate:
+              name: my-ca-configmap
+              key: ca.crt
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # IstioCSRConfig - Affinity Tests
+  # ==========================================
+  - name: Should create with pod affinity
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                          - linux
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                          - linux
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # ControllerConfig Tests
+  # ==========================================
+  - name: Should create with controllerConfig labels
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+        controllerConfig:
+          labels:
+            app.kubernetes.io/managed-by: cert-manager-operator
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+        controllerConfig:
+          labels:
+            app.kubernetes.io/managed-by: cert-manager-operator
+
+  # ==========================================
+  # IstioCSRConfig - DeploymentConfig Tests
+  # ==========================================
+  - name: Should create with nodeSelector
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          nodeSelector:
+            kubernetes.io/os: linux
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          nodeSelector:
+            kubernetes.io/os: linux
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with tolerations
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+          logFormat: text
+          logLevel: 1
+
+  - name: Should create with resource requests and limits
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          logFormat: text
+          logLevel: 1
+
+  # ==========================================
+  # Immutability Tests (onUpdate)
+  # ==========================================
+  onUpdate:
+  - name: Should not allow updating issuerRef
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: old-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: new-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expectedError: "issuerRef is immutable once set"
+
+  - name: Should not allow changing privateKeyAlgorithm after set
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: ECDSA
+            privateKeySize: 256
+    expectedError: "privateKeyAlgorithm is immutable once set"
+
+  - name: Should not allow changing privateKeySize after set
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            privateKeyAlgorithm: RSA
+            privateKeySize: 4096
+    expectedError: "privateKeySize is immutable once set"
+
+  - name: Should allow updating istio revisions
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+              - canary
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+              - canary
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
+
+  - name: Should not allow changing istio namespace
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: new-istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+    expectedError: "namespace is immutable once set"
+
+  - name: Should not allow changing server port after set
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            port: 443
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          server:
+            port: 8443
+    expectedError: "port is immutable once set"
+
+  - name: Should allow updating logLevel
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logLevel: 1
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logLevel: 3
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 3
+
+  - name: Should allow updating logFormat
+    resourceName: default
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logFormat: text
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+          istiodTLSConfig:
+            trustDomain: cluster.local
+          logFormat: json
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: json
+          logLevel: 1
