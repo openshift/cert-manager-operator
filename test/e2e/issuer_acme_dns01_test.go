@@ -477,6 +477,39 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		return subscriptionID, resourceGroupName, hostedZoneName
 	}
 
+	// setupCCOAzureCredentials creates a CredentialsRequest for Azure with fine-grained
+	// DNS Zone Contributor permissions and returns the CCO-provisioned credentials.
+	// Note: Unlike setupAmbientAWSCredentials/setupAmbientGCPCredentials, this does NOT patch
+	// the subscription with 'CLOUD_CREDENTIALS_SECRET_NAME' because the operator does not yet
+	// support mounting Azure credentials into the cert-manager pod. Once Azure support is added to
+	// 'withCloudCredentials' in credentials_request.go, it can be adapted to follow the AWS/GCP pattern.
+	setupCCOAzureCredentials := func(ctx context.Context) (clientID, clientSecret, tenantID []byte) {
+		By("creating CredentialsRequest object for Azure")
+		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
+		})
+
+		By("waiting for cloud secret to be available")
+		var ccoSecret *corev1.Secret
+		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+			var getErr error
+			ccoSecret, getErr = loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "azure-credentials", metav1.GetOptions{})
+			return getErr == nil, nil
+		})
+		Expect(err).NotTo(HaveOccurred(), "timeout waiting for Azure credentials secret")
+
+		By("reading CCO-provisioned credentials")
+		clientID = ccoSecret.Data["azure_client_id"]
+		clientSecret = ccoSecret.Data["azure_client_secret"]
+		tenantID = ccoSecret.Data["azure_tenant_id"]
+		Expect(clientID).NotTo(BeEmpty(), "azure_client_id should not be empty")
+		Expect(clientSecret).NotTo(BeEmpty(), "azure_client_secret should not be empty")
+		Expect(tenantID).NotTo(BeEmpty(), "azure_tenant_id should not be empty")
+
+		return clientID, clientSecret, tenantID
+	}
+
 	// copyAzureSecretToNamespace creates a secret in the test namespace with Azure client secret
 	copyAzureSecretToNamespace := func(ctx context.Context, namespace, secretName, secretKey string, clientSecret []byte) {
 		By(fmt.Sprintf("copying Azure client secret to namespace %s", namespace))
@@ -1303,6 +1336,52 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			// Create and verify certificate
 			certName := "letsencrypt-cert"
 			dnsName := fmt.Sprintf("adaze-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 AzureDNS Explicit"
+			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, issuerName, "Issuer")
+		})
+
+		It("should obtain a valid certificate using explicit credentials provisioned by CCO through Service Principal", func() {
+
+			// Setup CCO-provisioned credentials for Azure (fine-grained DNS Zone Contributor)
+			clientID, clientSecret, tenantID := setupCCOAzureCredentials(ctx)
+
+			// Get DNS zone subscription, resource group, and zone name from the DNS config object
+			subscriptionID, resourceGroupName, hostedZoneName := getAzureDNSZoneInfo(ctx)
+
+			// Copy client secret to test namespace for Issuer reference
+			secretName := "azure-client-secret"
+			secretKey := "client-secret"
+			copyAzureSecretToNamespace(ctx, ns.Name, secretName, secretKey, clientSecret)
+
+			By("creating ACME Issuer with AzureDNS DNS-01 solver using CCO-provisioned credentials")
+			issuerName := "letsencrypt-dns01-cco"
+			solver := acmev1.ACMEChallengeSolver{
+				DNS01: &acmev1.ACMEChallengeSolverDNS01{
+					AzureDNS: &acmev1.ACMEIssuerDNS01ProviderAzureDNS{
+						SubscriptionID:    subscriptionID,
+						ResourceGroupName: resourceGroupName,
+						HostedZoneName:    hostedZoneName,
+						TenantID:          string(tenantID),
+						ClientID:          string(clientID),
+						ClientSecret: &certmanagermetav1.SecretKeySelector{
+							LocalObjectReference: certmanagermetav1.LocalObjectReference{
+								Name: secretName,
+							},
+							Key: secretKey,
+						},
+					},
+				},
+			}
+			issuer := createACMEIssuer(issuerName, solver)
+			_, err := certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, issuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to create Issuer")
+
+			By("waiting for Issuer to become ready")
+			err = waitForIssuerReadiness(ctx, issuerName, ns.Name)
+			Expect(err).NotTo(HaveOccurred(), "timeout waiting for Issuer to become Ready")
+
+			// Create and verify certificate
+			certName := "letsencrypt-cert"
+			dnsName := fmt.Sprintf("adazc-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 AzureDNS CCO"
 			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, issuerName, "Issuer")
 		})
 	})
