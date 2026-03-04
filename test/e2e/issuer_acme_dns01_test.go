@@ -433,6 +433,66 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		})
 	}
 
+	// getAzureCredentials retrieves Azure Service Principal credentials from the kube-system namespace
+	getAzureCredentials := func(ctx context.Context) (clientID, clientSecret, tenantID []byte) {
+		By("obtaining Azure credentials from kube-system namespace")
+		azureCredsSecret, err := loader.KubeClient.CoreV1().Secrets("kube-system").Get(ctx, "azure-credentials", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "failed to get Azure credentials from kube-system")
+
+		clientID = azureCredsSecret.Data["azure_client_id"]
+		clientSecret = azureCredsSecret.Data["azure_client_secret"]
+		tenantID = azureCredsSecret.Data["azure_tenant_id"]
+
+		Expect(clientID).NotTo(BeEmpty(), "azure_client_id should not be empty")
+		Expect(clientSecret).NotTo(BeEmpty(), "azure_client_secret should not be empty")
+		Expect(tenantID).NotTo(BeEmpty(), "azure_tenant_id should not be empty")
+
+		return clientID, clientSecret, tenantID
+	}
+
+	// getAzureDNSZoneInfo extracts the subscription ID, resource group, and zone name
+	// from the OpenShift DNS config object's publicZone.ID, which is an Azure resource ID:
+	// /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Network/dnszones/<zone>
+	getAzureDNSZoneInfo := func(ctx context.Context) (subscriptionID, resourceGroupName, hostedZoneName string) {
+		By("getting Azure DNS zone info from DNS config object")
+		dns, err := configClient.DNSes().Get(ctx, "cluster", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "failed to get DNS config object")
+		Expect(dns.Spec.PublicZone).NotTo(BeNil(), "DNS publicZone should not be nil")
+
+		zoneID := dns.Spec.PublicZone.ID
+		Expect(zoneID).NotTo(BeEmpty(), "DNS publicZone ID should not be empty")
+
+		parts := strings.Split(zoneID, "/")
+		// Expected: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Network/dnszones/<zone>
+		Expect(len(parts)).To(BeNumerically(">=", 9), "unexpected Azure resource ID format: %s", zoneID)
+		Expect(parts[7]).To(Equal("dnszones"), "expected a DNS zone resource ID, got: %s", zoneID)
+		subscriptionID = parts[2]
+		resourceGroupName = parts[4]
+		hostedZoneName = parts[8]
+
+		Expect(subscriptionID).NotTo(BeEmpty(), "subscription ID should not be empty")
+		Expect(resourceGroupName).NotTo(BeEmpty(), "DNS zone resource group should not be empty")
+		Expect(hostedZoneName).NotTo(BeEmpty(), "hosted zone name should not be empty")
+
+		return subscriptionID, resourceGroupName, hostedZoneName
+	}
+
+	// copyAzureSecretToNamespace creates a secret in the test namespace with Azure client secret
+	copyAzureSecretToNamespace := func(ctx context.Context, namespace, secretName, secretKey string, clientSecret []byte) {
+		By(fmt.Sprintf("copying Azure client secret to namespace %s", namespace))
+		azureSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secretName,
+				Namespace: namespace,
+			},
+			Data: map[string][]byte{
+				secretKey: clientSecret,
+			},
+		}
+		_, err := loader.KubeClient.CoreV1().Secrets(namespace).Create(ctx, azureSecret, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
+	}
+
 	Context("with AWS Route53", Label("Platform:AWS", "CredentialsMode:Mint"), func() {
 
 		It("should obtain a valid certificate using explicit credentials", func() {
@@ -1195,6 +1255,55 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			certName := "cert-with-clouddns-workload-identity"
 			dnsName := fmt.Sprintf("adgcw-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 Google CloudDNS Workload Identity"
 			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, clusterIssuerName, "ClusterIssuer")
+		})
+	})
+
+	Context("with Azure DNS", Label("Platform:Azure", "CredentialsMode:Mint"), func() {
+
+		It("should obtain a valid certificate using explicit credentials through Service Principal", func() {
+
+			// Get Azure Service Principal credentials (for authentication)
+			clientID, clientSecret, tenantID := getAzureCredentials(ctx)
+
+			// Get DNS zone subscription, resource group, and zone name from the DNS config object
+			subscriptionID, resourceGroupName, hostedZoneName := getAzureDNSZoneInfo(ctx)
+
+			// Copy client secret to test namespace
+			secretName := "azure-client-secret"
+			secretKey := "client-secret"
+			copyAzureSecretToNamespace(ctx, ns.Name, secretName, secretKey, clientSecret)
+
+			By("creating ACME Issuer with AzureDNS DNS-01 solver using explicit credentials")
+			issuerName := "letsencrypt-dns01"
+			solver := acmev1.ACMEChallengeSolver{
+				DNS01: &acmev1.ACMEChallengeSolverDNS01{
+					AzureDNS: &acmev1.ACMEIssuerDNS01ProviderAzureDNS{
+						SubscriptionID:    subscriptionID,
+						ResourceGroupName: resourceGroupName,
+						HostedZoneName:    hostedZoneName,
+						TenantID:          string(tenantID),
+						ClientID:          string(clientID),
+						ClientSecret: &certmanagermetav1.SecretKeySelector{
+							LocalObjectReference: certmanagermetav1.LocalObjectReference{
+								Name: secretName,
+							},
+							Key: secretKey,
+						},
+					},
+				},
+			}
+			issuer := createACMEIssuer(issuerName, solver)
+			_, err := certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, issuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to create Issuer")
+
+			By("waiting for Issuer to become ready")
+			err = waitForIssuerReadiness(ctx, issuerName, ns.Name)
+			Expect(err).NotTo(HaveOccurred(), "timeout waiting for Issuer to become Ready")
+
+			// Create and verify certificate
+			certName := "letsencrypt-cert"
+			dnsName := fmt.Sprintf("adaze-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 AzureDNS Explicit"
+			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, issuerName, "Issuer")
 		})
 	})
 
