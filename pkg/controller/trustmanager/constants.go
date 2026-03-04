@@ -16,10 +16,6 @@ const (
 	// successful reconciliation by the controller.
 	controllerProcessedAnnotation = "operator.openshift.io/trust-manager-processed"
 
-	// controllerProcessingRejectedAnnotation is the annotation added to trustmanager resource when multiple
-	// instances of trustmanager resource is created.
-	controllerProcessingRejectedAnnotation = "operator.openshift.io/trust-manager-reject-multiple-instance"
-
 	// finalizer name for trustmanager.openshift.operator.io resource.
 	finalizer = "trustmanager.openshift.operator.io/" + ControllerName
 

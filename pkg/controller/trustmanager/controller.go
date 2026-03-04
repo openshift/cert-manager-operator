@@ -45,7 +45,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 
 // New returns a new Reconciler instance.
 func New(mgr ctrl.Manager) (*Reconciler, error) {
@@ -154,16 +154,6 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 		trustManagerCreateRecon = true
 	}
 
-	// TrustManager is a singleton - only "cluster" is valid
-	// This is enforced by CRD validation, but we double-check here
-	if err := r.disallowMultipleTrustManagerInstances(trustManager); err != nil {
-		if common.IsMultipleInstanceError(err) {
-			r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, "MultiTrustManagerInstance", "creation of multiple trustmanager instances is not supported, will not be processed")
-			err = nil
-		}
-		return ctrl.Result{}, err
-	}
-
 	var errUpdate error = nil
 	if err := r.reconcileTrustManagerDeployment(trustManager, trustManagerCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile TrustManager deployment", "request", req)
@@ -172,7 +162,7 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 			// Set Degraded=True, Ready=False
 			// Set both conditions atomically before updating status
 			degradedChanged := trustManager.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-			readyChanged := trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+			readyChanged := trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, "")
 
 			if degradedChanged || readyChanged {
 				r.log.V(2).Info("updating trustmanager conditions on irrecoverable error",

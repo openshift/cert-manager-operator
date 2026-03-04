@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -59,7 +58,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, trustManager *v1alpha1.Tr
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if !controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.AddFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to create %q trustmanager.openshift.operator.io object with finalizers added", namespacedName)
+			return fmt.Errorf("failed to add finalizer %q on trustmanager.openshift.operator.io %q", finalizer, namespacedName)
 		}
 
 		// update trustmanager.openshift.operator.io on adding finalizer.
@@ -82,7 +81,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.RemoveFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to create %q trustmanager.openshift.operator.io object with finalizers removed", namespacedName)
+			return fmt.Errorf("failed to remove finalizer %q from trustmanager.openshift.operator.io %q", finalizer, namespacedName)
 		}
 
 		if err := r.UpdateWithRetry(ctx, trustManager); err != nil {
@@ -98,16 +97,8 @@ func containsProcessedAnnotation(trustManager *v1alpha1.TrustManager) bool {
 	return common.ContainsAnnotation(trustManager, controllerProcessedAnnotation)
 }
 
-func containsProcessingRejectedAnnotation(trustManager *v1alpha1.TrustManager) bool {
-	return common.ContainsAnnotation(trustManager, controllerProcessingRejectedAnnotation)
-}
-
 func addProcessedAnnotation(trustManager *v1alpha1.TrustManager) bool {
 	return common.AddAnnotation(trustManager, controllerProcessedAnnotation, "true")
-}
-
-func addProcessingRejectedAnnotation(trustManager *v1alpha1.TrustManager) bool {
-	return common.AddAnnotation(trustManager, controllerProcessingRejectedAnnotation, "true")
 }
 
 func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
@@ -134,61 +125,6 @@ func (r *Reconciler) updateCondition(trustManager *v1alpha1.TrustManager, prepen
 		return errUpdate
 	}
 	return prependErr
-}
-
-func (r *Reconciler) disallowMultipleTrustManagerInstances(trustManager *v1alpha1.TrustManager) error {
-	statusMessage := fmt.Sprintf("multiple instances of trustmanager exists, %s will not be processed", trustManager.GetName())
-
-	if containsProcessingRejectedAnnotation(trustManager) {
-		r.log.V(4).Info("trustmanager resource contains processing rejected annotation", "name", trustManager.Name)
-		// ensure status is updated.
-		var updateErr error
-		if trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			updateErr = r.updateCondition(trustManager, nil)
-		}
-		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
-	}
-
-	trustManagerList := &v1alpha1.TrustManagerList{}
-	if err := r.List(r.ctx, trustManagerList); err != nil {
-		return fmt.Errorf("failed to fetch list of trustmanager resources: %w", err)
-	}
-
-	if len(trustManagerList.Items) <= 1 {
-		return nil
-	}
-
-	ignoreProcessing := false
-	for _, item := range trustManagerList.Items {
-		if item.GetName() == trustManager.Name {
-			continue
-		}
-		if item.CreationTimestamp.Time.Before(trustManager.CreationTimestamp.Time) ||
-			// Even when timestamps are equal will skip processing. And if this ends
-			// up in ignoring all trustmanager instances, which means user must have created
-			// all in parallel, onus is on user to delete all and recreate just one required
-			// instance of trustmanager.
-			item.CreationTimestamp.Time.Equal(trustManager.CreationTimestamp.Time) {
-			ignoreProcessing = true
-		}
-	}
-
-	if ignoreProcessing {
-		var condUpdateErr, annUpdateErr error
-		if trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			condUpdateErr = r.updateCondition(trustManager, nil)
-		}
-		if addProcessingRejectedAnnotation(trustManager) {
-			if err := r.UpdateWithRetry(r.ctx, trustManager); err != nil {
-				annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s: %w", trustManager.GetName(), err)
-			}
-		}
-		if condUpdateErr != nil || annUpdateErr != nil {
-			return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
-		}
-	}
-
-	return common.NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
 }
 
 // getTrustNamespace returns the trust namespace from the TrustManager config.
