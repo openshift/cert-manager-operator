@@ -2,15 +2,18 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
+
+var errConvertToClientObject = errors.New("failed to convert to client.Object")
 
 type ctrlClientImpl struct {
 	client.Client
@@ -96,7 +99,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		currentInterface := reflect.New(reflect.TypeOf(obj).Elem()).Interface()
 		current, ok := currentInterface.(client.Object)
 		if !ok {
-			return fmt.Errorf("failed to convert to client.Object")
+			return errConvertToClientObject
 		}
 		if err := c.Client.Get(ctx, key, current); err != nil {
 			return fmt.Errorf("failed to fetch latest %q for update: %w", key, err)
@@ -135,7 +138,7 @@ func (c *ctrlClientImpl) Patch(
 
 func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 	if err := c.Client.Get(ctx, key, obj); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err

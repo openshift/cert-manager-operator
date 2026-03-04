@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
+
+var errCertificateParamsNonCompliant = errors.New("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 
 func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getCertificateObject(istiocsr, resourceLabels)
@@ -68,6 +71,43 @@ func (r *Reconciler) getCertificateObject(istiocsr *v1alpha1.IstioCSR, resourceL
 	return certificate, nil
 }
 
+// buildRevisionDNSNames generates DNS SAN entries for every requested revision.
+// The default revision uses a simpler DNS name format, while named revisions
+// include the revision name in the DNS entry.
+func buildRevisionDNSNames(revisions []string, namespace string) []string {
+	dnsNames := make([]string, 0, len(revisions))
+	for _, revision := range revisions {
+		if revision == "" {
+			continue
+		}
+		if revision == "default" {
+			dnsNames = append(dnsNames, fmt.Sprintf(istiodCertificateDefaultDNSName, namespace))
+			continue
+		}
+		dnsNames = append(dnsNames, fmt.Sprintf(istiodCertificateRevisionBasedDNSName, revision, namespace))
+	}
+	return dnsNames
+}
+
+func resolvePrivateKeyConfig(algorithm certmanagerv1.PrivateKeyAlgorithm, size int) (certmanagerv1.PrivateKeyAlgorithm, int, error) {
+	if algorithm == "" {
+		algorithm = DefaultPrivateKeyAlgorithm
+	}
+	if size == 0 {
+		if algorithm == certmanagerv1.RSAKeyAlgorithm {
+			size = DefaultRSAPrivateKeySize
+		}
+		if algorithm == certmanagerv1.ECDSAKeyAlgorithm {
+			size = DefaultECDSA384PrivateKeySize
+		}
+	}
+	if (algorithm == certmanagerv1.RSAKeyAlgorithm && size < DefaultRSAPrivateKeySize) ||
+		(algorithm == certmanagerv1.ECDSAKeyAlgorithm && size != DefaultECDSA256PrivateKeySize && size != DefaultECDSA384PrivateKeySize) {
+		return "", 0, errCertificateParamsNonCompliant
+	}
+	return algorithm, size, nil
+}
+
 func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanagerv1.Certificate) error {
 	certificate.Spec.CommonName = istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CommonName
 	if istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CommonName == "" {
@@ -76,21 +116,7 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 
 	dnsNames := make([]string, 0, len(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames)+len(istiocsr.Spec.IstioCSRConfig.Istio.Revisions))
 	dnsNames = append(dnsNames, istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.CertificateDNSNames...)
-
-	// Also need to add a DNS SAN for every requested revision, except for default revision, which will not be
-	// included in the DNS name.
-	for _, revision := range istiocsr.Spec.IstioCSRConfig.Istio.Revisions {
-		if revision == "" {
-			continue
-		}
-		if revision == "default" {
-			name := fmt.Sprintf(istiodCertificateDefaultDNSName, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
-			dnsNames = append(dnsNames, name)
-			continue
-		}
-		name := fmt.Sprintf(istiodCertificateRevisionBasedDNSName, revision, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
-		dnsNames = append(dnsNames, name)
-	}
+	dnsNames = append(dnsNames, buildRevisionDNSNames(istiocsr.Spec.IstioCSRConfig.Istio.Revisions, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)...)
 	certificate.Spec.DNSNames = dnsNames
 
 	certificate.Spec.URIs = []string{
@@ -107,24 +133,15 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		certificate.Spec.RenewBefore = &metav1.Duration{Duration: DefaultCertificateRenewBeforeDuration}
 	}
 
-	certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm)
-	if certificate.Spec.PrivateKey.Algorithm == "" {
-		certificate.Spec.PrivateKey.Algorithm = DefaultPrivateKeyAlgorithm
+	algorithm, size, err := resolvePrivateKeyConfig(
+		certmanagerv1.PrivateKeyAlgorithm(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeyAlgorithm),
+		int(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize),
+	)
+	if err != nil {
+		return err
 	}
-
-	certificate.Spec.PrivateKey.Size = int(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig.PrivateKeySize)
-	if certificate.Spec.PrivateKey.Size == 0 {
-		if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm {
-			certificate.Spec.PrivateKey.Size = DefaultRSAPrivateKeySize
-		}
-		if certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm {
-			certificate.Spec.PrivateKey.Size = DefaultECDSA384PrivateKeySize
-		}
-	}
-	if (certificate.Spec.PrivateKey.Algorithm == certmanagerv1.RSAKeyAlgorithm && certificate.Spec.PrivateKey.Size < DefaultRSAPrivateKeySize) ||
-		(certificate.Spec.PrivateKey.Algorithm == certmanagerv1.ECDSAKeyAlgorithm && certificate.Spec.PrivateKey.Size != DefaultECDSA256PrivateKeySize && certificate.Spec.PrivateKey.Size != DefaultECDSA384PrivateKeySize) {
-		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
-	}
+	certificate.Spec.PrivateKey.Algorithm = algorithm
+	certificate.Spec.PrivateKey.Size = size
 
 	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{
 		Kind:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind,
