@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -154,62 +153,20 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 		trustManagerCreateRecon = true
 	}
 
-	var errUpdate error = nil
-	if err := r.reconcileTrustManagerDeployment(trustManager, trustManagerCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile TrustManager deployment", "request", req)
-		if common.IsIrrecoverableError(err) {
-			// Permanent failure - don't retry
-			// Set Degraded=True, Ready=False
-			// Set both conditions atomically before updating status
-			degradedChanged := trustManager.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-			readyChanged := trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, "")
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating trustmanager conditions on irrecoverable error",
-					"name", trustManager.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(trustManager, nil)
-			}
-			return ctrl.Result{}, errUpdate
-		} else {
-			// Temporary failure - retry after delay
-			// Set Degraded=False, Ready=False with "in progress" message
-			// Set both conditions atomically before updating status
-			degradedChanged := trustManager.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-			readyChanged := trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating trustmanager conditions on recoverable error",
-					"name", trustManager.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(trustManager, err)
-			}
-			// For recoverable errors, either requeue manually or return error, not both
-			// If status update failed, return the update error; otherwise return the original error
-			if errUpdate != nil {
-				return ctrl.Result{}, errUpdate
-			}
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
-		}
+	reconcileErr := r.reconcileTrustManagerDeployment(trustManager, trustManagerCreateRecon)
+	if reconcileErr != nil {
+		r.log.Error(reconcileErr, "failed to reconcile TrustManager deployment", "request", req)
 	}
 
-	// Success - update status
-	// Set both conditions atomically before updating status on success
-	degradedChanged := trustManager.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-	readyChanged := trustManager.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
-
-	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating trustmanager conditions on successful reconciliation",
-			"name", trustManager.GetName(),
-			"degradedChanged", degradedChanged,
-			"readyChanged", readyChanged)
-		errUpdate = r.updateCondition(trustManager, nil)
-	}
-	return ctrl.Result{}, errUpdate
+	return common.HandleReconcileResult(
+		&trustManager.Status.ConditionalStatus,
+		reconcileErr,
+		r.log.WithValues("name", trustManager.GetName()),
+		func(prependErr error) error {
+			return r.updateCondition(trustManager, prependErr)
+		},
+		defaultRequeueTime,
+	)
 }
 
 // cleanUp handles deletion of trustmanager.openshift.operator.io gracefully.

@@ -11,7 +11,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -214,60 +213,20 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		return ctrl.Result{}, err
 	}
 
-	var errUpdate error = nil
-	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
-		if common.IsIrrecoverableError(err) {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on irrecoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, nil)
-			}
-			return ctrl.Result{}, errUpdate
-		} else {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, err)
-			}
-			// For recoverable errors, either requeue manually or return error, not both
-			// If status update failed, return the update error; otherwise return the original error
-			if errUpdate != nil {
-				return ctrl.Result{}, errUpdate
-			}
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
-		}
+	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
+	if reconcileErr != nil {
+		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
 	}
 
-	// Set both conditions atomically before updating status on success
-	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
-
-	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating istiocsr conditions on successful reconciliation",
-			"namespace", istiocsr.GetNamespace(),
-			"name", istiocsr.GetName(),
-			"degradedChanged", degradedChanged,
-			"readyChanged", readyChanged)
-		errUpdate = r.updateCondition(istiocsr, nil)
-	}
-	return ctrl.Result{}, errUpdate
+	return common.HandleReconcileResult(
+		&istiocsr.Status.ConditionalStatus,
+		reconcileErr,
+		r.log.WithValues("namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName()),
+		func(prependErr error) error {
+			return r.updateCondition(istiocsr, prependErr)
+		},
+		defaultRequeueTime,
+	)
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
