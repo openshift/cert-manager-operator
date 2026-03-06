@@ -45,17 +45,17 @@ log_info() {
 
 log_success() {
     echo -e "${GREEN}[PASS]${NC} $*"
-    ((CHECKS_PASSED++))
+    ((++CHECKS_PASSED))
 }
 
 log_error() {
     echo -e "${RED}[FAIL]${NC} $*"
-    ((CHECKS_FAILED++))
+    ((++CHECKS_FAILED))
 }
 
 log_warning() {
     echo -e "${YELLOW}[WARN]${NC} $*"
-    ((CHECKS_WARNING++))
+    ((++CHECKS_WARNING))
 }
 
 # Initialize report
@@ -123,7 +123,7 @@ Node OS Versions
     local total_nodes=0
 
     while IFS= read -r node; do
-        ((total_nodes++))
+        ((++total_nodes))
         local name os_image kernel
         name=$(echo "$node" | jq -r '.name')
         os_image=$(echo "$node" | jq -r '.os')
@@ -135,7 +135,7 @@ Node OS Versions
 
         # Check if RHCOS 10 or RHEL 10
         if echo "$os_image" | grep -qE "(RHCOS|CoreOS|Red Hat Enterprise Linux CoreOS) (10|410)"; then
-            ((rhcos10_nodes++))
+            ((++rhcos10_nodes))
             log_success "Node $name is running RHCOS 10"
         else
             log_warning "Node $name may not be running RHCOS 10: $os_image"
@@ -273,7 +273,7 @@ check_certmanager_pods() {
         add_to_report "Pod: $pod_name - Status: $status"
 
         if [ "$status" = "Running" ]; then
-            ((running_pods++))
+            ((++running_pods))
             log_success "Pod $pod_name is running"
         else
             log_error "Pod $pod_name is not running: $status"

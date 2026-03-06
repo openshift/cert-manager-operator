@@ -323,7 +323,7 @@ run_crypto_verification() {
     fi
 
     # Run crypto verification script
-    if bash "${SCRIPT_DIR}/verify-rhcos10-crypto.sh"; then
+    if OUTPUT_DIR="$OUTPUT_DIR" bash "${SCRIPT_DIR}/verify-rhcos10-crypto.sh"; then
         log_success "Crypto verification passed"
         CRYPTO_PASSED=true
         return 0

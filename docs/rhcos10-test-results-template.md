@@ -68,7 +68,7 @@
 - **All pods running:** [ ] Yes / [ ] No
 
 #### Issues Found
-```
+```text
 [Describe any deployment issues here, or write "None"]
 ```
 
@@ -101,7 +101,7 @@ make test-e2e
 | [Test 2] | [Reason] | [BUG-XXX] |
 
 #### Test Execution Notes
-```
+```text
 [Add any relevant notes about test execution, e.g., flaky tests, environmental issues, etc.]
 ```
 
@@ -152,7 +152,7 @@ If FIPS enabled:
 [ ] No crypto-related errors found
 [ ] Crypto errors found (details below)
 
-```
+```text
 [Paste any crypto-related errors from logs, or write "None"]
 ```
 
@@ -178,7 +178,7 @@ If FIPS enabled:
 - **Cloud credentials:** [ ] Working / [ ] Issues
 
 **Notes:**
-```
+```text
 [Add notes about cloud provider integration testing]
 ```
 
@@ -187,7 +187,7 @@ If FIPS enabled:
 - **Vault Issuer:** [ ] Pass / [ ] Fail / [ ] N/A
 
 **Notes:**
-```
+```text
 [Add notes about Vault integration testing]
 ```
 
@@ -204,7 +204,7 @@ If FIPS enabled:
 
 ### Known Issues / Workarounds
 
-```
+```text
 [Document any known issues and workarounds here, or write "None"]
 
 Example:
@@ -227,7 +227,7 @@ Example:
 | cert-manager-cainjector | [e.g., 10m] | [e.g., 50Mi] | Normal / High |
 
 **Resource usage compared to RHCOS 9:**
-```
+```text
 [Compare if you have baseline from RHCOS 9, or write "N/A - no baseline available"]
 ```
 
@@ -237,7 +237,7 @@ Example:
 
 ### RHCOS 10 Specific Observations
 
-```
+```text
 [Document any RHCOS 10 specific behavior, issues, or improvements observed]
 
 Examples:
@@ -249,13 +249,13 @@ Examples:
 
 ### Differences from RHCOS 9 (if known)
 
-```
+```text
 [Document any differences observed compared to RHCOS 9, or write "N/A"]
 ```
 
 ### Recommendations
 
-```
+```text
 [Add any recommendations for users, documentation updates, or future improvements]
 ```
 
@@ -284,7 +284,7 @@ Examples:
 
 ### Summary
 
-```
+```text
 [Provide a 2-3 sentence summary of the test results]
 
 Example:

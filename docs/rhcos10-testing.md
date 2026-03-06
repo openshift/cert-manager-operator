@@ -379,7 +379,7 @@ E2E_GINKGO_LABEL_FILTER='Platform: isSubsetOf {Azure} && Issuer: isSubsetOf {ACM
 #### Issue: Pods fail to start with crypto errors
 
 **Symptoms:**
-```
+```text
 Error: failed to load private key: crypto/rsa: unsupported key size
 ```
 
@@ -403,7 +403,7 @@ oc logs $POD -n cert-manager
 #### Issue: TLS handshake failures
 
 **Symptoms:**
-```
+```text
 Error: tls: failed to verify certificate: x509: certificate signed by unknown authority
 ```
 
