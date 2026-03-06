@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -13,10 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/google/uuid"
 	gcpcrm "google.golang.org/api/cloudresourcemanager/v1"
 	gcpiam "google.golang.org/api/iam/v1"
 
@@ -1383,6 +1390,202 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			certName := "letsencrypt-cert"
 			dnsName := fmt.Sprintf("adazc-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 AzureDNS CCO"
 			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, issuerName, "Issuer")
+		})
+	})
+
+	Context("with Azure DNS in Workload Identity environment", Label("Platform:Azure", "CredentialsMode:Manual"), Label("TechPreview"), func() {
+		var identityClientID string
+		var subscriptionID, dnsResourceGroupName, hostedZoneName string
+
+		BeforeAll(func() {
+			By("verifying cluster is STS-enabled")
+			isSTS, err := isSTSCluster(ctx, oseOperatorClient, configClient)
+			Expect(err).NotTo(HaveOccurred())
+			if !isSTS {
+				Skip("Test requires Azure Workload Identity enabled")
+			}
+
+			By("setting up Azure authentication environment variable from credentials file")
+			if os.Getenv("OPENSHIFT_CI") == "true" {
+				clusterProfileDir := os.Getenv("CLUSTER_PROFILE_DIR")
+				Expect(clusterProfileDir).NotTo(BeEmpty(), "CLUSTER_PROFILE_DIR should exist when running in OpenShift CI")
+				os.Setenv("AZURE_AUTH_LOCATION", filepath.Join(clusterProfileDir, "osServicePrincipal.json"))
+			} else {
+				Expect(os.Getenv("AZURE_AUTH_LOCATION")).NotTo(BeEmpty(), "AZURE_AUTH_LOCATION must be set when running locally")
+			}
+			azureAuthLocation := os.Getenv("AZURE_AUTH_LOCATION")
+			data, err := os.ReadFile(azureAuthLocation)
+			Expect(err).NotTo(HaveOccurred(), "failed to read Azure credentials file")
+			var sp struct {
+				ClientID     string `json:"clientId"`
+				ClientSecret string `json:"clientSecret"`
+				TenantID     string `json:"tenantId"`
+			}
+			Expect(json.Unmarshal(data, &sp)).To(Succeed(), "failed to parse Azure credentials file")
+			os.Setenv("AZURE_CLIENT_ID", sp.ClientID)
+			os.Setenv("AZURE_CLIENT_SECRET", sp.ClientSecret)
+			os.Setenv("AZURE_TENANT_ID", sp.TenantID)
+
+			By("creating Azure SDK credential")
+			cred, err := azidentity.NewDefaultAzureCredential(nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Azure SDK credential")
+
+			// Get DNS zone info (subscriptionID comes from the cluster DNS config)
+			subscriptionID, dnsResourceGroupName, hostedZoneName = getAzureDNSZoneInfo(ctx)
+
+			By("getting cluster resource group from Infrastructure object")
+			infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to get Infrastructure object")
+			clusterResourceGroup := infra.Status.PlatformStatus.Azure.ResourceGroupName
+			Expect(clusterResourceGroup).NotTo(BeEmpty(), "Azure resource group should not be empty")
+
+			By("getting cluster resource group location")
+			rgClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource groups client")
+			rg, err := rgClient.Get(ctx, clusterResourceGroup, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get resource group")
+			location := *rg.Location
+
+			By("getting OIDC issuer from Authentication object")
+			authConfig, err := configClient.Authentications().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to get Authentication object")
+			oidcIssuer := authConfig.Spec.ServiceAccountIssuer
+			Expect(oidcIssuer).NotTo(BeEmpty(), "OIDC issuer not found in Authentication object")
+
+			By("creating Azure Managed Identity")
+			randomSuffix := randomStr(4)
+			identityName := "e2e-cert-manager-dns01-" + randomSuffix
+			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create MSI client")
+
+			identity, err := msiClient.CreateOrUpdate(ctx, clusterResourceGroup, identityName, armmsi.Identity{
+				Location: &location,
+			}, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Managed Identity")
+			identityClientID = *identity.Properties.ClientID
+			identityPrincipalID := *identity.Properties.PrincipalID
+
+			DeferCleanup(func(ctx context.Context) {
+				By("Cleaning up Azure Managed Identity")
+				_, err := msiClient.Delete(ctx, clusterResourceGroup, identityName, nil)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "failed to delete Managed Identity during cleanup: %v\n", err)
+				}
+			})
+
+			By("granting DNS Zone Contributor role to Managed Identity on the DNS zone")
+			dnsZoneScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnszones/%s",
+				subscriptionID, dnsResourceGroupName, hostedZoneName)
+
+			roleDefClient, err := armauthorization.NewRoleDefinitionsClient(cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create role definitions client")
+			roleName := "DNS Zone Contributor"
+			filter := fmt.Sprintf("roleName eq '%s'", roleName)
+			pager := roleDefClient.NewListPager(dnsZoneScope, &armauthorization.RoleDefinitionsClientListOptions{Filter: &filter})
+			Expect(pager.More()).To(BeTrue(), "no role definitions found for %q", roleName)
+			page, err := pager.NextPage(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to list role definitions")
+			Expect(page.Value).NotTo(BeEmpty(), "role definition %q not found", roleName)
+			dnsZoneContributorRoleID := *page.Value[0].ID
+
+			authClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create authorization client")
+			roleAssignmentName := uuid.New().String()
+
+			err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+				_, assignErr := authClient.Create(ctx, dnsZoneScope, roleAssignmentName, armauthorization.RoleAssignmentCreateParameters{
+					Properties: &armauthorization.RoleAssignmentProperties{
+						RoleDefinitionID: &dnsZoneContributorRoleID,
+						PrincipalID:      &identityPrincipalID,
+						PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+					},
+				}, nil)
+				if assignErr != nil {
+					fmt.Fprintf(GinkgoWriter, "role assignment attempt failed (retrying): %v\n", assignErr)
+					return false, nil
+				}
+				return true, nil
+			})
+			Expect(err).NotTo(HaveOccurred(), "failed to create role assignment")
+
+			DeferCleanup(func(ctx context.Context) {
+				By("Cleaning up role assignment")
+				_, err := authClient.Delete(ctx, dnsZoneScope, roleAssignmentName, nil)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "failed to delete role assignment during cleanup: %v\n", err)
+				}
+			})
+
+			By("creating Federated Identity Credential for cert-manager ServiceAccount")
+			ficClient, err := armmsi.NewFederatedIdentityCredentialsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Federated Identity Credentials client")
+
+			_, err = ficClient.CreateOrUpdate(ctx, clusterResourceGroup, identityName, "cert-manager", armmsi.FederatedIdentityCredential{
+				Properties: &armmsi.FederatedIdentityCredentialProperties{
+					Issuer:    &oidcIssuer,
+					Subject:   to.Ptr("system:serviceaccount:cert-manager:cert-manager"),
+					Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
+				},
+			}, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create Federated Identity Credential")
+
+			DeferCleanup(func(ctx context.Context) {
+				By("Cleaning up Federated Identity Credential")
+				_, err := ficClient.Delete(ctx, clusterResourceGroup, identityName, "cert-manager", nil)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "failed to delete Federated Identity Credential during cleanup: %v\n", err)
+				}
+			})
+		})
+
+		It("should obtain a valid certificate using ambient credentials through AAD Workload Identity", func() {
+
+			By("adding 'azure.workload.identity/use' label to cert-manager controller pods")
+			err := addOverrideLabels(certmanageroperatorclient, certmanagerControllerDeployment, map[string]string{
+				"azure.workload.identity/use": "true",
+			})
+			Expect(err).NotTo(HaveOccurred(), "failed to add workload identity label to cert-manager controller")
+
+			DeferCleanup(func(ctx context.Context) {
+				By("Removing workload identity label from cert-manager controller pods")
+				if err := addOverrideLabels(certmanageroperatorclient, certmanagerControllerDeployment, nil); err != nil {
+					fmt.Fprintf(GinkgoWriter, "failed to remove workload identity label during cleanup: %v\n", err)
+				}
+			})
+
+			By("waiting for cert-manager deployment to rollout with workload identity label")
+			err = waitForDeploymentPodLabelAndRollout(ctx, "cert-manager", "cert-manager", "azure.workload.identity/use", "true", 2*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "timeout waiting for cert-manager deployment rollout with workload identity label")
+
+			By("creating ACME ClusterIssuer with AzureDNS DNS-01 solver using managed identity")
+			clusterIssuerName := "letsencrypt-dns01-azuredns-wi"
+			solver := acmev1.ACMEChallengeSolver{
+				DNS01: &acmev1.ACMEChallengeSolverDNS01{
+					AzureDNS: &acmev1.ACMEIssuerDNS01ProviderAzureDNS{
+						SubscriptionID:    subscriptionID,
+						ResourceGroupName: dnsResourceGroupName,
+						HostedZoneName:    hostedZoneName,
+						ManagedIdentity: &acmev1.AzureManagedIdentity{
+							ClientID: identityClientID,
+						},
+					},
+				},
+			}
+			clusterIssuer := createACMEClusterIssuer(clusterIssuerName, solver)
+			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
+			DeferCleanup(func(ctx context.Context) {
+				certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
+			})
+
+			By("waiting for ClusterIssuer to become ready")
+			err = waitForClusterIssuerReadiness(ctx, clusterIssuerName)
+			Expect(err).NotTo(HaveOccurred(), "timeout waiting for ClusterIssuer to become Ready")
+
+			// Create and verify certificate
+			certName := "letsencrypt-cert-azuredns-wi"
+			dnsName := fmt.Sprintf("adazwi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME DNS01 AzureDNS Workload Identity"
+			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, clusterIssuerName, "ClusterIssuer")
 		})
 	})
 

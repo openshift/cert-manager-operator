@@ -367,6 +367,48 @@ func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string,
 	})
 }
 
+// addOverrideLabels adds the override labels to specific the cert-manager operand. The update process
+// is retried if a conflict error is encountered.
+func addOverrideLabels(client *certmanoperatorclient.Clientset, deploymentName string, labels map[string]string) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updatedOperator := operator.DeepCopy()
+
+		switch deploymentName {
+		case certmanagerControllerDeployment:
+			cfg := updatedOperator.Spec.ControllerConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideLabels = labels
+			updatedOperator.Spec.ControllerConfig = cfg
+		case certmanagerWebhookDeployment:
+			cfg := updatedOperator.Spec.WebhookConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideLabels = labels
+			updatedOperator.Spec.WebhookConfig = cfg
+		case certmanagerCAinjectorDeployment:
+			cfg := updatedOperator.Spec.CAInjectorConfig
+			if cfg == nil {
+				cfg = &v1alpha1.DeploymentConfig{}
+			}
+			cfg.OverrideLabels = labels
+			updatedOperator.Spec.CAInjectorConfig = cfg
+		default:
+			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
+		}
+
+		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		return err
+	})
+}
+
 // addOverrideResources adds the override resources to the specific cert-manager operand. The update process
 // is retried if a conflict error is encountered.
 func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
@@ -790,6 +832,20 @@ func waitForDeploymentArgAndRollout(ctx context.Context, namespace, deploymentNa
 			}
 		}
 		return false
+	}, timeout)
+}
+
+// waitForDeploymentPodLabelAndRollout waits for a deployment's pod template to have
+// a specific label and for the rollout to complete. This is useful when waiting for
+// operator-driven label changes to propagate to operand deployments,
+// as it ensures the expected change has been applied before checking rollout status.
+func waitForDeploymentPodLabelAndRollout(ctx context.Context, namespace, deploymentName, labelKey, labelValue string, timeout time.Duration) error {
+	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, func(deployment *appsv1.Deployment) bool {
+		labels := deployment.Spec.Template.GetLabels()
+		if labels == nil {
+			return false
+		}
+		return labels[labelKey] == labelValue
 	}, timeout)
 }
 
