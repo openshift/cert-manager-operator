@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -36,11 +36,11 @@ type FakeCtrlClient struct {
 	deleteReturnsOnCall map[int]struct {
 		result1 error
 	}
-	ExistsStub        func(context.Context, types.NamespacedName, client.Object) (bool, error)
+	ExistsStub        func(context.Context, client.ObjectKey, client.Object) (bool, error)
 	existsMutex       sync.RWMutex
 	existsArgsForCall []struct {
 		arg1 context.Context
-		arg2 types.NamespacedName
+		arg2 client.ObjectKey
 		arg3 client.Object
 	}
 	existsReturns struct {
@@ -51,11 +51,11 @@ type FakeCtrlClient struct {
 		result1 bool
 		result2 error
 	}
-	GetStub        func(context.Context, types.NamespacedName, client.Object) error
+	GetStub        func(context.Context, client.ObjectKey, client.Object) error
 	getMutex       sync.RWMutex
 	getArgsForCall []struct {
 		arg1 context.Context
-		arg2 types.NamespacedName
+		arg2 client.ObjectKey
 		arg3 client.Object
 	}
 	getReturns struct {
@@ -260,12 +260,12 @@ func (fake *FakeCtrlClient) DeleteReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeCtrlClient) Exists(arg1 context.Context, arg2 types.NamespacedName, arg3 client.Object) (bool, error) {
+func (fake *FakeCtrlClient) Exists(arg1 context.Context, arg2 client.ObjectKey, arg3 client.Object) (bool, error) {
 	fake.existsMutex.Lock()
 	ret, specificReturn := fake.existsReturnsOnCall[len(fake.existsArgsForCall)]
 	fake.existsArgsForCall = append(fake.existsArgsForCall, struct {
 		arg1 context.Context
-		arg2 types.NamespacedName
+		arg2 client.ObjectKey
 		arg3 client.Object
 	}{arg1, arg2, arg3})
 	stub := fake.ExistsStub
@@ -287,13 +287,13 @@ func (fake *FakeCtrlClient) ExistsCallCount() int {
 	return len(fake.existsArgsForCall)
 }
 
-func (fake *FakeCtrlClient) ExistsCalls(stub func(context.Context, types.NamespacedName, client.Object) (bool, error)) {
+func (fake *FakeCtrlClient) ExistsCalls(stub func(context.Context, client.ObjectKey, client.Object) (bool, error)) {
 	fake.existsMutex.Lock()
 	defer fake.existsMutex.Unlock()
 	fake.ExistsStub = stub
 }
 
-func (fake *FakeCtrlClient) ExistsArgsForCall(i int) (context.Context, types.NamespacedName, client.Object) {
+func (fake *FakeCtrlClient) ExistsArgsForCall(i int) (context.Context, client.ObjectKey, client.Object) {
 	fake.existsMutex.RLock()
 	defer fake.existsMutex.RUnlock()
 	argsForCall := fake.existsArgsForCall[i]
@@ -326,12 +326,12 @@ func (fake *FakeCtrlClient) ExistsReturnsOnCall(i int, result1 bool, result2 err
 	}{result1, result2}
 }
 
-func (fake *FakeCtrlClient) Get(arg1 context.Context, arg2 types.NamespacedName, arg3 client.Object) error {
+func (fake *FakeCtrlClient) Get(arg1 context.Context, arg2 client.ObjectKey, arg3 client.Object) error {
 	fake.getMutex.Lock()
 	ret, specificReturn := fake.getReturnsOnCall[len(fake.getArgsForCall)]
 	fake.getArgsForCall = append(fake.getArgsForCall, struct {
 		arg1 context.Context
-		arg2 types.NamespacedName
+		arg2 client.ObjectKey
 		arg3 client.Object
 	}{arg1, arg2, arg3})
 	stub := fake.GetStub
@@ -353,13 +353,13 @@ func (fake *FakeCtrlClient) GetCallCount() int {
 	return len(fake.getArgsForCall)
 }
 
-func (fake *FakeCtrlClient) GetCalls(stub func(context.Context, types.NamespacedName, client.Object) error) {
+func (fake *FakeCtrlClient) GetCalls(stub func(context.Context, client.ObjectKey, client.Object) error) {
 	fake.getMutex.Lock()
 	defer fake.getMutex.Unlock()
 	fake.GetStub = stub
 }
 
-func (fake *FakeCtrlClient) GetArgsForCall(i int) (context.Context, types.NamespacedName, client.Object) {
+func (fake *FakeCtrlClient) GetArgsForCall(i int) (context.Context, client.ObjectKey, client.Object) {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	argsForCall := fake.getArgsForCall[i]
@@ -708,24 +708,6 @@ func (fake *FakeCtrlClient) UpdateWithRetryReturnsOnCall(i int, result1 error) {
 func (fake *FakeCtrlClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	fake.deleteMutex.RLock()
-	defer fake.deleteMutex.RUnlock()
-	fake.existsMutex.RLock()
-	defer fake.existsMutex.RUnlock()
-	fake.getMutex.RLock()
-	defer fake.getMutex.RUnlock()
-	fake.listMutex.RLock()
-	defer fake.listMutex.RUnlock()
-	fake.patchMutex.RLock()
-	defer fake.patchMutex.RUnlock()
-	fake.statusUpdateMutex.RLock()
-	defer fake.statusUpdateMutex.RUnlock()
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
-	fake.updateWithRetryMutex.RLock()
-	defer fake.updateWithRetryMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
@@ -744,3 +726,5 @@ func (fake *FakeCtrlClient) recordInvocation(key string, args []interface{}) {
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
+
+var _ common.CtrlClient = new(FakeCtrlClient)

@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 const (
@@ -71,7 +71,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.ctrlClient = mock
+			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
 			err := r.createOrApplyServiceAccounts(istiocsr, controllerDefaultResourceLabels, false)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {

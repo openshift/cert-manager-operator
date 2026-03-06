@@ -20,7 +20,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 func TestCreateOrApplyDeployments(t *testing.T) {
@@ -385,7 +385,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "invalid"
 			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be any of `clusterissuer` or `issuer`, configured: issuer: invalid issuerRef config",
+			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be any of `clusterissuer` or `issuer`, configured: invalid: invalid issuerRef config",
 		},
 		{
 			name: "deployment reconciliation fails as invalid group in issuerRef",
@@ -1071,7 +1071,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.ctrlClient = mock
+			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)

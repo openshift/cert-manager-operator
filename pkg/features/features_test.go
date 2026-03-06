@@ -2,6 +2,7 @@ package features
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,7 +24,9 @@ var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 
 	// features DISABLED by default,
 	// list of features which are expected to be disabled at runtime.
-	false: {},
+	false: {
+		featuregate.Feature("TrustManager"),
+	},
 }
 
 func TestFeatureGates(t *testing.T) {
@@ -32,6 +35,7 @@ func TestFeatureGates(t *testing.T) {
 		for _, featureNames := range expectedDefaultFeatureState {
 			testFeatureNames = append(testFeatureNames, featureNames...)
 		}
+		slices.Sort(testFeatureNames)
 
 		knownOperatorFeatures := make([]featuregate.Feature, 0)
 		feats := mutableFeatureGate.GetAll()
@@ -42,6 +46,7 @@ func TestFeatureGates(t *testing.T) {
 			}
 			knownOperatorFeatures = append(knownOperatorFeatures, feat)
 		}
+		slices.Sort(knownOperatorFeatures)
 
 		assert.Equal(t, knownOperatorFeatures, testFeatureNames,
 			`the list of features known to the operator differ from what is being tested here,

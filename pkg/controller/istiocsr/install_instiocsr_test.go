@@ -16,7 +16,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
-	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 func TestReconcileIstioCSRDeployment(t *testing.T) {
@@ -120,7 +120,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.ctrlClient = mock
+			r.CtrlClient = mock
 			err := r.reconcileIstioCSRDeployment(istiocsr, true)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("reconcileIstioCSRDeployment() err: %v, wantErr: %v", err, tt.wantErr)

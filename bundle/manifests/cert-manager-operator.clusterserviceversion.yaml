@@ -629,6 +629,7 @@ spec:
           resources:
           - certmanagers/finalizers
           - istiocsrs/finalizers
+          - trustmanagers/finalizers
           verbs:
           - update
         - apiGroups:
@@ -636,6 +637,7 @@ spec:
           resources:
           - certmanagers/status
           - istiocsrs/status
+          - trustmanagers/status
           verbs:
           - get
           - patch
@@ -644,6 +646,7 @@ spec:
           - operator.openshift.io
           resources:
           - istiocsrs
+          - trustmanagers
           verbs:
           - get
           - list
