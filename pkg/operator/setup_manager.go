@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -191,7 +192,7 @@ func addControllerCacheConfig(objectList map[client.Object]cache.ByObject, label
 	for _, res := range resources {
 		resType := fmt.Sprintf("%T", res)
 
-		if existing, exists := objectList[res]; exists {
+		if existingKey, existing, found := findExistingCacheEntry(objectList, res); found {
 			// Resource already configured by another controller
 			// Merge label values using 'In' operator: app in (value1, value2)
 			existingReqs, _ := existing.Label.Requirements()
@@ -209,7 +210,7 @@ func addControllerCacheConfig(objectList map[client.Object]cache.ByObject, label
 			if err != nil {
 				return fmt.Errorf("failed to create merged label requirement for key %q with values %v: %w", labelKey, mergedValues, err)
 			}
-			objectList[res] = cache.ByObject{Label: labels.NewSelector().Add(*mergedReq)}
+			objectList[existingKey] = cache.ByObject{Label: labels.NewSelector().Add(*mergedReq)}
 			setupLog.V(4).Info("merged label selector for shared resource", "type", resType, "values", mergedValues)
 		} else {
 			// First controller to configure this resource
@@ -221,6 +222,19 @@ func addControllerCacheConfig(objectList map[client.Object]cache.ByObject, label
 		}
 	}
 	return nil
+}
+
+// findExistingCacheEntry looks up an entry in the cache object map by Go type
+// rather than pointer identity, since map[client.Object] uses interface comparison
+// which compares pointers, not types.
+func findExistingCacheEntry(objectList map[client.Object]cache.ByObject, target client.Object) (client.Object, cache.ByObject, bool) {
+	targetType := reflect.TypeOf(target)
+	for key, val := range objectList {
+		if reflect.TypeOf(key) == targetType {
+			return key, val, true
+		}
+	}
+	return nil, cache.ByObject{}, false
 }
 
 // Start starts the unified controller manager synchronously until ctx is cancelled.
