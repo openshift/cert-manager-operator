@@ -147,6 +147,19 @@ func getResourceLabels(trustManager *v1alpha1.TrustManager) map[string]string {
 	return resourceLabels
 }
 
+// managedLabelsModified checks whether all labels present in desired exist
+// with matching values in existing. Extra labels on existing (added by users
+// or other controllers) are allowed and do not count as modified.
+func managedLabelsModified(desired, existing client.Object) bool {
+	existingLabels := existing.GetLabels()
+	for k, v := range desired.GetLabels() {
+		if existingLabels[k] != v {
+			return true
+		}
+	}
+	return false
+}
+
 // namespaceExists checks if a namespace exists in the cluster.
 func (r *Reconciler) namespaceExists(namespace string) (bool, error) {
 	ns := &corev1.Namespace{}

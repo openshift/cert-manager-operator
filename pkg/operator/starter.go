@@ -154,7 +154,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		}
 
 		go func() {
-			if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
+			if err := manager.Start(ctx); err != nil {
 				ctrl.Log.Error(err, "failed to start unified controller manager")
 			}
 		}()
