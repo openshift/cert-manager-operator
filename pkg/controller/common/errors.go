@@ -1,4 +1,4 @@
-package istiocsr
+package common
 
 import (
 	"errors"
@@ -7,16 +7,21 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
+// ErrorReason represents the reason for a reconciliation error.
 type ErrorReason string
 
 const (
+	// IrrecoverableError indicates an error that cannot be recovered by retrying.
 	IrrecoverableError ErrorReason = "IrrecoverableError"
 
+	// RetryRequiredError indicates an error that may be recovered by retrying.
 	RetryRequiredError ErrorReason = "RetryRequiredError"
 
+	// MultipleInstanceError indicates that multiple singleton instances exist.
 	MultipleInstanceError ErrorReason = "MultipleInstanceError"
 )
 
+// ReconcileError represents an error that occurred during reconciliation.
 type ReconcileError struct {
 	Reason  ErrorReason `json:"reason,omitempty"`
 	Message string      `json:"message,omitempty"`
@@ -25,6 +30,7 @@ type ReconcileError struct {
 
 var _ error = &ReconcileError{}
 
+// NewIrrecoverableError creates a new irrecoverable error.
 func NewIrrecoverableError(err error, message string, args ...any) *ReconcileError {
 	if err == nil {
 		return nil
@@ -36,6 +42,7 @@ func NewIrrecoverableError(err error, message string, args ...any) *ReconcileErr
 	}
 }
 
+// NewMultipleInstanceError creates a new multiple instance error.
 func NewMultipleInstanceError(err error) *ReconcileError {
 	if err == nil {
 		return nil
@@ -47,6 +54,7 @@ func NewMultipleInstanceError(err error) *ReconcileError {
 	}
 }
 
+// NewRetryRequiredError creates a new error that requires retry.
 func NewRetryRequiredError(err error, message string, args ...any) *ReconcileError {
 	if err == nil {
 		return nil
@@ -58,6 +66,7 @@ func NewRetryRequiredError(err error, message string, args ...any) *ReconcileErr
 	}
 }
 
+// FromClientError creates a ReconcileError from a Kubernetes client error.
 func FromClientError(err error, message string, args ...any) *ReconcileError {
 	if err == nil {
 		return nil
@@ -70,6 +79,7 @@ func FromClientError(err error, message string, args ...any) *ReconcileError {
 	return NewRetryRequiredError(err, message, args...)
 }
 
+// FromError creates a ReconcileError from a generic error.
 func FromError(err error, message string, args ...any) *ReconcileError {
 	if err == nil {
 		return nil
@@ -80,6 +90,7 @@ func FromError(err error, message string, args ...any) *ReconcileError {
 	return NewRetryRequiredError(err, message, args...)
 }
 
+// IsIrrecoverableError checks if the error is an irrecoverable error.
 func IsIrrecoverableError(err error) bool {
 	rerr := &ReconcileError{}
 	if errors.As(err, &rerr) {
@@ -88,6 +99,7 @@ func IsIrrecoverableError(err error) bool {
 	return false
 }
 
+// IsRetryRequiredError checks if the error requires retry.
 func IsRetryRequiredError(err error) bool {
 	rerr := &ReconcileError{}
 	if errors.As(err, &rerr) {
@@ -96,6 +108,7 @@ func IsRetryRequiredError(err error) bool {
 	return false
 }
 
+// IsMultipleInstanceError checks if the error is a multiple instance error.
 func IsMultipleInstanceError(err error) bool {
 	rerr := &ReconcileError{}
 	if errors.As(err, &rerr) {
@@ -104,7 +117,7 @@ func IsMultipleInstanceError(err error) bool {
 	return false
 }
 
-// ReconcileError implements the ReconcileError interface.
+// Error implements the error interface.
 func (e *ReconcileError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Message, e.Err)
 }

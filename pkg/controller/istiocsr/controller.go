@@ -11,17 +11,12 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -32,21 +27,17 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-var (
-	// requestEnqueueLabelKey is the label key name used for filtering reconcile
-	// events to include only the resources created by the controller.
-	requestEnqueueLabelKey = "app"
-
-	// requestEnqueueLabelValue is the label value used for filtering reconcile
-	// events to include only the resources created by the controller.
-	requestEnqueueLabelValue = "cert-manager-istio-csr"
-)
+// RequestEnqueueLabelValue is the label value used for filtering reconcile
+// events to include only the resources created by the IstioCSR controller.
+// The label key is common.ManagedResourceLabelKey.
+const RequestEnqueueLabelValue = "cert-manager-istio-csr"
 
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
-	ctrlClient
+	common.CtrlClient
 
 	ctx           context.Context
 	eventRecorder record.EventRecorder
@@ -59,61 +50,14 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
-// NewCacheBuilder returns a cache builder function configured with label selectors
-// for managed resources. This function is used by the manager to create its cache
-// to ensure the reconciler reads from the same cache that the controller's watches use.
-func NewCacheBuilder(config *rest.Config, opts cache.Options) (cache.Cache, error) {
-	managedResourceLabelReq, err := labels.NewRequirement(requestEnqueueLabelKey, selection.Equals, []string{requestEnqueueLabelValue})
-	if err != nil {
-		return nil, fmt.Errorf("invalid cache label requirement for %q: %w", requestEnqueueLabelKey, err)
-	}
-	managedResourceLabelReqSelector := labels.NewSelector().Add(*managedResourceLabelReq)
-
-	// Configure cache with label selectors for managed resources
-	opts.ByObject = map[client.Object]cache.ByObject{
-		// Explicitly include IstioCSR to ensure the cache properly watches and syncs all IstioCSR objects
-		&v1alpha1.IstioCSR{}: {},
-		// Resources managed by controller (with label selectors)
-		&certmanagerv1.Certificate{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&appsv1.Deployment{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.ClusterRole{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.ClusterRoleBinding{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.Role{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&rbacv1.RoleBinding{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&corev1.Service{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&corev1.ServiceAccount{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-		&networkingv1.NetworkPolicy{}: {
-			Label: managedResourceLabelReqSelector,
-		},
-	}
-
-	return cache.New(config, opts)
-}
-
 // New returns a new Reconciler instance.
 func New(mgr ctrl.Manager) (*Reconciler, error) {
-	c, err := NewClient(mgr)
+	c, err := common.NewClient(mgr)
 	if err != nil {
 		return nil, err
 	}
 	return &Reconciler{
-		ctrlClient:    c,
+		CtrlClient:    c,
 		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
@@ -137,7 +81,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 
 			labelOk := func() bool {
-				if objLabels[requestEnqueueLabelKey] == requestEnqueueLabelValue {
+				if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
 					return true
 				}
 				value := objLabels[IstiocsrResourceWatchLabelName]
@@ -171,7 +115,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// predicate function to ignore events for objects not managed by controller.
 	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue
+		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
 	})
 
 	// predicate function to filter events for objects which controller is interested in, but
@@ -185,7 +129,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return false
 		}
 		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[requestEnqueueLabelKey] == requestEnqueueLabelValue ||
+		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
 			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
@@ -262,67 +206,27 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 	}
 
 	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
-		if IsMultipleInstanceError(err) {
+		if common.IsMultipleInstanceError(err) {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
 			err = nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	var errUpdate error = nil
-	if err := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon); err != nil {
-		r.log.Error(err, "failed to reconcile IstioCSR deployment", "request", req)
-		if IsIrrecoverableError(err) {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", err))
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on irrecoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, nil)
-			}
-			return ctrl.Result{}, errUpdate
-		} else {
-			// Set both conditions atomically before updating status
-			degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-			readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress, fmt.Sprintf("reconciliation failed, retrying: %v", err))
-
-			if degradedChanged || readyChanged {
-				r.log.V(2).Info("updating istiocsr conditions on recoverable error",
-					"namespace", istiocsr.GetNamespace(),
-					"name", istiocsr.GetName(),
-					"degradedChanged", degradedChanged,
-					"readyChanged", readyChanged,
-					"error", err)
-				errUpdate = r.updateCondition(istiocsr, err)
-			}
-			// For recoverable errors, either requeue manually or return error, not both
-			// If status update failed, return the update error; otherwise return the original error
-			if errUpdate != nil {
-				return ctrl.Result{}, errUpdate
-			}
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
-		}
+	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
+	if reconcileErr != nil {
+		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
 	}
 
-	// Set both conditions atomically before updating status on success
-	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
-	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
-
-	if degradedChanged || readyChanged {
-		r.log.V(2).Info("updating istiocsr conditions on successful reconciliation",
-			"namespace", istiocsr.GetNamespace(),
-			"name", istiocsr.GetName(),
-			"degradedChanged", degradedChanged,
-			"readyChanged", readyChanged)
-		errUpdate = r.updateCondition(istiocsr, nil)
-	}
-	return ctrl.Result{}, errUpdate
+	return common.HandleReconcileResult(
+		&istiocsr.Status.ConditionalStatus,
+		reconcileErr,
+		r.log.WithValues("namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName()),
+		func(prependErr error) error {
+			return r.updateCondition(istiocsr, prependErr)
+		},
+		defaultRequeueTime,
+	)
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.

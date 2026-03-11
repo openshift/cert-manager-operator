@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
@@ -73,7 +74,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 	}
 	exist, err := r.Exists(r.ctx, key, fetched)
 	if err != nil {
-		return FromClientError(err, "failed to check %s network policy resource already exists", policyName)
+		return common.FromClientError(err, "failed to check %s network policy resource already exists", policyName)
 	}
 
 	if exist && istioCSRCreateRecon {
@@ -82,7 +83,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to update %s network policy resource", policyName)
+			return common.FromClientError(err, "failed to update %s network policy resource", policyName)
 		}
 		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
 	} else {
@@ -90,7 +91,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return FromClientError(err, "failed to create %s network policy resource", policyName)
+			return common.FromClientError(err, "failed to create %s network policy resource", policyName)
 		}
 		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s created", policyName)
 	}

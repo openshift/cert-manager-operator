@@ -6,7 +6,7 @@ require (
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/golangci/golangci-lint/v2 v2.7.2
 	github.com/google/go-jsonnet v0.21.0
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.0
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
 	github.com/onsi/ginkgo/v2 v2.27.5
 	github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b
 	github.com/openshift/build-machinery-go v0.0.0-20251023084048-5d77c1a5e5af

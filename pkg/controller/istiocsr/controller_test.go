@@ -19,7 +19,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 func TestReconcile(t *testing.T) {
@@ -415,7 +415,7 @@ func TestReconcile(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.ctrlClient = mock
+			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
 			result, err := r.Reconcile(context.Background(),
 				ctrl.Request{
@@ -757,7 +757,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.ctrlClient = mock
+			r.CtrlClient = mock
 			istiocsr := tt.getIstioCSR()
 			_, err := r.processReconcileRequest(istiocsr,
 				types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()})

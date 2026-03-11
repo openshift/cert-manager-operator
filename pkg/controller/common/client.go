@@ -1,4 +1,4 @@
-package istiocsr
+package common
 
 import (
 	"context"
@@ -12,13 +12,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+// ctrlClientImpl implements the CtrlClient interface using the manager's client.
 type ctrlClientImpl struct {
 	client.Client
 }
 
+// CtrlClient defines the interface for controller client operations.
+//
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
-//counterfeiter:generate -o fakes . ctrlClient
-type ctrlClient interface {
+//counterfeiter:generate -o fakes . CtrlClient
+type CtrlClient interface {
 	Get(context.Context, client.ObjectKey, client.Object) error
 	List(context.Context, client.ObjectList, ...client.ListOption) error
 	StatusUpdate(context.Context, client.Object, ...client.SubResourceUpdateOption) error
@@ -30,11 +33,12 @@ type ctrlClient interface {
 	Exists(context.Context, client.ObjectKey, client.Object) (bool, error)
 }
 
-func NewClient(m manager.Manager) (ctrlClient, error) {
-	// Use the manager's client directly instead of creating a custom client.
-	// The manager's client uses the manager's cache, which ensures the reconciler
-	// reads from the same cache that the controller's watches use, preventing
-	// cache mismatch issues.
+// NewClient creates a new controller client from the manager.
+// Use the manager's client directly instead of creating a custom client.
+// The manager's client uses the manager's cache, which ensures the reconciler
+// reads from the same cache that the controller's watches use, preventing
+// cache mismatch issues.
+func NewClient(m manager.Manager) (CtrlClient, error) {
 	return &ctrlClientImpl{
 		Client: m.GetClient(),
 	}, nil
