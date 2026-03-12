@@ -1,12 +1,15 @@
 package trustmanager
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
+
+var errTrustNamespaceNotFound = errors.New("trust namespace does not exist, create the namespace before creating TrustManager CR")
 
 func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, trustManagerCreateRecon bool) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
@@ -50,7 +53,7 @@ func (r *Reconciler) validateTrustNamespace(namespace string) error {
 		return fmt.Errorf("failed to check if namespace %q exists: %w", namespace, err)
 	}
 	if !exists {
-		return fmt.Errorf("trust namespace %q does not exist, create the namespace before creating TrustManager CR", namespace)
+		return fmt.Errorf("trust namespace %q: %w", namespace, errTrustNamespaceNotFound)
 	}
 	return nil
 }

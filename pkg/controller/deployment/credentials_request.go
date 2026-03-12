@@ -30,7 +30,10 @@ const (
 	cloudCredentialsVolumeName = "cloud-credentials"
 )
 
-var errUnsupportedCloudProvider = errors.New("unsupported cloud provider for mounting cloud credentials secret")
+var (
+	errUnsupportedCloudProvider  = errors.New("unsupported cloud provider for mounting cloud credentials secret")
+	errInfrastructureNotFound    = errors.New(`infrastructure "cluster" not found`)
+)
 
 type cloudCredentialConfig struct {
 	volume      corev1.Volume
@@ -114,7 +117,7 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 			return err
 		}
 		if infra == nil {
-			return fmt.Errorf("infrastructure %q not found", "cluster")
+			return errInfrastructureNotFound
 		}
 
 		platformType := infra.Status.Platform

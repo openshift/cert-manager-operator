@@ -2,6 +2,7 @@ package trustmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -21,6 +22,12 @@ import (
 var (
 	scheme = runtime.NewScheme()
 	codecs = serializer.NewCodecFactory(scheme)
+)
+
+var (
+	errAddTMFinalizerFailed    = errors.New("failed to add finalizer on trustmanager.openshift.operator.io object")
+	errRemoveTMFinalizerFailed = errors.New("failed to remove finalizer from trustmanager.openshift.operator.io object")
+	errTrustManagerConfigEmpty = errors.New("spec.trustManagerConfig config cannot be empty")
 )
 
 func init() {
@@ -58,7 +65,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, trustManager *v1alpha1.Tr
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if !controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.AddFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to add finalizer %q on trustmanager.openshift.operator.io %q", finalizer, namespacedName)
+			return fmt.Errorf("finalizer %q on %q: %w", finalizer, namespacedName, errAddTMFinalizerFailed)
 		}
 
 		// update trustmanager.openshift.operator.io on adding finalizer.
@@ -81,7 +88,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.RemoveFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to remove finalizer %q from trustmanager.openshift.operator.io %q", finalizer, namespacedName)
+			return fmt.Errorf("finalizer %q on %q: %w", finalizer, namespacedName, errRemoveTMFinalizerFailed)
 		}
 
 		if err := r.UpdateWithRetry(ctx, trustManager); err != nil {
@@ -111,7 +118,7 @@ func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
 
 func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
 	if reflect.ValueOf(trustManager.Spec.TrustManagerConfig).IsZero() {
-		return fmt.Errorf("spec.trustManagerConfig config cannot be empty")
+		return errTrustManagerConfigEmpty
 	}
 	return nil
 }

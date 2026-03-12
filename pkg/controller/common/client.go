@@ -12,6 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+var errFailedToConvertToClientObject = fmt.Errorf("failed to convert to client.Object")
+
 // ctrlClientImpl implements the CtrlClient interface using the manager's client.
 type ctrlClientImpl struct {
 	client.Client
@@ -100,7 +102,7 @@ func (c *ctrlClientImpl) UpdateWithRetry(
 		currentInterface := reflect.New(reflect.TypeOf(obj).Elem()).Interface()
 		current, ok := currentInterface.(client.Object)
 		if !ok {
-			return fmt.Errorf("failed to convert to client.Object")
+			return errFailedToConvertToClientObject
 		}
 		if err := c.Client.Get(ctx, key, current); err != nil {
 			return fmt.Errorf("failed to fetch latest %q for update: %w", key, err)

@@ -35,6 +35,8 @@ import (
 // The label key is common.ManagedResourceLabelKey.
 const RequestEnqueueLabelValue = "cert-manager-istio-csr"
 
+var errInvalidLabelFormat = fmt.Errorf("invalid label format")
+
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
 	common.CtrlClient
@@ -89,8 +91,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return false
 				}
 				key := strings.Split(value, "_")
-				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+			if len(key) != 2 {
+				r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}
 				namespace = key[0]
