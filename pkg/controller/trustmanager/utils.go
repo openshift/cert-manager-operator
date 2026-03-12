@@ -113,7 +113,11 @@ func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
 	if err != nil {
 		panic(err)
 	}
-	return obj.(*corev1.ServiceAccount)
+	sa, ok := obj.(*corev1.ServiceAccount)
+	if !ok {
+		panic(fmt.Sprintf("decoded object is not a ServiceAccount: got %T", obj))
+	}
+	return sa
 }
 
 func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
