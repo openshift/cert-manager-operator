@@ -219,7 +219,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create  clusterrolebinding resource: test client error`,
+			wantErr: `failed to create cert-manager-istio-csr- clusterrolebinding resource: test client error`,
 		},
 		{
 			name: "clusterrole reconciliation updating name in status fails",
@@ -338,7 +338,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create  clusterrole resource: test client error`,
+			wantErr: `failed to create cert-manager-istio-csr- clusterrole resource: test client error`,
 		},
 		{
 			name: "role reconciliation updating to desired state fails",

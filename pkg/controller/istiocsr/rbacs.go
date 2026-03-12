@@ -61,56 +61,48 @@ func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, reso
 	return nil
 }
 
-func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) (string, error) {
-	desired := r.getClusterRoleObject(istiocsr.GetNamespace(), resourceLabels)
-
-	var (
-		exist    bool
-		err      error
-		roleName string
-		key      client.ObjectKey
-		fetched  = &rbacv1.ClusterRole{}
-	)
-	r.log.V(4).Info("reconciling clusterrole resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+// resolveExistingClusterRole finds an existing ClusterRole by status name or by label selector.
+func (r *Reconciler) resolveExistingClusterRole(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
+	fetched := &rbacv1.ClusterRole{}
 	if istiocsr.Status.ClusterRole != "" {
-		roleName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRole)
-		fetched = &rbacv1.ClusterRole{}
-		key = client.ObjectKey{
+		key := client.ObjectKey{
 			Name:      istiocsr.Status.ClusterRole,
 			Namespace: desired.GetNamespace(),
 		}
-		exist, err = r.Exists(r.ctx, key, fetched)
+		exist, err := r.Exists(r.ctx, key, fetched)
 		if err != nil {
-			return "", common.FromClientError(err, "failed to check %s clusterrole resource already exists", roleName)
+			roleName := fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRole)
+			return nil, false, common.FromClientError(err, "failed to check %s clusterrole resource already exists", roleName)
 		}
-	}
-	if istiocsr.Status.ClusterRole == "" {
-		// its possible updating the status might have failed, so will
-		// resort to listing the resources and use the label selector to
-		// make sure required resource does not exist already.
-		clusterRoleList := &rbacv1.ClusterRoleList{}
-		if err := r.List(r.ctx, clusterRoleList, client.MatchingLabels(desired.GetLabels())); err != nil {
-			return "", common.FromClientError(err, "failed to list clusterrole resources, impacted namespace %s", istiocsr.GetNamespace())
-		}
-		if len(clusterRoleList.Items) > 0 {
-			if len(clusterRoleList.Items) != 1 {
-				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
-				return "", common.NewIrrecoverableError(errMoreThanOneClusterRole, "matched clusterrole resources: %+v", clusterRoleList.Items)
-			}
-			clusterRoleList.Items[0].DeepCopyInto(fetched)
-
-			roleName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-			exist = true
-		}
+		return fetched, exist, nil
 	}
 
+	// its possible updating the status might have failed, so will
+	// resort to listing the resources and use the label selector to
+	// make sure required resource does not exist already.
+	clusterRoleList := &rbacv1.ClusterRoleList{}
+	if err := r.List(r.ctx, clusterRoleList, client.MatchingLabels(desired.GetLabels())); err != nil {
+		return nil, false, common.FromClientError(err, "failed to list clusterrole resources, impacted namespace %s", istiocsr.GetNamespace())
+	}
+	if len(clusterRoleList.Items) == 0 {
+		return fetched, false, nil
+	}
+	if len(clusterRoleList.Items) != 1 {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrole resources exist with matching labels")
+		return nil, false, common.NewIrrecoverableError(errMoreThanOneClusterRole, "matched clusterrole resources: %+v", clusterRoleList.Items)
+	}
+	clusterRoleList.Items[0].DeepCopyInto(fetched)
+	return fetched, true, nil
+}
+
+func (r *Reconciler) applyClusterRole(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRole, roleName string, exist, istioCSRCreateRecon bool) error {
 	if exist && istioCSRCreateRecon {
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrole resource already exists, maybe from previous installation", roleName)
 	}
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("clusterrole has been modified, updating to desired state", "name", roleName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return "", common.FromClientError(err, "failed to update %s clusterrole resource", roleName)
+			return common.FromClientError(err, "failed to update %s clusterrole resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s reconciled back to desired state", roleName)
 	} else {
@@ -118,9 +110,33 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return "", common.FromClientError(err, "failed to create %s clusterrole resource", roleName)
+			return common.FromClientError(err, "failed to create %s clusterrole resource", roleName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s created", roleName)
+	}
+	return nil
+}
+
+func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) (string, error) {
+	desired := r.getClusterRoleObject(istiocsr.GetNamespace(), resourceLabels)
+
+	r.log.V(4).Info("reconciling clusterrole resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	fetched, exist, err := r.resolveExistingClusterRole(istiocsr, desired)
+	if err != nil {
+		return "", err
+	}
+
+	var roleName string
+	if istiocsr.Status.ClusterRole != "" {
+		roleName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRole)
+	} else if exist {
+		roleName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
+	} else {
+		roleName = desired.GetGenerateName()
+	}
+
+	if err := r.applyClusterRole(istiocsr, desired, fetched, roleName, exist, istioCSRCreateRecon); err != nil {
+		return "", err
 	}
 	if roleName, err = r.updateClusterRoleNameInStatus(istiocsr, desired, fetched); err != nil {
 		return "", common.FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrole resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleName)
@@ -154,49 +170,41 @@ func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, 
 	return name, r.updateStatus(r.ctx, istiocsr)
 }
 
-func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCSR, clusterRoleName, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	desired := r.getClusterRoleBindingObject(clusterRoleName, serviceAccount, istiocsr.GetNamespace(), resourceLabels)
-
-	var (
-		exist           bool
-		err             error
-		roleBindingName string
-		key             client.ObjectKey
-		fetched         = &rbacv1.ClusterRoleBinding{}
-	)
-	r.log.V(4).Info("reconciling clusterrolebinding resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+// resolveExistingClusterRoleBinding finds an existing ClusterRoleBinding by status name or by label selector.
+func (r *Reconciler) resolveExistingClusterRoleBinding(istiocsr *v1alpha1.IstioCSR, desired *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
+	fetched := &rbacv1.ClusterRoleBinding{}
 	if istiocsr.Status.ClusterRoleBinding != "" {
-		roleBindingName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRoleBinding)
-		fetched = &rbacv1.ClusterRoleBinding{}
-		key = client.ObjectKey{
+		key := client.ObjectKey{
 			Name:      istiocsr.Status.ClusterRoleBinding,
 			Namespace: desired.GetNamespace(),
 		}
-		exist, err = r.Exists(r.ctx, key, fetched)
+		exist, err := r.Exists(r.ctx, key, fetched)
 		if err != nil {
-			return common.FromClientError(err, "failed to check %s clusterrolebinding resource already exists", roleBindingName)
+			roleBindingName := fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRoleBinding)
+			return nil, false, common.FromClientError(err, "failed to check %s clusterrolebinding resource already exists", roleBindingName)
 		}
-	}
-	if istiocsr.Status.ClusterRoleBinding == "" {
-		// its possible updating the status might have failed, so will
-		// resort to listing the resources and use the label selector to
-		// make sure required resource does not exist already.
-		clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
-		if err := r.List(r.ctx, clusterRoleBindingsList, client.MatchingLabels(desired.GetLabels())); err != nil {
-			return common.FromClientError(err, "failed to list clusterrolebinding resources, impacted namespace %s", istiocsr.GetNamespace())
-		}
-		if len(clusterRoleBindingsList.Items) > 0 {
-			if len(clusterRoleBindingsList.Items) != 1 {
-				r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
-				return common.NewIrrecoverableError(errMoreThanOneClusterRoleBinding, "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
-			}
-			clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
-
-			roleBindingName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-			exist = true
-		}
+		return fetched, exist, nil
 	}
 
+	// its possible updating the status might have failed, so will
+	// resort to listing the resources and use the label selector to
+	// make sure required resource does not exist already.
+	clusterRoleBindingsList := &rbacv1.ClusterRoleBindingList{}
+	if err := r.List(r.ctx, clusterRoleBindingsList, client.MatchingLabels(desired.GetLabels())); err != nil {
+		return nil, false, common.FromClientError(err, "failed to list clusterrolebinding resources, impacted namespace %s", istiocsr.GetNamespace())
+	}
+	if len(clusterRoleBindingsList.Items) == 0 {
+		return fetched, false, nil
+	}
+	if len(clusterRoleBindingsList.Items) != 1 {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "DuplicateResources", "more than 1 clusterrolebinding resources exist with matching labels")
+		return nil, false, common.NewIrrecoverableError(errMoreThanOneClusterRoleBinding, "matched clusterrolebinding resources: %+v", clusterRoleBindingsList.Items)
+	}
+	clusterRoleBindingsList.Items[0].DeepCopyInto(fetched)
+	return fetched, true, nil
+}
+
+func (r *Reconciler) applyClusterRoleBinding(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRoleBinding, roleBindingName string, exist, istioCSRCreateRecon bool) error {
 	if exist && istioCSRCreateRecon {
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrolebinding resource already exists, maybe from previous installation", roleBindingName)
 	}
@@ -214,6 +222,30 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 			return common.FromClientError(err, "failed to create %s clusterrolebinding resource", roleBindingName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s created", roleBindingName)
+	}
+	return nil
+}
+
+func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCSR, clusterRoleName, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+	desired := r.getClusterRoleBindingObject(clusterRoleName, serviceAccount, istiocsr.GetNamespace(), resourceLabels)
+
+	r.log.V(4).Info("reconciling clusterrolebinding resource created for istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	fetched, exist, err := r.resolveExistingClusterRoleBinding(istiocsr, desired)
+	if err != nil {
+		return err
+	}
+
+	var roleBindingName string
+	if istiocsr.Status.ClusterRoleBinding != "" {
+		roleBindingName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRoleBinding)
+	} else if exist {
+		roleBindingName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
+	} else {
+		roleBindingName = desired.GetGenerateName()
+	}
+
+	if err := r.applyClusterRoleBinding(istiocsr, desired, fetched, roleBindingName, exist, istioCSRCreateRecon); err != nil {
+		return err
 	}
 	if err := r.updateClusterRoleBindingNameInStatus(istiocsr, desired, fetched); err != nil {
 		return common.FromClientError(err, "failed to update %s/%s istiocsr status with %s clusterrolebinding resource name", istiocsr.GetNamespace(), istiocsr.GetName(), roleBindingName)

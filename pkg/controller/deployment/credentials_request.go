@@ -101,51 +101,55 @@ func withCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraI
 	}
 
 	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-		if len(secretName) == 0 {
-			return nil
-		}
+		return applyCloudCredentials(secretsInformer, infraInformer, secretName, deployment)
+	}
+}
 
-		_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
-		if err != nil && apierrors.IsNotFound(err) {
-			return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
-		} else if err != nil {
-			return err
-		}
-
-		infra, err := infraInformer.Lister().Get("cluster")
-		if err != nil {
-			return err
-		}
-		if infra == nil {
-			return errInfrastructureNotFound
-		}
-
-		platformType := infra.Status.Platform
-		if infra.Status.PlatformStatus != nil {
-			platformType = infra.Status.PlatformStatus.Type
-		}
-
-		config, err := cloudCredentialsForPlatform(platformType, secretName)
-		if err != nil {
-			return err
-		}
-
-		deployment.Spec.Template.Spec.Volumes = append(
-			deployment.Spec.Template.Spec.Volumes,
-			config.volume,
-		)
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
-			config.volumeMount,
-		)
-
-		if config.envVar != nil {
-			deployment.Spec.Template.Spec.Containers[0].Env = append(
-				deployment.Spec.Template.Spec.Containers[0].Env,
-				*config.envVar,
-			)
-		}
-
+func applyCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infraInformer configinformersv1.InfrastructureInformer, secretName string, deployment *appsv1.Deployment) error {
+	if len(secretName) == 0 {
 		return nil
 	}
+
+	_, err := secretsInformer.Lister().Secrets(operatorclient.TargetNamespace).Get(secretName)
+	if err != nil && apierrors.IsNotFound(err) {
+		return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, err)
+	} else if err != nil {
+		return err
+	}
+
+	infra, err := infraInformer.Lister().Get("cluster")
+	if err != nil {
+		return err
+	}
+	if infra == nil {
+		return errInfrastructureNotFound
+	}
+
+	platformType := infra.Status.Platform
+	if infra.Status.PlatformStatus != nil {
+		platformType = infra.Status.PlatformStatus.Type
+	}
+
+	config, err := cloudCredentialsForPlatform(platformType, secretName)
+	if err != nil {
+		return err
+	}
+
+	deployment.Spec.Template.Spec.Volumes = append(
+		deployment.Spec.Template.Spec.Volumes,
+		config.volume,
+	)
+	deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+		config.volumeMount,
+	)
+
+	if config.envVar != nil {
+		deployment.Spec.Template.Spec.Containers[0].Env = append(
+			deployment.Spec.Template.Spec.Containers[0].Env,
+			*config.envVar,
+		)
+	}
+
+	return nil
 }

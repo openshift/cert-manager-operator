@@ -8,6 +8,16 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
+// buildResourceLabels merges user-defined custom labels with the controller's default labels.
+func buildResourceLabels(istiocsr *v1alpha1.IstioCSR) map[string]string {
+	resourceLabels := make(map[string]string)
+	if istiocsr.Spec.ControllerConfig != nil && len(istiocsr.Spec.ControllerConfig.Labels) != 0 {
+		maps.Copy(resourceLabels, istiocsr.Spec.ControllerConfig.Labels)
+	}
+	maps.Copy(resourceLabels, controllerDefaultResourceLabels)
+	return resourceLabels
+}
+
 func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
 	if err := validateIstioCSRConfig(istiocsr); err != nil {
 		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName())
@@ -15,11 +25,7 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 
 	// if user has set custom labels to be added to all resources created by the controller
 	// merge it with the controller's own default labels.
-	resourceLabels := make(map[string]string)
-	if istiocsr.Spec.ControllerConfig != nil && len(istiocsr.Spec.ControllerConfig.Labels) != 0 {
-		maps.Copy(resourceLabels, istiocsr.Spec.ControllerConfig.Labels)
-	}
-	maps.Copy(resourceLabels, controllerDefaultResourceLabels)
+	resourceLabels := buildResourceLabels(istiocsr)
 
 	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile network policy resources")

@@ -67,53 +67,64 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
+// buildEnqueueMapFunc returns the map function used to enqueue reconcile requests
+// when watched resources change.
+func (r *Reconciler) buildEnqueueMapFunc() func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return func(ctx context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
-		if objLabels != nil {
-			// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
-			// namespace in the reconcile request will be set same, else since label check matches is an object
-			// created by controller, and we safely assume, it's in the istiocsr namespace.
-			namespace := objLabels[istiocsrNamespaceMappingLabelName]
-			if namespace == "" {
-				namespace = obj.GetNamespace()
-			}
+		if objLabels == nil {
+			r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
 
-			labelOk := func() bool {
-				if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
-					return true
-				}
-				value := objLabels[IstiocsrResourceWatchLabelName]
-				if value == "" {
-					return false
-				}
-				key := strings.Split(value, "_")
-			if len(key) != 2 {
-				r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
-					return false
-				}
-				namespace = key[0]
-				return true
-			}
+		// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
+		// namespace in the reconcile request will be set same, else since label check matches is an object
+		// created by controller, and we safely assume, it's in the istiocsr namespace.
+		namespace := objLabels[istiocsrNamespaceMappingLabelName]
+		if namespace == "" {
+			namespace = obj.GetNamespace()
+		}
 
-			if labelOk() && namespace != "" {
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name:      istiocsrObjectName,
-							Namespace: namespace,
-						},
+		if ok, ns := r.enqueueableNamespace(objLabels, obj, namespace); ok && ns != "" {
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      istiocsrObjectName,
+						Namespace: ns,
 					},
-				}
+				},
 			}
 		}
 
 		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 		return []reconcile.Request{}
 	}
+}
+
+// enqueueableNamespace checks whether the object's labels indicate it should
+// trigger a reconcile and returns the resolved namespace. The defaultNS is used
+// when no watch-label override is present.
+func (r *Reconciler) enqueueableNamespace(objLabels map[string]string, obj client.Object, defaultNS string) (bool, string) {
+	if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
+		return true, defaultNS
+	}
+	value := objLabels[IstiocsrResourceWatchLabelName]
+	if value == "" {
+		return false, ""
+	}
+	key := strings.Split(value, "_")
+	if len(key) != 2 {
+		r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+		return false, ""
+	}
+	return true, key[0]
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mapFunc := r.buildEnqueueMapFunc()
 
 	// predicate function to ignore events for objects not managed by controller.
 	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {

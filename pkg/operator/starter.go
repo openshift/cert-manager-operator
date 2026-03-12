@@ -152,23 +152,34 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	istioCSREnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR)
 	trustManagerEnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager)
 
-	if istioCSREnabled || trustManagerEnabled {
-		// Create unified manager for all enabled operand controllers
-		manager, err := NewControllerManager(ControllerConfig{
-			EnableIstioCSR:     istioCSREnabled,
-			EnableTrustManager: trustManagerEnabled,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create unified controller manager: %w", err)
-		}
-
-		go func() {
-			if err := manager.Start(ctx); err != nil {
-				ctrl.Log.Error(err, "failed to start unified controller manager")
-			}
-		}()
+	if err := startOperandControllers(ctx, istioCSREnabled, trustManagerEnabled); err != nil {
+		return err
 	}
 
 	<-ctx.Done()
+	return nil
+}
+
+// startOperandControllers creates and starts the unified controller manager when
+// at least one operand controller (IstioCSR or TrustManager) is enabled.
+func startOperandControllers(ctx context.Context, istioCSREnabled, trustManagerEnabled bool) error {
+	if !istioCSREnabled && !trustManagerEnabled {
+		return nil
+	}
+
+	manager, err := NewControllerManager(ControllerConfig{
+		EnableIstioCSR:     istioCSREnabled,
+		EnableTrustManager: trustManagerEnabled,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create unified controller manager: %w", err)
+	}
+
+	go func() {
+		if err := manager.Start(ctx); err != nil {
+			ctrl.Log.Error(err, "failed to start unified controller manager")
+		}
+	}()
+
 	return nil
 }
