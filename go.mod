@@ -297,3 +297,5 @@ require (
 )
 
 replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.4
+
+replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
