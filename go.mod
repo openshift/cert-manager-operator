@@ -1,13 +1,13 @@
 module github.com/openshift/cert-manager-operator
 
-go 1.23.10
+go 1.24.0
 
 require (
 	github.com/cert-manager/cert-manager v1.17.4
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
-	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/logr v1.4.3
 	github.com/golangci/golangci-lint v1.50.1
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/go-jsonnet v0.17.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.8.1
 	github.com/mogensen/kubernetes-split-yaml v0.3.0
@@ -20,16 +20,16 @@ require (
 	github.com/operator-framework/operator-lib v0.11.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.28.0
-	k8s.io/api v0.32.1
-	k8s.io/apiextensions-apiserver v0.32.1
-	k8s.io/apimachinery v0.32.1
-	k8s.io/client-go v0.32.1
-	k8s.io/code-generator v0.32.1
-	k8s.io/component-base v0.32.1
+	k8s.io/api v0.32.13
+	k8s.io/apiextensions-apiserver v0.32.13
+	k8s.io/apimachinery v0.32.13
+	k8s.io/client-go v0.32.13
+	k8s.io/code-generator v0.32.13
+	k8s.io/component-base v0.32.13
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubernetes v1.32.1
+	k8s.io/kubernetes v1.32.13
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230912183013-811757733433
@@ -239,15 +239,15 @@ require (
 	go.etcd.io/etcd/api/v3 v3.5.17 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.17 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.17 // indirect
-	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.58.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
-	go.opentelemetry.io/otel v1.33.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0 // indirect
-	go.opentelemetry.io/otel/metric v1.33.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.33.0 // indirect
-	go.opentelemetry.io/otel/trace v1.33.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
@@ -258,7 +258,7 @@ require (
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
@@ -274,15 +274,15 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.3 // indirect
-	k8s.io/apiserver v0.32.1 // indirect
-	k8s.io/cloud-provider v0.32.1 // indirect
-	k8s.io/component-helpers v0.32.1 // indirect
-	k8s.io/controller-manager v0.32.1 // indirect
+	k8s.io/apiserver v0.32.13 // indirect
+	k8s.io/cloud-provider v0.32.13 // indirect
+	k8s.io/component-helpers v0.32.13 // indirect
+	k8s.io/controller-manager v0.32.13 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
-	k8s.io/kms v0.32.1 // indirect
-	k8s.io/kube-aggregator v0.32.1 // indirect
+	k8s.io/kms v0.32.13 // indirect
+	k8s.io/kube-aggregator v0.32.13 // indirect
 	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
-	k8s.io/kubelet v0.32.1 // indirect
+	k8s.io/kubelet v0.32.13 // indirect
 	mvdan.cc/gofumpt v0.4.0 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
@@ -297,5 +297,3 @@ require (
 )
 
 replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.4
-
-replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
