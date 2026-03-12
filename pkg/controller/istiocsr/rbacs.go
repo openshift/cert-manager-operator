@@ -120,11 +120,12 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	var roleName string
-	if istiocsr.Status.ClusterRole != "" {
+	switch {
+	case istiocsr.Status.ClusterRole != "":
 		roleName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRole)
-	} else if exist {
+	case exist:
 		roleName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-	} else {
+	default:
 		roleName = desired.GetGenerateName()
 	}
 
@@ -192,11 +193,12 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 	}
 
 	var roleBindingName string
-	if istiocsr.Status.ClusterRoleBinding != "" {
+	switch {
+	case istiocsr.Status.ClusterRoleBinding != "":
 		roleBindingName = fmt.Sprintf("%s/%s", desired.GetNamespace(), istiocsr.Status.ClusterRoleBinding)
-	} else if exist {
+	case exist:
 		roleBindingName = fmt.Sprintf("%s/%s", fetched.GetNamespace(), fetched.GetName())
-	} else {
+	default:
 		roleBindingName = desired.GetGenerateName()
 	}
 
