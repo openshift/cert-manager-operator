@@ -62,34 +62,12 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		return common.FromClientError(err, "failed to check %s deployment resource already exists", deploymentName)
 	}
 
-	if err := r.applyDeployment(istiocsr, desired, fetched, deploymentName, exist, istioCSRCreateRecon); err != nil {
+	if err := r.applyResource(istiocsr, desired, fetched, deploymentName, "deployment", exist, istioCSRCreateRecon); err != nil {
 		return err
 	}
 
 	if err := r.updateImageInStatus(istiocsr, desired); err != nil {
 		return common.FromClientError(err, "failed to update %s/%s istiocsr status with image info", istiocsr.GetNamespace(), istiocsr.GetName())
-	}
-	return nil
-}
-
-func (r *Reconciler) applyDeployment(istiocsr *v1alpha1.IstioCSR, desired, fetched *appsv1.Deployment, deploymentName string, exist, istioCSRCreateRecon bool) error {
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
-	} else {
-		r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s created", deploymentName)
 	}
 	return nil
 }

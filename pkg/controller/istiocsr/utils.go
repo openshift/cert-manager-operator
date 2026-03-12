@@ -240,6 +240,31 @@ func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
 	return certificate
 }
 
+// applyResource handles the common create-or-update logic for any Kubernetes resource.
+// It checks if the resource exists and either creates it or updates it to match the desired state.
+// resourceKind is used in log and event messages (e.g. "clusterrole", "deployment").
+func (r *Reconciler) applyResource(istiocsr *v1alpha1.IstioCSR, desired, fetched client.Object, resourceName, resourceKind string, exist, istioCSRCreateRecon bool) error {
+	if exist && istioCSRCreateRecon {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s %s resource already exists, maybe from previous installation", resourceName, resourceKind)
+	}
+	if exist && hasObjectChanged(desired, fetched) {
+		r.log.V(1).Info(resourceKind+" has been modified, updating to desired state", "name", resourceName)
+		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+			return common.FromClientError(err, "failed to update %s %s resource", resourceName, resourceKind)
+		}
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s resource %s reconciled back to desired state", resourceKind, resourceName)
+	} else {
+		r.log.V(4).Info(resourceKind+" resource already exists and is in expected state", "name", resourceName)
+	}
+	if !exist {
+		if err := r.Create(r.ctx, desired); err != nil {
+			return common.FromClientError(err, "failed to create %s %s resource", resourceName, resourceKind)
+		}
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s resource %s created", resourceKind, resourceName)
+	}
+	return nil
+}
+
 func hasObjectChanged(desired, fetched client.Object) bool {
 	if reflect.TypeOf(desired) != reflect.TypeOf(fetched) {
 		panic("both objects to be compared must be of same type")
