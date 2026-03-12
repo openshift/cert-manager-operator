@@ -315,6 +315,8 @@ local-run: build ## Run the operator locally against the cluster configured in ~
 		--config=./hack/local-run-config.yaml \
 		--kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} \
 		--namespace=cert-manager-operator
+#		--unsupported-addon-features="TrustManager=true" \
+#		--v=4
 
 # ============================================================================
 # Build
