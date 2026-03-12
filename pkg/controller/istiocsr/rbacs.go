@@ -238,35 +238,7 @@ func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.Ist
 
 func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleObject(istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-
-	roleName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling role resource", "name", roleName)
-	fetched := &rbacv1.Role{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
-	if err != nil {
-		return common.FromClientError(err, "failed to check %s role resource already exists", roleName)
-	}
-
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s role resource already exists, maybe from previous installation", roleName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s role resource", roleName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s reconciled back to desired state", roleName)
-	} else {
-		r.log.V(4).Info("role resource already exists and is in expected state", "name", roleName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s role resource", roleName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s created", roleName)
-	}
-
-	return nil
+	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role resource", "role resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
@@ -278,35 +250,7 @@ func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, reso
 
 func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleBindingObject(serviceAccount, istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-
-	roleBindingName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling rolebinding resource", "name", roleBindingName)
-	fetched := &rbacv1.RoleBinding{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
-	if err != nil {
-		return common.FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
-	}
-
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s rolebinding resource already exists, maybe from previous installation", roleBindingName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s reconciled back to desired state", roleBindingName)
-	} else {
-		r.log.V(4).Info("rolebinding resource already exists and is in expected state", "name", roleBindingName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s created", roleBindingName)
-	}
-
-	return nil
+	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding resource", "rolebinding resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
@@ -319,35 +263,7 @@ func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, rol
 
 func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleForLeasesObject(istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-
-	roleName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling role for lease resource", "name", roleName)
-	fetched := &rbacv1.Role{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
-	if err != nil {
-		return common.FromClientError(err, "failed to check %s role resource already exists", roleName)
-	}
-
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s role resource already exists, maybe from previous installation", roleName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s role resource", roleName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s reconciled back to desired state", roleName)
-	} else {
-		r.log.V(4).Info("role resource already exists and is in expected state", "name", roleName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s role resource", roleName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "role resource %s created", roleName)
-	}
-
-	return nil
+	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role for lease resource", "role for lease resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
@@ -359,32 +275,37 @@ func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace str
 
 func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioCSR, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleBindingForLeasesObject(serviceAccount, istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
+	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding for lease resource", "rolebinding for lease resource", istioCSRCreateRecon)
+}
 
-	roleBindingName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling rolebinding for lease resource", "name", roleBindingName)
-	fetched := &rbacv1.RoleBinding{}
+// reconcileNamespacedRBACObject handles the common create-or-update logic for namespaced RBAC
+// resources (Role and RoleBinding). logMsg is used for the initial reconciliation log; resourceKind
+// is used in error and event messages. fetched must be an empty instance of the same type as desired.
+func (r *Reconciler) reconcileNamespacedRBACObject(istiocsr *v1alpha1.IstioCSR, desired, fetched client.Object, logMsg, resourceKind string, istioCSRCreateRecon bool) error {
+	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+	r.log.V(4).Info(logMsg, "name", resourceName)
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
-		return common.FromClientError(err, "failed to check %s rolebinding resource already exists", roleBindingName)
+		return common.FromClientError(err, "failed to check %s %s already exists", resourceName, resourceKind)
 	}
 
 	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s rolebinding resource already exists, maybe from previous installation", roleBindingName)
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s %s already exists, maybe from previous installation", resourceName, resourceKind)
 	}
 	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
+		r.log.V(1).Info(resourceKind+" has been modified, updating to desired state", "name", resourceName)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to update %s %s", resourceName, resourceKind)
 		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s reconciled back to desired state", roleBindingName)
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s %s reconciled back to desired state", resourceKind, resourceName)
 	} else {
-		r.log.V(4).Info("rolebinding resource already exists and is in expected state", "name", roleBindingName)
+		r.log.V(4).Info(resourceKind+" already exists and is in expected state", "name", resourceName)
 	}
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s rolebinding resource", roleBindingName)
+			return common.FromClientError(err, "failed to create %s %s", resourceName, resourceKind)
 		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s created", roleBindingName)
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s %s created", resourceKind, resourceName)
 	}
 
 	return nil
