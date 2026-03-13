@@ -12,8 +12,8 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustManager, resourceLabels map[string]string) error {
-	desired := r.getServiceAccountObject(resourceLabels)
+func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+	desired := r.getServiceAccountObject(resourceLabels, resourceAnnotations)
 	serviceAccountName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling serviceaccount resource", "name", serviceAccountName)
 
@@ -27,7 +27,6 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 		return nil
 	}
 
-	// Server-Side Apply: patches only our fields
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply serviceaccount %q", serviceAccountName)
 	}
@@ -39,19 +38,16 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 
 // serviceAccountModified compares only the fields we manage via SSA.
 func serviceAccountModified(desired, existing *corev1.ServiceAccount) bool {
-	if managedLabelsModified(desired, existing) {
-		return true
-	}
-	if !ptr.Equal(desired.AutomountServiceAccountToken, existing.AutomountServiceAccountToken) {
-		return true
-	}
-	return false
+	return managedMetadataModified(desired, existing) ||
+		!ptr.Equal(desired.AutomountServiceAccountToken, existing.AutomountServiceAccountToken)
 }
 
-func (r *Reconciler) getServiceAccountObject(resourceLabels map[string]string) *corev1.ServiceAccount {
-	serviceAccount := decodeServiceAccountObjBytes(assets.MustAsset(serviceAccountAssetName))
+func (r *Reconciler) getServiceAccountObject(resourceLabels, resourceAnnotations map[string]string) *corev1.ServiceAccount {
+	serviceAccount := common.DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAccountAssetName))
+	common.UpdateName(serviceAccount, trustManagerServiceAccountName)
 	common.UpdateNamespace(serviceAccount, operandNamespace)
 	common.UpdateResourceLabels(serviceAccount, resourceLabels)
+	updateResourceAnnotations(serviceAccount, resourceAnnotations)
 
 	return serviceAccount
 }

@@ -8,27 +8,54 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, trustManagerCreateRecon bool) error {
+func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
 		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName())
 	}
 
 	resourceLabels := getResourceLabels(trustManager)
+	resourceAnnotations := getResourceAnnotations(trustManager)
 
-	// Validate trust namespace exists
 	trustNamespace := getTrustNamespace(trustManager)
 	if err := r.validateTrustNamespace(trustNamespace); err != nil {
 		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)
 	}
 
-	// TODO: Reconcile all trust-manager resources
-	// For now, just reconcile ServiceAccount to verify controller is working
-	if err := r.createOrApplyServiceAccounts(trustManager, resourceLabels); err != nil {
+	if err := r.createOrApplyServiceAccounts(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile serviceaccount resource")
 		return err
 	}
 
-	// TODO: As implementation extends, move status field updates inline within each resource reconciler
+	if err := r.createOrApplyRBACResources(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+		r.log.Error(err, "failed to reconcile RBAC resources")
+		return err
+	}
+
+	if err := r.createOrApplyServices(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile service resources")
+		return err
+	}
+
+	if err := r.createOrApplyIssuer(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile issuer resource")
+		return err
+	}
+
+	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile certificate resource")
+		return err
+	}
+
+	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile deployment resource")
+		return err
+	}
+
+	if err := r.createOrApplyValidatingWebhookConfiguration(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile validatingwebhookconfiguration resource")
+		return err
+	}
+
 	if err := r.updateStatusObservedState(trustManager); err != nil {
 		return fmt.Errorf("failed to update status observed state: %w", err)
 	}
