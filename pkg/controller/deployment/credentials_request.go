@@ -125,7 +125,7 @@ func applyCloudCredentials(secretsInformer coreinformersv1.SecretInformer, infra
 		return errInfrastructureNotFound
 	}
 
-	platformType := infra.Status.Platform
+	var platformType configv1.PlatformType
 	if infra.Status.PlatformStatus != nil {
 		platformType = infra.Status.PlatformStatus.Type
 	}
