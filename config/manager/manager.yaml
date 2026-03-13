@@ -84,10 +84,14 @@ spec:
               value: quay.io/jetstack/cert-manager-acmesolver:v1.19.2
             - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
               value: quay.io/jetstack/cert-manager-istio-csr:v0.15.0
+            - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
+              value: quay.io/jetstack/trust-manager:v0.20.3
             - name: OPERAND_IMAGE_VERSION
               value: 1.19.2
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION
               value: 0.15.0
+            - name: TRUSTMANAGER_OPERAND_IMAGE_VERSION
+              value: 0.20.3
             - name: OPERATOR_IMAGE_VERSION
               value: 1.19.0
             - name: OPERATOR_LOG_LEVEL

@@ -6,13 +6,18 @@ import (
 	"maps"
 	"reflect"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -27,7 +32,18 @@ func init() {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
-	// TODO: Add more groups to scheme as resources are implemented
+	if err := appsv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := admissionregistrationv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := certmanagerv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
 }
 
 // updateStatus is for updating the status subresource of trustmanager.openshift.operator.io.
@@ -101,14 +117,6 @@ func addProcessedAnnotation(trustManager *v1alpha1.TrustManager) bool {
 	return common.AddAnnotation(trustManager, controllerProcessedAnnotation, "true")
 }
 
-func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	return obj.(*corev1.ServiceAccount)
-}
-
 func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
 	if reflect.ValueOf(trustManager.Spec.TrustManagerConfig).IsZero() {
 		return fmt.Errorf("spec.trustManagerConfig config cannot be empty")
@@ -147,6 +155,40 @@ func getResourceLabels(trustManager *v1alpha1.TrustManager) map[string]string {
 	return resourceLabels
 }
 
+// getResourceAnnotations returns the annotations to apply to resources.
+// It merges user-specified annotations with any required annotations.
+func getResourceAnnotations(trustManager *v1alpha1.TrustManager) map[string]string {
+	annotations := make(map[string]string)
+	if len(trustManager.Spec.ControllerConfig.Annotations) != 0 {
+		maps.Copy(annotations, trustManager.Spec.ControllerConfig.Annotations)
+	}
+	return annotations
+}
+
+// updateResourceAnnotations merges user-provided annotations into the object's existing annotations.
+// User-provided annotations take precedence over existing ones on key conflicts.
+func updateResourceAnnotations(obj client.Object, annotations map[string]string) {
+	if len(annotations) == 0 {
+		return
+	}
+	existing := obj.GetAnnotations()
+	if existing == nil {
+		existing = make(map[string]string)
+	}
+	maps.Copy(existing, annotations)
+	obj.SetAnnotations(existing)
+}
+
+// updateBindingSubjects sets the ServiceAccount name and namespace on RBAC binding subjects.
+func updateBindingSubjects(subjects []rbacv1.Subject, serviceAccountName, namespace string) {
+	for i := range subjects {
+		if subjects[i].Kind == roleBindingSubjectKind {
+			subjects[i].Name = serviceAccountName
+			subjects[i].Namespace = namespace
+		}
+	}
+}
+
 // managedLabelsModified checks whether all labels present in desired exist
 // with matching values in existing. Extra labels on existing (added by users
 // or other controllers) are allowed and do not count as modified.
@@ -158,6 +200,24 @@ func managedLabelsModified(desired, existing client.Object) bool {
 		}
 	}
 	return false
+}
+
+// managedAnnotationsModified checks whether all annotations present in desired
+// exist with matching values in existing. Extra annotations on existing are
+// allowed and do not count as modified.
+func managedAnnotationsModified(desired, existing client.Object) bool {
+	existingAnnotations := existing.GetAnnotations()
+	for k, v := range desired.GetAnnotations() {
+		if existingAnnotations[k] != v {
+			return true
+		}
+	}
+	return false
+}
+
+// managedMetadataModified returns true if any managed label or annotation has drifted.
+func managedMetadataModified(desired, existing client.Object) bool {
+	return managedLabelsModified(desired, existing) || managedAnnotationsModified(desired, existing)
 }
 
 // namespaceExists checks if a namespace exists in the cluster.

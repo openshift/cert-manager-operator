@@ -305,13 +305,18 @@ local-run: build ## Run the operator locally against the cluster configured in ~
 	RELATED_IMAGE_CERT_MANAGER_CONTROLLER=quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION) \
 	RELATED_IMAGE_CERT_MANAGER_ACMESOLVER=quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION) \
 	RELATED_IMAGE_CERT_MANAGER_ISTIOCSR=quay.io/jetstack/cert-manager-istio-csr:$(ISTIO_CSR_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER=quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION) \
 	OPERATOR_NAME=cert-manager-operator \
 	OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
+	ISTIOCSR_OPERAND_IMAGE_VERSION=$(ISTIO_CSR_VERSION) \
+	TRUSTMANAGER_OPERAND_IMAGE_VERSION=$(TRUST_MANAGER_VERSION) \
 	OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
 	./cert-manager-operator start \
 		--config=./hack/local-run-config.yaml \
 		--kubeconfig=$${KUBECONFIG:-$$HOME/.kube/config} \
 		--namespace=cert-manager-operator
+#		--unsupported-addon-features="TrustManager=true" \
+#		--v=4
 
 # ============================================================================
 # Build
