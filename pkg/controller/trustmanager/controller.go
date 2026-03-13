@@ -124,9 +124,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if !trustManager.DeletionTimestamp.IsZero() {
 		r.log.V(1).Info("trustmanager.openshift.operator.io is marked for deletion", "name", req.NamespacedName)
 
-		if requeue, err := r.cleanUp(trustManager); err != nil {
-			return ctrl.Result{}, fmt.Errorf("clean up failed for %q trustmanager.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
-		} else if requeue {
+		if requeue := r.cleanUp(trustManager); requeue {
 			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 		}
 
@@ -170,10 +168,10 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 }
 
 // cleanUp handles deletion of trustmanager.openshift.operator.io gracefully.
-func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) {
+func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) bool {
 	// TODO: For GA, handle cleaning up of resources created for installing trust-manager operand.
 	// As per Non-Goals in the enhancement, removing the TrustManager CR will not remove the
 	// trust-manager deployment or its associated resources.
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, "RemoveDeployment", "%s trustmanager marked for deletion, remove all resources created for trustmanager deployment manually", trustManager.GetName())
-	return false, nil
+	return false
 }
