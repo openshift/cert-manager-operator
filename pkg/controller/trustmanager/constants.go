@@ -58,7 +58,7 @@ var (
 
 // asset names are the files present in the root bindata/ dir. Which are then loaded
 // and made available by the pkg/operator/assets package.
-// TODO: Add more asset names as resources are implemented
+// TODO: Add more asset names as resources are implemented.
 const (
 	serviceAccountAssetName = "trust-manager/resources/serviceaccount_trust-manager.yml"
 )

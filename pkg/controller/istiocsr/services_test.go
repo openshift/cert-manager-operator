@@ -26,26 +26,26 @@ func TestCreateOrApplyServices(t *testing.T) {
 		wantErr          string
 	}{
 		{
-			name: "service reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *corev1.Service:
-						service := testService()
-						service.DeepCopyInto(o)
-					}
-					return true, nil
+		name: "service reconciliation successful",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+		m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
+				switch o := obj.(type) {
+				case *corev1.Service:
+					service := testService()
+					service.DeepCopyInto(o)
+				}
+				return true, nil
 				})
 			},
 			wantGRPCEndpoint: grpcEndpoint,
 		},
 		{
-			name: "service reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch obj.(type) {
-					case *corev1.Service:
-						return false, errTestClient
+		name: "service reconciliation fails while checking if exists",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+		m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
+				switch obj.(type) {
+				case *corev1.Service:
+					return false, errTestClient
 					}
 					return false, nil
 				})
@@ -53,16 +53,16 @@ func TestCreateOrApplyServices(t *testing.T) {
 			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr service resource already exists: test client error`,
 		},
 		{
-			name: "service reconciliation fails while updating to desired state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
+		name: "service reconciliation fails while updating to desired state",
+		preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+			m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
 						return errTestClient
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.Service:
 						service := testService()
@@ -77,8 +77,8 @@ func TestCreateOrApplyServices(t *testing.T) {
 		},
 		{
 			name: "service reconciliation fails while creating",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.Service:
 						return errTestClient

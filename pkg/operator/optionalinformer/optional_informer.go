@@ -16,7 +16,7 @@ type OptionalInformer[GroupInformer any] struct {
 }
 
 func NewOptionalInformer[groupInformer any](
-	ctx context.Context,
+	_ context.Context,
 	gvr schema.GroupVersionResource,
 	discoveryClient discovery.DiscoveryInterface,
 	informerInitFunc func() groupInformer,

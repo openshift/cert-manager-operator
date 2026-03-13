@@ -35,6 +35,8 @@ import (
 // The label key is common.ManagedResourceLabelKey.
 const RequestEnqueueLabelValue = "cert-manager-istio-csr"
 
+var errInvalidLabelFormat = fmt.Errorf("invalid label format")
+
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
 	common.CtrlClient
@@ -63,96 +65,6 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
 	}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
-		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-
-		objLabels := obj.GetLabels()
-		if objLabels != nil {
-			// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
-			// namespace in the reconcile request will be set same, else since label check matches is an object
-			// created by controller, and we safely assume, it's in the istiocsr namespace.
-			namespace := objLabels[istiocsrNamespaceMappingLabelName]
-			if namespace == "" {
-				namespace = obj.GetNamespace()
-			}
-
-			labelOk := func() bool {
-				if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
-					return true
-				}
-				value := objLabels[IstiocsrResourceWatchLabelName]
-				if value == "" {
-					return false
-				}
-				key := strings.Split(value, "_")
-				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
-					return false
-				}
-				namespace = key[0]
-				return true
-			}
-
-			if labelOk() && namespace != "" {
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name:      istiocsrObjectName,
-							Namespace: namespace,
-						},
-					},
-				}
-			}
-		}
-
-		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-		return []reconcile.Request{}
-	}
-
-	// predicate function to ignore events for objects not managed by controller.
-	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
-	})
-
-	// predicate function to filter events for objects which controller is interested in, but
-	// not managed or created by controller.
-	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
-	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetLabels() == nil {
-			return false
-		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
-			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
-	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
-	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
-	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
-	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
-
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Named(ControllerName).
-		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
-		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
-		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Complete(r)
 }
 
 // Reconcile function to compare the state specified by the IstioCSR object against the actual cluster state,
@@ -198,6 +110,52 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.processReconcileRequest(istiocsr, req.NamespacedName)
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mapFunc := r.buildEnqueueMapFunc()
+
+	// predicate function to ignore events for objects not managed by controller.
+	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+	})
+
+	// predicate function to filter events for objects which controller is interested in, but
+	// not managed or created by controller.
+	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	})
+
+	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		if object.GetLabels() == nil {
+			return false
+		}
+		// Accept if it's a managed ConfigMap OR a watched ConfigMap
+		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
+			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	})
+
+	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
+	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
+	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
+	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Named(ControllerName).
+		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
+		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Complete(r)
+}
+
 func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
 	istioCSRCreateRecon := false
 	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
@@ -238,4 +196,59 @@ func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
 	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.
 	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "RemoveDeployment", "%s/%s istiocsr marked for deletion, remove reference in istiod deployment and remove all resources created for istiocsr deployment", istiocsr.GetNamespace(), istiocsr.GetName())
 	return false, nil
+}
+
+// buildEnqueueMapFunc returns the map function used to enqueue reconcile requests
+// when watched resources change.
+func (r *Reconciler) buildEnqueueMapFunc() func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return func(_ context.Context, obj client.Object) []reconcile.Request {
+		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+
+		objLabels := obj.GetLabels()
+		if objLabels == nil {
+			r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+			return []reconcile.Request{}
+		}
+
+		// will look for custom label set on objects not created in istiocsr namespace, and if it exists,
+		// namespace in the reconcile request will be set same, else since label check matches is an object
+		// created by controller, and we safely assume, it's in the istiocsr namespace.
+		namespace := objLabels[istiocsrNamespaceMappingLabelName]
+		if namespace == "" {
+			namespace = obj.GetNamespace()
+		}
+
+		if ok, ns := r.enqueueableNamespace(objLabels, obj, namespace); ok && ns != "" {
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      istiocsrObjectName,
+						Namespace: ns,
+					},
+				},
+			}
+		}
+
+		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+		return []reconcile.Request{}
+	}
+}
+
+// enqueueableNamespace checks whether the object's labels indicate it should
+// trigger a reconcile and returns the resolved namespace. The defaultNS is used
+// when no watch-label override is present.
+func (r *Reconciler) enqueueableNamespace(objLabels map[string]string, obj client.Object, defaultNS string) (bool, string) {
+	if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
+		return true, defaultNS
+	}
+	value := objLabels[IstiocsrResourceWatchLabelName]
+	if value == "" {
+		return false, ""
+	}
+	key := strings.Split(value, "_")
+	if len(key) != 2 {
+		r.log.Error(errInvalidLabelFormat, "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+		return false, ""
+	}
+	return true, key[0]
 }

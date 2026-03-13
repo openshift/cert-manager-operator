@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -27,6 +28,16 @@ import (
 var (
 	scheme = runtime.NewScheme()
 	codecs = serializer.NewCodecFactory(scheme)
+)
+
+var (
+	errAddFinalizerFailed     = errors.New("failed to add finalizers to istiocsr.openshift.operator.io object")
+	errRemoveFinalizerFailed  = errors.New("failed to remove finalizers from istiocsr.openshift.operator.io object")
+	errIstioCSRConfigEmpty    = errors.New("spec.istioCSRConfig config cannot be empty")
+	errIstiodTLSConfigEmpty   = errors.New("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+	errIstioConfigEmpty       = errors.New("spec.istioCSRConfig.istio config cannot be empty")
+	errCertManagerConfigEmpty = errors.New("spec.istioCSRConfig.certManager config cannot be empty")
+	errMultipleISRInstances   = errors.New("multiple instances of istiocsr exist")
 )
 
 func init() {
@@ -75,7 +86,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, istiocsr *v1alpha1.IstioC
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if !controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.AddFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers added", namespacedName)
+			return fmt.Errorf("%q: %w", namespacedName, errAddFinalizerFailed)
 		}
 
 		// update istiocsr.openshift.operator.io on adding finalizer.
@@ -98,7 +109,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, istiocsr *v1alpha1.Ist
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.RemoveFinalizer(istiocsr, finalizer) {
-			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers removed", namespacedName)
+			return fmt.Errorf("%q: %w", namespacedName, errRemoveFinalizerFailed)
 		}
 
 		if err := r.UpdateWithRetry(ctx, istiocsr); err != nil {
@@ -229,73 +240,190 @@ func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
 	return certificate
 }
 
+// applyResource handles the common create-or-update logic for any Kubernetes resource.
+// It checks if the resource exists and either creates it or updates it to match the desired state.
+// resourceKind is used in log and event messages (e.g. "clusterrole", "deployment").
+func (r *Reconciler) applyResource(istiocsr *v1alpha1.IstioCSR, desired, fetched client.Object, resourceName, resourceKind string, exist, istioCSRCreateRecon bool) error {
+	if exist && istioCSRCreateRecon {
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s %s resource already exists, maybe from previous installation", resourceName, resourceKind)
+	}
+	if exist && hasObjectChanged(desired, fetched) {
+		r.log.V(1).Info(resourceKind+" has been modified, updating to desired state", "name", resourceName)
+		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+			return common.FromClientError(err, "failed to update %s %s resource", resourceName, resourceKind)
+		}
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s resource %s reconciled back to desired state", resourceKind, resourceName)
+	} else {
+		r.log.V(4).Info(resourceKind+" resource already exists and is in expected state", "name", resourceName)
+	}
+	if !exist {
+		if err := r.Create(r.ctx, desired); err != nil {
+			return common.FromClientError(err, "failed to create %s %s resource", resourceName, resourceKind)
+		}
+		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "%s resource %s created", resourceKind, resourceName)
+	}
+	return nil
+}
+
 func hasObjectChanged(desired, fetched client.Object) bool {
 	if reflect.TypeOf(desired) != reflect.TypeOf(fetched) {
 		panic("both objects to be compared must be of same type")
 	}
+	return isSpecModified(desired, fetched) || common.ObjectMetadataModified(desired, fetched)
+}
 
-	var objectModified bool
-	switch desiredObj := desired.(type) {
-	case *certmanagerv1.Certificate:
-		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
-		if !ok {
-			panic("failed to convert fetched to *certmanagerv1.Certificate")
-		}
-		objectModified = certificateSpecModified(desiredObj, fetchedCert)
+// isRBACModified checks if any RBAC-typed object (ClusterRole, ClusterRoleBinding, Role,
+// RoleBinding) has been modified. Types are guaranteed to match by the caller.
+func isRBACModified(desired, fetched client.Object) bool {
+	switch desired.(type) {
 	case *rbacv1.ClusterRole:
-		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRole")
-		}
-		objectModified = rbacRoleRulesModified(desiredObj, fetchedClusterRole)
+		return isClusterRoleModified(desired, fetched)
 	case *rbacv1.ClusterRoleBinding:
-		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
-		}
-		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedClusterRoleBinding) ||
-			rbacRoleBindingSubjectsModified(desiredObj, fetchedClusterRoleBinding)
-	case *appsv1.Deployment:
-		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
-		if !ok {
-			panic("failed to convert fetched to *appsv1.Deployment")
-		}
-		objectModified = deploymentSpecModified(desiredObj, fetchedDeployment)
+		return isClusterRoleBindingModified(desired, fetched)
 	case *rbacv1.Role:
-		fetchedRole, ok := fetched.(*rbacv1.Role)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.Role")
-		}
-		objectModified = rbacRoleRulesModified(desiredObj, fetchedRole)
+		return isRoleModified(desired, fetched)
 	case *rbacv1.RoleBinding:
-		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.RoleBinding")
-		}
-		objectModified = rbacRoleBindingRefModified(desiredObj, fetchedRoleBinding) ||
-			rbacRoleBindingSubjectsModified(desiredObj, fetchedRoleBinding)
+		return isRoleBindingModified(desired, fetched)
+	default:
+		panic(fmt.Sprintf("unsupported RBAC object type: %T", desired))
+	}
+}
+
+func isClusterRoleModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.ClusterRole)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.ClusterRole)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleRulesModified(desiredObj, fetchedObj)
+}
+
+func isClusterRoleBindingModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+}
+
+func isRoleModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.Role)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.Role)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleRulesModified(desiredObj, fetchedObj)
+}
+
+func isRoleBindingModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.RoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.RoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+}
+
+// isNonRBACModified checks if a non-RBAC object has been modified.
+// Types are guaranteed to match by the caller.
+func isNonRBACModified(desired, fetched client.Object) bool {
+	switch desired.(type) {
+	case *certmanagerv1.Certificate:
+		return isCertificateModified(desired, fetched)
+	case *appsv1.Deployment:
+		return isDeploymentModified(desired, fetched)
 	case *corev1.Service:
-		fetchedService, ok := fetched.(*corev1.Service)
-		if !ok {
-			panic("failed to convert fetched to *corev1.Service")
-		}
-		objectModified = serviceSpecModified(desiredObj, fetchedService)
+		return isServiceModified(desired, fetched)
 	case *corev1.ConfigMap:
-		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
-		if !ok {
-			panic("failed to convert fetched to *corev1.ConfigMap")
-		}
-		objectModified = configMapDataModified(desiredObj, fetchedConfigMap)
+		return isConfigMapModified(desired, fetched)
 	case *networkingv1.NetworkPolicy:
-		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
-		if !ok {
-			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
-		}
-		objectModified = networkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
+		return isNetworkPolicyModified(desired, fetched)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
-	return objectModified || common.ObjectMetadataModified(desired, fetched)
+}
+
+func isCertificateModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*certmanagerv1.Certificate)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*certmanagerv1.Certificate)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return certificateSpecModified(desiredObj, fetchedObj)
+}
+
+func isDeploymentModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*appsv1.Deployment)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*appsv1.Deployment)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return deploymentSpecModified(desiredObj, fetchedObj)
+}
+
+func isServiceModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*corev1.Service)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*corev1.Service)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return serviceSpecModified(desiredObj, fetchedObj)
+}
+
+func isConfigMapModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*corev1.ConfigMap)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*corev1.ConfigMap)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return configMapDataModified(desiredObj, fetchedObj)
+}
+
+func isNetworkPolicyModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*networkingv1.NetworkPolicy)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*networkingv1.NetworkPolicy)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return networkPolicySpecModified(desiredObj, fetchedObj)
+}
+
+// isSpecModified dispatches spec comparison to the appropriate type-specific helper.
+func isSpecModified(desired, fetched client.Object) bool {
+	switch desired.(type) {
+	case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding, *rbacv1.Role, *rbacv1.RoleBinding:
+		return isRBACModified(desired, fetched)
+	default:
+		return isNonRBACModified(desired, fetched)
+	}
 }
 
 func certificateSpecModified(desired, fetched *certmanagerv1.Certificate) bool {
@@ -315,39 +443,7 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 		return true
 	}
 
-	desiredContainer := desired.Spec.Template.Spec.Containers[0]
-	fetchedContainer := fetched.Spec.Template.Spec.Containers[0]
-	if !reflect.DeepEqual(desiredContainer.Args, fetchedContainer.Args) ||
-		desiredContainer.Name != fetchedContainer.Name || desiredContainer.Image != fetchedContainer.Image ||
-		desiredContainer.ImagePullPolicy != fetchedContainer.ImagePullPolicy {
-		return true
-	}
-
-	if len(desiredContainer.Ports) != len(fetchedContainer.Ports) {
-		return true
-	}
-	for _, fetchedPort := range fetchedContainer.Ports {
-		matched := false
-		for _, desiredPort := range desiredContainer.Ports {
-			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return true
-		}
-	}
-
-	if desiredContainer.ReadinessProbe.HTTPGet.Path != fetchedContainer.ReadinessProbe.HTTPGet.Path ||
-		desiredContainer.ReadinessProbe.InitialDelaySeconds != fetchedContainer.ReadinessProbe.InitialDelaySeconds ||
-		desiredContainer.ReadinessProbe.PeriodSeconds != fetchedContainer.ReadinessProbe.PeriodSeconds {
-		return true
-	}
-
-	if !reflect.DeepEqual(desiredContainer.Resources, fetchedContainer.Resources) ||
-		!reflect.DeepEqual(*desiredContainer.SecurityContext, *fetchedContainer.SecurityContext) ||
-		!reflect.DeepEqual(desiredContainer.VolumeMounts, fetchedContainer.VolumeMounts) {
+	if containerSpecModified(desired.Spec.Template.Spec.Containers[0], fetched.Spec.Template.Spec.Containers[0]) {
 		return true
 	}
 
@@ -358,6 +454,56 @@ func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 	}
 
 	return false
+}
+
+func containerSpecModified(desired, fetched corev1.Container) bool {
+	if containerBasicPropsModified(desired, fetched) {
+		return true
+	}
+	if portsModified(desired.Ports, fetched.Ports) {
+		return true
+	}
+	if containerReadinessProbeModified(desired, fetched) {
+		return true
+	}
+	return containerResourcesModified(desired, fetched)
+}
+
+func containerBasicPropsModified(desired, fetched corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Args, fetched.Args) ||
+		desired.Name != fetched.Name || desired.Image != fetched.Image ||
+		desired.ImagePullPolicy != fetched.ImagePullPolicy
+}
+
+func portsModified(desired, fetched []corev1.ContainerPort) bool {
+	if len(desired) != len(fetched) {
+		return true
+	}
+	for _, fetchedPort := range fetched {
+		matched := false
+		for _, desiredPort := range desired {
+			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
+	return false
+}
+
+func containerReadinessProbeModified(desired, fetched corev1.Container) bool {
+	return desired.ReadinessProbe.HTTPGet.Path != fetched.ReadinessProbe.HTTPGet.Path ||
+		desired.ReadinessProbe.InitialDelaySeconds != fetched.ReadinessProbe.InitialDelaySeconds ||
+		desired.ReadinessProbe.PeriodSeconds != fetched.ReadinessProbe.PeriodSeconds
+}
+
+func containerResourcesModified(desired, fetched corev1.Container) bool {
+	return !reflect.DeepEqual(desired.Resources, fetched.Resources) ||
+		!reflect.DeepEqual(*desired.SecurityContext, *fetched.SecurityContext) ||
+		!reflect.DeepEqual(desired.VolumeMounts, fetched.VolumeMounts)
 }
 
 func serviceSpecModified(desired, fetched *corev1.Service) bool {
@@ -461,16 +607,16 @@ func networkPolicySpecModified(desired, fetched *networkingv1.NetworkPolicy) boo
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig config cannot be empty")
+		return errIstioCSRConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
+		return errIstiodTLSConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Istio).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.istio config cannot be empty")
+		return errIstioConfigEmpty
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.CertManager).IsZero() {
-		return fmt.Errorf("spec.istioCSRConfig.certManager config cannot be empty")
+		return errCertManagerConfigEmpty
 	}
 	return nil
 }
@@ -486,49 +632,35 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	return prependErr
 }
 
-func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
-	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
-
-	if containsProcessingRejectedAnnotation(istiocsr) {
-		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
-		// ensure status is updated.
-		var updateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			updateErr = r.updateCondition(istiocsr, nil)
-		}
-		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
-	}
-
-	istiocsrList := &v1alpha1.IstioCSRList{}
-	if err := r.List(r.ctx, istiocsrList); err != nil {
-		return fmt.Errorf("failed to fetch list of istiocsr resources: %w", err)
-	}
-
-	if len(istiocsrList.Items) <= 1 {
-		return nil
-	}
-
-	ignoreProcessing := false
-	for _, item := range istiocsrList.Items {
+// isOldestInstance returns true if istiocsr is the oldest (or only) instance among all listed items.
+func isOldestInstance(istiocsr *v1alpha1.IstioCSR, items []v1alpha1.IstioCSR) bool {
+	for _, item := range items {
 		if item.GetNamespace() == istiocsr.Namespace {
 			continue
 		}
+		// Even when timestamps are equal we treat this instance as not the oldest.
+		// If all instances were created in parallel, onus is on the user to delete
+		// all and recreate just one required instance of istiocsr.
 		if item.CreationTimestamp.Time.Before(istiocsr.CreationTimestamp.Time) ||
-			// Even when timestamps are equal will skip processing. And if this ends
-			// up in ignoring all istiocsr instances, which means user must have created
-			// all in parallel, onus is on user to delete all and recreate just one required
-			// instance of istiocsr.
 			item.CreationTimestamp.Time.Equal(istiocsr.CreationTimestamp.Time) {
-			ignoreProcessing = true
+			return false
 		}
 	}
+	return true
+}
 
-	if !ignoreProcessing {
-		// This is the oldest instance, allow it to proceed
-		return nil
+// rejectAlreadyMarkedInstance handles an istiocsr that already has the processing-rejected annotation.
+func (r *Reconciler) rejectAlreadyMarkedInstance(istiocsr *v1alpha1.IstioCSR, statusMessage string) error {
+	r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
+	var updateErr error
+	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		updateErr = r.updateCondition(istiocsr, nil)
 	}
+	return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s: %w", statusMessage, errMultipleISRInstances), updateErr}))
+}
 
-	// This instance should be rejected as there's an older or equally old instance
+// rejectInstance marks this instance as rejected and returns a multiple-instance error.
+func (r *Reconciler) rejectInstance(istiocsr *v1alpha1.IstioCSR, statusMessage string) error {
 	var condUpdateErr, annUpdateErr error
 	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 		condUpdateErr = r.updateCondition(istiocsr, nil)
@@ -541,6 +673,30 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	if condUpdateErr != nil || annUpdateErr != nil {
 		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
+	return common.NewMultipleInstanceError(fmt.Errorf("%s: %w", statusMessage, errMultipleISRInstances))
+}
 
-	return common.NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
+	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
+
+	if containsProcessingRejectedAnnotation(istiocsr) {
+		return r.rejectAlreadyMarkedInstance(istiocsr, statusMessage)
+	}
+
+	istiocsrList := &v1alpha1.IstioCSRList{}
+	if err := r.List(r.ctx, istiocsrList); err != nil {
+		return fmt.Errorf("failed to fetch list of istiocsr resources: %w", err)
+	}
+
+	if len(istiocsrList.Items) <= 1 {
+		return nil
+	}
+
+	if isOldestInstance(istiocsr, istiocsrList.Items) {
+		// This is the oldest instance, allow it to proceed
+		return nil
+	}
+
+	// This instance should be rejected as there's an older or equally old instance
+	return r.rejectInstance(istiocsr, statusMessage)
 }

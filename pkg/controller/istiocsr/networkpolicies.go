@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
+
+var errDecodedObjectNotNetworkPolicy = errors.New("decoded object is not a NetworkPolicy")
 
 func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	r.log.V(4).Info("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
@@ -47,7 +50,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 
 	policy, ok := obj.(*networkingv1.NetworkPolicy)
 	if !ok {
-		return nil, fmt.Errorf("decoded object is not a NetworkPolicy, got %T", obj)
+		return nil, fmt.Errorf("decoded object is not a NetworkPolicy, got %T: %w", obj, errDecodedObjectNotNetworkPolicy)
 	}
 
 	// Set the correct namespace

@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -32,6 +33,21 @@ const (
 
 var errInvalidIssuerRefConfig = fmt.Errorf("invalid issuerRef config")
 
+var (
+	errEnvVarNotSet                  = errors.New("environment variable with istiocsr image not set")
+	errKeyNotFoundInConfigMap        = errors.New("key not found in ConfigMap")
+	errFailedToConvertToClusterIssuer = errors.New("failed to convert to ClusterIssuer")
+	errFailedToConvertToIssuer       = errors.New("failed to convert to Issuer")
+	errIssuerCANotConfigured         = errors.New("CA certificate not configured for issuer of CA type")
+	errFailedToFindCACertificate     = errors.New("failed to find CA certificate")
+	errPEMDataIsEmpty                = errors.New("PEM data is empty")
+	errNoValidPEMDataFound           = errors.New("no valid PEM data found")
+	errPEMBlockNotCertificate        = errors.New("PEM block is not a certificate")
+	errCertNoBasicConstraints        = errors.New("certificate does not have valid Basic Constraints extension")
+	errCertNotCA                     = errors.New("certificate is not a CA certificate")
+	errCertNoCertSignKeyUsage        = errors.New("certificate does not have Certificate Sign key usage")
+)
+
 func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getDeploymentObject(istiocsr, resourceLabels)
 	if err != nil {
@@ -46,23 +62,8 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		return common.FromClientError(err, "failed to check %s deployment resource already exists", deploymentName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
-	} else {
-		r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
-	}
-	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to create %s deployment resource", deploymentName)
-		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s created", deploymentName)
+	if err := r.applyResource(istiocsr, desired, fetched, deploymentName, "deployment", exist, istioCSRCreateRecon); err != nil {
+		return err
 	}
 
 	if err := r.updateImageInStatus(istiocsr, desired); err != nil {
@@ -109,7 +110,7 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 func (r *Reconciler) updateImage(deployment *appsv1.Deployment) error {
 	image := os.Getenv(istiocsrImageNameEnvVarName)
 	if image == "" {
-		return fmt.Errorf("%s environment variable with istiocsr image not set", istiocsrImageNameEnvVarName)
+		return fmt.Errorf("%s %w", istiocsrImageNameEnvVarName, errEnvVarNotSet)
 	}
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == istiocsrContainerName {
@@ -332,7 +333,7 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 
 	// Validate that the specified key exists in the ConfigMap
 	if _, exists := sourceConfigMap.Data[caCertConfig.Key]; !exists {
-		return common.NewIrrecoverableError(fmt.Errorf("key %q not found in ConfigMap %s/%s", caCertConfig.Key, sourceConfigMapKey.Namespace, sourceConfigMapKey.Name), "invalid CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
+		return common.NewIrrecoverableError(fmt.Errorf("key %q not found in ConfigMap %s/%s: %w", caCertConfig.Key, sourceConfigMapKey.Namespace, sourceConfigMapKey.Name, errKeyNotFoundInConfigMap), "invalid CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
 	}
 
 	// Validate that the key contains PEM-formatted content
@@ -359,15 +360,11 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 	return nil
 }
 
-// handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
-func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
-	var (
-		issuerConfig certmanagerv1.IssuerConfig
-	)
-
+// getIssuerConfig resolves the IssuerConfig from the issuer referenced by the IstioCSR spec.
+func (r *Reconciler) getIssuerConfig(istiocsr *v1alpha1.IstioCSR) (certmanagerv1.IssuerConfig, error) {
 	obj, err := r.getIssuer(istiocsr)
 	if err != nil {
-		return common.FromClientError(err, "failed to fetch issuer")
+		return certmanagerv1.IssuerConfig{}, common.FromClientError(err, "failed to fetch issuer")
 	}
 
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
@@ -375,15 +372,24 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 	case clusterIssuerKind:
 		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
 		if !ok {
-			return common.FromClientError(fmt.Errorf("failed to convert to ClusterIssuer"), "failed to fetch issuer")
+			return certmanagerv1.IssuerConfig{}, common.FromClientError(errFailedToConvertToClusterIssuer, "failed to fetch issuer")
 		}
-		issuerConfig = clusterIssuer.Spec.IssuerConfig
+		return clusterIssuer.Spec.IssuerConfig, nil
 	case issuerKind:
 		issuer, ok := obj.(*certmanagerv1.Issuer)
 		if !ok {
-			return common.FromClientError(fmt.Errorf("failed to convert to Issuer"), "failed to fetch issuer")
+			return certmanagerv1.IssuerConfig{}, common.FromClientError(errFailedToConvertToIssuer, "failed to fetch issuer")
 		}
-		issuerConfig = issuer.Spec.IssuerConfig
+		return issuer.Spec.IssuerConfig, nil
+	}
+	return certmanagerv1.IssuerConfig{}, nil
+}
+
+// handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
+func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+	issuerConfig, err := r.getIssuerConfig(istiocsr)
+	if err != nil {
+		return err
 	}
 
 	shouldUpdateVolume := false
@@ -525,7 +531,7 @@ func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.I
 
 func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
 	if issuerConfig.CA.SecretName == "" {
-		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
+		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type: %w", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name, errIssuerCANotConfigured)
 	}
 
 	secretKey := client.ObjectKey{
@@ -547,7 +553,7 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 // createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data.
 func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
 	if certData == "" {
-		return fmt.Errorf("failed to find CA certificate")
+		return errFailedToFindCACertificate
 	}
 
 	configmapKey := client.ObjectKey{
@@ -593,17 +599,17 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 
 func (r *Reconciler) validatePEMData(pemData string) error {
 	if pemData == "" {
-		return fmt.Errorf("PEM data is empty")
+		return errPEMDataIsEmpty
 	}
 
 	// Parse the first certificate from PEM data
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
-		return fmt.Errorf("no valid PEM data found")
+		return errNoValidPEMDataFound
 	}
 
 	if block.Type != "CERTIFICATE" {
-		return fmt.Errorf("PEM block is not a certificate, found: %s", block.Type)
+		return fmt.Errorf("PEM block is not a certificate, found: %s: %w", block.Type, errPEMBlockNotCertificate)
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
@@ -612,16 +618,16 @@ func (r *Reconciler) validatePEMData(pemData string) error {
 	}
 
 	if !cert.BasicConstraintsValid {
-		return fmt.Errorf("certificate does not have valid Basic Constraints extension")
+		return errCertNoBasicConstraints
 	}
 
 	if !cert.IsCA {
-		return fmt.Errorf("certificate is not a CA certificate")
+		return errCertNotCA
 	}
 
 	// Check Key Usage for certificate signing
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
-		return fmt.Errorf("certificate does not have Certificate Sign key usage")
+		return errCertNoCertSignKeyUsage
 	}
 
 	return nil

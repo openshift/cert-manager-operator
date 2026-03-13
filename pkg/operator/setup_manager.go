@@ -53,7 +53,7 @@ var istioCSRManagedResources = []client.Object{
 
 // trustManagerManagedResources defines the resources managed by the TrustManager controller.
 // These resources will be watched with a label selector filter.
-// TODO: Add more resources as they are implemented
+// TODO: Add more resources as they are implemented.
 var trustManagerManagedResources = []client.Object{
 	&corev1.ServiceAccount{},
 }

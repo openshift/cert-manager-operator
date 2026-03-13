@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -8,7 +9,9 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, trustManagerCreateRecon bool) error {
+var errTrustNamespaceNotFound = errors.New("trust namespace does not exist, create the namespace before creating TrustManager CR")
+
+func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, _ bool) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
 		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName())
 	}
@@ -50,7 +53,7 @@ func (r *Reconciler) validateTrustNamespace(namespace string) error {
 		return fmt.Errorf("failed to check if namespace %q exists: %w", namespace, err)
 	}
 	if !exists {
-		return fmt.Errorf("trust namespace %q does not exist, create the namespace before creating TrustManager CR", namespace)
+		return fmt.Errorf("trust namespace %q: %w", namespace, errTrustNamespaceNotFound)
 	}
 	return nil
 }

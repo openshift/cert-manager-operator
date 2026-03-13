@@ -1,5 +1,4 @@
-//nolint:revive // package name "common" is required and cannot be changed
-package common
+package ctrlutil
 
 import (
 	"context"
