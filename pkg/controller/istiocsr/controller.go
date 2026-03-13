@@ -67,6 +67,137 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}, nil
 }
 
+// Reconcile function to compare the state specified by the IstioCSR object against the actual cluster state,
+// and to make the cluster state reflect the state specified by the user.
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.log.V(1).Info("reconciling", "request", req)
+
+	// Fetch the istiocsr.openshift.operator.io CR
+	istiocsr := &v1alpha1.IstioCSR{}
+	if err := r.Get(ctx, req.NamespacedName, istiocsr); err != nil {
+		if errors.IsNotFound(err) {
+			// NotFound errors, since they can't be fixed by an immediate
+			// requeue (have to wait for a new notification), and can be processed
+			// on deleted requests.
+			r.log.V(1).Info("istiocsr.openshift.operator.io object not found, skipping reconciliation", "request", req)
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, fmt.Errorf("failed to fetch istiocsr.openshift.operator.io %q during reconciliation: %w", req.NamespacedName, err)
+	}
+
+	if !istiocsr.DeletionTimestamp.IsZero() {
+		r.log.V(1).Info("istiocsr.openshift.operator.io is marked for deletion", "namespace", req.NamespacedName)
+
+		if requeue, err := r.cleanUp(istiocsr); err != nil {
+			return ctrl.Result{}, fmt.Errorf("clean up failed for %q istiocsr.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
+		} else if requeue {
+			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
+		}
+
+		if err := r.removeFinalizer(ctx, istiocsr, finalizer); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		r.log.V(1).Info("removed finalizer, cleanup complete", "request", req.NamespacedName)
+		return ctrl.Result{}, nil
+	}
+
+	// Set finalizers on the istiocsr.openshift.operator.io resource
+	if err := r.addFinalizer(ctx, istiocsr); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update %q istiocsr.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
+	}
+
+	return r.processReconcileRequest(istiocsr, req.NamespacedName)
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mapFunc := r.buildEnqueueMapFunc()
+
+	// predicate function to ignore events for objects not managed by controller.
+	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+	})
+
+	// predicate function to filter events for objects which controller is interested in, but
+	// not managed or created by controller.
+	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	})
+
+	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		if object.GetLabels() == nil {
+			return false
+		}
+		// Accept if it's a managed ConfigMap OR a watched ConfigMap
+		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
+			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	})
+
+	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
+	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
+	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
+	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Named(ControllerName).
+		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
+		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Complete(r)
+}
+
+func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
+	istioCSRCreateRecon := false
+	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
+		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+		istioCSRCreateRecon = true
+	}
+
+	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
+		if common.IsMultipleInstanceError(err) {
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
+			err = nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
+	if reconcileErr != nil {
+		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
+	}
+
+	return common.HandleReconcileResult(
+		&istiocsr.Status.ConditionalStatus,
+		reconcileErr,
+		r.log.WithValues("namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName()),
+		func(prependErr error) error {
+			return r.updateCondition(istiocsr, prependErr)
+		},
+		defaultRequeueTime,
+	)
+}
+
+// cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
+//
+//nolint:unparam // error return is kept for future implementation
+func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
+	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
+	// This might require a validation webhook to check for usage of service as GRPC endpoint in
+	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.
+	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "RemoveDeployment", "%s/%s istiocsr marked for deletion, remove reference in istiod deployment and remove all resources created for istiocsr deployment", istiocsr.GetNamespace(), istiocsr.GetName())
+	return false, nil
+}
+
 // buildEnqueueMapFunc returns the map function used to enqueue reconcile requests
 // when watched resources change.
 func (r *Reconciler) buildEnqueueMapFunc() func(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -120,135 +251,4 @@ func (r *Reconciler) enqueueableNamespace(objLabels map[string]string, obj clien
 		return false, ""
 	}
 	return true, key[0]
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := r.buildEnqueueMapFunc()
-
-	// predicate function to ignore events for objects not managed by controller.
-	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
-	})
-
-	// predicate function to filter events for objects which controller is interested in, but
-	// not managed or created by controller.
-	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
-	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetLabels() == nil {
-			return false
-		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
-			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
-	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
-	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
-	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
-	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
-
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Named(ControllerName).
-		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
-		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
-		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
-		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Complete(r)
-}
-
-// Reconcile function to compare the state specified by the IstioCSR object against the actual cluster state,
-// and to make the cluster state reflect the state specified by the user.
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.log.V(1).Info("reconciling", "request", req)
-
-	// Fetch the istiocsr.openshift.operator.io CR
-	istiocsr := &v1alpha1.IstioCSR{}
-	if err := r.Get(ctx, req.NamespacedName, istiocsr); err != nil {
-		if errors.IsNotFound(err) {
-			// NotFound errors, since they can't be fixed by an immediate
-			// requeue (have to wait for a new notification), and can be processed
-			// on deleted requests.
-			r.log.V(1).Info("istiocsr.openshift.operator.io object not found, skipping reconciliation", "request", req)
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, fmt.Errorf("failed to fetch istiocsr.openshift.operator.io %q during reconciliation: %w", req.NamespacedName, err)
-	}
-
-	if !istiocsr.DeletionTimestamp.IsZero() {
-		r.log.V(1).Info("istiocsr.openshift.operator.io is marked for deletion", "namespace", req.NamespacedName)
-
-		if requeue, err := r.cleanUp(istiocsr); err != nil {
-			return ctrl.Result{}, fmt.Errorf("clean up failed for %q istiocsr.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
-		} else if requeue {
-			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
-		}
-
-		if err := r.removeFinalizer(ctx, istiocsr, finalizer); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		r.log.V(1).Info("removed finalizer, cleanup complete", "request", req.NamespacedName)
-		return ctrl.Result{}, nil
-	}
-
-	// Set finalizers on the istiocsr.openshift.operator.io resource
-	if err := r.addFinalizer(ctx, istiocsr); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update %q istiocsr.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
-	}
-
-	return r.processReconcileRequest(istiocsr, req.NamespacedName)
-}
-
-func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
-	istioCSRCreateRecon := false
-	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
-		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
-		istioCSRCreateRecon = true
-	}
-
-	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
-		if common.IsMultipleInstanceError(err) {
-			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
-			err = nil
-		}
-		return ctrl.Result{}, err
-	}
-
-	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
-	if reconcileErr != nil {
-		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
-	}
-
-	return common.HandleReconcileResult(
-		&istiocsr.Status.ConditionalStatus,
-		reconcileErr,
-		r.log.WithValues("namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName()),
-		func(prependErr error) error {
-			return r.updateCondition(istiocsr, prependErr)
-		},
-		defaultRequeueTime,
-	)
-}
-
-// cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
-//
-//nolint:unparam // error return is kept for future implementation
-func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
-	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
-	// This might require a validation webhook to check for usage of service as GRPC endpoint in
-	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.
-	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "RemoveDeployment", "%s/%s istiocsr marked for deletion, remove reference in istiod deployment and remove all resources created for istiocsr deployment", istiocsr.GetNamespace(), istiocsr.GetName())
-	return false, nil
 }
