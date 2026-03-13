@@ -11,7 +11,7 @@ import (
 
 var errTrustNamespaceNotFound = errors.New("trust namespace does not exist, create the namespace before creating TrustManager CR")
 
-func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, trustManagerCreateRecon bool) error {
+func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager, _ bool) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
 		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName())
 	}

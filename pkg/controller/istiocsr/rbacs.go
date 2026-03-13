@@ -67,7 +67,7 @@ func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, reso
 // matching resources by label, copy the single matched item into fetched, and return (true, nil).
 // If no items match, return (false, nil).
 func (r *Reconciler) resolveExistingClusterScopedResource(
-	istiocsr *v1alpha1.IstioCSR,
+	_ *v1alpha1.IstioCSR,
 	desired, fetched client.Object,
 	statusName, resourceKind string,
 	listAndResolve func() (bool, error),

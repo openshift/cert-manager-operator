@@ -1,3 +1,4 @@
+//nolint:revive // package name "common" is required and cannot be changed
 package common
 
 // ManagedResourceLabelKey is the common label key used by all operand controllers

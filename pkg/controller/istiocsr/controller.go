@@ -70,7 +70,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 // buildEnqueueMapFunc returns the map function used to enqueue reconcile requests
 // when watched resources change.
 func (r *Reconciler) buildEnqueueMapFunc() func(ctx context.Context, obj client.Object) []reconcile.Request {
-	return func(ctx context.Context, obj client.Object) []reconcile.Request {
+	return func(_ context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
