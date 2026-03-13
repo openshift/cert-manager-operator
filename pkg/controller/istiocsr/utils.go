@@ -275,73 +275,145 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 // isRBACModified checks if any RBAC-typed object (ClusterRole, ClusterRoleBinding, Role,
 // RoleBinding) has been modified. Types are guaranteed to match by the caller.
 func isRBACModified(desired, fetched client.Object) bool {
-	switch desiredObj := desired.(type) {
+	switch desired.(type) {
 	case *rbacv1.ClusterRole:
-		fetchedObj, ok := fetched.(*rbacv1.ClusterRole)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return rbacRoleRulesModified(desiredObj, fetchedObj)
+		return isClusterRoleModified(desired, fetched)
 	case *rbacv1.ClusterRoleBinding:
-		fetchedObj, ok := fetched.(*rbacv1.ClusterRoleBinding)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+		return isClusterRoleBindingModified(desired, fetched)
 	case *rbacv1.Role:
-		fetchedObj, ok := fetched.(*rbacv1.Role)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return rbacRoleRulesModified(desiredObj, fetchedObj)
+		return isRoleModified(desired, fetched)
 	case *rbacv1.RoleBinding:
-		fetchedObj, ok := fetched.(*rbacv1.RoleBinding)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+		return isRoleBindingModified(desired, fetched)
 	default:
 		panic(fmt.Sprintf("unsupported RBAC object type: %T", desired))
 	}
 }
 
+func isClusterRoleModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.ClusterRole)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.ClusterRole)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleRulesModified(desiredObj, fetchedObj)
+}
+
+func isClusterRoleBindingModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+}
+
+func isRoleModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.Role)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.Role)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleRulesModified(desiredObj, fetchedObj)
+}
+
+func isRoleBindingModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*rbacv1.RoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*rbacv1.RoleBinding)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return rbacRoleBindingRefModified(desiredObj, fetchedObj) || rbacRoleBindingSubjectsModified(desiredObj, fetchedObj)
+}
+
 // isNonRBACModified checks if a non-RBAC object has been modified.
 // Types are guaranteed to match by the caller.
 func isNonRBACModified(desired, fetched client.Object) bool {
-	switch desiredObj := desired.(type) {
+	switch desired.(type) {
 	case *certmanagerv1.Certificate:
-		fetchedObj, ok := fetched.(*certmanagerv1.Certificate)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return certificateSpecModified(desiredObj, fetchedObj)
+		return isCertificateModified(desired, fetched)
 	case *appsv1.Deployment:
-		fetchedObj, ok := fetched.(*appsv1.Deployment)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return deploymentSpecModified(desiredObj, fetchedObj)
+		return isDeploymentModified(desired, fetched)
 	case *corev1.Service:
-		fetchedObj, ok := fetched.(*corev1.Service)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return serviceSpecModified(desiredObj, fetchedObj)
+		return isServiceModified(desired, fetched)
 	case *corev1.ConfigMap:
-		fetchedObj, ok := fetched.(*corev1.ConfigMap)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return configMapDataModified(desiredObj, fetchedObj)
+		return isConfigMapModified(desired, fetched)
 	case *networkingv1.NetworkPolicy:
-		fetchedObj, ok := fetched.(*networkingv1.NetworkPolicy)
-		if !ok {
-			panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
-		}
-		return networkPolicySpecModified(desiredObj, fetchedObj)
+		return isNetworkPolicyModified(desired, fetched)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
+}
+
+func isCertificateModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*certmanagerv1.Certificate)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*certmanagerv1.Certificate)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return certificateSpecModified(desiredObj, fetchedObj)
+}
+
+func isDeploymentModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*appsv1.Deployment)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*appsv1.Deployment)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return deploymentSpecModified(desiredObj, fetchedObj)
+}
+
+func isServiceModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*corev1.Service)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*corev1.Service)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return serviceSpecModified(desiredObj, fetchedObj)
+}
+
+func isConfigMapModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*corev1.ConfigMap)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*corev1.ConfigMap)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return configMapDataModified(desiredObj, fetchedObj)
+}
+
+func isNetworkPolicyModified(desired, fetched client.Object) bool {
+	desiredObj, ok := desired.(*networkingv1.NetworkPolicy)
+	if !ok {
+		panic(fmt.Sprintf("desired object type mismatch: got %T", desired))
+	}
+	fetchedObj, ok := fetched.(*networkingv1.NetworkPolicy)
+	if !ok {
+		panic(fmt.Sprintf("fetched object type mismatch: expected %T, got %T", desired, fetched))
+	}
+	return networkPolicySpecModified(desiredObj, fetchedObj)
 }
 
 // isSpecModified dispatches spec comparison to the appropriate type-specific helper.
