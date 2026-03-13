@@ -135,7 +135,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to get serviceaccount",
+			wantErr:         "failed to check if serviceaccount",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},

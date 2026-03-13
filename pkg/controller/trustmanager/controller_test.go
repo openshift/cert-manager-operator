@@ -210,7 +210,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:   v1alpha1.Ready,
 					Status: metav1.ConditionFalse,
-					Reason: v1alpha1.ReasonReady,
+					Reason: v1alpha1.ReasonFailed,
 				},
 			},
 		},
@@ -249,7 +249,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Reason: v1alpha1.ReasonInProgress,
 				},
 			},
-			wantErr: "failed to get serviceaccount",
+			wantErr: "failed to check if serviceaccount",
 		},
 	}
 
