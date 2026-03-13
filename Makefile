@@ -290,6 +290,25 @@ test-e2e-debug-cluster:
 	-oc logs deployment/cert-manager-operator -n cert-manager-operator
 	@echo "---- /Debugging the current state ----"
 
+.PHONY: test-rhcos10
+test-rhcos10: ## Run RHCOS 10 compatibility test suite.
+	hack/test-rhcos10-compatibility.sh
+
+.PHONY: verify-rhcos10-crypto
+verify-rhcos10-crypto: ## Verify RHCOS 10 crypto library compatibility.
+	hack/verify-rhcos10-crypto.sh
+
+.PHONY: report-rhcos10
+report-rhcos10: ## Generate RHCOS 10 test report from results.
+	@echo "RHCOS 10 Test Report"
+	@echo "===================="
+	@if [ -f "$(OUTPUT_DIR)/rhcos10-compatibility-report.md" ]; then \
+		cat "$(OUTPUT_DIR)/rhcos10-compatibility-report.md"; \
+	else \
+		echo "No test report found. Run 'make test-rhcos10' first."; \
+		exit 1; \
+	fi
+
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Run golangci-lint linter.
 	$(GOLANGCI_LINT) run --verbose --config $(PROJECT_ROOT)/.golangci.yaml $(PROJECT_ROOT)/...
