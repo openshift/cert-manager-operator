@@ -774,5 +774,5 @@ spec:
     name: cert-manager-acmesolver
   - image: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
     name: cert-manager-istiocsr
-  replaces: cert-manager-operator.v1.16.1
+  replaces: cert-manager-operator.v1.17.0
   version: 1.17.1

@@ -104,5 +104,5 @@ spec:
   minKubeVersion: 1.27.0
   provider:
     name: Red Hat
-  replaces: cert-manager-operator.v1.16.1
+  replaces: cert-manager-operator.v1.17.0
   version: 1.17.1
