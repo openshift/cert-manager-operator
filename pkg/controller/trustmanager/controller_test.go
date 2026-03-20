@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -366,6 +367,36 @@ func TestProcessReconcileRequest(t *testing.T) {
 				if !found {
 					t.Errorf("expected condition %s not found in status conditions %v", want.Type, tm.Status.Conditions)
 				}
+			}
+		})
+	}
+}
+
+func TestCleanUp(t *testing.T) {
+	tests := []struct {
+		name         string
+		trustManager *v1alpha1.TrustManager
+		wantRequeue  bool
+		wantErr      bool
+	}{
+		{
+			name: "returns false and nil",
+			trustManager: &v1alpha1.TrustManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+			},
+			wantRequeue: false,
+			wantErr:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Reconciler{eventRecorder: record.NewFakeRecorder(10)}
+			requeue, err := r.cleanUp(tt.trustManager)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("cleanUp() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if requeue != tt.wantRequeue {
+				t.Errorf("cleanUp() requeue = %v, want %v", requeue, tt.wantRequeue)
 			}
 		})
 	}
