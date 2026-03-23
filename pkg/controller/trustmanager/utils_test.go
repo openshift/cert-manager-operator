@@ -212,6 +212,19 @@ func TestValidateTrustManagerConfig(t *testing.T) {
 			tm:      testTrustManager().WithAnnotations(map[string]string{"invalid/key/with/extra/slash": "val"}),
 			wantErr: `spec.controllerConfig.annotations: Invalid value:`,
 		},
+		{
+			name: "non-empty trustManagerConfig is valid",
+			tm: &v1alpha1.TrustManager{
+				Spec: v1alpha1.TrustManagerSpec{
+					TrustManagerConfig: v1alpha1.TrustManagerConfig{
+						LogLevel:       2,
+						LogFormat:      "json",
+						TrustNamespace: "cert-manager",
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

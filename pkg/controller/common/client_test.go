@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -45,10 +46,65 @@ func (f *fakeManager) GetWebhookServer() webhook.Server        { return nil }
 func (f *fakeManager) GetLogger() logr.Logger                 { return logr.Discard() }
 func (f *fakeManager) GetControllerOptions() config.Controller { return config.Controller{} }
 
+// sentinelClient is a non-nil client.Client stub so NewClient tests can assert manager wiring
+// (pointer identity) without controller-runtime's fake client (not vendored).
+type sentinelClient struct{}
+
+type noopSubResourceWriter struct{}
+
+func (noopSubResourceWriter) Create(context.Context, client.Object, client.Object, ...client.SubResourceCreateOption) error {
+	return nil
+}
+func (noopSubResourceWriter) Update(context.Context, client.Object, ...client.SubResourceUpdateOption) error {
+	return nil
+}
+func (noopSubResourceWriter) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
+	return nil
+}
+
+type noopSubResourceClient struct{}
+
+func (noopSubResourceClient) Get(context.Context, client.Object, client.Object, ...client.SubResourceGetOption) error {
+	return nil
+}
+func (noopSubResourceClient) Create(context.Context, client.Object, client.Object, ...client.SubResourceCreateOption) error {
+	return nil
+}
+func (noopSubResourceClient) Update(context.Context, client.Object, ...client.SubResourceUpdateOption) error {
+	return nil
+}
+func (noopSubResourceClient) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
+	return nil
+}
+
+func (*sentinelClient) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return nil
+}
+func (*sentinelClient) List(context.Context, client.ObjectList, ...client.ListOption) error { return nil }
+func (*sentinelClient) Apply(context.Context, runtime.ApplyConfiguration, ...client.ApplyOption) error {
+	return nil
+}
+func (*sentinelClient) Create(context.Context, client.Object, ...client.CreateOption) error { return nil }
+func (*sentinelClient) Delete(context.Context, client.Object, ...client.DeleteOption) error { return nil }
+func (*sentinelClient) Update(context.Context, client.Object, ...client.UpdateOption) error { return nil }
+func (*sentinelClient) Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error {
+	return nil
+}
+func (*sentinelClient) DeleteAllOf(context.Context, client.Object, ...client.DeleteAllOfOption) error {
+	return nil
+}
+func (*sentinelClient) Status() client.SubResourceWriter                            { return noopSubResourceWriter{} }
+func (*sentinelClient) SubResource(string) client.SubResourceClient                 { return noopSubResourceClient{} }
+func (*sentinelClient) Scheme() *runtime.Scheme                                     { return nil }
+func (*sentinelClient) RESTMapper() meta.RESTMapper                                 { return nil }
+func (*sentinelClient) GroupVersionKindFor(runtime.Object) (schema.GroupVersionKind, error) {
+	return schema.GroupVersionKind{}, nil
+}
+func (*sentinelClient) IsObjectNamespaced(runtime.Object) (bool, error) { return false, nil }
+
 // TestNewClient provides table-driven tests for NewClient(m manager.Manager) (CtrlClient, error).
-// Uses a nil client to avoid depending on controller-runtime/pkg/client/fake (not in vendor).
 func TestNewClient(t *testing.T) {
-	var cl client.Client = nil
+	var cl client.Client = &sentinelClient{}
 	mgr := &fakeManager{client: cl}
 
 	tests := []struct {
@@ -83,6 +139,9 @@ func TestNewClient(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, got)
 				var _ CtrlClient = got
+				impl, ok := got.(*ctrlClientImpl)
+				require.True(t, ok, "NewClient must return *ctrlClientImpl")
+				assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")
 			}
 		})
 	}
@@ -90,12 +149,12 @@ func TestNewClient(t *testing.T) {
 
 // TestNewClient_GetClientReturnsSameClient verifies the returned client wraps the manager's client.
 func TestNewClient_GetClientReturnsSameClient(t *testing.T) {
-	var cl client.Client = nil
+	var cl client.Client = &sentinelClient{}
 	mgr := &fakeManager{client: cl}
 	ctrlClient, err := NewClient(mgr)
 	require.NoError(t, err)
 	require.NotNil(t, ctrlClient)
 	impl, ok := ctrlClient.(*ctrlClientImpl)
 	require.True(t, ok, "NewClient must return *ctrlClientImpl")
-	assert.Equal(t, cl, impl.Client, "client must be the manager's client")
+	assert.True(t, impl.Client == cl, "client must be the exact same manager client instance")
 }
