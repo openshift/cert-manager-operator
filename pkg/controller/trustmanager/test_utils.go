@@ -69,6 +69,14 @@ func (b *trustManagerBuilder) WithAffinity(affinity *corev1.Affinity) *trustMana
 	return b
 }
 
+func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPolicy, authorizedSecrets []string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+		Policy:            policy,
+		AuthorizedSecrets: authorizedSecrets,
+	}
+	return b
+}
+
 func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 	return b.TrustManager
 }

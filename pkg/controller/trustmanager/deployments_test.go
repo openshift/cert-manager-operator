@@ -131,17 +131,12 @@ func TestDeploymentSpec(t *testing.T) {
 func TestDeploymentContainerArgs(t *testing.T) {
 	tests := []struct {
 		name            string
-		logLevel        int32
-		logFormat       string
-		trustNamespace  string
+		tmBuilder       *trustManagerBuilder
 		expectedArgs    []string
 		notExpectedArgs []string
 	}{
 		{
-			name:           "default values",
-			logLevel:       1,
-			logFormat:      "text",
-			trustNamespace: "cert-manager",
+			name: "default values",
 			expectedArgs: []string{
 				"--log-level=1",
 				"--log-format=text",
@@ -150,12 +145,19 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--webhook-port=6443",
 				"--metrics-port=9402",
 			},
+			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
 		},
 		{
-			name:           "custom values",
-			logLevel:       5,
-			logFormat:      "json",
-			trustNamespace: "custom-ns",
+			name: "custom values",
+			tmBuilder: func() *trustManagerBuilder {
+				b := testTrustManager()
+				b.Spec.TrustManagerConfig.LogLevel = 5
+				b.Spec.TrustManagerConfig.LogFormat = "json"
+				b.Spec.TrustManagerConfig.TrustNamespace = "custom-ns"
+				return b
+			}(),
 			expectedArgs: []string{
 				"--log-level=5",
 				"--log-format=json",
@@ -167,12 +169,35 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			},
 		},
 		{
-			name:           "falls back to default trust namespace when empty",
-			logLevel:       1,
-			logFormat:      "text",
-			trustNamespace: "",
+			name: "falls back to default trust namespace when empty",
+			tmBuilder: func() *trustManagerBuilder {
+				b := testTrustManager()
+				b.Spec.TrustManagerConfig.TrustNamespace = ""
+				return b
+			}(),
 			expectedArgs: []string{
 				fmt.Sprintf("--trust-namespace=%s", defaultTrustNamespace),
+			},
+		},
+		{
+			name:      "includes secret-targets-enabled when policy is Custom with authorized secrets",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"my-bundle"}),
+			expectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
+		},
+		{
+			name:      "excludes secret-targets-enabled when policy is Disabled",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyDisabled, nil),
+			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
+		},
+		{
+			name:      "excludes secret-targets-enabled when policy is Custom but no authorized secrets",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, nil),
+			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
 			},
 		},
 	}
@@ -182,10 +207,11 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
 
-			tm := testTrustManager().Build()
-			tm.Spec.TrustManagerConfig.LogLevel = tt.logLevel
-			tm.Spec.TrustManagerConfig.LogFormat = tt.logFormat
-			tm.Spec.TrustManagerConfig.TrustNamespace = tt.trustNamespace
+			tmBuilder := tt.tmBuilder
+			if tmBuilder == nil {
+				tmBuilder = testTrustManager()
+			}
+			tm := tmBuilder.Build()
 
 			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations())
 			if err != nil {

@@ -134,6 +134,10 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		"--webhook-certificate-dir=/tls",
 	}
 
+	if secretTargetsEnabled(config.SecretTargets) {
+		args = append(args, "--secret-targets-enabled=true")
+	}
+
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == trustManagerContainerName {
 			deployment.Spec.Template.Spec.Containers[i].Args = args

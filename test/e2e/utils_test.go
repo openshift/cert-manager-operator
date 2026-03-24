@@ -144,6 +144,14 @@ func (b *trustManagerCRBuilder) WithAnnotations(annotations map[string]string) *
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPolicy, authorizedSecrets []string) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+		Policy:            policy,
+		AuthorizedSecrets: authorizedSecrets,
+	}
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }
