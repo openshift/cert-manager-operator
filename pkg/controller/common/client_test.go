@@ -108,41 +108,36 @@ func TestNewClient(t *testing.T) {
 	mgr := &fakeManager{client: cl}
 
 	tests := []struct {
-		name        string
-		m           manager.Manager
-		expectPanic bool
+		name      string
+		m         manager.Manager
+		wantError bool
 	}{
 		{
-			name:        "happy path - valid manager returns CtrlClient",
-			m:           mgr,
-			expectPanic: false,
+			name:      "happy path - valid manager returns CtrlClient",
+			m:         mgr,
+			wantError: false,
 		},
 		{
-			name:        "nil manager - GetClient panics",
-			m:           nil,
-			expectPanic: true,
+			name:      "nil manager returns error",
+			m:         nil,
+			wantError: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expectPanic {
-				defer func() {
-					r := recover()
-					if r == nil {
-						t.Fatal("expected panic but got none")
-					}
-					t.Logf("NewClient(nil) panicked as expected: %v", r)
-				}()
-			}
 			got, err := NewClient(tt.m)
-			if !tt.expectPanic {
-				require.NoError(t, err)
-				require.NotNil(t, got)
-				var _ CtrlClient = got
-				impl, ok := got.(*ctrlClientImpl)
-				require.True(t, ok, "NewClient must return *ctrlClientImpl")
-				assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")
+			if tt.wantError {
+				require.Error(t, err)
+				require.Nil(t, got)
+				assert.Contains(t, err.Error(), "nil manager")
+				return
 			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			var _ CtrlClient = got
+			impl, ok := got.(*ctrlClientImpl)
+			require.True(t, ok, "NewClient must return *ctrlClientImpl")
+			assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")
 		})
 	}
 }

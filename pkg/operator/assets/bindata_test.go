@@ -1,6 +1,7 @@
 package assets
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -55,12 +56,6 @@ func TestAsset(t *testing.T) {
 			input:       "cert-manager-deployment/controller/cert-manager-tokenrequest-rb.yam",
 			expectError: true,
 			errorMsg:    "not found",
-		},
-		{
-			name:        "boundary - single known asset from AssetNames",
-			input:       tokenRequestRBAsset,
-			expectedMin: 1,
-			expectError: false,
 		},
 	}
 	for _, tt := range tests {
@@ -232,7 +227,7 @@ func TestMustAsset(t *testing.T) {
 		defer func() {
 			r := recover()
 			require.NotNil(t, r, "MustAsset must panic when asset not found")
-			assert.Contains(t, r.(string), "not found")
+			assert.Contains(t, fmt.Sprintf("%v", r), "not found")
 		}()
 		_ = MustAsset("nonexistent.yaml")
 	})

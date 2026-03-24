@@ -21,16 +21,18 @@ const testSecretName = "cloud-creds"
 
 func TestWithCloudCredentials(t *testing.T) {
 	tests := []struct {
-		name           string
-		deploymentName string
-		secretName     string
-		secretInStore  bool
-		platformType   configv1.PlatformType
-		wantErr        string
-		wantVolumes    int
-		wantMountPath  string
-		wantAWSEnv     bool
-		noInfra        bool // if true, infra indexer is left empty so Get("cluster") fails
+		name              string
+		deploymentName    string
+		secretName        string
+		secretInStore     bool
+		decoySecretOnly   bool // lister has a different secret name so Get(secretName) fails (not brittle on tt.name)
+		platformType      configv1.PlatformType
+		wantErr           string
+		wantNotFoundOK    bool // if true, apierrors.IsNotFound(err) is an acceptable match for this case
+		wantVolumes       int
+		wantMountPath     string
+		wantAWSEnv        bool
+		noInfra           bool // if true, infra indexer is left empty so Get("cluster") fails
 	}{
 		{
 			name:           "non-controller deployment no-op",
@@ -47,13 +49,14 @@ func TestWithCloudCredentials(t *testing.T) {
 			wantVolumes:    0,
 		},
 		{
-			name:           "secret not found returns retry error",
-			deploymentName: certmanagerControllerDeployment,
-			secretName:     "missing-secret",
-			secretInStore:  false,
-			platformType:   configv1.AWSPlatformType,
-			wantErr:        "Retrying",
-			wantVolumes:    0,
+			name:            "secret not found returns retry error",
+			deploymentName:  certmanagerControllerDeployment,
+			secretName:      "missing-secret",
+			secretInStore:   false,
+			decoySecretOnly: true,
+			platformType:    configv1.AWSPlatformType,
+			wantErr:         "Retrying",
+			wantVolumes:     0,
 		},
 		{
 			name:           "AWS adds volume, mount and env",
@@ -85,14 +88,15 @@ func TestWithCloudCredentials(t *testing.T) {
 			wantVolumes:    0,
 		},
 		{
-			name:           "infra not found returns error",
-			deploymentName: certmanagerControllerDeployment,
-			secretName:     testSecretName,
-			secretInStore:  true,
-			platformType:   configv1.AWSPlatformType,
-			wantErr:        "cluster",
-			noInfra:        true,
-			wantVolumes:    0,
+			name:            "infra not found returns error",
+			deploymentName:  certmanagerControllerDeployment,
+			secretName:      testSecretName,
+			secretInStore:   true,
+			platformType:    configv1.AWSPlatformType,
+			wantErr:         "cluster",
+			wantNotFoundOK:  true,
+			noInfra:         true,
+			wantVolumes:     0,
 		},
 		{
 			name:           "Azure platform is unsupported",
@@ -112,20 +116,19 @@ func TestWithCloudCredentials(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: "cert-manager"},
 				}
 				kubeClient = fake.NewSimpleClientset(secret)
-			} else {
-				kubeClient = fake.NewSimpleClientset()
-			}
-			if tt.name == "secret not found returns retry error" {
+			} else if tt.decoySecretOnly {
 				kubeClient = fake.NewSimpleClientset(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "cert-manager"},
 				})
+			} else {
+				kubeClient = fake.NewSimpleClientset()
 			}
 			kubeInformers := informers.NewSharedInformerFactory(kubeClient, 0)
 			if tt.secretInStore || tt.wantErr != "" {
 				secret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: "cert-manager"},
 				}
-				if tt.wantErr == "Retrying" {
+				if tt.decoySecretOnly {
 					secret.Name = "other"
 				}
 				kubeInformers.Core().V1().Secrets().Informer().GetStore().Add(secret)
@@ -172,8 +175,14 @@ func TestWithCloudCredentials(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
 				}
-				if !strings.Contains(err.Error(), tt.wantErr) && !apierrors.IsNotFound(err) {
-					t.Errorf("error = %v, want substring %q or NotFound", err, tt.wantErr)
+				matchSubstring := strings.Contains(err.Error(), tt.wantErr)
+				matchNotFound := tt.wantNotFoundOK && apierrors.IsNotFound(err)
+				if !matchSubstring && !matchNotFound {
+					if tt.wantNotFoundOK {
+						t.Errorf("error = %v, want substring %q or NotFound", err, tt.wantErr)
+					} else {
+						t.Errorf("error = %v, want substring %q", err, tt.wantErr)
+					}
 				}
 				return
 			}
@@ -187,9 +196,13 @@ func TestWithCloudCredentials(t *testing.T) {
 				if deployment.Spec.Template.Spec.Volumes[0].Name != cloudCredentialsVolumeName {
 					t.Errorf("volume name = %q, want %q", deployment.Spec.Template.Spec.Volumes[0].Name, cloudCredentialsVolumeName)
 				}
-				if tt.wantMountPath != "" && len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts) > 0 {
-					if deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath != tt.wantMountPath {
-						t.Errorf("mount path = %q, want %q", deployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath, tt.wantMountPath)
+				if tt.wantMountPath != "" {
+					mounts := deployment.Spec.Template.Spec.Containers[0].VolumeMounts
+					if len(mounts) == 0 {
+						t.Fatalf("expected VolumeMount for mount path %q, got none (containers[0].VolumeMounts is empty)", tt.wantMountPath)
+					}
+					if mounts[0].MountPath != tt.wantMountPath {
+						t.Errorf("mount path = %q, want %q", mounts[0].MountPath, tt.wantMountPath)
 					}
 				}
 				var hasAWS bool

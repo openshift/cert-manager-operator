@@ -39,6 +39,9 @@ type CtrlClient interface {
 // reads from the same cache that the controller's watches use, preventing
 // cache mismatch issues.
 func NewClient(m manager.Manager) (CtrlClient, error) {
+	if m == nil {
+		return nil, fmt.Errorf("nil manager")
+	}
 	return &ctrlClientImpl{
 		Client: m.GetClient(),
 	}, nil
