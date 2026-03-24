@@ -213,17 +213,16 @@ func TestValidateTrustManagerConfig(t *testing.T) {
 			wantErr: `spec.controllerConfig.annotations: Invalid value:`,
 		},
 		{
-			name: "non-empty trustManagerConfig is valid",
-			tm: &v1alpha1.TrustManager{
-				Spec: v1alpha1.TrustManagerSpec{
-					TrustManagerConfig: v1alpha1.TrustManagerConfig{
-						LogLevel:       2,
-						LogFormat:      "json",
-						TrustNamespace: "cert-manager",
-					},
-				},
-			},
-			wantErr: false,
+			name: "non-empty trustManagerConfig with explicit fields is valid",
+			tm: func() *trustManagerBuilder {
+				b := testTrustManager()
+				b.Spec.TrustManagerConfig = v1alpha1.TrustManagerConfig{
+					LogLevel:       2,
+					LogFormat:      "json",
+					TrustNamespace: "cert-manager",
+				}
+				return b
+			}(),
 		},
 	}
 

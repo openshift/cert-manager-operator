@@ -118,35 +118,35 @@ func TestUpdateResourceLabels(t *testing.T) {
 	}
 }
 
-func TestHasObjectChanged_DifferentTypes(t *testing.T) {
+func TestObjectMetadataModified_DifferentTypes(t *testing.T) {
 	sa := &corev1.ServiceAccount{}
 	cm := &corev1.ConfigMap{}
-	if HasObjectChanged(sa, cm) {
-		t.Error("HasObjectChanged should return false for different types")
+	if ObjectMetadataModified(sa, cm) {
+		t.Error("ObjectMetadataModified should return false when both objects have the same labels (including both empty)")
 	}
 }
 
-func TestHasObjectChanged_SameTypeDifferentLabels(t *testing.T) {
+func TestObjectMetadataModified_SameTypeDifferentLabels(t *testing.T) {
 	desired := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
 	}
 	fetched := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "2"}},
 	}
-	if !HasObjectChanged(desired, fetched) {
-		t.Error("HasObjectChanged should return true when labels differ")
+	if !ObjectMetadataModified(desired, fetched) {
+		t.Error("ObjectMetadataModified should return true when labels differ")
 	}
 }
 
-func TestHasObjectChanged_SameTypeSameLabels(t *testing.T) {
+func TestObjectMetadataModified_SameTypeSameLabels(t *testing.T) {
 	desired := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
 	}
 	fetched := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
 	}
-	if HasObjectChanged(desired, fetched) {
-		t.Error("HasObjectChanged should return false when labels match")
+	if ObjectMetadataModified(desired, fetched) {
+		t.Error("ObjectMetadataModified should return false when labels match")
 	}
 }
 
@@ -221,8 +221,8 @@ func TestAddAnnotation(t *testing.T) {
 	})
 }
 
-// Ensure we can pass any client.Object to HasObjectChanged (e.g. *appsv1.Deployment).
-func TestHasObjectChanged_WithDifferentObjectTypes(t *testing.T) {
+// Ensure we can pass any client.Object to ObjectMetadataModified (e.g. *appsv1.Deployment).
+func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 	tests := []struct {
 		name        string
 		desired     client.Object
@@ -262,7 +262,7 @@ func TestHasObjectChanged_WithDifferentObjectTypes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HasObjectChanged(tt.desired, tt.fetched)
+			got := ObjectMetadataModified(tt.desired, tt.fetched)
 			assert.Equal(t, tt.wantChanged, got)
 		})
 	}
