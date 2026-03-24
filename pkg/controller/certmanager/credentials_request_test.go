@@ -28,7 +28,7 @@ func TestWithCloudCredentials(t *testing.T) {
 		decoySecretOnly   bool // lister has a different secret name so Get(secretName) fails (not brittle on tt.name)
 		platformType      configv1.PlatformType
 		wantErr           string
-		wantNotFoundOK    bool // if true, apierrors.IsNotFound(err) is an acceptable match for this case
+		wantNotFoundOK    bool // if true, err must be NotFound and still contain wantErr in the message
 		wantVolumes       int
 		wantMountPath     string
 		wantAWSEnv        bool
@@ -176,10 +176,15 @@ func TestWithCloudCredentials(t *testing.T) {
 					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
 				}
 				matchSubstring := strings.Contains(err.Error(), tt.wantErr)
-				matchNotFound := tt.wantNotFoundOK && apierrors.IsNotFound(err)
-				if !matchSubstring && !matchNotFound {
+				var ok bool
+				if tt.wantNotFoundOK {
+					ok = apierrors.IsNotFound(err) && matchSubstring
+				} else {
+					ok = matchSubstring
+				}
+				if !ok {
 					if tt.wantNotFoundOK {
-						t.Errorf("error = %v, want substring %q or NotFound", err, tt.wantErr)
+						t.Errorf("error = %v, want NotFound with message containing %q", err, tt.wantErr)
 					} else {
 						t.Errorf("error = %v, want substring %q", err, tt.wantErr)
 					}
