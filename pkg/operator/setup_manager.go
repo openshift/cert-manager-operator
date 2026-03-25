@@ -59,6 +59,12 @@ var istioCSRManagedResources = []client.Object{
 // managed-resource label selector: IstioCSR reconciles user-created Issuers referenced
 // from the spec, which are not labeled by the operator. Those types are left out of
 // ByObject so they use the manager cache’s default unfiltered informer per GVK.
+//
+// ConfigMap is intentionally excluded from this list because the controller
+// watches both managed ConfigMaps (with the label) and the CNO-injected
+// cert-manager-operator-trusted-ca-bundle ConfigMap (without the label).
+// Using a label-filtered cache would prevent the controller from detecting
+// changes to the injection ConfigMap.
 var trustManagerManagedResources = []client.Object{
 	&certmanagerv1.Certificate{},
 	&appsv1.Deployment{},

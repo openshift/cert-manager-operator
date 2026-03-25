@@ -48,6 +48,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
@@ -76,24 +77,11 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// mapFunc unconditionally enqueues the singleton TrustManager CR.
+	// Filtering is handled by predicates attached to each Watch.
 	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-
-		objLabels := obj.GetLabels()
-		if objLabels != nil {
-			if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
-				return []reconcile.Request{
-					{
-						NamespacedName: types.NamespacedName{
-							Name: trustManagerObjectName,
-						},
-					},
-				}
-			}
-		}
-
-		r.log.V(4).Info("object not of interest, ignoring reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
-		return []reconcile.Request{}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: trustManagerObjectName}}}
 	}
 
 	isManagedResource := func(object client.Object) bool {
@@ -134,12 +122,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		controllerManagedResources,
 	)
 
+	// Predicate that matches the CNO-injected CA bundle ConfigMap in the operator namespace.
+	// This ConfigMap is NOT managed by trust-manager-controller (no managed label) but we need to detect
+	// when CNO updates the trusted CA bundle so we can reformat and propagate it.
+	injectedCABundleConfigMapPredicate := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetNamespace() == common.OperatorNamespace &&
+			object.GetName() == common.TrustedCABundleConfigMapName
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(injectedCABundleConfigMapPredicate)).
 		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
