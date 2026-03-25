@@ -45,6 +45,16 @@ const (
 	trustManagerTLSSecretName   = "trust-manager-tls"
 
 	trustManagerWebhookConfigName = "trust-manager"
+
+	// DefaultCAPackage constants
+	defaultCAPackageConfigMapName  = "trust-manager-default-ca-package"
+	defaultCAPackageVolumeName     = "default-ca-package"
+	defaultCAPackageMountPath      = "/packages"
+	defaultCAPackageLocation       = defaultCAPackageMountPath + "/cert-manager-package-openshift.json"
+	defaultCAPackageHashAnnotation = "operator.openshift.io/default-ca-package-hash"
+
+	trustedCABundleConfigMapName = "cert-manager-operator-trusted-ca-bundle"
+	trustedCABundleKey           = "ca-bundle.crt"
 )
 
 var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() {
@@ -602,7 +612,201 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 		})
 
 		// TODO: Add test for other deployment configuration options
-		// (i.e. custom trust namespace, default CA package policy, filter expired certificates policy)
+		// (i.e. custom trust namespace, filter expired certificates policy)
+	})
+
+	// -------------------------------------------------------------------------
+	// Default CA package configuration
+	// -------------------------------------------------------------------------
+
+	Context("default CA package configuration", func() {
+		It("should create ConfigMap, add volume/mount, arg, and hash annotation when enabled", func() {
+			createTrustManager(newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+
+			By("verifying the CNO-injected CA bundle ConfigMap exists in operator namespace")
+			Eventually(func(g Gomega) {
+				cm, err := clientset.CoreV1().ConfigMaps(operatorNamespace).Get(ctx, trustedCABundleConfigMapName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cm.Data).Should(HaveKey(trustedCABundleKey))
+				g.Expect(cm.Data[trustedCABundleKey]).ShouldNot(BeEmpty())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying the default CA package ConfigMap is created in operand namespace")
+			Eventually(func(g Gomega) {
+				cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cm.Data).Should(HaveKey("cert-manager-package-openshift.json"))
+				g.Expect(cm.Data["cert-manager-package-openshift.json"]).ShouldNot(BeEmpty())
+				verifyTrustManagerManagedLabels(cm.Labels)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment has --default-package-location arg")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(
+					ContainElement(fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation)),
+				)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment has CA package volume")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				var hasVolume bool
+				for _, v := range dep.Spec.Template.Spec.Volumes {
+					if v.Name == defaultCAPackageVolumeName && v.ConfigMap != nil &&
+						v.ConfigMap.Name == defaultCAPackageConfigMapName {
+						hasVolume = true
+						break
+					}
+				}
+				g.Expect(hasVolume).Should(BeTrue(), "expected volume %q with configMap %q", defaultCAPackageVolumeName, defaultCAPackageConfigMapName)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment container has CA package volume mount")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+
+				var hasMount bool
+				for _, vm := range dep.Spec.Template.Spec.Containers[0].VolumeMounts {
+					if vm.Name == defaultCAPackageVolumeName && vm.MountPath == defaultCAPackageMountPath && vm.ReadOnly {
+						hasMount = true
+						break
+					}
+				}
+				g.Expect(hasMount).Should(BeTrue(), "expected volume mount %q at %q (readOnly)", defaultCAPackageVolumeName, defaultCAPackageMountPath)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment pod template has CA bundle hash annotation")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Annotations).Should(HaveKey(defaultCAPackageHashAnnotation))
+				g.Expect(dep.Spec.Template.Annotations[defaultCAPackageHashAnnotation]).ShouldNot(BeEmpty())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not create ConfigMap or add volume when disabled", func() {
+			createTrustManager(newTrustManagerCR())
+
+			By("verifying no default CA package ConfigMap exists")
+			Eventually(func(g Gomega) {
+				_, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+				g.Expect(errors.IsNotFound(err)).Should(BeTrue(), "expected ConfigMap to not exist")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment does not have --default-package-location arg")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(
+					ContainElement(ContainSubstring("--default-package-location")),
+				)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment does not have CA package volume")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				for _, v := range dep.Spec.Template.Spec.Volumes {
+					g.Expect(v.Name).ShouldNot(Equal(defaultCAPackageVolumeName))
+				}
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment pod template does not have CA bundle hash annotation")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				if dep.Spec.Template.Annotations != nil {
+					g.Expect(dep.Spec.Template.Annotations).ShouldNot(HaveKey(defaultCAPackageHashAnnotation))
+				}
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should remove ConfigMap, volume, and annotation when policy changes from Enabled to Disabled", func() {
+			createTrustManager(newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+
+			By("verifying default CA package ConfigMap exists")
+			Eventually(func(g Gomega) {
+				_, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("updating TrustManager CR to disable default CA package")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyDisabled
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			waitForTrustManagerReady()
+
+			By("verifying deployment no longer has --default-package-location arg")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(
+					ContainElement(ContainSubstring("--default-package-location")),
+				)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment no longer has CA package volume")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				for _, v := range dep.Spec.Template.Spec.Volumes {
+					g.Expect(v.Name).ShouldNot(Equal(defaultCAPackageVolumeName))
+				}
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying deployment pod template no longer has CA bundle hash annotation")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				if dep.Spec.Template.Annotations != nil {
+					g.Expect(dep.Spec.Template.Annotations).ShouldNot(HaveKey(defaultCAPackageHashAnnotation))
+				}
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should reconcile ConfigMap data drift when CA package ConfigMap is tampered", func() {
+			createTrustManager(newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+
+			var originalData string
+			By("reading original CA package ConfigMap data")
+			Eventually(func(g Gomega) {
+				cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cm.Data).Should(HaveKey("cert-manager-package-openshift.json"))
+				originalData = cm.Data["cert-manager-package-openshift.json"]
+				g.Expect(originalData).ShouldNot(BeEmpty())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("tampering with the CA package ConfigMap data")
+			cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			cm.Data["cert-manager-package-openshift.json"] = `{"name":"tampered","bundle":"bad","version":"0"}`
+			_, err = clientset.CoreV1().ConfigMaps(trustManagerNamespace).Update(ctx, cm, metav1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verifying controller restores the original CA package ConfigMap data")
+			Eventually(func(g Gomega) {
+				cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cm.Data["cert-manager-package-openshift.json"]).Should(Equal(originalData))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
 	})
 
 	// -------------------------------------------------------------------------

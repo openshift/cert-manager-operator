@@ -152,6 +152,11 @@ func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsP
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }
