@@ -27,7 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
+	. "github.com/onsi/gomega"
 	opv1 "github.com/openshift/api/operator/v1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
@@ -101,73 +101,6 @@ var serviceMonitorGVR = schema.GroupVersionResource{
 	Group:    "monitoring.coreos.com",
 	Version:  "v1",
 	Resource: "servicemonitors",
-}
-
-type trustManagerCRBuilder struct {
-	tm *v1alpha1.TrustManager
-}
-
-func newTrustManagerCR() *trustManagerCRBuilder {
-	return &trustManagerCRBuilder{
-		tm: &v1alpha1.TrustManager{
-			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-			Spec: v1alpha1.TrustManagerSpec{
-				TrustManagerConfig: v1alpha1.TrustManagerConfig{},
-			},
-		},
-	}
-}
-
-func (b *trustManagerCRBuilder) WithResources(resources corev1.ResourceRequirements) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.Resources = resources
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithTolerations(tolerations []corev1.Toleration) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.Tolerations = tolerations
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithNodeSelector(nodeSelector map[string]string) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.NodeSelector = nodeSelector
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithAffinity(affinity *corev1.Affinity) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.Affinity = affinity
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithLabels(labels map[string]string) *trustManagerCRBuilder {
-	b.tm.Spec.ControllerConfig.Labels = labels
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithAnnotations(annotations map[string]string) *trustManagerCRBuilder {
-	b.tm.Spec.ControllerConfig.Annotations = annotations
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithTrustNamespace(trustNamespace string) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.TrustNamespace = trustNamespace
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPolicy, authorizedSecrets []string) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
-		Policy:            policy,
-		AuthorizedSecrets: authorizedSecrets,
-	}
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
-	return b
-}
-
-func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
-	return b.tm
 }
 
 func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
@@ -1090,7 +1023,7 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 func createUniqueNamespace(prefix string) string {
 	var b [4]byte
 	_, err := cryptorand.Read(b[:])
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 	name := fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(b[:]))
 	if len(name) > 63 {
 		return name[:63]
@@ -1100,10 +1033,10 @@ func createUniqueNamespace(prefix string) string {
 
 // waitNamespaceDeleted polls until the namespace is gone.
 func waitNamespaceDeleted(ctx context.Context, clientset *kubernetes.Clientset, name string) {
-	gomega.Eventually(func() bool {
+	Eventually(func() bool {
 		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 		return apierrors.IsNotFound(err)
-	}, lowTimeout, fastPollInterval).Should(gomega.BeTrue())
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
 }
 
 // createAndDestroyTestNamespace creates a namespace with the given name and registers DeferCleanup
@@ -1112,7 +1045,7 @@ func createAndDestroyTestNamespace(ctx context.Context, clientset *kubernetes.Cl
 	_, err := clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 	}, metav1.CreateOptions{})
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 	DeferCleanup(func() {
 		By("cleaning up test namespace")
 		_ = clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
