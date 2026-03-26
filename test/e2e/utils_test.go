@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"embed"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"math/rand"
@@ -22,8 +23,11 @@ import (
 	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
+	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	opv1 "github.com/openshift/api/operator/v1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
@@ -31,6 +35,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -44,7 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -57,6 +62,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -149,6 +155,11 @@ func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsP
 		Policy:            policy,
 		AuthorizedSecrets: authorizedSecrets,
 	}
+	return b
+}
+
+func (b *trustManagerCRBuilder) WithTrustNamespace(ns string) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.TrustNamespace = ns
 	return b
 }
 
@@ -1118,7 +1129,7 @@ func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResour
 			return false, nil
 		}
 
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
+		err = k8sruntime.DefaultUnstructuredConverter.FromUnstructured(status, &istioCSRStatus)
 		if err != nil {
 			return false, fmt.Errorf("failed to convert status to IstioCSRStatus: %w", err)
 		}
@@ -1940,4 +1951,265 @@ func getClusterProxyConfig(ctx context.Context, client configv1.ConfigV1Interfac
 	}
 
 	return proxy.Status.HTTPProxy, proxy.Status.HTTPSProxy, proxy.Status.NoProxy, nil
+}
+
+
+// bundleBuilder provides a fluent API for constructing trust.cert-manager.io/v1alpha1 Bundle objects.
+type bundleBuilder struct {
+	bundle *trustapi.Bundle
+}
+
+func newBundle(name string) *bundleBuilder {
+	return &bundleBuilder{
+		bundle: &trustapi.Bundle{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec:       trustapi.BundleSpec{},
+		},
+	}
+}
+
+func (b *bundleBuilder) WithInLineSource(pemData string) *bundleBuilder {
+	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{InLine: &pemData})
+	return b
+}
+
+func (b *bundleBuilder) WithConfigMapSource(name, key string) *bundleBuilder {
+	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{
+		ConfigMap: &trustapi.SourceObjectKeySelector{Name: name, Key: key},
+	})
+	return b
+}
+
+func (b *bundleBuilder) WithSecretSource(name, key string) *bundleBuilder {
+	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{
+		Secret: &trustapi.SourceObjectKeySelector{Name: name, Key: key},
+	})
+	return b
+}
+
+func (b *bundleBuilder) WithUseDefaultCAs() *bundleBuilder {
+	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{UseDefaultCAs: ptr.To(true)})
+	return b
+}
+
+func (b *bundleBuilder) WithConfigMapTarget(key string) *bundleBuilder {
+	b.bundle.Spec.Target.ConfigMap = &trustapi.TargetTemplate{Key: key}
+	return b
+}
+
+func (b *bundleBuilder) WithSecretTarget(key string) *bundleBuilder {
+	b.bundle.Spec.Target.Secret = &trustapi.TargetTemplate{Key: key}
+	return b
+}
+
+func (b *bundleBuilder) WithTargetMetadata(labels, annotations map[string]string) *bundleBuilder {
+	meta := &trustapi.TargetMetadata{Labels: labels, Annotations: annotations}
+	if b.bundle.Spec.Target.ConfigMap != nil {
+		b.bundle.Spec.Target.ConfigMap.Metadata = meta
+	}
+	if b.bundle.Spec.Target.Secret != nil {
+		b.bundle.Spec.Target.Secret.Metadata = meta
+	}
+	return b
+}
+
+func (b *bundleBuilder) WithNamespaceSelector(matchLabels map[string]string) *bundleBuilder {
+	b.bundle.Spec.Target.NamespaceSelector = &metav1.LabelSelector{MatchLabels: matchLabels}
+	return b
+}
+
+func (b *bundleBuilder) Build() *trustapi.Bundle {
+	return b.bundle
+}
+
+// waitForBundleCondition polls until the Bundle has a status condition matching
+// the given type and status, or until timeout.
+func waitForBundleCondition(ctx context.Context, cl crclient.Client, bundleName, conditionType string, conditionStatus metav1.ConditionStatus, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
+		var bundle trustapi.Bundle
+		if err := cl.Get(ctx, crclient.ObjectKey{Name: bundleName}, &bundle); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		for _, c := range bundle.Status.Conditions {
+			if c.Type == conditionType && c.Status == conditionStatus {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+}
+
+// waitForConfigMapTarget polls until a ConfigMap with the Bundle name exists in the
+// given namespace and its data key contains the expected content.
+func waitForConfigMapTarget(ctx context.Context, cl crclient.Client, bundleName, namespace, key, expectedContent string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
+		var cm corev1.ConfigMap
+		if err := cl.Get(ctx, crclient.ObjectKey{Namespace: namespace, Name: bundleName}, &cm); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		data, ok := cm.Data[key]
+		if !ok {
+			return false, nil
+		}
+		if expectedContent != "" {
+			return strings.Contains(strings.TrimSpace(data), strings.TrimSpace(expectedContent)), nil
+		}
+		return len(data) > 0, nil
+	})
+}
+
+// waitForSecretTarget polls until a Secret with the Bundle name exists in the
+// given namespace and its data key contains the expected content.
+func waitForSecretTarget(ctx context.Context, cl crclient.Client, bundleName, namespace, key, expectedContent string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
+		var secret corev1.Secret
+		if err := cl.Get(ctx, crclient.ObjectKey{Namespace: namespace, Name: bundleName}, &secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		data, ok := secret.Data[key]
+		if !ok {
+			return false, nil
+		}
+		if expectedContent != "" {
+			return strings.Contains(strings.TrimSpace(string(data)), strings.TrimSpace(expectedContent)), nil
+		}
+		return len(data) > 0, nil
+	})
+}
+
+// waitForTargetRemoved polls until the target ConfigMap or Secret with the
+// Bundle name no longer exists in the given namespace.
+func waitForTargetRemoved(ctx context.Context, cl crclient.Client, bundleName, namespace string, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
+		var cm corev1.ConfigMap
+		cmErr := cl.Get(ctx, crclient.ObjectKey{Namespace: namespace, Name: bundleName}, &cm)
+		var secret corev1.Secret
+		secretErr := cl.Get(ctx, crclient.ObjectKey{Namespace: namespace, Name: bundleName}, &secret)
+		return apierrors.IsNotFound(cmErr) && apierrors.IsNotFound(secretErr), nil
+	})
+}
+
+// containsPEMCertificates returns true if the data contains at least one
+// valid PEM-encoded CERTIFICATE block.
+func containsPEMCertificates(data string) bool {
+	block, _ := pem.Decode([]byte(data))
+	return block != nil && block.Type == "CERTIFICATE"
+}
+
+// trustManagerClient returns the typed client for TrustManager CRs.
+func trustManagerClient() operatorclientv1alpha1.TrustManagerInterface {
+	return certmanageroperatorclient.OperatorV1alpha1().TrustManagers()
+}
+
+// waitForTrustManagerReady waits until the TrustManager "cluster" CR becomes Available.
+func waitForTrustManagerReady(ctx context.Context) v1alpha1.TrustManagerStatus {
+	By("waiting for TrustManager CR to be ready")
+	status, err := pollTillTrustManagerAvailable(ctx, trustManagerClient(), "cluster")
+	Expect(err).Should(BeNil())
+	return status
+}
+
+// createTrustManager creates a TrustManager CR from the builder and waits for it to become ready.
+func createTrustManager(ctx context.Context, b *trustManagerCRBuilder) {
+	By("creating TrustManager CR")
+	_, err := trustManagerClient().Create(ctx, b.Build(), metav1.CreateOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+	waitForTrustManagerReady(ctx)
+}
+
+// deleteTrustManager deletes the TrustManager "cluster" CR and waits until it is gone.
+func deleteTrustManager(ctx context.Context) {
+	By("deleting TrustManager CR")
+	_ = trustManagerClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
+	Eventually(func() bool {
+		_, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+}
+
+// deleteBundle deletes a Bundle CR by name and waits until it is gone.
+func deleteBundle(ctx context.Context, name string) {
+	var bundle trustapi.Bundle
+	bundle.Name = name
+	_ = bundleClient.Delete(ctx, &bundle)
+	Eventually(func() bool {
+		err := bundleClient.Get(ctx, crclient.ObjectKey{Name: name}, &trustapi.Bundle{})
+		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+}
+
+// createBundleWithCleanup creates a Bundle CR and registers deletion cleanup.
+func createBundleWithCleanup(ctx context.Context, bundle *trustapi.Bundle) {
+	Expect(bundleClient.Create(ctx, bundle)).ShouldNot(HaveOccurred())
+	DeferCleanup(func() { deleteBundle(ctx, bundle.Name) })
+}
+
+// createNamespaceWithCleanup creates a namespace with the given prefix and labels,
+// and registers deletion cleanup.
+func createNamespaceWithCleanup(ctx context.Context, prefix string, labels map[string]string) *corev1.Namespace {
+	ns, err := k8sClientSet.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{GenerateName: prefix, Labels: labels},
+	}, metav1.CreateOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+	DeferCleanup(func() {
+		_ = k8sClientSet.CoreV1().Namespaces().Delete(ctx, ns.Name, metav1.DeleteOptions{})
+	})
+	return ns
+}
+
+// createSourceConfigMap creates a ConfigMap with a single data entry and registers deletion cleanup.
+func createSourceConfigMap(ctx context.Context, namespace, name, key, data string) {
+	_, err := k8sClientSet.CoreV1().ConfigMaps(namespace).Create(ctx, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Data:       map[string]string{key: data},
+	}, metav1.CreateOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+	DeferCleanup(func() {
+		_ = k8sClientSet.CoreV1().ConfigMaps(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	})
+}
+
+// createSourceSecret creates a Secret with a single data entry and registers deletion cleanup.
+func createSourceSecret(ctx context.Context, namespace, name, key, data string) {
+	_, err := k8sClientSet.CoreV1().Secrets(namespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Data:       map[string][]byte{key: []byte(data)},
+	}, metav1.CreateOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+	DeferCleanup(func() {
+		_ = k8sClientSet.CoreV1().Secrets(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	})
+}
+
+// verifyBundleSynced waits for the Bundle to reach the Synced=True condition.
+func verifyBundleSynced(ctx context.Context, bundleName string) {
+	By("verifying Bundle status shows Synced")
+	err := waitForBundleCondition(ctx, bundleClient, bundleName, trustapi.BundleConditionSynced, metav1.ConditionTrue, lowTimeout)
+	Expect(err).ShouldNot(HaveOccurred())
+}
+
+// verifyBundleNeverSynced asserts that a Bundle never reaches the Synced=True condition
+// within a 60-second observation window.
+func verifyBundleNeverSynced(ctx context.Context, bundleName string) {
+	Consistently(func() bool {
+		var b trustapi.Bundle
+		if err := bundleClient.Get(ctx, crclient.ObjectKey{Name: bundleName}, &b); err != nil {
+			return false
+		}
+		for _, c := range b.Status.Conditions {
+			if c.Type == trustapi.BundleConditionSynced && c.Status == metav1.ConditionTrue {
+				return false
+			}
+		}
+		return true
+	}, "60s", fastPollInterval).Should(BeTrue())
 }
