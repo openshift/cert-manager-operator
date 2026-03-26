@@ -144,6 +144,11 @@ func (b *trustManagerCRBuilder) WithAnnotations(annotations map[string]string) *
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithTrustNamespace(trustNamespace string) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.TrustNamespace = trustNamespace
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }
