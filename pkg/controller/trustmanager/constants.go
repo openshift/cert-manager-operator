@@ -62,7 +62,7 @@ const (
 	defaultCAPackageFilename = defaultCAPackageName + ".json"
 
 	// defaultCAPackageVolumeName is the volume name used in the deployment.
-	defaultCAPackageVolumeName = "default-ca-package"
+	defaultCAPackageVolumeName = "packages"
 
 	// defaultCAPackageMountPath is where the package volume is mounted in the container.
 	defaultCAPackageMountPath = "/packages"

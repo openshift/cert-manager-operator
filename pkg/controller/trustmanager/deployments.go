@@ -154,10 +154,10 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 	}
 }
 
-// updateDefaultCAPackageVolume adds the default CA package volume and mount
-// to the deployment when the feature is enabled. It also sets the hash
-// annotation on the pod template to trigger rolling restarts when the CA
-// bundle content changes.
+// updateDefaultCAPackageVolume adds the default CA package ConfigMap volume
+// and mount to the deployment when the feature is enabled. It also sets the
+// hash annotation on the pod template to trigger rolling restarts when the
+// CA bundle content changes.
 func updateDefaultCAPackageVolume(deployment *appsv1.Deployment, config v1alpha1.DefaultCAPackageConfig, caBundleHash string) {
 	if !defaultCAPackageEnabled(config) {
 		return
@@ -168,7 +168,14 @@ func updateDefaultCAPackageVolume(deployment *appsv1.Deployment, config v1alpha1
 	}
 	deployment.Spec.Template.Annotations[defaultCAPackageHashAnnotation] = caBundleHash
 
-	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, corev1.Volume{
+	// Remove any existing volume with the same name to avoid duplicates.
+	var volumes []corev1.Volume
+	for _, vol := range deployment.Spec.Template.Spec.Volumes {
+		if vol.Name != defaultCAPackageVolumeName {
+			volumes = append(volumes, vol)
+		}
+	}
+	deployment.Spec.Template.Spec.Volumes = append(volumes, corev1.Volume{
 		Name: defaultCAPackageVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -179,16 +186,21 @@ func updateDefaultCAPackageVolume(deployment *appsv1.Deployment, config v1alpha1
 		},
 	})
 
+	// Remove any existing volume mount at the same path, then add ours.
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == trustManagerContainerName {
-			deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(
-				deployment.Spec.Template.Spec.Containers[i].VolumeMounts,
-				corev1.VolumeMount{
-					Name:      defaultCAPackageVolumeName,
-					MountPath: defaultCAPackageMountPath,
-					ReadOnly:  true,
-				},
-			)
+			var mounts []corev1.VolumeMount
+			for _, vm := range container.VolumeMounts {
+				if vm.MountPath != defaultCAPackageMountPath {
+					mounts = append(mounts, vm)
+				}
+			}
+			deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(mounts, corev1.VolumeMount{
+				Name:      defaultCAPackageVolumeName,
+				MountPath: defaultCAPackageMountPath,
+				ReadOnly:  true,
+			})
+			break
 		}
 	}
 }

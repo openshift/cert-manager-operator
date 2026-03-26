@@ -310,8 +310,8 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 		}
 
 		for _, v := range dep.Spec.Template.Spec.Volumes {
-			if v.Name == defaultCAPackageVolumeName {
-				t.Errorf("unexpected volume %q when disabled", defaultCAPackageVolumeName)
+			if v.Name == defaultCAPackageVolumeName && v.ConfigMap != nil {
+				t.Errorf("unexpected ConfigMap-backed volume %q when disabled", defaultCAPackageVolumeName)
 			}
 		}
 
