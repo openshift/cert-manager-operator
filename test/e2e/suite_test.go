@@ -23,9 +23,14 @@ import (
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
+	corev1 "k8s.io/api/core/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 )
 
 const (
@@ -55,6 +60,7 @@ var (
 	routeClient               *routev1.RouteV1Client
 	certmanageroperatorclient *certmanoperatorclient.Clientset
 	certmanagerClient         *certmanagerclientset.Clientset
+	bundleClient              crclient.Client
 
 	validOperatorStatusConditions = map[string]opv1.ConditionStatus{
 		"Available":   opv1.ConditionTrue,
@@ -151,6 +157,13 @@ var _ = BeforeSuite(func() {
 
 	By("creating cert-manager client")
 	certmanagerClient, err = certmanagerclientset.NewForConfig(cfg)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("creating controller-runtime client for Bundle CRs")
+	bundleScheme := k8sruntime.NewScheme()
+	Expect(trustapi.AddToScheme(bundleScheme)).NotTo(HaveOccurred())
+	Expect(corev1.AddToScheme(bundleScheme)).NotTo(HaveOccurred())
+	bundleClient, err = crclient.New(cfg, crclient.Options{Scheme: bundleScheme})
 	Expect(err).NotTo(HaveOccurred())
 
 	By("setting defaultNetworkPolicy to true")
