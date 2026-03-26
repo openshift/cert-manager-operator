@@ -69,6 +69,11 @@ func (b *trustManagerBuilder) WithAffinity(affinity *corev1.Affinity) *trustMana
 	return b
 }
 
+func (b *trustManagerBuilder) WithTrustNamespace(trustNamespace string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.TrustNamespace = trustNamespace
+	return b
+}
+
 func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 	return b.TrustManager
 }

@@ -52,7 +52,7 @@ func getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations map[st
 	return webhookConfig
 }
 
-// updateWebhookClientConfig sets the webhook clientConfig service name and namespace
+// updateWebhookClientConfig sets the webhook clientConfig service name and namespace.
 func updateWebhookClientConfig(webhookConfig *admissionregistrationv1.ValidatingWebhookConfiguration) {
 	for i := range webhookConfig.Webhooks {
 		if webhookConfig.Webhooks[i].ClientConfig.Service != nil {
