@@ -5,6 +5,8 @@ package e2e
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,6 +46,48 @@ const (
 
 	trustManagerWebhookConfigName = "trust-manager"
 )
+
+// uniqueTrustNamespace returns a DNS-1123-safe name for per-spec namespace isolation.
+func uniqueTrustNamespace(prefix string) string {
+	var b [4]byte
+	_, err := rand.Read(b[:])
+	Expect(err).NotTo(HaveOccurred())
+	name := fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(b[:]))
+	if len(name) > 63 {
+		return name[:63]
+	}
+	return name
+}
+
+func waitNamespaceDeleted(ctx context.Context, clientset *kubernetes.Clientset, name string) {
+	Eventually(func() bool {
+		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+		return errors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+}
+
+// createTrustTestNamespace creates a uniquely named namespace (namePrefix + random suffix) and
+// registers DeferCleanup to delete it and wait until it is fully removed.
+func createTrustTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, namePrefix string) string {
+	By("creating custom trust namespace")
+	name := uniqueTrustNamespace(namePrefix)
+	createTrustTestNamespaceNamed(ctx, clientset, name, "cleaning up custom trust namespace")
+	return name
+}
+
+// createTrustTestNamespaceNamed creates a namespace with the exact given name and registers
+// DeferCleanup to delete it and wait until it is fully removed. cleanupBy is passed to By() before delete.
+func createTrustTestNamespaceNamed(ctx context.Context, clientset *kubernetes.Clientset, name string, cleanupBy string) {
+	_, err := clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}, metav1.CreateOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+	DeferCleanup(func() {
+		By(cleanupBy)
+		_ = clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
+		waitNamespaceDeleted(ctx, clientset, name)
+	})
+}
 
 var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() {
 	ctx := context.TODO()
@@ -576,21 +620,7 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 		})
 
 		It("should set --trust-namespace on deployment for custom trust namespace", func() {
-			const customTrustNS = "custom-trust-ns"
-
-			By("creating custom trust namespace")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: customTrustNS,
-				},
-			}
-			_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			defer func() {
-				By("cleaning up custom trust namespace")
-				_ = clientset.CoreV1().Namespaces().Delete(ctx, customTrustNS, metav1.DeleteOptions{})
-			}()
+			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
 
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
@@ -598,6 +628,7 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 			Eventually(func(g Gomega) {
 				deployment, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(len(deployment.Spec.Template.Spec.Containers)).Should(BeNumerically(">", 0))
 				g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).Should(ContainElement(fmt.Sprintf("--trust-namespace=%s", customTrustNS)))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
@@ -663,21 +694,7 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 		})
 
 		It("should create Role and RoleBinding in custom trust namespace", func() {
-			const customTrustNS = "custom-trust-ns"
-
-			By("creating custom trust namespace")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: customTrustNS,
-				},
-			}
-			_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			defer func() {
-				By("cleaning up custom trust namespace")
-				_ = clientset.CoreV1().Namespaces().Delete(ctx, customTrustNS, metav1.DeleteOptions{})
-			}()
+			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
 
 			By("creating TrustManager CR with custom trust namespace")
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
@@ -696,8 +713,32 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(rb.Namespace).Should(Equal(customTrustNS))
 				g.Expect(rb.RoleRef.Name).Should(Equal(trustManagerRoleName))
+				g.Expect(rb.Subjects).ShouldNot(BeEmpty())
 				g.Expect(rb.Subjects[0].Name).Should(Equal(trustManagerServiceAccountName))
 				g.Expect(rb.Subjects[0].Namespace).Should(Equal(trustManagerNamespace))
+				verifyTrustManagerManagedLabels(rb.Labels)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should place leader election Role and RoleBinding in operand namespace when trust namespace is custom", func() {
+			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
+
+			By("creating TrustManager CR with custom trust namespace")
+			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
+
+			By("verifying leader election Role is in operand namespace")
+			Eventually(func(g Gomega) {
+				role, err := clientset.RbacV1().Roles(trustManagerNamespace).Get(ctx, trustManagerLeaderElectionRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(role.Namespace).Should(Equal(trustManagerNamespace))
+				verifyTrustManagerManagedLabels(role.Labels)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying leader election RoleBinding is in operand namespace")
+			Eventually(func(g Gomega) {
+				rb, err := clientset.RbacV1().RoleBindings(trustManagerNamespace).Get(ctx, trustManagerLeaderElectionRoleBindingName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(rb.Namespace).Should(Equal(trustManagerNamespace))
 				verifyTrustManagerManagedLabels(rb.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
@@ -809,21 +850,7 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 		})
 
 		It("should report custom trust namespace in status", func() {
-			const customTrustNS = "custom-trust-ns-status"
-
-			By("creating custom trust namespace")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: customTrustNS,
-				},
-			}
-			_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			defer func() {
-				By("cleaning up custom trust namespace")
-				_ = clientset.CoreV1().Namespaces().Delete(ctx, customTrustNS, metav1.DeleteOptions{})
-			}()
+			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns-status")
 
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
@@ -844,43 +871,6 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 	// -------------------------------------------------------------------------
 
 	Context("trust namespace configuration", func() {
-		It("should configure resources with custom trust namespace", func() {
-			const customTrustNS = "custom-trust-ns"
-
-			By("creating custom trust namespace")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: customTrustNS,
-				},
-			}
-			_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			defer func() {
-				By("cleaning up custom trust namespace")
-				_ = clientset.CoreV1().Namespaces().Delete(ctx, customTrustNS, metav1.DeleteOptions{})
-			}()
-
-			By("creating TrustManager CR with custom trust namespace")
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
-
-			By("verifying leader election Role is in operand namespace")
-			Eventually(func(g Gomega) {
-				role, err := clientset.RbacV1().Roles(trustManagerNamespace).Get(ctx, trustManagerLeaderElectionRoleName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(role.Namespace).Should(Equal(trustManagerNamespace))
-				verifyTrustManagerManagedLabels(role.Labels)
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("verifying leader election RoleBinding is in operand namespace")
-			Eventually(func(g Gomega) {
-				rb, err := clientset.RbacV1().RoleBindings(trustManagerNamespace).Get(ctx, trustManagerLeaderElectionRoleBindingName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(rb.Namespace).Should(Equal(trustManagerNamespace))
-				verifyTrustManagerManagedLabels(rb.Labels)
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
 		It("should reject updates that change spec.trustNamespace", func() {
 			By("creating TrustManager with explicit trust namespace")
 			createTrustManager(newTrustManagerCR().WithTrustNamespace("cert-manager"))
@@ -896,7 +886,7 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 		})
 
 		It("should set degraded condition when trust namespace does not exist", func() {
-			const nonExistentNS = "non-existent-trust-ns"
+			nonExistentNS := uniqueTrustNamespace("non-existent-trust")
 
 			By("creating TrustManager CR with non-existent trust namespace")
 			_, err := trustManagerClient().Create(ctx, newTrustManagerCR().WithTrustNamespace(nonExistentNS).Build(), metav1.CreateOptions{})
@@ -921,35 +911,30 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 				g.Expect(readyCondition).ShouldNot(BeNil())
 				g.Expect(readyCondition.Status).Should(Equal(metav1.ConditionFalse))
 				g.Expect(readyCondition.Reason).Should(Equal(v1alpha1.ReasonFailed))
+				// Irrecoverable path: Ready message is left empty; detail is on Degraded only
+				// (see HandleReconcileResult for IsIrrecoverableError).
+				g.Expect(readyCondition.Message).Should(BeEmpty())
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
-			// Irrecoverable errors are not requeued; delete and recreate after the namespace exists.
-			By("deleting TrustManager CR")
-			err = trustManagerClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
+			// Irrecoverable errors are not requeued, and Namespace is not watched, so creating the
+			// namespace alone does not reconcile. Create the namespace, then change TrustManager
+			// spec (controllerConfig.annotations) to bump generation and enqueue a reconcile.
+			By("creating the trust namespace that was previously missing")
+			createTrustTestNamespaceNamed(ctx, clientset, nonExistentNS, "cleaning up the namespace")
+
+			By("updating TrustManager to trigger reconciliation now that the namespace exists")
+			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-
-			By("waiting for TrustManager CR to be deleted")
-			Eventually(func() bool {
-				_, getErr := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				return errors.IsNotFound(getErr)
-			}, lowTimeout, fastPollInterval).Should(BeTrue())
-
-			By("creating the namespace that was previously missing")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: nonExistentNS,
-				},
+			if tm.Spec.ControllerConfig.Annotations == nil {
+				tm.Spec.ControllerConfig.Annotations = map[string]string{}
 			}
-			_, err = clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+			tm.Spec.ControllerConfig.Annotations["trustmanager.e2e.openshift.io/recovery"] = "true"
+			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			defer func() {
-				By("cleaning up the namespace")
-				_ = clientset.CoreV1().Namespaces().Delete(ctx, nonExistentNS, metav1.DeleteOptions{})
-			}()
-
-			By("recreating TrustManager CR with trust namespace that now exists")
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(nonExistentNS))
+			By("waiting for TrustManager to recover (Ready=True, not Degraded)")
+			_, err = pollTillTrustManagerAvailable(ctx, trustManagerClient(), "cluster")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
 

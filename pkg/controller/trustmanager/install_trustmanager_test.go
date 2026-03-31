@@ -16,7 +16,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 		name             string
 		trustManager     func() *v1alpha1.TrustManager
 		wantStatusUpdate int
-		assertStatus     func(*testing.T, *v1alpha1.TrustManager)
 	}{
 		{
 			name: "updates all observed fields when status is empty",
@@ -24,24 +23,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				return testTrustManager().Build()
 			},
 			wantStatusUpdate: 1,
-			assertStatus: func(t *testing.T, tm *v1alpha1.TrustManager) {
-				s := tm.Status
-				if s.TrustManagerImage != testImage {
-					t.Errorf("TrustManagerImage: got %q, want %q", s.TrustManagerImage, testImage)
-				}
-				if s.TrustNamespace != defaultTrustNamespace {
-					t.Errorf("TrustNamespace: got %q, want %q", s.TrustNamespace, defaultTrustNamespace)
-				}
-				if s.SecretTargetsPolicy != tm.Spec.TrustManagerConfig.SecretTargets.Policy {
-					t.Errorf("SecretTargetsPolicy: got %q, want %q", s.SecretTargetsPolicy, tm.Spec.TrustManagerConfig.SecretTargets.Policy)
-				}
-				if s.DefaultCAPackagePolicy != tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy {
-					t.Errorf("DefaultCAPackagePolicy: got %q, want %q", s.DefaultCAPackagePolicy, tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy)
-				}
-				if s.FilterExpiredCertificatesPolicy != tm.Spec.TrustManagerConfig.FilterExpiredCertificates {
-					t.Errorf("FilterExpiredCertificatesPolicy: got %q, want %q", s.FilterExpiredCertificatesPolicy, tm.Spec.TrustManagerConfig.FilterExpiredCertificates)
-				}
-			},
 		},
 		{
 			name: "updates all observed fields for custom spec",
@@ -54,38 +35,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				return tm
 			},
 			wantStatusUpdate: 1,
-			assertStatus: func(t *testing.T, tm *v1alpha1.TrustManager) {
-				s := tm.Status
-				if s.TrustManagerImage != testImage {
-					t.Errorf("TrustManagerImage: got %q, want %q", s.TrustManagerImage, testImage)
-				}
-				if s.TrustNamespace != "custom-trust-ns" {
-					t.Errorf("TrustNamespace: got %q, want %q", s.TrustNamespace, "custom-trust-ns")
-				}
-				if s.SecretTargetsPolicy != v1alpha1.SecretTargetsPolicyCustom {
-					t.Errorf("SecretTargetsPolicy: got %q, want %q", s.SecretTargetsPolicy, v1alpha1.SecretTargetsPolicyCustom)
-				}
-				if s.DefaultCAPackagePolicy != v1alpha1.DefaultCAPackagePolicyEnabled {
-					t.Errorf("DefaultCAPackagePolicy: got %q, want %q", s.DefaultCAPackagePolicy, v1alpha1.DefaultCAPackagePolicyEnabled)
-				}
-				if s.FilterExpiredCertificatesPolicy != v1alpha1.FilterExpiredCertificatesPolicyEnabled {
-					t.Errorf("FilterExpiredCertificatesPolicy: got %q, want %q", s.FilterExpiredCertificatesPolicy, v1alpha1.FilterExpiredCertificatesPolicyEnabled)
-				}
-			},
-		},
-		{
-			name: "default trust namespace is reflected when spec trustNamespace is empty",
-			trustManager: func() *v1alpha1.TrustManager {
-				tm := testTrustManager().Build()
-				tm.Spec.TrustManagerConfig.TrustNamespace = ""
-				return tm
-			},
-			wantStatusUpdate: 1,
-			assertStatus: func(t *testing.T, tm *v1alpha1.TrustManager) {
-				if tm.Status.TrustNamespace != defaultTrustNamespace {
-					t.Errorf("TrustNamespace: got %q, want %q", tm.Status.TrustNamespace, defaultTrustNamespace)
-				}
-			},
 		},
 		{
 			name: "no-op when observed state already matches spec and env",
@@ -99,7 +48,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				return tm
 			},
 			wantStatusUpdate: 0,
-			assertStatus:     func(*testing.T, *v1alpha1.TrustManager) {},
 		},
 	}
 
@@ -127,7 +75,47 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			if got := mock.StatusUpdateCallCount(); got != tt.wantStatusUpdate {
 				t.Errorf("StatusUpdateCallCount() = %d, want %d", got, tt.wantStatusUpdate)
 			}
-			tt.assertStatus(t, tm)
+
+			switch tt.name {
+			case "updates all observed fields when status is empty":
+				s := tm.Status
+				if s.TrustManagerImage != testImage {
+					t.Errorf("TrustManagerImage: got %q, want %q", s.TrustManagerImage, testImage)
+				}
+				if s.TrustNamespace != defaultTrustNamespace {
+					t.Errorf("TrustNamespace: got %q, want %q", s.TrustNamespace, defaultTrustNamespace)
+				}
+				if s.SecretTargetsPolicy != tm.Spec.TrustManagerConfig.SecretTargets.Policy {
+					t.Errorf("SecretTargetsPolicy: got %q, want %q", s.SecretTargetsPolicy, tm.Spec.TrustManagerConfig.SecretTargets.Policy)
+				}
+				if s.DefaultCAPackagePolicy != tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy {
+					t.Errorf("DefaultCAPackagePolicy: got %q, want %q", s.DefaultCAPackagePolicy, tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy)
+				}
+				if s.FilterExpiredCertificatesPolicy != tm.Spec.TrustManagerConfig.FilterExpiredCertificates {
+					t.Errorf("FilterExpiredCertificatesPolicy: got %q, want %q", s.FilterExpiredCertificatesPolicy, tm.Spec.TrustManagerConfig.FilterExpiredCertificates)
+				}
+			case "updates all observed fields for custom spec":
+				s := tm.Status
+				if s.TrustManagerImage != testImage {
+					t.Errorf("TrustManagerImage: got %q, want %q", s.TrustManagerImage, testImage)
+				}
+				if s.TrustNamespace != "custom-trust-ns" {
+					t.Errorf("TrustNamespace: got %q, want %q", s.TrustNamespace, "custom-trust-ns")
+				}
+				if s.SecretTargetsPolicy != v1alpha1.SecretTargetsPolicyCustom {
+					t.Errorf("SecretTargetsPolicy: got %q, want %q", s.SecretTargetsPolicy, v1alpha1.SecretTargetsPolicyCustom)
+				}
+				if s.DefaultCAPackagePolicy != v1alpha1.DefaultCAPackagePolicyEnabled {
+					t.Errorf("DefaultCAPackagePolicy: got %q, want %q", s.DefaultCAPackagePolicy, v1alpha1.DefaultCAPackagePolicyEnabled)
+				}
+				if s.FilterExpiredCertificatesPolicy != v1alpha1.FilterExpiredCertificatesPolicyEnabled {
+					t.Errorf("FilterExpiredCertificatesPolicy: got %q, want %q", s.FilterExpiredCertificatesPolicy, v1alpha1.FilterExpiredCertificatesPolicyEnabled)
+				}
+			case "no-op when observed state already matches spec and env":
+				// Status unchanged; covered by wantStatusUpdate == 0.
+			default:
+				t.Fatalf("missing assertions for test case %q", tt.name)
+			}
 		})
 	}
 }
