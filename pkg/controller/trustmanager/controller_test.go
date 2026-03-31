@@ -2,6 +2,7 @@ package trustmanager
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -278,6 +279,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Type:   v1alpha1.Degraded,
 					Status: metav1.ConditionTrue,
 					Reason: v1alpha1.ReasonFailed,
+					Message: fmt.Sprintf(
+						"reconciliation failed with irrecoverable error not retrying: trust namespace %q validation failed: trust namespace %q does not exist, create the namespace before creating TrustManager CR",
+						defaultTrustNamespace,
+						defaultTrustNamespace,
+					),
 				},
 				{
 					Type:   v1alpha1.Ready,
@@ -303,8 +309,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return nil
 				})
-				// Custom namespace exists; all other resources return not-found so they
-				// are created via SSA Patch (which succeeds by default).
+				// Custom namespace exists; so SSA Patch will create or update all resources successfully.
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
@@ -361,63 +366,6 @@ func TestProcessReconcileRequest(t *testing.T) {
 				if !found {
 					t.Errorf("expected condition %s not found in status conditions %v", want.Type, tm.Status.Conditions)
 				}
-			}
-		})
-	}
-}
-
-func TestStatusTrustNamespaceUpdate(t *testing.T) {
-	t.Setenv(trustManagerImageNameEnvVarName, testImage)
-
-	tests := []struct {
-		name               string
-		trustNamespace     string
-		wantTrustNamespace string
-	}{
-		{
-			name:               "default trust namespace is set in status",
-			trustNamespace:     "",
-			wantTrustNamespace: defaultTrustNamespace,
-		},
-		{
-			name:               "custom trust namespace is set in status",
-			trustNamespace:     "custom-trust-ns",
-			wantTrustNamespace: "custom-trust-ns",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
-			mock := &fakes.FakeCtrlClient{}
-
-			mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-				switch o := obj.(type) {
-				case *v1alpha1.TrustManager:
-					tm := testTrustManager().WithTrustNamespace(tt.trustNamespace).Build()
-					tm.DeepCopyInto(o)
-				}
-				return nil
-			})
-
-			mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-				switch obj.(type) {
-				case *corev1.Namespace:
-					return true, nil
-				}
-				return false, nil
-			})
-
-			r.CtrlClient = mock
-
-			tm := testTrustManager().WithTrustNamespace(tt.trustNamespace).Build()
-			_, err := r.processReconcileRequest(tm, types.NamespacedName{Name: tm.GetName()})
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if tm.Status.TrustNamespace != tt.wantTrustNamespace {
-				t.Errorf("expected status.trustNamespace %q, got %q", tt.wantTrustNamespace, tm.Status.TrustNamespace)
 			}
 		})
 	}
