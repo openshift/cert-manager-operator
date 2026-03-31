@@ -38,7 +38,7 @@ const (
 	oidcJWKSPath = "/openid/v1/jwks"
 )
 
-var _ = Describe("Vault Issuer", Ordered, Label("TechPreview"), func() {
+var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var ns *corev1.Namespace

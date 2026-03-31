@@ -23,7 +23,7 @@ const (
 	defaultCAInjectorReplicasCount = 1
 )
 
-var _ = Describe("Overrides test", Ordered, func() {
+var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 	BeforeEach(func() {
 		By("Reset cert-manager state")

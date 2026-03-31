@@ -640,7 +640,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, issuerName, "Issuer")
 		})
 
-		It("should obtain a valid certificate when no hosted zone overlap", Label("TechPreview"), func() {
+		It("should obtain a valid certificate when no hosted zone overlap", func() {
 
 			// Get AWS credentials and region
 			accessKeyID, secretAccessKey := getAWSCredentials(ctx)
@@ -702,7 +702,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			createAndVerifyACMECertificate(ctx, certName, ns.Name, dnsName, clusterIssuerName, "ClusterIssuer")
 		})
 
-		It("should obtain a valid certificate with DNS-over-HTTPS", Label("TechPreview"), func() {
+		It("should obtain a valid certificate with DNS-over-HTTPS", func() {
 
 			// Get AWS credentials and region
 			accessKeyID, secretAccessKey := getAWSCredentials(ctx)
@@ -750,7 +750,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		})
 	})
 
-	Context("with AWS Route53 in STS environment", Label("Platform:AWS", "CredentialsMode:Manual"), Label("TechPreview"), func() {
+	Context("with AWS Route53 in STS environment", Label("Platform:AWS", "CredentialsMode:Manual"), func() {
 		var region string
 		var roleARN string
 
@@ -1112,7 +1112,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		})
 	})
 
-	Context("with Google CloudDNS in Workload Identity environment", Label("Platform:GCP", "CredentialsMode:Manual"), Label("TechPreview"), func() {
+	Context("with Google CloudDNS in Workload Identity environment", Label("Platform:GCP", "CredentialsMode:Manual"), func() {
 
 		It("should obtain a valid certificate using ambient credentials", func() {
 
@@ -1396,7 +1396,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		})
 	})
 
-	Context("with Azure DNS in Workload Identity environment", Label("Platform:Azure", "CredentialsMode:Manual"), Label("TechPreview"), func() {
+	Context("with Azure DNS in Workload Identity environment", Label("Platform:Azure", "CredentialsMode:Manual"), func() {
 		var identityClientID string
 		var subscriptionID, dnsResourceGroupName, hostedZoneName string
 

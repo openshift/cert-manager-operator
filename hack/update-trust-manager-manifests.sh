@@ -2,8 +2,14 @@
 
 set -e
 
-source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
-source "$(dirname "${BASH_SOURCE}")/lib/yq.sh"
+# cleanup handled by trap
+cleanup() {
+  # cleanup created temp files
+  rm -rf _output/manifests
+}
+trap cleanup EXIT
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/init.sh"
 
 TRUST_MANAGER_VERSION=${1:?"missing trust-manager version. Please specify a version from https://github.com/cert-manager/trust-manager/releases"}
 MANIFESTS_PATH=./_output/manifests
@@ -35,7 +41,6 @@ echo "---- Patching manifest ----"
 # add app.kubernetes.io/part-of to all labels objects (wherever app.kubernetes.io/name exists)
 ./bin/yq e '(.. | select(has("app.kubernetes.io/name"))."app.kubernetes.io/part-of") = "cert-manager-operator"' -i ${MANIFESTS_PATH}/manifests.yaml
 
-
 # regenerate all bindata
 rm -rf bindata/trust-manager/resources
 rm -f config/crd/bases/customresourcedefinition_bundles.trust.cert-manager.io.yml
@@ -47,6 +52,3 @@ rm -f config/crd/bases/customresourcedefinition_bundles.trust.cert-manager.io.ym
 mkdir -p bindata/trust-manager/resources
 mv ${MANIFESTS_PATH}/customresourcedefinition_* config/crd/bases/
 mv ${MANIFESTS_PATH}/*.yml bindata/trust-manager/resources
-
-# Clean up
-rm -r ${MANIFESTS_PATH}

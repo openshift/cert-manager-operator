@@ -2,8 +2,14 @@
 
 set -e
 
-source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
-source "$(dirname "${BASH_SOURCE}")/lib/yq.sh"
+# cleanup handled by trap
+cleanup() {
+  # cleanup created temp files
+  rm -f _output/manifest.yaml _output/manifest_as_array.json _output/targets_as_map.json
+}
+trap cleanup EXIT
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/init.sh"
 
 CERT_MANAGER_VERSION=${1:?"missing cert-manager version. Please specify a version from https://github.com/cert-manager/cert-manager/releases"}
 MANIFEST_SOURCE="https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"

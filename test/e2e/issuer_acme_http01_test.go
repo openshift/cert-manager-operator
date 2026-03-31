@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
+var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var ns *corev1.Namespace
@@ -286,7 +286,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Ordered, func() {
 		})
 	})
 
-	Context("with Certificate object", Label("TechPreview"), func() {
+	Context("with Certificate object", func() {
 
 		It("should obtain a valid certificate", func() {
 			var err error

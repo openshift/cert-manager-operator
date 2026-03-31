@@ -35,7 +35,7 @@ type IstioCSRConfig struct {
 	IstioDataPlaneNamespaceSelector string
 }
 
-var _ = Describe("Istio-CSR", Ordered, Label("Feature:IstioCSR"), func() {
+var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 

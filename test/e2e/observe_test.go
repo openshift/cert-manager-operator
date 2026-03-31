@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Logging Configuration", Label("TechPreview"), Ordered, func() {
+var _ = Describe("Logging Configuration", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 
 	BeforeAll(func() {
@@ -107,7 +107,7 @@ var _ = Describe("Logging Configuration", Label("TechPreview"), Ordered, func() 
 	})
 })
 
-var _ = Describe("Monitoring and Metrics", Label("TechPreview"), Ordered, func() {
+var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 
 	const (

@@ -89,7 +89,7 @@ func createTrustTestNamespaceNamed(ctx context.Context, clientset *kubernetes.Cl
 	})
 }
 
-var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() {
+var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 

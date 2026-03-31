@@ -231,8 +231,8 @@ github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b h1:yfjc5FZliZbhtT+Vx
 github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20251205093018-96a6cbc1420c h1:TBE0Gl+oCo/SNEhLKZQNNH/SWHXrpGyhAw7P0lAqdHg=
 github.com/openshift/client-go v0.0.0-20251205093018-96a6cbc1420c/go.mod h1:IsynOWZAfdH+BgWimcFQRtI41Id9sgdhsCEjIk8ACLw=
-github.com/openshift/jetstack-cert-manager v1.19.2 h1:P/NabqqbsL+MzeODK8nAcVdzDenaSMWVYKvYlsBWfJI=
-github.com/openshift/jetstack-cert-manager v1.19.2/go.mod h1:e9NzLtOKxTw7y99qLyWGmPo6mrC1Nh0EKKcMkRfK+GE=
+github.com/openshift/jetstack-cert-manager v1.19.4 h1:kpsU9UFwURm6hxGgZIsO9TWNjOeczaJoTJo2ngtYUn4=
+github.com/openshift/jetstack-cert-manager v1.19.4/go.mod h1:9uBnn3IK9NxjjuXmQDYhwOwFUU5BtGVB1g/voPvvcVw=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

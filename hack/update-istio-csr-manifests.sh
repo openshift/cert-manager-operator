@@ -2,8 +2,14 @@
 
 set -e
 
-source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
-source "$(dirname "${BASH_SOURCE}")/lib/yq.sh"
+# cleanup handled by trap
+cleanup() {
+  # cleanup created temp files
+  rm -f _output/istio-csr-manifest.yaml
+}
+trap cleanup EXIT
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/init.sh"
 
 ISTIO_CSR_VERSION=${1:?"missing istio-csr version. Please specify a version from https://github.com/cert-manager/istio-csr/releases"}
 

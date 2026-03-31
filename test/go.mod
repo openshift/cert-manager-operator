@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.12
 	github.com/aws/aws-sdk-go-v2/service/iam v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.6
-	github.com/cert-manager/cert-manager v1.19.2
+	github.com/cert-manager/cert-manager v1.19.4
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -155,4 +155,4 @@ require (
 
 replace github.com/openshift/cert-manager-operator => ../
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.2
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.4

@@ -1,22 +1,17 @@
 #!/bin/bash
 
-if [ ! -f ./_output/tools/bin/yq ]; then
-    mkdir -p ./_output/tools/bin
-    curl -s -f -L https://github.com/mikefarah/yq/releases/download/v4.13.3/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
-    chmod +x ./_output/tools/bin/yq
-fi
-
 FAILS=false
 for f in `find . -name "*crd.yaml" -type f`
 do
-    if [[ $(./_output/tools/bin/yq r $f apiVersion) == "apiextensions.k8s.io/v1beta1" ]]; then
-        if [[ $(./_output/tools/bin/yq r $f spec.validation.openAPIV3Schema.properties.metadata.description) != "null" ]]; then
+    if [[ "$(./bin/yq e '.apiVersion' "$f")" == "apiextensions.k8s.io/v1" ]]; then
+        v1beta1CRDName="$(./bin/yq e '.metadata.name' "$f")"
+        if [[ "$(./bin/yq e '.spec.validation.openAPIV3Schema.properties.metadata.description' "$f")" != "null" ]]; then
             echo "Error: cannot have a metadata description in $f"
             FAILS=true
         fi
 
-        if [[ $(./_output/tools/bin/yq r $f spec.preserveUnknownFields) != "false" ]]; then
-            echo "Error: pruning not enabled (spec.preserveUnknownFields != false) in $f"
+        if [[ "$(./bin/yq e '.spec.preserveUnknownFields' "$f")" != "false" ]]; then
+            echo "Error: pruning not enabled (.spec.preserveUnknownFields != false) in $f"
             FAILS=true
         fi
     fi

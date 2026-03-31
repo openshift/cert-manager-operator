@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Self-signed Issuer", Ordered, func() {
+var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var ns *corev1.Namespace
@@ -181,7 +181,7 @@ var _ = Describe("Self-signed Issuer", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "certificate verification failed")
 		})
 
-		It("should not delete the TLS secret by default when its Certificate CR is deleted", Label("TechPreview"), func() {
+		It("should not delete the TLS secret by default when its Certificate CR is deleted", func() {
 
 			By("creating a certificate using the CA Issuer")
 			certName := "test-secret-retention-cert"
@@ -250,7 +250,7 @@ var _ = Describe("Self-signed Issuer", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "certificate was not renewed")
 		})
 
-		It("should prevent flood of re-issuance attempts when certificates have duplicate secretName", Label("TechPreview"), func() {
+		It("should prevent flood of re-issuance attempts when certificates have duplicate secretName", func() {
 
 			By("creating 3 certificates with the same secretName")
 			duplicateSecretName := "secret-duplicate"
@@ -317,7 +317,7 @@ var _ = Describe("Self-signed Issuer", Ordered, func() {
 			}, lowTimeout, fastPollInterval).Should(BeTrue(), "expect all Certificates to be Ready")
 		})
 
-		It("should be able to manage Route external TLS secret", Label("TechPreview"), func() {
+		It("should be able to manage Route external TLS secret", func() {
 
 			By("deploying hello-openshift application")
 			appName := "hello-openshift"

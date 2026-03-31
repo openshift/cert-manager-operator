@@ -12,12 +12,6 @@ TMP_ROOT="${SCRIPT_ROOT}/_tmp"
 KUBECTL="./_output/tools/kubebuilder/kubectl --server=http://127.0.0.1:8080"
 mkdir -p "${TMP_ROOT}"
 
-if [ ! -f ./_output/tools/bin/yq ]; then
-    mkdir -p ./_output/tools/bin
-    curl -s -f -L https://github.com/mikefarah/yq/releases/download/v4.13.3/yq_$(go env GOHOSTOS)_$(go env GOHOSTARCH) -o ./_output/tools/bin/yq
-    chmod +x ./_output/tools/bin/yq
-fi
-
 # install kube-apiserver from kubebuilder to verify apis.
 if [ ! -f ./_output/tools/kubebuilder/kube-apiserver ]; then
     mkdir -p ./_output/tools/kubebuilder
@@ -49,8 +43,8 @@ LAST_COMMIT=$(git rev-parse HEAD~1)
 git checkout $LAST_COMMIT
 for f in `find . -name "*crd.yaml" -type f`
 do
-    if [[ $(./_output/tools/bin/yq r $f apiVersion) == "apiextensions.k8s.io/v1beta1" ]]; then
-        v1beta1CRDName=$(./_output/tools/bin/yq r $f metadata.name)
+    if [[ $(./bin/yq e '.apiVersion' $f) == "apiextensions.k8s.io/v1beta1" ]]; then
+        v1beta1CRDName=$(./bin/yq e '.metadata.name' $f)
         v1beta1CRDNames=("${v1beta1CRDNames[*]}" $v1beta1CRDName)
         $KUBECTL apply -f $f
         $KUBECTL get crd $v1beta1CRDName -o jsonpath='{.spec}' > $TMP_ROOT/$v1beta1CRDName-before
@@ -63,8 +57,8 @@ FALSE=false
 git checkout $CURRENT_BRANCH
 for f in `find . -name "*crd.yaml" -type f`
 do
-    if [[ $(./_output/tools/bin/yq r $f apiVersion) == "apiextensions.k8s.io/v1" ]]; then
-        v1CRDName=$(./_output/tools/bin/yq r $f metadata.name)
+    if [[ $(./bin/yq e '.apiVersion' $f) == "apiextensions.k8s.io/v1" ]]; then
+        v1CRDName=$(./bin/yq e '.metadata.name' $f)
         $KUBECTL apply -f $f || FALSE=true
         $KUBECTL get crd $v1CRDName -o jsonpath='{.spec}' > $TMP_ROOT/$v1CRDName-after
     fi

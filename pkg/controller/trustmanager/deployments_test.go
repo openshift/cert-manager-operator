@@ -130,18 +130,18 @@ func TestDeploymentSpec(t *testing.T) {
 
 func TestDeploymentContainerArgs(t *testing.T) {
 	tests := []struct {
-		name            string
-		logLevel        int32
-		logFormat       string
-		trustNamespace  string
-		expectedArgs    []string
-		notExpectedArgs []string
+		name               string
+		updateTrustManager func(*v1alpha1.TrustManager)
+		expectedArgs       []string
+		notExpectedArgs    []string
 	}{
 		{
-			name:           "default values",
-			logLevel:       1,
-			logFormat:      "text",
-			trustNamespace: "cert-manager",
+			name: "default values",
+			updateTrustManager: func(tm *v1alpha1.TrustManager) {
+				tm.Spec.TrustManagerConfig.LogLevel = 1
+				tm.Spec.TrustManagerConfig.LogFormat = "text"
+				tm.Spec.TrustManagerConfig.TrustNamespace = "cert-manager"
+			},
 			expectedArgs: []string{
 				"--log-level=1",
 				"--log-format=text",
@@ -150,16 +150,23 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--webhook-port=6443",
 				"--metrics-port=9402",
 			},
+			notExpectedArgs: []string{
+				"--filter-expired-certificates=true",
+			},
 		},
 		{
-			name:           "custom values",
-			logLevel:       5,
-			logFormat:      "json",
-			trustNamespace: "custom-ns",
+			name: "custom values",
+			updateTrustManager: func(tm *v1alpha1.TrustManager) {
+				tm.Spec.TrustManagerConfig.LogLevel = 5
+				tm.Spec.TrustManagerConfig.LogFormat = "json"
+				tm.Spec.TrustManagerConfig.TrustNamespace = "custom-ns"
+				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicyEnabled
+			},
 			expectedArgs: []string{
 				"--log-level=5",
 				"--log-format=json",
 				"--trust-namespace=custom-ns",
+				"--filter-expired-certificates=true",
 			},
 			notExpectedArgs: []string{
 				"--log-level=1",
@@ -167,10 +174,12 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			},
 		},
 		{
-			name:           "falls back to default trust namespace when empty",
-			logLevel:       1,
-			logFormat:      "text",
-			trustNamespace: "",
+			name: "falls back to default trust namespace when empty",
+			updateTrustManager: func(tm *v1alpha1.TrustManager) {
+				tm.Spec.TrustManagerConfig.LogLevel = 1
+				tm.Spec.TrustManagerConfig.LogFormat = "text"
+				tm.Spec.TrustManagerConfig.TrustNamespace = ""
+			},
 			expectedArgs: []string{
 				fmt.Sprintf("--trust-namespace=%s", defaultTrustNamespace),
 			},
@@ -183,9 +192,9 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			r := testReconciler(t)
 
 			tm := testTrustManager().Build()
-			tm.Spec.TrustManagerConfig.LogLevel = tt.logLevel
-			tm.Spec.TrustManagerConfig.LogFormat = tt.logFormat
-			tm.Spec.TrustManagerConfig.TrustNamespace = tt.trustNamespace
+			if tt.updateTrustManager != nil {
+				tt.updateTrustManager(tm)
+			}
 
 			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations())
 			if err != nil {

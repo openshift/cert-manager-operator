@@ -3,7 +3,7 @@ module github.com/openshift/cert-manager-operator
 go 1.25.0
 
 require (
-	github.com/cert-manager/cert-manager v1.19.2
+	github.com/cert-manager/cert-manager v1.19.4
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b
@@ -139,4 +139,4 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.2
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.4
