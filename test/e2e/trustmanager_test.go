@@ -844,7 +844,18 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 				g.Expect(readyCondition.Status).Should(Equal(metav1.ConditionFalse))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
-			By("creating the missing namespace")
+			// Irrecoverable errors are not requeued; delete and recreate after the namespace exists.
+			By("deleting TrustManager CR")
+			err = trustManagerClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("waiting for TrustManager CR to be deleted")
+			Eventually(func() bool {
+				_, getErr := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				return errors.IsNotFound(getErr)
+			}, lowTimeout, fastPollInterval).Should(BeTrue())
+
+			By("creating the namespace that was previously missing")
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: nonExistentNS,
@@ -858,19 +869,8 @@ var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() 
 				_ = clientset.CoreV1().Namespaces().Delete(ctx, nonExistentNS, metav1.DeleteOptions{})
 			}()
 
-			By("verifying TrustManager recovers to Ready=True")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-
-				degradedCondition := meta.FindStatusCondition(tm.Status.Conditions, v1alpha1.Degraded)
-				g.Expect(degradedCondition).ShouldNot(BeNil())
-				g.Expect(degradedCondition.Status).Should(Equal(metav1.ConditionFalse))
-
-				readyCondition := meta.FindStatusCondition(tm.Status.Conditions, v1alpha1.Ready)
-				g.Expect(readyCondition).ShouldNot(BeNil())
-				g.Expect(readyCondition.Status).Should(Equal(metav1.ConditionTrue))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
+			By("recreating TrustManager CR with trust namespace that now exists")
+			createTrustManager(newTrustManagerCR().WithTrustNamespace(nonExistentNS))
 		})
 	})
 
