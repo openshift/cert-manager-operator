@@ -65,8 +65,7 @@ func (a *apiResourceDiscoverer) Discover() (bool, error) {
 // InitInformerIfAvailable calls d.Discover(), and if the resource is served it
 // calls informerInitFunc and stores the result in InformerFactory; otherwise
 // InformerFactory remains nil and no error is returned (the API is treated as
-// unavailable). NotFound-style discovery errors indicate "not served" (false,
-// nil from Discover); other discovery errors are returned from this function as-is.
+// unavailable).
 func InitInformerIfAvailable[groupInformer any](
 	d ResourceDiscoverer,
 	informerInitFunc func() groupInformer,
