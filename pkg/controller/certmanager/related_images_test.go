@@ -1,4 +1,4 @@
-package deployment
+package certmanager
 
 import (
 	"os"
