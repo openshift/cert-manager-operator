@@ -758,6 +758,45 @@ func getCertManagerOperatorSubscription(ctx context.Context, loader library.Dyna
 	return subName, nil
 }
 
+// getSubscriptionEnvVar returns the value of an env var from the Subscription's spec.config.env,
+// or "" if the name is not present. valueFrom entries are treated as absent (empty string).
+func getSubscriptionEnvVar(ctx context.Context, loader library.DynamicResourceLoader, envName string) (string, error) {
+	subName, err := getCertManagerOperatorSubscription(ctx, loader)
+	if err != nil {
+		return "", err
+	}
+
+	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
+	sub, err := subscriptionClient.Get(ctx, subName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	config, ok := sub.Object["spec"].(map[string]interface{})["config"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+	envList, ok := config["env"].([]interface{})
+	if !ok {
+		return "", nil
+	}
+	for _, envItem := range envList {
+		envMap, ok := envItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, ok := envMap["name"].(string)
+		if !ok || name != envName {
+			continue
+		}
+		if v, ok := envMap["value"].(string); ok {
+			return v, nil
+		}
+		return "", nil
+	}
+	return "", nil
+}
+
 // patchSubscriptionWithEnvVars uses the k8s dynamic client to patch the only Subscription object
 // in the cert-manager-operator namespace, inject specified env vars into spec.config.env
 func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
@@ -886,6 +925,21 @@ func waitForDeploymentEnvVarAndRollout(ctx context.Context, namespace, deploymen
 			}
 		}
 		return false
+	}, timeout)
+}
+
+// waitForDeploymentEnvVarRemovedAndRollout waits until no container in the deployment template has
+// the named env var, and the rollout has completed.
+func waitForDeploymentEnvVarRemovedAndRollout(ctx context.Context, namespace, deploymentName, envName string, timeout time.Duration) error {
+	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, func(deployment *appsv1.Deployment) bool {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			for _, env := range container.Env {
+				if env.Name == envName {
+					return false
+				}
+			}
+		}
+		return true
 	}, timeout)
 }
 
