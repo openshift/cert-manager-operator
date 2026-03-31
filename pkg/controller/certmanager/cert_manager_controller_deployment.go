@@ -1,4 +1,4 @@
-package deployment
+package certmanager
 
 import (
 	"k8s.io/client-go/informers"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
-	"github.com/openshift/cert-manager-operator/pkg/operator/optionalinformer"
+	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
 )
 
 const (
@@ -70,11 +70,12 @@ func NewCertManagerControllerStaticResourcesController(operatorClient v1helpers.
 
 func NewCertManagerControllerDeploymentController(operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
-	infraInformers optionalinformer.OptionalInformer[configinformers.SharedInformerFactory],
+	infraInformers utils.OptionalInformer[configinformers.SharedInformerFactory],
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder, targetVersion string, versionRecorder status.VersionGetter, trustedCAConfigmapName, cloudCredentialsSecretName string) factory.Controller {
 	return newGenericDeploymentController(
+
 		certManagerControllerDeploymentControllerName,
 		targetVersion,
 		certManagerControllerDeploymentFile,

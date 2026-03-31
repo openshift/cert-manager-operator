@@ -1,7 +1,6 @@
-package optionalinformer
+package utils
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -28,8 +27,8 @@ func createFakeClient(isResourcePresent bool) *fake.Clientset {
 		Status: operatorv1alpha1.CertManagerStatus{},
 	})
 
-	// the fake client set does not populate API resource list by default
-	// which is required to make a fake discovery call
+	// The fake clientset does not populate APIResourceList by default; discovery
+	// in tests requires these resources.
 	fakeClient.Resources = []*metav1.APIResourceList{
 		{
 			GroupVersion: operatorv1alpha1.SchemeGroupVersion.String(),
@@ -54,15 +53,17 @@ type alwaysErrorFakeDiscovery struct {
 	fakediscovery.FakeDiscovery
 }
 
-// ServerResourcesForGroupVersion is the only func that OptionalInformer's discovery client calls.
+// ServerResourcesForGroupVersion is the only func apiResourceDiscoverer's discovery client calls.
 func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
-	return nil, fmt.Errorf("expected foo error")
+	return nil, fmt.Errorf("simulated discovery error")
 }
 
 func createErroneousFakeDiscoveryClient() discovery.DiscoveryInterface {
 	return &alwaysErrorFakeDiscovery{}
 }
 
+// TestOptionalInformer covers NewResourceDiscoverer, Discover, and
+// InitInformerIfAvailable end-to-end.
 func TestOptionalInformer(t *testing.T) {
 	type fakeInformerFactoryStub struct{}
 	dummyInformerInit := func() fakeInformerFactoryStub {
@@ -85,13 +86,13 @@ func TestOptionalInformer(t *testing.T) {
 		for _, tt := range tests {
 			fakeClient := createFakeClient(tt.isCRDPresent)
 
-			optInformer, err := NewOptionalInformer(context.TODO(), fixedGVRForTest,
-				fakeClient.Discovery(), dummyInformerInit)
+			probe := NewResourceDiscoverer(fixedGVRForTest, fakeClient.Discovery())
+			optInformer, err := InitInformerIfAvailable(probe, dummyInformerInit)
 			require.NoError(t, err)
 
-			discovered, err := optInformer.Discover()
+			discovered, err := probe.Discover()
 			require.NoError(t, err)
-			assert.Equal(t, tt.isCRDPresent, discovered, "discovery does not match CRD registration")
+			assert.Equal(t, tt.isCRDPresent, discovered, "discovery does not match fake API resource list")
 
 			assert.Equal(t, tt.expectInformer, optInformer.Applicable(), "undesired optional informer applicable(ity)")
 			assert.Equal(t, tt.expectInformer, optInformer.InformerFactory != nil, "broken informer factory init func call")
@@ -100,8 +101,10 @@ func TestOptionalInformer(t *testing.T) {
 
 	t.Run("negative case with an expected error", func(t *testing.T) {
 		errorProneDiscoveryClient := createErroneousFakeDiscoveryClient()
-		_, err := NewOptionalInformer(context.TODO(), fixedGVRForTest,
-			errorProneDiscoveryClient, dummyInformerInit)
+		_, err := InitInformerIfAvailable(
+			NewResourceDiscoverer(fixedGVRForTest, errorProneDiscoveryClient),
+			dummyInformerInit,
+		)
 
 		require.Error(t, err)
 	})
