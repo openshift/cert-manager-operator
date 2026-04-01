@@ -73,7 +73,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		/*By("enabling TrustManager feature gate via subscription")
+		By("enabling TrustManager feature gate via subscription")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
 			"OPERATOR_LOG_LEVEL":         "4",
@@ -82,7 +82,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		By("waiting for operator deployment to rollout with TrustManager feature enabled")
 		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", lowTimeout)
-		Expect(err).NotTo(HaveOccurred())*/
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	BeforeEach(func() {
