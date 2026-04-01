@@ -6,9 +6,11 @@ package e2e
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -24,6 +26,8 @@ import (
 	certmanagerclientset "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	opv1 "github.com/openshift/api/operator/v1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
@@ -1018,6 +1022,40 @@ func verifyCertificateRenewed(ctx context.Context, secretName, namespace string,
 
 		// certificate was renewed atleast once
 		return true, nil
+	})
+}
+
+// createUniqueNamespace returns a DNS-1123-safe name for per-spec namespace isolation.
+func createUniqueNamespace(prefix string) string {
+	var b [4]byte
+	_, err := cryptorand.Read(b[:])
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	name := fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(b[:]))
+	if len(name) > 63 {
+		return name[:63]
+	}
+	return name
+}
+
+// waitNamespaceDeleted polls until the namespace is gone.
+func waitNamespaceDeleted(ctx context.Context, clientset *kubernetes.Clientset, name string) {
+	gomega.Eventually(func() bool {
+		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(gomega.BeTrue())
+}
+
+// createAndDestroyTestNamespace creates a namespace with the given name and registers DeferCleanup
+// to delete it and wait until it is fully removed.
+func createAndDestroyTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, name string) {
+	_, err := clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}, metav1.CreateOptions{})
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	DeferCleanup(func() {
+		By("cleaning up test namespace")
+		_ = clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
+		waitNamespaceDeleted(ctx, clientset, name)
 	})
 }
 

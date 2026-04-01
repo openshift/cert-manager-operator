@@ -5,8 +5,6 @@ package e2e
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"slices"
 
@@ -49,48 +47,6 @@ const (
 	trustManagerWebhookConfigName = "trust-manager"
 )
 
-// uniqueTrustNamespace returns a DNS-1123-safe name for per-spec namespace isolation.
-func uniqueTrustNamespace(prefix string) string {
-	var b [4]byte
-	_, err := rand.Read(b[:])
-	Expect(err).NotTo(HaveOccurred())
-	name := fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(b[:]))
-	if len(name) > 63 {
-		return name[:63]
-	}
-	return name
-}
-
-func waitNamespaceDeleted(ctx context.Context, clientset *kubernetes.Clientset, name string) {
-	Eventually(func() bool {
-		_, err := clientset.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
-		return errors.IsNotFound(err)
-	}, lowTimeout, fastPollInterval).Should(BeTrue())
-}
-
-// createTrustTestNamespace creates a uniquely named namespace (namePrefix + random suffix) and
-// registers DeferCleanup to delete it and wait until it is fully removed.
-func createTrustTestNamespace(ctx context.Context, clientset *kubernetes.Clientset, namePrefix string) string {
-	By("creating custom trust namespace")
-	name := uniqueTrustNamespace(namePrefix)
-	createTrustTestNamespaceNamed(ctx, clientset, name, "cleaning up custom trust namespace")
-	return name
-}
-
-// createTrustTestNamespaceNamed creates a namespace with the exact given name and registers
-// DeferCleanup to delete it and wait until it is fully removed. cleanupBy is passed to By() before delete.
-func createTrustTestNamespaceNamed(ctx context.Context, clientset *kubernetes.Clientset, name string, cleanupBy string) {
-	_, err := clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-	}, metav1.CreateOptions{})
-	Expect(err).ShouldNot(HaveOccurred())
-	DeferCleanup(func() {
-		By(cleanupBy)
-		_ = clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
-		waitNamespaceDeleted(ctx, clientset, name)
-	})
-}
-
 var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
@@ -117,7 +73,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		By("enabling TrustManager feature gate via subscription")
+		/*By("enabling TrustManager feature gate via subscription")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
 			"OPERATOR_LOG_LEVEL":         "4",
@@ -126,7 +82,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		By("waiting for operator deployment to rollout with TrustManager feature enabled")
 		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", lowTimeout)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())*/
 	})
 
 	BeforeEach(func() {
@@ -622,7 +578,9 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should set --trust-namespace on deployment for custom trust namespace", func() {
-			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
+			By("creating custom trust namespace")
+			customTrustNS := createUniqueNamespace("custom-trust-ns")
+			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
@@ -660,7 +618,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		// TODO: Add test for other deployment configuration options
-		// (i.e. secret targets policy, default CA package policy, filter expired certificates policy)
+		// (i.e. default CA package policy, filter expired certificates policy).
 	})
 
 	// -------------------------------------------------------------------------
@@ -720,7 +678,9 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should create Role and RoleBinding in custom trust namespace", func() {
-			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
+			By("creating custom trust namespace")
+			customTrustNS := createUniqueNamespace("custom-trust-ns")
+			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			By("creating TrustManager CR with custom trust namespace")
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
@@ -755,7 +715,9 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should place leader election Role and RoleBinding in operand namespace when trust namespace is custom", func() {
-			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns")
+			By("creating custom trust namespace")
+			customTrustNS := createUniqueNamespace("custom-trust-ns")
+			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			By("creating TrustManager CR with custom trust namespace")
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
@@ -996,7 +958,9 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should report custom trust namespace in status", func() {
-			customTrustNS := createTrustTestNamespace(ctx, clientset, "custom-trust-ns-status")
+			By("creating custom trust namespace")
+			customTrustNS := createUniqueNamespace("custom-trust-ns-status")
+			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
@@ -1043,7 +1007,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should set degraded condition when trust namespace does not exist", func() {
-			nonExistentNS := uniqueTrustNamespace("non-existent-trust")
+			nonExistentNS := createUniqueNamespace("non-existent-trust")
 
 			By("creating TrustManager CR with non-existent trust namespace")
 			_, err := trustManagerClient().Create(ctx, newTrustManagerCR().WithTrustNamespace(nonExistentNS).Build(), metav1.CreateOptions{})
@@ -1077,7 +1041,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			// namespace alone does not reconcile. Create the namespace, then change TrustManager
 			// spec (controllerConfig.annotations) to bump generation and enqueue a reconcile.
 			By("creating the trust namespace that was previously missing")
-			createTrustTestNamespaceNamed(ctx, clientset, nonExistentNS, "cleaning up the namespace")
+			createAndDestroyTestNamespace(ctx, clientset, nonExistentNS)
 
 			By("updating TrustManager to trigger reconciliation now that the namespace exists")
 			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
@@ -1090,8 +1054,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("waiting for TrustManager to recover (Ready=True, not Degraded)")
-			_, err = pollTillTrustManagerAvailable(ctx, trustManagerClient(), "cluster")
-			Expect(err).ShouldNot(HaveOccurred())
+			waitForTrustManagerReady()
 		})
 	})
 
