@@ -164,7 +164,8 @@ type SecretTargetsConfig struct {
 	// policy controls whether and how trust-manager can write trust bundles to Secrets.
 	// Allowed values are "Disabled" or "Custom".
 	// "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
-	// "Custom" grants trust-manager permission to create and update only the secrets listed in authorizedSecrets.
+	// "Custom" grants trust-manager read access  to all secrets cluster-wide,
+	// and write access only to the secrets listed in authorizedSecrets.
 	// +kubebuilder:default:="Disabled"
 	// +kubebuilder:validation:Enum:=Disabled;Custom
 	// +kubebuilder:validation:Optional
@@ -230,7 +231,8 @@ type SecretTargetsPolicy string
 const (
 	// SecretTargetsPolicyDisabled means trust-manager cannot write trust bundles to Secrets.
 	SecretTargetsPolicyDisabled SecretTargetsPolicy = "Disabled"
-	// SecretTargetsPolicyCustom grants trust-manager permission to write to specific secrets only.
+	// SecretTargetsPolicyCustom grants trust-manager read access to all cluster secrets
+	// and write access to only the secrets listed in authorizedSecrets.
 	SecretTargetsPolicyCustom SecretTargetsPolicy = "Custom"
 )
 

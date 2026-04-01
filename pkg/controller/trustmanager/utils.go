@@ -138,6 +138,12 @@ func (r *Reconciler) updateCondition(trustManager *v1alpha1.TrustManager, prepen
 	return prependErr
 }
 
+// secretTargetsEnabled returns true when the secretTargets policy is Custom
+// and at least one authorized secret is configured.
+func secretTargetsEnabled(config v1alpha1.SecretTargetsConfig) bool {
+	return config.Policy == v1alpha1.SecretTargetsPolicyCustom && len(config.AuthorizedSecrets) > 0
+}
+
 // getTrustNamespace returns the trust namespace from the TrustManager config.
 // If not specified, returns the default trust namespace.
 func getTrustNamespace(trustManager *v1alpha1.TrustManager) string {

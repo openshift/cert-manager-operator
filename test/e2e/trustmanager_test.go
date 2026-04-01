@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"slices"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,6 +16,7 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -633,6 +635,30 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
+		It("should add secret-targets-enabled arg when secretTargets policy is Custom", func() {
+			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"test-secret"}))
+
+			By("verifying deployment args contain --secret-targets-enabled=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--secret-targets-enabled=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have secret-targets-enabled arg when secretTargets is Disabled", func() {
+			createTrustManager(newTrustManagerCR())
+
+			By("verifying deployment args do not contain --secret-targets-enabled=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--secret-targets-enabled=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
 		// TODO: Add test for other deployment configuration options
 		// (i.e. secret targets policy, default CA package policy, filter expired certificates policy)
 	})
@@ -748,6 +774,118 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(rb.Namespace).Should(Equal(trustManagerNamespace))
 				verifyTrustManagerManagedLabels(rb.Labels)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should have no secret rules on ClusterRole when secretTargets is Disabled", func() {
+			createTrustManager(newTrustManagerCR())
+
+			By("verifying ClusterRole has no secret rules")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasSecretRule(cr.Rules)).Should(BeFalse(), "ClusterRole should not have secret rules when secretTargets is Disabled")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should add secret read and scoped write rules to ClusterRole when secretTargets is Custom", func() {
+			authorizedSecrets := []string{"bundle-secret-a", "bundle-secret-b"}
+			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, authorizedSecrets))
+
+			By("verifying ClusterRole has secret read rule")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				readRule := findSecretRule(cr.Rules, "get")
+				g.Expect(readRule).ShouldNot(BeNil(), "expected secret read rule with 'get' verb")
+				g.Expect(readRule.Verbs).Should(ContainElements("get", "list", "watch"))
+				g.Expect(readRule.ResourceNames).Should(BeEmpty(), "secret read rule should not be scoped to resourceNames")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying ClusterRole has scoped secret write rule")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				writeRule := findSecretRule(cr.Rules, "create")
+				g.Expect(writeRule).ShouldNot(BeNil(), "expected secret write rule with 'create' verb")
+				g.Expect(writeRule.Verbs).Should(ContainElements("create", "update", "patch", "delete"))
+				g.Expect(writeRule.ResourceNames).Should(ConsistOf("bundle-secret-a", "bundle-secret-b"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should update ClusterRole rules when secretTargets policy changes from Disabled to Custom", func() {
+			createTrustManager(newTrustManagerCR())
+
+			By("verifying ClusterRole initially has no secret rules")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasSecretRule(cr.Rules)).Should(BeFalse())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("updating TrustManager CR to enable secretTargets with Custom policy")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+					Policy:            v1alpha1.SecretTargetsPolicyCustom,
+					AuthorizedSecrets: []string{"updated-secret"},
+				}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying ClusterRole now has secret rules")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				writeRule := findSecretRule(cr.Rules, "create")
+				g.Expect(writeRule).ShouldNot(BeNil(), "expected secret write rule after enabling secretTargets")
+				g.Expect(writeRule.ResourceNames).Should(ConsistOf("updated-secret"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should update ClusterRole resourceNames when authorizedSecrets list changes", func() {
+			createTrustManager(newTrustManagerCR().
+				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"secret-a", "secret-b"}))
+
+			By("verifying ClusterRole has initial authorized secrets")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				writeRule := findSecretRule(cr.Rules, "create")
+				g.Expect(writeRule).ShouldNot(BeNil(), "expected secret write rule")
+				g.Expect(writeRule.ResourceNames).Should(ConsistOf("secret-a", "secret-b"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("updating authorizedSecrets to a different list")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+					Policy:            v1alpha1.SecretTargetsPolicyCustom,
+					AuthorizedSecrets: []string{"secret-b", "secret-c", "secret-d"},
+				}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying ClusterRole resourceNames reflect the updated list")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				writeRule := findSecretRule(cr.Rules, "create")
+				g.Expect(writeRule).ShouldNot(BeNil(), "expected secret write rule after update")
+				g.Expect(writeRule.ResourceNames).Should(ConsistOf("secret-b", "secret-c", "secret-d"))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})
@@ -867,6 +1005,17 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(tm.Status.TrustNamespace).Should(Equal(customTrustNS))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should report secretTargets policy in status", func() {
+			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"status-test-secret"}))
+
+			By("verifying TrustManager status reflects Custom secretTargets policy")
+			Eventually(func(g Gomega) {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(tm.Status.SecretTargetsPolicy).Should(Equal(v1alpha1.SecretTargetsPolicyCustom))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
@@ -1140,4 +1289,25 @@ func verifyTrustManagerResourceRecreation(deleteFunc func() error, getFunc func(
 	Eventually(func() error {
 		return getFunc()
 	}, lowTimeout, fastPollInterval).Should(Succeed(), "resource was not recreated by controller")
+}
+
+// hasSecretRule returns true if any rule in the list targets the "secrets" resource.
+func hasSecretRule(rules []rbacv1.PolicyRule) bool {
+	for _, rule := range rules {
+		if slices.Contains(rule.Resources, "secrets") {
+			return true
+		}
+	}
+	return false
+}
+
+// findSecretRule returns the first rule targeting "secrets" that contains the given verb,
+// or nil if no matching rule is found.
+func findSecretRule(rules []rbacv1.PolicyRule, verb string) *rbacv1.PolicyRule {
+	for i, rule := range rules {
+		if slices.Contains(rule.Resources, "secrets") && slices.Contains(rule.Verbs, verb) {
+			return &rules[i]
+		}
+	}
+	return nil
 }

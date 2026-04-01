@@ -134,6 +134,10 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		"--webhook-certificate-dir=/tls",
 	}
 
+	if secretTargetsEnabled(config.SecretTargets) {
+		args = append(args, "--secret-targets-enabled=true")
+	}
+
 	if config.FilterExpiredCertificates == v1alpha1.FilterExpiredCertificatesPolicyEnabled {
 		args = append(args, "--filter-expired-certificates=true")
 	}
