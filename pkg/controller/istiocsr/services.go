@@ -41,18 +41,21 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 		return common.FromClientError(err, "failed to check %s service resource already exists", serviceName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s service resource already exists, maybe from previous installation", serviceName)
-	}
-	if exist && hasObjectChanged(svc, fetched) {
-		r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
-		if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
-			return common.FromClientError(err, "failed to update %s service resource", serviceName)
+	if exist {
+		if istioCSRCreateRecon {
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s service resource already exists, maybe from previous installation", serviceName)
 		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
-	} else {
-		r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
+		if hasObjectChanged(svc, fetched) {
+			r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
+			if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
+				return common.FromClientError(err, "failed to update %s service resource", serviceName)
+			}
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
+		} else {
+			r.log.V(4).Info("service resource already exists and is in expected state", "name", serviceName)
+		}
 	}
+
 	if !exist {
 		if err := r.Create(r.ctx, svc); err != nil {
 			return common.FromClientError(err, "failed to create %s service resource", serviceName)

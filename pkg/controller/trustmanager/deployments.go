@@ -17,8 +17,8 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired, err := r.getDeploymentObject(trustManager, resourceLabels, resourceAnnotations)
+func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
+	desired, err := r.getDeploymentObject(trustManager, resourceLabels, resourceAnnotations, caBundleHash)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	return nil
 }
 
-func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) (*appsv1.Deployment, error) {
+func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {
 	deployment := common.DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, assets.MustAsset(deploymentAssetName))
 
 	if err := validateDeploymentManifest(deployment); err != nil {
@@ -61,6 +61,11 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 
 	updateServiceAccountName(deployment)
 	updateTLSSecretVolume(deployment)
+	updateDefaultCAPackageVolume(
+		deployment,
+		trustManager.Spec.TrustManagerConfig.DefaultCAPackage,
+		caBundleHash,
+	)
 
 	if err := updateImage(deployment); err != nil {
 		return nil, common.NewIrrecoverableError(err, "failed to update trust-manager image")
@@ -142,9 +147,64 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--filter-expired-certificates=true")
 	}
 
+	if defaultCAPackageEnabled(config.DefaultCAPackage) {
+		args = append(args, fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation))
+	}
+
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == trustManagerContainerName {
 			deployment.Spec.Template.Spec.Containers[i].Args = args
+		}
+	}
+}
+
+// updateDefaultCAPackageVolume adds the default CA package ConfigMap volume
+// and mount to the deployment when the feature is enabled. It also sets the
+// hash annotation on the pod template to trigger rolling restarts when the
+// CA bundle content changes.
+func updateDefaultCAPackageVolume(deployment *appsv1.Deployment, config v1alpha1.DefaultCAPackageConfig, caBundleHash string) {
+	if !defaultCAPackageEnabled(config) {
+		return
+	}
+
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.Annotations[defaultCAPackageHashAnnotation] = caBundleHash
+
+	// Remove any existing volume with the same name to avoid duplicates.
+	var volumes []corev1.Volume
+	for _, vol := range deployment.Spec.Template.Spec.Volumes {
+		if vol.Name != defaultCAPackageVolumeName {
+			volumes = append(volumes, vol)
+		}
+	}
+	deployment.Spec.Template.Spec.Volumes = append(volumes, corev1.Volume{
+		Name: defaultCAPackageVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: defaultCAPackageConfigMapName,
+				},
+			},
+		},
+	})
+
+	// Remove any existing volume mount at the same path, then add ours.
+	for i, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == trustManagerContainerName {
+			var mounts []corev1.VolumeMount
+			for _, vm := range container.VolumeMounts {
+				if vm.MountPath != defaultCAPackageMountPath {
+					mounts = append(mounts, vm)
+				}
+			}
+			deployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(mounts, corev1.VolumeMount{
+				Name:      defaultCAPackageVolumeName,
+				MountPath: defaultCAPackageMountPath,
+				ReadOnly:  true,
+			})
+			break
 		}
 	}
 }
@@ -247,7 +307,8 @@ func deploymentModified(desired, existing *appsv1.Deployment) bool {
 		return true
 	}
 
-	if !maps.Equal(desired.Spec.Template.Labels, existing.Spec.Template.Labels) {
+	if !maps.Equal(desired.Spec.Template.Labels, existing.Spec.Template.Labels) ||
+		!maps.Equal(desired.Spec.Template.Annotations, existing.Spec.Template.Annotations) {
 		return true
 	}
 

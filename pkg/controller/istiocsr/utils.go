@@ -292,6 +292,8 @@ func hasObjectChanged(desired, fetched client.Object) bool {
 			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
 		}
 		objectModified = networkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
+	case *corev1.ServiceAccount:
+		// No spec to compare; drift is labels/annotations only, ObjectMetadataModified() handles it.
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}

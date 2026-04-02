@@ -49,6 +49,31 @@ const (
 	roleBindingSubjectKind = "ServiceAccount"
 )
 
+// DefaultCAPackage constants.
+const (
+	// defaultCAPackageConfigMapName is the ConfigMap in the operand namespace that
+	// contains the formatted JSON CA package for trust-manager.
+	defaultCAPackageConfigMapName = "trust-manager-default-ca-package"
+
+	// defaultCAPackageName is the package name used in the JSON CA package.
+	defaultCAPackageName = "cert-manager-package-openshift"
+
+	// defaultCAPackageFilename is the filename used for the JSON package inside the ConfigMap.
+	defaultCAPackageFilename = defaultCAPackageName + ".json"
+
+	// defaultCAPackageVolumeName is the volume name used in the deployment.
+	defaultCAPackageVolumeName = "packages"
+
+	// defaultCAPackageMountPath is where the package volume is mounted in the container.
+	defaultCAPackageMountPath = "/packages"
+
+	// defaultCAPackageLocation is the full path to the JSON package file inside the container.
+	defaultCAPackageLocation = defaultCAPackageMountPath + "/" + defaultCAPackageFilename
+
+	// defaultCAPackageHashAnnotation is the pod template annotation that tracks the CA bundle hash.
+	defaultCAPackageHashAnnotation = "operator.openshift.io/default-ca-package-hash"
+)
+
 // Resource names used for creating resources and cross-referencing between them.
 // These must be set explicitly on each resource's .metadata.name and on every
 // field in other resources that references them.

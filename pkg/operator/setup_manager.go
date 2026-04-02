@@ -38,6 +38,30 @@ var (
 	setupLog = ctrl.Log.WithName("setup-manager")
 )
 
+// ConfigMap is intentionally excluded from both istioCSRManagedResources and
+// trustManagerManagedResources. Multiple controllers need to watch ConfigMaps
+// that do not carry the managed-resource label:
+//
+//  1. TrustManager watches both its managed ConfigMaps (e.g., the default CA
+//     package ConfigMap, which carries the managed-resource label) and the
+//     cert-manager-operator-trusted-ca-bundle ConfigMap (added in the OLM bundle manifest).
+//     The latter does not carry the managed-resource label.
+//
+//  2. IstioCSR watches both its managed ConfigMaps (with the managed-resource
+//     label) and user-created ConfigMaps identified by the
+//     istiocsr.openshift.operator.io/watched-by label — a different label key
+//     entirely from the managed-resource label (app).
+//
+// The cache uses a single labels.Selector per GVK. The In operator can match
+// multiple values for the same key (e.g., app in (value1, value2)), but
+// requirements on different keys are always ANDed. There is no way to express
+// "app in (...) OR watched-by exists" in a single selector. A shared app label
+// value could solve case 1, but case 2 requires matching across different label
+// keys, which the Kubernetes label selector spec does not support.
+//
+// ConfigMaps therefore use the default unfiltered informer, and each controller
+// applies predicate-level filtering to select only the events it cares about.
+
 // istioCSRManagedResources defines the resources managed by the IstioCSR controller.
 // These resources will be watched with a label selector filter.
 var istioCSRManagedResources = []client.Object{

@@ -30,18 +30,21 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 		return common.FromClientError(err, "failed to check %s certificate resource already exists", certificateName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s certificate resource already exists, maybe from previous installation", certificateName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("certificate has been modified, updating to desired state", "name", certificateName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s certificate resource", certificateName)
+	if exist {
+		if istioCSRCreateRecon {
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s certificate resource already exists, maybe from previous installation", certificateName)
 		}
-		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
-	} else {
-		r.log.V(4).Info("certificate resource already exists and is in expected state", "name", certificateName)
+		if hasObjectChanged(desired, fetched) {
+			r.log.V(1).Info("certificate has been modified, updating to desired state", "name", certificateName)
+			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+				return common.FromClientError(err, "failed to update %s certificate resource", certificateName)
+			}
+			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
+		} else {
+			r.log.V(4).Info("certificate resource already exists and is in expected state", "name", certificateName)
+		}
 	}
+
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s certificate resource", certificateName)
@@ -127,7 +130,7 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 	}
 
-	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{
+	certificate.Spec.IssuerRef = certmanagermetav1.IssuerReference{
 		Kind:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind,
 		Group: istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group,
 		Name:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,

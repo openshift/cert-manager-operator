@@ -21,6 +21,12 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)
 	}
 
+	caBundleHash, err := r.createOrApplyDefaultCAPackageConfigMap(trustManager, resourceLabels, resourceAnnotations)
+	if err != nil {
+		r.log.Error(err, "failed to reconcile default CA package ConfigMap")
+		return err
+	}
+
 	if err := r.createOrApplyServiceAccounts(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile serviceaccount resource")
 		return err
@@ -46,7 +52,7 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
-	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
 		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
 	}

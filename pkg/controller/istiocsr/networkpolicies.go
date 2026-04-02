@@ -77,18 +77,21 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 		return common.FromClientError(err, "failed to check %s network policy resource already exists", policyName)
 	}
 
-	if exist && istioCSRCreateRecon {
-		r.eventRecorder.Eventf(policy, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s network policy resource already exists, maybe from previous installation", policyName)
-	}
-	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-			return common.FromClientError(err, "failed to update %s network policy resource", policyName)
+	if exist {
+		if istioCSRCreateRecon {
+			r.eventRecorder.Eventf(policy, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s network policy resource already exists, maybe from previous installation", policyName)
 		}
-		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
-	} else {
-		r.log.V(4).Info("network policy resource already exists and is in expected state", "name", policyName)
+		if hasObjectChanged(desired, fetched) {
+			r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
+			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+				return common.FromClientError(err, "failed to update %s network policy resource", policyName)
+			}
+			r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
+		} else {
+			r.log.V(4).Info("network policy resource already exists and is in expected state", "name", policyName)
+		}
 	}
+
 	if !exist {
 		if err := r.Create(r.ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s network policy resource", policyName)

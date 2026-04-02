@@ -144,6 +144,11 @@ func secretTargetsEnabled(config v1alpha1.SecretTargetsConfig) bool {
 	return config.Policy == v1alpha1.SecretTargetsPolicyCustom && len(config.AuthorizedSecrets) > 0
 }
 
+// defaultCAPackageEnabled returns true when the defaultCAPackage policy is Enabled.
+func defaultCAPackageEnabled(config v1alpha1.DefaultCAPackageConfig) bool {
+	return config.Policy == v1alpha1.DefaultCAPackagePolicyEnabled
+}
+
 // getTrustNamespace returns the trust namespace from the TrustManager config.
 // If not specified, returns the default trust namespace.
 func getTrustNamespace(trustManager *v1alpha1.TrustManager) string {
