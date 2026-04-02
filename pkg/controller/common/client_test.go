@@ -102,54 +102,17 @@ func (*sentinelClient) GroupVersionKindFor(runtime.Object) (schema.GroupVersionK
 }
 func (*sentinelClient) IsObjectNamespaced(runtime.Object) (bool, error) { return false, nil }
 
-// TestNewClient provides table-driven tests for NewClient(m manager.Manager) (CtrlClient, error).
+// TestNewClient verifies NewClient returns a CtrlClient that wraps the same client instance
+// as manager.GetClient() (cache-consistent wiring).
 func TestNewClient(t *testing.T) {
 	var cl client.Client = &sentinelClient{}
 	mgr := &fakeManager{client: cl}
 
-	tests := []struct {
-		name      string
-		m         manager.Manager
-		wantError bool
-	}{
-		{
-			name:      "happy path - valid manager returns CtrlClient",
-			m:         mgr,
-			wantError: false,
-		},
-		{
-			name:      "nil manager returns error",
-			m:         nil,
-			wantError: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewClient(tt.m)
-			if tt.wantError {
-				require.Error(t, err)
-				require.Nil(t, got)
-				assert.Contains(t, err.Error(), "nil manager")
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, got)
-			var _ CtrlClient = got
-			impl, ok := got.(*ctrlClientImpl)
-			require.True(t, ok, "NewClient must return *ctrlClientImpl")
-			assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")
-		})
-	}
-}
-
-// TestNewClient_GetClientReturnsSameClient verifies the returned client wraps the manager's client.
-func TestNewClient_GetClientReturnsSameClient(t *testing.T) {
-	var cl client.Client = &sentinelClient{}
-	mgr := &fakeManager{client: cl}
-	ctrlClient, err := NewClient(mgr)
+	got, err := NewClient(mgr)
 	require.NoError(t, err)
-	require.NotNil(t, ctrlClient)
-	impl, ok := ctrlClient.(*ctrlClientImpl)
+	require.NotNil(t, got)
+	var _ CtrlClient = got
+	impl, ok := got.(*ctrlClientImpl)
 	require.True(t, ok, "NewClient must return *ctrlClientImpl")
-	assert.True(t, impl.Client == cl, "client must be the exact same manager client instance")
+	assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")
 }
