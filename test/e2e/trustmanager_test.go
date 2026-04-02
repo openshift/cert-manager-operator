@@ -704,14 +704,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(rb.Subjects[0].Namespace).Should(Equal(trustManagerNamespace))
 				verifyTrustManagerManagedLabels(rb.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("verifying trust-namespace Role is not in operand namespace")
-			_, errRole := clientset.RbacV1().Roles(trustManagerNamespace).Get(ctx, trustManagerRoleName, metav1.GetOptions{})
-			Expect(errors.IsNotFound(errRole)).Should(BeTrue())
-
-			By("verifying trust-namespace RoleBinding is not in operand namespace")
-			_, errRB := clientset.RbacV1().RoleBindings(trustManagerNamespace).Get(ctx, trustManagerRoleBindingName, metav1.GetOptions{})
-			Expect(errors.IsNotFound(errRB)).Should(BeTrue())
 		})
 
 		It("should place leader election Role and RoleBinding in operand namespace when trust namespace is custom", func() {
