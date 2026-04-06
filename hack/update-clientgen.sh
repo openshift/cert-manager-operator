@@ -8,7 +8,9 @@ set -o pipefail
 # so all Go commands it runs need module mode
 export GOFLAGS=""
 
-SCRIPT_ROOT=$(git rev-parse --show-toplevel)
+# Prefer git when the work tree is complete (e.g. Konflux copies submodule source without
+# the parent repo, so .git may reference a missing gitdir).
+SCRIPT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd))
 
 # code-generator shell scripts aren't vendored (go work vendor only copies .go files)
 # so we fetch the module path from the module cache
