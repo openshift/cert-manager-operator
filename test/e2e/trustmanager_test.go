@@ -15,7 +15,7 @@ import (
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +46,7 @@ const (
 
 	trustManagerWebhookConfigName = "trust-manager"
 
-	// DefaultCAPackage constants
+	// DefaultCAPackage constants.
 	defaultCAPackageConfigMapName  = "trust-manager-default-ca-package"
 	defaultCAPackageVolumeName     = "packages"
 	defaultCAPackageMountPath      = "/packages"
@@ -57,13 +57,21 @@ const (
 	trustedCABundleKey           = "ca-bundle.crt"
 )
 
-var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
-	ctx := context.TODO()
-	var clientset *kubernetes.Clientset
-
-	trustManagerClient := func() operatorclientv1alpha1.TrustManagerInterface {
+var (
+	trustManagerClient = func() operatorclientv1alpha1.TrustManagerInterface {
 		return certmanageroperatorclient.OperatorV1alpha1().TrustManagers()
 	}
+)
+
+// Cluster must have an allowed feature set (e.g. TechPreviewNoUpgrade). TrustManager is deployed and reconciled.
+var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
+	var (
+		ctx = context.Background()
+
+		clientset                        *kubernetes.Clientset
+		originalUnsupportedAddonFeatures string
+		originalOperatorLogLevel         string
+	)
 
 	waitForTrustManagerReady := func() v1alpha1.TrustManagerStatus {
 		By("waiting for TrustManager CR to be ready")
@@ -78,39 +86,13 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		waitForTrustManagerReady()
 	}
 
-	BeforeAll(func() {
-		var err error
-		clientset, err = kubernetes.NewForConfig(cfg)
-		Expect(err).Should(BeNil())
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
 
-		By("enabling TrustManager feature gate via subscription")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
-			"OPERATOR_LOG_LEVEL":         "4",
-		})
-		Expect(err).NotTo(HaveOccurred())
+	AfterAll(trustManagerAfterAll(ctx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
 
-		By("waiting for operator deployment to rollout with TrustManager feature enabled")
-		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", lowTimeout)
-		Expect(err).NotTo(HaveOccurred())
-	})
+	BeforeEach(trustManagerBeforeEach())
 
-	BeforeEach(func() {
-		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
-		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
-	})
-
-	AfterEach(func() {
-		By("cleaning up TrustManager CR if it exists")
-		_ = trustManagerClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
-
-		By("waiting for TrustManager CR to be deleted")
-		Eventually(func() bool {
-			_, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-			return errors.IsNotFound(err)
-		}, lowTimeout, fastPollInterval).Should(BeTrue())
-	})
+	AfterEach(trustManagerAfterEach(ctx))
 
 	// -------------------------------------------------------------------------
 	// Resource creation and verification
@@ -642,7 +624,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			By("verifying no default CA package ConfigMap exists")
 			Eventually(func(g Gomega) {
 				_, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
-				g.Expect(errors.IsNotFound(err)).Should(BeTrue(), "expected ConfigMap to not exist")
+				g.Expect(apierrors.IsNotFound(err)).Should(BeTrue(), "expected ConfigMap to not exist")
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying deployment does not have --default-package-location arg")
@@ -1239,7 +1221,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			tm.Spec.TrustManagerConfig.TrustNamespace = "other-trust-ns-immutable"
 			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 			Expect(err).Should(HaveOccurred())
-			Expect(errors.IsInvalid(err)).Should(BeTrue())
+			Expect(apierrors.IsInvalid(err)).Should(BeTrue())
 			Expect(err.Error()).Should(ContainSubstring("trustNamespace is immutable once set"))
 		})
 
@@ -1392,7 +1374,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	// -------------------------------------------------------------------------
 
 	Context("singleton validation", func() {
-		It("should reject TrustManager with name other than 'cluster'", func() {
+		It("should reject TrustManager with name other than 'cluster'", func(ctx SpecContext) {
 			By("attempting to create TrustManager with invalid name")
 			_, err := trustManagerClient().Create(ctx, &v1alpha1.TrustManager{
 				ObjectMeta: metav1.ObjectMeta{Name: "invalid-name"},
@@ -1407,6 +1389,55 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	})
 })
 
+// Cluster has featuregates.config.openshift.io spec.featureSet at Default. TrustManager controller is not enabled; operand should not be deployed.
+// TechPreview:Inverted labels test scenarios that invert the TechPreview test suite—validating behavior when Tech Preview feature is not enabled.
+var _ = Describe("TrustManager with Default feature set", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview:Inverted"), func() {
+	var (
+		ctx = context.Background()
+
+		clientset                        *kubernetes.Clientset
+		originalUnsupportedAddonFeatures string
+		originalOperatorLogLevel         string
+	)
+
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
+
+	AfterAll(trustManagerAfterAll(ctx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
+
+	BeforeEach(trustManagerBeforeEach())
+
+	AfterEach(trustManagerAfterEach(ctx))
+
+	It("should not create ServiceAccount or populate status when cluster feature set is Default", func() {
+		By("creating TrustManager CR with default settings (same as TechPreview scenario)")
+		_, err := trustManagerClient().Create(ctx, &v1alpha1.TrustManager{
+			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+			Spec: v1alpha1.TrustManagerSpec{
+				TrustManagerConfig: v1alpha1.TrustManagerConfig{},
+			},
+		}, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("verifying TrustManager CR exists")
+		_, err = trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("verifying ServiceAccount is not created and TrustManager status stays unset (controller not running for Default feature set)")
+		Consistently(func(g Gomega) {
+			_, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+			g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "ServiceAccount %s/%s must not exist when cluster feature set is Default", trustManagerNamespace, trustManagerServiceAccountName)
+
+			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+			g.Expect(err).NotTo(HaveOccurred())
+			st := tm.Status
+			if len(st.Conditions) == 0 {
+				st.Conditions = nil
+			}
+			g.Expect(st).To(Equal(v1alpha1.TrustManagerStatus{}), "TrustManager status must remain unset when controller is disabled")
+		}, lowTimeout, fastPollInterval).Should(Succeed())
+	})
+})
+
 // pollTillTrustManagerAvailable polls the TrustManager object and returns its status
 // once the TrustManager is available, otherwise returns a time-out error.
 func pollTillTrustManagerAvailable(ctx context.Context, client operatorclientv1alpha1.TrustManagerInterface, trustManagerName string) (v1alpha1.TrustManagerStatus, error) {
@@ -1415,7 +1446,7 @@ func pollTillTrustManagerAvailable(ctx context.Context, client operatorclientv1a
 	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		trustManager, err := client.Get(ctx, trustManagerName, metav1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
 			return false, err
@@ -1510,4 +1541,91 @@ func findSecretRule(rules []rbacv1.PolicyRule, verb string) *rbacv1.PolicyRule {
 		}
 	}
 	return nil
+}
+
+// trustManagerRemoveStaleOperandServiceAccount deletes the trust-manager operand ServiceAccount if it
+// exists and waits until it is gone. TrustManager CR deletion does not remove this SA today, so a
+// prior e2e run or TechPreview block can leave it and break the Default-feature-set scenario.
+//
+// TODO: Remove this when TrustManager is GA and operand teardown removes the ServiceAccount (or
+// equivalent) when the TrustManager CR is deleted.
+func trustManagerRemoveStaleOperandServiceAccount(ctx context.Context, cs *kubernetes.Clientset) {
+	By("removing stale trust-manager ServiceAccount if present")
+	_ = cs.CoreV1().ServiceAccounts(trustManagerNamespace).Delete(ctx, trustManagerServiceAccountName, metav1.DeleteOptions{})
+	Eventually(func() bool {
+		_, err := cs.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+}
+
+func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, unsupportedAddonFeatures, operatorLogLevel *string) func() {
+	return func() {
+		cs, err := kubernetes.NewForConfig(cfg)
+		Expect(err).Should(BeNil())
+		*clientset = cs
+
+		trustManagerRemoveStaleOperandServiceAccount(ctx, cs)
+
+		By("capturing original UNSUPPORTED_ADDON_FEATURES from subscription before patching")
+		*unsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+		Expect(err).NotTo(HaveOccurred())
+
+		By("capturing original OPERATOR_LOG_LEVEL from subscription before patching")
+		*operatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Fprintf(GinkgoWriter, "TrustManager BeforeAll: captured UNSUPPORTED_ADDON_FEATURES=%q OPERATOR_LOG_LEVEL=%q\n",
+			*unsupportedAddonFeatures, *operatorLogLevel)
+
+		By("enabling TrustManager feature gate via subscription")
+		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
+			"OPERATOR_LOG_LEVEL":         "4",
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting for operator deployment to rollout with TrustManager env var set")
+		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", lowTimeout)
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func trustManagerAfterAll(ctx context.Context, unsupportedAddonFeatures, operatorLogLevel *string) func() {
+	return func() {
+		By("restoring UNSUPPORTED_ADDON_FEATURES on subscription to pre-suite value")
+		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"UNSUPPORTED_ADDON_FEATURES": *unsupportedAddonFeatures,
+			"OPERATOR_LOG_LEVEL":         *operatorLogLevel,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		if *unsupportedAddonFeatures == "" {
+			By("waiting for operator deployment to rollout after removing UNSUPPORTED_ADDON_FEATURES")
+			err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
+		} else {
+			By("waiting for operator deployment to rollout with restored UNSUPPORTED_ADDON_FEATURES")
+			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", *unsupportedAddonFeatures, lowTimeout)
+		}
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func trustManagerBeforeEach() func() {
+	return func() {
+		By("waiting for operator status to become available")
+		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
+	}
+}
+
+func trustManagerAfterEach(ctx context.Context) func() {
+	return func() {
+		By("cleaning up TrustManager CR if it exists")
+		_ = trustManagerClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
+
+		By("waiting for TrustManager CR to be deleted")
+		Eventually(func() bool {
+			_, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+			return apierrors.IsNotFound(err)
+		}, lowTimeout, fastPollInterval).Should(BeTrue())
+	}
 }

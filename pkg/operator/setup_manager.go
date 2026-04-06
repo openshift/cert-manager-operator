@@ -16,12 +16,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -96,8 +93,6 @@ var trustManagerManagedResources = []client.Object{
 }
 
 func init() {
-	ctrllog.SetLogger(klog.NewKlogr())
-
 	utilruntime.Must(clientscheme.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
