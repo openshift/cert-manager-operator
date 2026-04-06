@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(git rev-parse --show-toplevel)
+SCRIPT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd))
 
 "${SCRIPT_ROOT}/hack/update-clientgen.sh"
 
