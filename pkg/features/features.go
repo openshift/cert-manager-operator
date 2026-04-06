@@ -45,9 +45,6 @@ var (
 )
 
 var (
-	// ErrNilConfigClient is returned when [NewFeatureGateState] is called with a nil config client.
-	ErrNilConfigClient = errors.New("config.openshift.io client is nil")
-
 	// ErrFeatureGateDiscovery marks failures discovering whether the cluster serves the
 	// config.openshift.io/v1 featuregates resource (excluding NotFound, which means not served).
 	ErrFeatureGateDiscovery = errors.New("cluster feature gate API discovery failed")
@@ -58,26 +55,22 @@ var (
 )
 
 // log is the package logger for cluster featureset and operator featuregate.
-// We use depliberately V(1).Info (including when attaching "error" as a key for context). Failures
-// that affect enablement are also returned via [FeatureGateState.Err]; they are not logged at
-// Error level so typical production verbosity does not treat expected gating outcomes as errors.
-// Prefer keeping diagnostic detail at V(1) unless there is a strong reason to change severity.
 var log = ctrl.Log.WithName("features")
 
 // FeatureGateState represents the current availability and configuration
 // state of the FeatureGate API.
 type FeatureGateState struct {
 	// apiPresent is true if discovery reports the featuregates resource is served
-	// for config.openshift.io/v1 (absent on MicroShift and similar clusters).
+	// for config.openshift.io/v1.
 	apiPresent bool
 
 	// isPreviewEnabled is true if the cluster is using a preview FeatureSet
 	// (e.g., TechPreviewNoUpgrade, CustomNoUpgrade, or OKD).
 	isPreviewEnabled bool
 
-	// stateErr, if non-nil, is why cluster preview gating failed closed: a nil client, discovery
-	// failure, or failure reading featuregates/cluster. It must not be treated like "API absent".
-	// Use [errors.Is] with [ErrNilConfigClient], [ErrFeatureGateDiscovery], [ErrFeatureGateClusterGet].
+	// stateErr, if non-nil, is why cluster preview gating failed closed: discovery failure, or
+	// failure reading featuregates/cluster. It must not be treated like "API absent".
+	// Use [errors.Is] with [ErrFeatureGateDiscovery], [ErrFeatureGateClusterGet].
 	// "Featureset not in allow-list" does not set stateErr.
 	stateErr error
 }
@@ -101,14 +94,8 @@ func SetupWithFlagValue(flagValue string) error {
 //
 // The returned *FeatureGateState is always non-nil. Errors do not propagate from this function:
 // stateErr is set so feature checks can fail closed without failing operator startup.
-//
-// A nil configClient sets stateErr to [ErrNilConfigClient]; it does not panic.
 func NewFeatureGateState(ctx context.Context, configClient configv1client.Interface) *FeatureGateState {
 	t := new(FeatureGateState)
-	if configClient == nil {
-		t.stateErr = ErrNilConfigClient
-		return t
-	}
 
 	featureGateGVR := configv1.GroupVersion.WithResource(openshiftFeatureGateResource)
 	discoverer := utils.NewResourceDiscoverer(featureGateGVR, configClient.Discovery())
@@ -138,7 +125,7 @@ func NewFeatureGateState(ctx context.Context, configClient configv1client.Interf
 func readClusterPreviewFeatureGate(ctx context.Context, configClient configv1client.Interface) (bool, error) {
 	featureGate, err := configClient.ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
-		log.V(1).Info("cluster featureset: failed to get featuregates.config.openshift.io/cluster", "error", err)
+		log.Error(err, "cluster featureset: failed to get featuregates.config.openshift.io/cluster")
 		return false, err
 	}
 	featureSet := featureGate.Spec.FeatureSet
@@ -157,8 +144,11 @@ func IsIstioCSRFeatureGateEnabled() bool {
 }
 
 // IsTrustManagerFeatureGateEnabled reports whether the TrustManager operand may run.
-// It requires the internal operator featuregate (--unsupported-addon-features=TrustManager=true).
-// When stateErr is set, TrustManager stays off. When the API is not served, only the internal gate applies.
+// When config.openshift.io FeatureGate is served, the cluster must use a preview FeatureSet
+// (e.g. TechPreviewNoUpgrade); spec.featureSet Default does not start TrustManager even if
+// --unsupported-addon-features=TrustManager=true. The internal operator featuregate must also be on.
+// When stateErr is set, TrustManager stays off. When the FeatureGate API is not served, only the
+// internal gate applies.
 func (f *FeatureGateState) IsTrustManagerFeatureGateEnabled() bool {
 	if !f.passesClusterPreviewGating(string(v1alpha1.FeatureTrustManager)) {
 		return false
@@ -191,14 +181,12 @@ func (f *FeatureGateState) Err() error {
 func (f *FeatureGateState) passesClusterPreviewGating(feature string) bool {
 	if f.stateErr != nil {
 		switch {
-		case errors.Is(f.stateErr, ErrNilConfigClient):
-			log.V(1).Info("cluster feature gate: config client is nil; feature disabled", "feature", feature)
 		case errors.Is(f.stateErr, ErrFeatureGateClusterGet):
-			log.V(1).Info("cluster feature gate: cannot read featuregates/cluster; feature disabled", "feature", feature, "error", f.stateErr)
+			log.Error(f.stateErr, "cluster feature gate: cannot read featuregates/cluster; feature disabled", "feature", feature)
 		case errors.Is(f.stateErr, ErrFeatureGateDiscovery):
-			log.V(1).Info("cluster feature gate: discovery failed; feature disabled", "feature", feature, "error", f.stateErr)
+			log.Error(f.stateErr, "cluster feature gate: discovery failed; feature disabled", "feature", feature)
 		default:
-			log.V(1).Info("cluster feature gate: error; feature disabled", "feature", feature, "error", f.stateErr)
+			log.Error(f.stateErr, "cluster feature gate: error; feature disabled", "feature", feature)
 		}
 		return false
 	}

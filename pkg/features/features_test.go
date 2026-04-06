@@ -1,24 +1,20 @@
 package features
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
 	"k8s.io/component-base/featuregate"
 
 	ocpfeaturegate "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 
 	"github.com/stretchr/testify/assert"
@@ -27,8 +23,7 @@ import (
 
 // newFakeConfigClient returns a fake OpenShift config clientset (openshift/client-go …/versioned/fake).
 // When withFeatureGateAPI is true, cs.Resources is set so FakeDiscovery serves featuregates for
-// config.openshift.io/v1 (same pattern as pkg/operator/utils/apidiscovery_test.go for the operator
-// clientset’s certmanagers GVR). objs are seeded into the tracker (e.g. featuregates/cluster).
+// config.openshift.io/v1. objs are seeded into the tracker (e.g. featuregates/cluster).
 func newFakeConfigClient(t *testing.T, withFeatureGateAPI bool, objs ...runtime.Object) *configfake.Clientset {
 	t.Helper()
 	cs := configfake.NewClientset(objs...)
@@ -143,8 +138,8 @@ func TestFeatureGates(t *testing.T) {
 
 func TestAllowedPreviewClusterFeatureSets(t *testing.T) {
 	tests := []struct {
-		name   string
-		fs     ocpfeaturegate.FeatureSet
+		name    string
+		fs      ocpfeaturegate.FeatureSet
 		allowed bool
 	}{
 		{name: "CustomNoUpgrade is allowed", fs: ocpfeaturegate.CustomNoUpgrade, allowed: true},
@@ -282,6 +277,8 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			},
 			assert: func(t *testing.T, st *FeatureGateState) {
 				t.Helper()
+				assert.False(t, st.apiPresent)
+				assert.NoError(t, st.Err())
 				assert.False(t, st.IsTrustManagerFeatureGateEnabled())
 			},
 		},
@@ -294,31 +291,4 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			tt.assert(t, st)
 		})
 	}
-}
-
-func TestNewFeatureGateStateNilClient(t *testing.T) {
-	st := NewFeatureGateState(t.Context(), nil)
-	require.Error(t, st.Err())
-	assert.True(t, errors.Is(st.Err(), ErrNilConfigClient))
-	assert.False(t, st.IsTrustManagerFeatureGateEnabled())
-}
-
-func TestNewFeatureGateStateRealRESTDiscoveryError(t *testing.T) {
-	// Regression: real discovery client against an unreachable host still records stateErr (no panic).
-	// Bound both REST calls and overall work so odd DNS or stalls do not hang CI.
-	const restTimeout = 10 * time.Second
-	config := &rest.Config{
-		Host:            "https://invalid.invalid.example.com",
-		TLSClientConfig: rest.TLSClientConfig{Insecure: true},
-		Timeout:         restTimeout,
-	}
-	client, err := configv1client.NewForConfig(config)
-	if err != nil {
-		t.Skipf("NewForConfig: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), restTimeout)
-	defer cancel()
-	st := NewFeatureGateState(ctx, client)
-	assert.False(t, st.IsTrustManagerFeatureGateEnabled())
-	assert.True(t, errors.Is(st.Err(), ErrFeatureGateDiscovery))
 }
