@@ -2,7 +2,6 @@ package operator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -191,7 +190,7 @@ func setupFeatureGates(ctx context.Context, configClient configv1client.Interfac
 	for attempt := 1; attempt <= maxFeatureGateAttempts; attempt++ {
 		featureStatus = features.NewFeatureGateState(ctx, configClient)
 		err := featureStatus.Err()
-		if err == nil || errors.Is(err, features.ErrNilConfigClient) {
+		if err == nil {
 			break
 		}
 		if attempt == maxFeatureGateAttempts {

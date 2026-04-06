@@ -928,13 +928,15 @@ func waitForDeploymentEnvVarAndRollout(ctx context.Context, namespace, deploymen
 	}, timeout)
 }
 
-// waitForDeploymentEnvVarRemovedAndRollout waits until no container in the deployment template has
-// the named env var, and the rollout has completed.
+// waitForDeploymentEnvVarRemovedAndRollout waits until no container sets envName to a non-empty
+// value and the rollout has completed. The variable may be absent from the pod template or present
+// with value "" — OLM/CSV often keeps the key with an empty string when Subscription spec.config.env
+// no longer defines that variable.
 func waitForDeploymentEnvVarRemovedAndRollout(ctx context.Context, namespace, deploymentName, envName string, timeout time.Duration) error {
 	return waitForDeploymentConditionAndRollout(ctx, namespace, deploymentName, func(deployment *appsv1.Deployment) bool {
 		for _, container := range deployment.Spec.Template.Spec.Containers {
 			for _, env := range container.Env {
-				if env.Name == envName {
+				if env.Name == envName && env.Value != "" {
 					return false
 				}
 			}
