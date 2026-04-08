@@ -71,7 +71,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 	var baseDomain string
 
 	BeforeAll(func() {
-		ctx = context.Background()
+		ctx = context.TODO()
 		var err error
 
 		By("getting cluster base domain and construct app domain")
@@ -138,14 +138,14 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 		DeferCleanup(func() {
 			By("resetting cert-manager state")
-			err = resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
+			err = resetCertManagerState(context.TODO(), certmanageroperatorclient, loader)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	BeforeEach(func() {
 		var err error
-		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
+		ctx, cancel = context.WithTimeout(context.TODO(), highTimeout)
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")

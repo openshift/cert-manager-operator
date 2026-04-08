@@ -17,7 +17,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme *runtime.Scheme
-var ctx = context.Background()
+var ctx = context.TODO()
 var suites []SuiteSpec
 
 // SuiteSpec defines a test suite specification.

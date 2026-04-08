@@ -53,7 +53,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 
 	BeforeAll(func() {
 		var err error
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		By("creating a test namespace")
 		ns, err = loader.CreateTestingNS("e2e-selfsigned-ca", false)
@@ -142,7 +142,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 	})
 
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
+		ctx, cancel = context.WithTimeout(context.TODO(), highTimeout)
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")

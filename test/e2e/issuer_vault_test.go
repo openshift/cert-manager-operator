@@ -101,7 +101,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 	}
 
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
+		ctx, cancel = context.WithTimeout(context.TODO(), highTimeout)
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")
@@ -126,7 +126,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 		Expect(clusterRoleBindingName).NotTo(BeEmpty())
 		DeferCleanup(func() {
 			By("cleaning up ClusterRoleBinding for Vault installer")
-			err := loader.KubeClient.RbacV1().ClusterRoleBindings().Delete(context.Background(), clusterRoleBindingName, metav1.DeleteOptions{})
+			err := loader.KubeClient.RbacV1().ClusterRoleBindings().Delete(context.TODO(), clusterRoleBindingName, metav1.DeleteOptions{})
 			if err != nil && !apierrors.IsNotFound(err) {
 				log.Printf("Warning: failed to delete ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
 			}

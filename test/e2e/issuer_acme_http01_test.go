@@ -35,7 +35,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 	var baseDomain string
 
 	BeforeAll(func() {
-		ctx = context.Background()
+		ctx = context.TODO()
 		By("getting cluster base domain")
 		var err error
 		baseDomain, err = library.GetClusterBaseDomain(ctx, configClient)
@@ -103,7 +103,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 	})
 
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Minute)
+		ctx, cancel = context.WithTimeout(context.TODO(), 15*time.Minute)
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")

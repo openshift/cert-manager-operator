@@ -27,7 +27,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 	BeforeEach(func() {
 		By("Reset cert-manager state")
-		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
+		err := resetCertManagerState(context.TODO(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
@@ -621,7 +621,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager controller deployment to be Available")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager controller")
@@ -639,7 +639,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager controller deployment to be Available after rollback")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerControllerDeployment)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -664,7 +664,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager webhook deployment to be Available")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager webhook")
@@ -682,7 +682,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager webhook deployment to be Available after rollback")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerWebhookDeployment)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -707,7 +707,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager cainjector deployment to be Available")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager cainjector")
@@ -725,14 +725,14 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager cainjector deployment to be Available after rollback")
-			err = pollTillDeploymentAvailable(context.Background(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
+			err = pollTillDeploymentAvailable(context.TODO(), k8sClientSet, operandNamespace, certmanagerCAinjectorDeployment)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	AfterAll(func() {
 		By("Reset cert-manager state")
-		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
+		err := resetCertManagerState(context.TODO(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")

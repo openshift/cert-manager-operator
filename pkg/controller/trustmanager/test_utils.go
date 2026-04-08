@@ -108,7 +108,7 @@ func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
-		ctx:           context.Background(),
+		ctx:           context.TODO(),
 		eventRecorder: record.NewFakeRecorder(100),
 		log:           testr.New(t),
 		scheme:        testutil.Scheme,

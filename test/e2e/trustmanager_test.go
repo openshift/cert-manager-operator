@@ -60,7 +60,7 @@ const (
 // Cluster must have an allowed feature set (e.g. TechPreviewNoUpgrade). TrustManager is deployed and reconciled.
 var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
 	var (
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		clientset                        *kubernetes.Clientset
 		originalUnsupportedAddonFeatures string
@@ -1468,7 +1468,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 // TechPreview:Inverted labels test scenarios that invert the TechPreview test suite—validating behavior when Tech Preview feature is not enabled.
 var _ = Describe("TrustManager with Default feature set", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview:Inverted"), func() {
 	var (
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		clientset                        *kubernetes.Clientset
 		originalUnsupportedAddonFeatures string

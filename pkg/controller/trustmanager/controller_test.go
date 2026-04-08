@@ -126,7 +126,7 @@ func TestReconcile(t *testing.T) {
 			}
 			r.CtrlClient = mock
 
-			_, err := r.Reconcile(context.Background(),
+			_, err := r.Reconcile(context.TODO(),
 				ctrl.Request{
 					NamespacedName: types.NamespacedName{Name: trustManagerObjectName},
 				},

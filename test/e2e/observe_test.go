@@ -25,7 +25,7 @@ var _ = Describe("Logging Configuration", Label("Platform:Generic"), Ordered, fu
 	var ctx context.Context
 
 	BeforeAll(func() {
-		ctx = context.Background()
+		ctx = context.TODO()
 	})
 
 	BeforeEach(func() {
@@ -268,7 +268,7 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 	}
 
 	BeforeAll(func() {
-		ctx = context.Background()
+		ctx = context.TODO()
 
 		By("waiting for operator status to become available")
 		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
