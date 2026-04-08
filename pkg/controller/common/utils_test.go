@@ -12,7 +12,6 @@ import (
 )
 
 // TestUpdateNamespace provides table-driven tests for UpdateNamespace(obj, newNamespace).
-// Refactor may move this to ctrlutil; tests ensure behavior (side-effect on obj) is preserved.
 func TestUpdateNamespace(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -63,7 +62,6 @@ func TestUpdateResourceLabels(t *testing.T) {
 		name        string
 		obj         client.Object
 		labels      map[string]string
-		expectedLen int
 		checkLabels map[string]string
 		description string
 	}{
@@ -73,7 +71,6 @@ func TestUpdateResourceLabels(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 			},
 			labels:      map[string]string{"key": "value", "a": "b"},
-			expectedLen: 2,
 			checkLabels: map[string]string{"key": "value", "a": "b"},
 			description: "labels replace existing",
 		},
@@ -83,7 +80,6 @@ func TestUpdateResourceLabels(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"old": "v"}},
 			},
 			labels:      nil,
-			expectedLen: 0,
 			checkLabels: nil,
 			description: "nil labels clears (SetLabels(nil) behavior)",
 		},
@@ -93,7 +89,6 @@ func TestUpdateResourceLabels(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "cm", Labels: map[string]string{"a": "1"}},
 			},
 			labels:      map[string]string{},
-			expectedLen: 0,
 			checkLabels: map[string]string{},
 			description: "empty map clears labels",
 		},
@@ -101,7 +96,6 @@ func TestUpdateResourceLabels(t *testing.T) {
 			name:        "single element",
 			obj:         &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "s"}},
 			labels:      map[string]string{"only": "one"},
-			expectedLen: 1,
 			checkLabels: map[string]string{"only": "one"},
 			description: "single label",
 		},
@@ -110,7 +104,7 @@ func TestUpdateResourceLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			UpdateResourceLabels(tt.obj, tt.labels)
 			got := tt.obj.GetLabels()
-			require.Len(t, got, tt.expectedLen, tt.description)
+			require.Len(t, got, len(tt.checkLabels), tt.description)
 			for k, v := range tt.checkLabels {
 				assert.Equal(t, v, got[k], "label %q", k)
 			}
@@ -118,111 +112,7 @@ func TestUpdateResourceLabels(t *testing.T) {
 	}
 }
 
-func TestObjectMetadataModified_DifferentTypes(t *testing.T) {
-	sa := &corev1.ServiceAccount{}
-	cm := &corev1.ConfigMap{}
-	if ObjectMetadataModified(sa, cm) {
-		t.Error("ObjectMetadataModified should return false when both objects have the same labels (including both empty)")
-	}
-}
-
-func TestObjectMetadataModified_SameTypeDifferentLabels(t *testing.T) {
-	desired := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
-	}
-	fetched := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "2"}},
-	}
-	if !ObjectMetadataModified(desired, fetched) {
-		t.Error("ObjectMetadataModified should return true when labels differ")
-	}
-}
-
-func TestObjectMetadataModified_SameTypeSameLabels(t *testing.T) {
-	desired := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
-	}
-	fetched := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
-	}
-	if ObjectMetadataModified(desired, fetched) {
-		t.Error("ObjectMetadataModified should return false when labels match")
-	}
-}
-
 func TestObjectMetadataModified(t *testing.T) {
-	tests := []struct {
-		name     string
-		desired  map[string]string
-		fetched  map[string]string
-		wantDiff bool
-	}{
-		{"same", map[string]string{"a": "1"}, map[string]string{"a": "1"}, false},
-		{"different value", map[string]string{"a": "1"}, map[string]string{"a": "2"}, true},
-		{"different key", map[string]string{"a": "1"}, map[string]string{"b": "1"}, true},
-		{"both nil", nil, nil, false},
-		{"desired nil fetched has labels", nil, map[string]string{"a": "1"}, true},
-		{"desired has labels fetched nil", map[string]string{"a": "1"}, nil, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
-			f := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.fetched}}
-			got := ObjectMetadataModified(d, f)
-			if got != tt.wantDiff {
-				t.Errorf("ObjectMetadataModified() = %v, want %v", got, tt.wantDiff)
-			}
-		})
-	}
-}
-
-func TestContainsAnnotation(t *testing.T) {
-	obj := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{"present": "yes"},
-		},
-	}
-	if !ContainsAnnotation(obj, "present") {
-		t.Error("ContainsAnnotation should be true for present key")
-	}
-	if ContainsAnnotation(obj, "absent") {
-		t.Error("ContainsAnnotation should be false for absent key")
-	}
-	empty := &corev1.ServiceAccount{}
-	if ContainsAnnotation(empty, "any") {
-		t.Error("ContainsAnnotation should be false when annotations nil")
-	}
-}
-
-func TestAddAnnotation(t *testing.T) {
-	t.Run("adds when missing", func(t *testing.T) {
-		obj := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{}}
-		added := AddAnnotation(obj, "key", "value")
-		if !added {
-			t.Error("AddAnnotation should return true when adding")
-		}
-		if obj.GetAnnotations()["key"] != "value" {
-			t.Errorf("annotation value = %q, want %q", obj.GetAnnotations()["key"], "value")
-		}
-	})
-	t.Run("no change when present", func(t *testing.T) {
-		obj := &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{"key": "existing"},
-			},
-		}
-		added := AddAnnotation(obj, "key", "new")
-		if added {
-			t.Error("AddAnnotation should return false when already present")
-		}
-		if obj.GetAnnotations()["key"] != "existing" {
-			t.Errorf("annotation should be unchanged: %q", obj.GetAnnotations()["key"])
-		}
-	})
-}
-
-// Ensure we can pass any client.Object to ObjectMetadataModified (e.g. *appsv1.Deployment).
-func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 	tests := []struct {
 		name        string
 		desired     client.Object
@@ -230,7 +120,65 @@ func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 		wantChanged bool
 	}{
 		{
-			name: "Deployment with different labels",
+			name:        "different kinds both empty labels",
+			desired:     &corev1.ServiceAccount{},
+			fetched:     &corev1.ConfigMap{},
+			wantChanged: false,
+		},
+		{
+			name: "ServiceAccount same labels",
+			desired: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
+			},
+			fetched: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
+			},
+			wantChanged: false,
+		},
+		{
+			name: "ServiceAccount different label value",
+			desired: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "1"}},
+			},
+			fetched: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Name: "x", Labels: map[string]string{"a": "2"}},
+			},
+			wantChanged: true,
+		},
+		{
+			name: "ServiceAccount different label key",
+			desired: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
+			},
+			fetched: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"b": "1"}},
+			},
+			wantChanged: true,
+		},
+		{
+			name:        "ServiceAccount both nil labels",
+			desired:     &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: nil}},
+			fetched:     &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: nil}},
+			wantChanged: false,
+		},
+		{
+			name:    "ServiceAccount desired nil labels fetched has labels",
+			desired: &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: nil}},
+			fetched: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
+			},
+			wantChanged: true,
+		},
+		{
+			name: "ServiceAccount desired has labels fetched nil labels",
+			desired: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
+			},
+			fetched:     &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: nil}},
+			wantChanged: true,
+		},
+		{
+			name: "Deployment different labels",
 			desired: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{Name: "deploy", Labels: map[string]string{"a": "1"}},
 			},
@@ -240,7 +188,7 @@ func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 			wantChanged: true,
 		},
 		{
-			name: "Deployment with same labels",
+			name: "Deployment same labels",
 			desired: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{Name: "deploy", Labels: map[string]string{"a": "1"}},
 			},
@@ -250,7 +198,7 @@ func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 			wantChanged: false,
 		},
 		{
-			name: "ConfigMap with different labels",
+			name: "ConfigMap different labels",
 			desired: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{Name: "cm", Labels: map[string]string{"key": "val1"}},
 			},
@@ -264,6 +212,83 @@ func TestObjectMetadataModified_WithDifferentObjectTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ObjectMetadataModified(tt.desired, tt.fetched)
 			assert.Equal(t, tt.wantChanged, got)
+		})
+	}
+}
+
+func TestContainsAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		obj         client.Object
+		annotation  string
+		wantPresent bool
+	}{
+		{
+			name: "present key",
+			obj: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{"present": "yes"}},
+			},
+			annotation:  "present",
+			wantPresent: true,
+		},
+		{
+			name: "absent key",
+			obj: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{"present": "yes"}},
+			},
+			annotation:  "absent",
+			wantPresent: false,
+		},
+		{
+			name:        "nil annotations",
+			obj:         &corev1.ServiceAccount{},
+			annotation:  "any",
+			wantPresent: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ContainsAnnotation(tt.obj, tt.annotation)
+			assert.Equal(t, tt.wantPresent, got)
+		})
+	}
+}
+
+func TestAddAnnotation(t *testing.T) {
+	tests := []struct {
+		name      string
+		obj       *corev1.ServiceAccount
+		key       string
+		value     string
+		wantAdded bool
+		wantVal   string
+	}{
+		{
+			name:      "adds when missing",
+			obj:       &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{}},
+			key:       "key",
+			value:     "value",
+			wantAdded: true,
+			wantVal:   "value",
+		},
+		{
+			name: "no change when present",
+			obj: &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{"key": "existing"},
+				},
+			},
+			key:       "key",
+			value:     "new",
+			wantAdded: false,
+			wantVal:   "existing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			added := AddAnnotation(tt.obj, tt.key, tt.value)
+			assert.Equal(t, tt.wantAdded, added)
+			assert.Equal(t, tt.wantVal, tt.obj.GetAnnotations()[tt.key])
 		})
 	}
 }

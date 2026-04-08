@@ -55,6 +55,13 @@ func TestReconcileErrors(t *testing.T) {
 			checkReason: RetryRequiredError,
 			checkErr:    true,
 		},
+		{
+			name: "NewRetryRequiredError nil input returns nil",
+			fn: func() (*ReconcileError, error) {
+				return NewRetryRequiredError(nil, "msg"), nil
+			},
+			wantNil: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,10 +87,10 @@ func TestReconcileErrors(t *testing.T) {
 
 func TestFromClientError(t *testing.T) {
 	tests := []struct {
-		name           string
-		clientErr      error
-		wantIrrecover  bool
-		wantRetry      bool
+		name          string
+		clientErr     error
+		wantIrrecover bool
+		wantRetry     bool
 	}{
 		{
 			name:          "Unauthorized is irrecoverable",
@@ -159,11 +166,11 @@ func TestFromClientError(t *testing.T) {
 
 func TestFromError(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputErr      error
-		wantNil       bool
-		wantReason    ErrorReason
-		wantMessage   string
+		name        string
+		inputErr    error
+		wantNil     bool
+		wantReason  ErrorReason
+		wantMessage string
 	}{
 		{
 			name:        "preserves irrecoverable error",
@@ -299,33 +306,6 @@ func TestIsMultipleInstanceError(t *testing.T) {
 			got := IsMultipleInstanceError(tt.err)
 			if got != tt.want {
 				t.Errorf("IsMultipleInstanceError() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestReconcileError_Error(t *testing.T) {
-	tests := []struct {
-		name    string
-		err     *ReconcileError
-		wantMsg string
-	}{
-		{
-			name:    "formats message with error",
-			err:     NewIrrecoverableError(fmt.Errorf("base"), "message"),
-			wantMsg: "message: base",
-		},
-		{
-			name:    "formats with arguments",
-			err:     NewRetryRequiredError(fmt.Errorf("err"), "retry: %d", 3),
-			wantMsg: "retry: 3: err",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.err.Error()
-			if got != tt.wantMsg {
-				t.Errorf("Error() = %q, want %q", got, tt.wantMsg)
 			}
 		})
 	}

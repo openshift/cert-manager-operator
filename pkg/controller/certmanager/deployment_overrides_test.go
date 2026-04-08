@@ -12,8 +12,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/cache"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
@@ -228,35 +228,49 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 }
 
 func TestParseEnvMap(t *testing.T) {
-	env := mergeContainerEnvs([]corev1.EnvVar{
+	tests := []struct {
+		name         string
+		sourceEnv    []corev1.EnvVar
+		overrideEnv  []corev1.EnvVar
+		wantEnv      []corev1.EnvVar
+		sourceArgs   []string
+		overrideArgs []string
+		wantArgs     []string
+	}{
 		{
-			Name:  "A",
-			Value: "asd",
+			name: "merge env overrides by name and sorts",
+			sourceEnv: []corev1.EnvVar{
+				{Name: "A", Value: "asd"},
+				{Name: "B", Value: "32r23"},
+			},
+			overrideEnv: []corev1.EnvVar{
+				{Name: "A", Value: "23234"},
+				{Name: "C", Value: "a12sd"},
+			},
+			wantEnv: []corev1.EnvVar{
+				{Name: "A", Value: "23234"},
+				{Name: "B", Value: "32r23"},
+				{Name: "C", Value: "a12sd"},
+			},
 		},
 		{
-			Name:  "B",
-			Value: "32r23",
+			name:         "merge args overrides keys and sorts",
+			sourceArgs:   []string{"--a=12"},
+			overrideArgs: []string{"A", "B", "--a=vc"},
+			wantArgs:     []string{"--a=vc", "A", "B"},
 		},
-	}, []corev1.EnvVar{
-		{
-			Name:  "A",
-			Value: "23234",
-		},
-		{
-			Name:  "C",
-			Value: "a12sd",
-		},
-	})
-	for _, e := range env {
-		t.Logf("N: %s\t V:%s\n", e.Name, e.Value)
 	}
-
-	args := mergeContainerArgs([]string{"--a=12"}, []string{
-		"A", "B", "--a=vc",
-	})
-
-	for _, s := range args {
-		t.Logf("A:%q\n", s)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantEnv != nil {
+				got := mergeContainerEnvs(tt.sourceEnv, tt.overrideEnv)
+				require.Equal(t, tt.wantEnv, got)
+			}
+			if tt.wantArgs != nil {
+				got := mergeContainerArgs(tt.sourceArgs, tt.overrideArgs)
+				require.Equal(t, tt.wantArgs, got)
+			}
+		})
 	}
 }
 
@@ -340,8 +354,10 @@ func TestMergeContainerEnv(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		actualEnv := mergeContainerEnvs(tc.sourceEnv, tc.overrideEnv)
-		require.Equal(t, tc.expected, actualEnv)
+		t.Run(tc.name, func(t *testing.T) {
+			actualEnv := mergeContainerEnvs(tc.sourceEnv, tc.overrideEnv)
+			require.Equal(t, tc.expected, actualEnv)
+		})
 	}
 }
 
@@ -401,9 +417,11 @@ func TestMergeContainerEnvProxyOverride(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		envAfterProxy := mergeContainerEnvs([]corev1.EnvVar{}, tc.clusterProxyEnv)
-		finalEnv := mergeContainerEnvs(envAfterProxy, tc.userOverrideEnv)
-		require.Equal(t, tc.expected, finalEnv)
+		t.Run(tc.name, func(t *testing.T) {
+			envAfterProxy := mergeContainerEnvs([]corev1.EnvVar{}, tc.clusterProxyEnv)
+			finalEnv := mergeContainerEnvs(envAfterProxy, tc.userOverrideEnv)
+			require.Equal(t, tc.expected, finalEnv)
+		})
 	}
 }
 
@@ -435,149 +453,212 @@ func TestMergeContainerArgs(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		actualArgs := mergeContainerArgs(tc.sourceArgs, tc.overrideArgs)
-		require.Equal(t, tc.expected, actualArgs)
+		t.Run(tc.name, func(t *testing.T) {
+			actualArgs := mergeContainerArgs(tc.sourceArgs, tc.overrideArgs)
+			require.Equal(t, tc.expected, actualArgs)
+		})
 	}
 }
 
 func TestParseArgMap(t *testing.T) {
-	testArgs := []string{
-		"", // should be ignored at the time of parse
-		"--", "--foo", "--v=1", "--test=v1=v2", "--gates=Feature1=True",
-		"--log-level=Debug=false,Info=false,Warning=True,Error=true",
-		"--extra-flags='--v=2 --gates=Feature2=True'",
+	tests := []struct {
+		name    string
+		args    []string
+		wantMap map[string]string
+	}{
+		{
+			name: "parses keys, empty token, and multi-segment values",
+			args: []string{
+				"", // should be ignored at the time of parse
+				"--", "--foo", "--v=1", "--test=v1=v2", "--gates=Feature1=True",
+				"--log-level=Debug=false,Info=false,Warning=True,Error=true",
+				"--extra-flags='--v=2 --gates=Feature2=True'",
+			},
+			wantMap: map[string]string{
+				"--":            "",
+				"--foo":         "",
+				"--v":           "1",
+				"--test":        "v1=v2",
+				"--gates":       "Feature1=True",
+				"--log-level":   "Debug=false,Info=false,Warning=True,Error=true",
+				"--extra-flags": "'--v=2 --gates=Feature2=True'",
+			},
+		},
 	}
-	wantMap := map[string]string{
-		"--":            "",
-		"--foo":         "",
-		"--v":           "1",
-		"--test":        "v1=v2",
-		"--gates":       "Feature1=True",
-		"--log-level":   "Debug=false,Info=false,Warning=True,Error=true",
-		"--extra-flags": "'--v=2 --gates=Feature2=True'",
-	}
-
-	argMap := make(map[string]string)
-	parseArgMap(argMap, testArgs)
-	if !reflect.DeepEqual(argMap, wantMap) {
-		t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(wantMap, argMap))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			argMap := make(map[string]string)
+			parseArgMap(argMap, tt.args)
+			if !reflect.DeepEqual(argMap, tt.wantMap) {
+				t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(tt.wantMap, argMap))
+			}
+		})
 	}
 }
 
 // TestWithOperandImageOverrideHook covers the modified hook (parameter rename).
 func TestWithOperandImageOverrideHook(t *testing.T) {
-	originalImage := "quay.io/jetstack/cert-manager-controller:v1.19.2"
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: certmanagerControllerDeployment},
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{Name: "controller", Image: originalImage, Args: []string{"--v=2"}},
-					},
-				},
-			},
+	tests := []struct {
+		name           string
+		deploymentName string
+		originalImage  string
+		containerName  string
+	}{
+		{
+			name:           "controller image and acme solver arg",
+			deploymentName: certmanagerControllerDeployment,
+			originalImage:  testUpstreamCertManagerControllerImage,
+			containerName:  "controller",
 		},
 	}
-	err := withOperandImageOverrideHook(nil, deployment)
-	require.NoError(t, err)
-	require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: tt.deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{Name: tt.containerName, Image: tt.originalImage, Args: []string{"--v=2"}},
+							},
+						},
+					},
+				},
+			}
+			err := withOperandImageOverrideHook(nil, deployment)
+			require.NoError(t, err)
+			require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
 
-	// Verify image was overridden
-	newImage := deployment.Spec.Template.Spec.Containers[0].Image
-	require.NotEmpty(t, newImage, "image should be set")
+			newImage := deployment.Spec.Template.Spec.Containers[0].Image
+			require.NotEmpty(t, newImage, "image should be set")
 
-	// certManagerImage resolves image; at least args should contain acme solver for controller
-	args := deployment.Spec.Template.Spec.Containers[0].Args
-	var hasAcme bool
-	var acmeImage string
-	for _, a := range args {
-		if strings.HasPrefix(a, "--acme-http01-solver-image=") {
-			hasAcme = true
-			acmeImage = strings.TrimPrefix(a, "--acme-http01-solver-image=")
-			break
-		}
+			args := deployment.Spec.Template.Spec.Containers[0].Args
+			var hasAcme bool
+			var acmeImage string
+			for _, a := range args {
+				if strings.HasPrefix(a, "--acme-http01-solver-image=") {
+					hasAcme = true
+					acmeImage = strings.TrimPrefix(a, "--acme-http01-solver-image=")
+					break
+				}
+			}
+			require.True(t, hasAcme, "controller deployment should get acme-http01-solver-image arg")
+			require.NotEmpty(t, acmeImage, "acme solver image value should not be empty")
+		})
 	}
-	require.True(t, hasAcme, "controller deployment should get acme-http01-solver-image arg")
-	require.NotEmpty(t, acmeImage, "acme solver image value should not be empty")
 }
 
 // TestWithProxyEnv covers the modified hook (parameter rename).
 func TestWithProxyEnv(t *testing.T) {
-	deployment := &appsv1.Deployment{
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{Name: "c", Env: []corev1.EnvVar{{Name: "EXISTING", Value: "x"}}}},
-				},
-			},
+	tests := []struct {
+		name       string
+		containers []corev1.Container
+	}{
+		{
+			name:       "merges proxy env with existing container env",
+			containers: []corev1.Container{{Name: "c", Env: []corev1.EnvVar{{Name: "EXISTING", Value: "x"}}}},
 		},
 	}
-	err := withProxyEnv(nil, deployment)
-	require.NoError(t, err)
-	// mergeContainerEnvs merges; we should have at least EXISTING plus any proxy vars from env
-	require.NotEmpty(t, deployment.Spec.Template.Spec.Containers[0].Env)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := &appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{Containers: tt.containers},
+					},
+				},
+			}
+			err := withProxyEnv(nil, deployment)
+			require.NoError(t, err)
+			require.NotEmpty(t, deployment.Spec.Template.Spec.Containers[0].Env)
+		})
+	}
 }
 
 // TestWithCAConfigMap covers the modified hook (parameter rename); empty name and success path.
 func TestWithCAConfigMap(t *testing.T) {
-	t.Run("empty configmap name returns nil", func(t *testing.T) {
-		hook := withCAConfigMap(nil, nil, "")
-		dep := &appsv1.Deployment{
-			Spec: appsv1.DeploymentSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c"}}},
-				},
-			},
-		}
-		err := hook(nil, dep)
-		require.NoError(t, err)
-	})
-	t.Run("configmap not found returns retry error", func(t *testing.T) {
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		// empty indexer -> Get("my-ca") will return not found
-		lister := corelistersv1.NewConfigMapLister(indexer)
-		fakeInformer := &fakeConfigMapInformer{lister: lister}
-		hook := withCAConfigMap(fakeInformer, nil, "my-ca")
-		deployment := &appsv1.Deployment{
-			Spec: appsv1.DeploymentSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{{Name: "c"}},
+	tests := []struct {
+		name          string
+		trustedCAName string
+		configMaps    []*corev1.ConfigMap
+		deployment    *appsv1.Deployment
+		wantErr       bool
+		wantRetryOrNF bool
+		wantCAVolume  bool
+	}{
+		{
+			name:          "empty configmap name returns nil",
+			trustedCAName: "",
+			deployment: &appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c"}}},
 					},
 				},
 			},
-		}
-		err := hook(nil, deployment)
-		require.Error(t, err)
-		require.True(t, strings.Contains(err.Error(), "Retrying") || apierrors.IsNotFound(err), "expected retry or NotFound")
-	})
-	t.Run("configmap exists adds volume and volume mounts", func(t *testing.T) {
-		cm := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{Name: "trusted-ca", Namespace: operatorclient.TargetNamespace},
-		}
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		require.NoError(t, indexer.Add(cm))
-		lister := corelistersv1.NewConfigMapLister(indexer)
-		fakeInformer := &fakeConfigMapInformer{lister: lister}
-		hook := withCAConfigMap(fakeInformer, nil, "trusted-ca")
-		deployment := &appsv1.Deployment{
-			Spec: appsv1.DeploymentSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{{Name: "c1"}, {Name: "c2"}},
+		},
+		{
+			name:          "configmap not found returns retry error",
+			trustedCAName: "my-ca",
+			deployment: &appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c"}}},
 					},
 				},
 			},
-		}
-		err := hook(nil, deployment)
-		require.NoError(t, err)
-		require.NotEmpty(t, deployment.Spec.Template.Spec.Volumes)
-		require.Equal(t, trustedCAVolumeName, deployment.Spec.Template.Spec.Volumes[len(deployment.Spec.Template.Spec.Volumes)-1].Name)
-		for i := range deployment.Spec.Template.Spec.Containers {
-			require.NotEmpty(t, deployment.Spec.Template.Spec.Containers[i].VolumeMounts)
-		}
-	})
+			wantErr:       true,
+			wantRetryOrNF: true,
+		},
+		{
+			name:          "configmap exists adds volume and volume mounts",
+			trustedCAName: "trusted-ca",
+			configMaps: []*corev1.ConfigMap{
+				{ObjectMeta: metav1.ObjectMeta{Name: "trusted-ca", Namespace: operatorclient.TargetNamespace}},
+			},
+			deployment: &appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c1"}, {Name: "c2"}}},
+					},
+				},
+			},
+			wantCAVolume: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			if tt.trustedCAName == "" {
+				hook := withCAConfigMap(nil, nil, "")
+				err = hook(nil, tt.deployment)
+			} else {
+				indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+				for _, cm := range tt.configMaps {
+					require.NoError(t, indexer.Add(cm))
+				}
+				fakeInformer := &fakeConfigMapInformer{lister: corelistersv1.NewConfigMapLister(indexer)}
+				hook := withCAConfigMap(fakeInformer, nil, tt.trustedCAName)
+				err = hook(nil, tt.deployment)
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantRetryOrNF {
+					require.True(t, strings.Contains(err.Error(), "Retrying") || apierrors.IsNotFound(err), "expected retry or NotFound")
+				}
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantCAVolume {
+				require.NotEmpty(t, tt.deployment.Spec.Template.Spec.Volumes)
+				vols := tt.deployment.Spec.Template.Spec.Volumes
+				require.Equal(t, trustedCAVolumeName, vols[len(vols)-1].Name)
+				for i := range tt.deployment.Spec.Template.Spec.Containers {
+					require.NotEmpty(t, tt.deployment.Spec.Template.Spec.Containers[i].VolumeMounts)
+				}
+			}
+		})
+	}
 }
 
 // fakeConfigMapInformer implements coreinformersv1.ConfigMapInformer for tests.
@@ -592,25 +673,35 @@ func (f *fakeConfigMapInformer) Lister() corelistersv1.ConfigMapLister {
 
 // TestWithSABoundToken covers the modified hook (parameter rename).
 func TestWithSABoundToken(t *testing.T) {
-	deployment := &appsv1.Deployment{
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{Name: "controller"}},
+	tests := []struct {
+		name          string
+		containerName string
+	}{
+		{name: "adds projected SA token volume and mount", containerName: "controller"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := &appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{{Name: tt.containerName}},
+						},
+					},
 				},
-			},
-		},
+			}
+			err := withSABoundToken(nil, deployment)
+			require.NoError(t, err)
+			require.NotEmpty(t, deployment.Spec.Template.Spec.Volumes)
+			var found bool
+			for _, v := range deployment.Spec.Template.Spec.Volumes {
+				if v.Name == boundSATokenVolumeName {
+					found = true
+					break
+				}
+			}
+			require.True(t, found)
+			require.NotEmpty(t, deployment.Spec.Template.Spec.Containers[0].VolumeMounts)
+		})
 	}
-	err := withSABoundToken(nil, deployment)
-	require.NoError(t, err)
-	require.NotEmpty(t, deployment.Spec.Template.Spec.Volumes)
-	var found bool
-	for _, v := range deployment.Spec.Template.Spec.Volumes {
-		if v.Name == boundSATokenVolumeName {
-			found = true
-			break
-		}
-	}
-	require.True(t, found)
-	require.NotEmpty(t, deployment.Spec.Template.Spec.Containers[0].VolumeMounts)
 }

@@ -1,7 +1,7 @@
 package certmanager
 
 import (
-	"strings"
+	"fmt"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,24 +15,40 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
+	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
 
 const testSecretName = "cloud-creds"
 
+// The following helpers return the full err.Error() the hook produces for each failure mode
+// (same NotFound GroupResource/name and fmt.Errorf wording as withCloudCredentials; test-only).
+func expectedCloudSecretRetryingNotFound(secretName string) string {
+	nf := apierrors.NewNotFound(corev1.Resource("secret"), secretName)
+	return fmt.Errorf("(Retrying) cloud secret %q doesn't exist due to %w", secretName, nf).Error()
+}
+
+func expectedUnsupportedCloudProvider(platform configv1.PlatformType) string {
+	return fmt.Errorf("unsupported cloud provider %q for mounting cloud credentials secret", platform).Error()
+}
+
+func expectedInfrastructureClusterNotFound() string {
+	return apierrors.NewNotFound(configv1.Resource("infrastructure"), "cluster").Error()
+}
+
 func TestWithCloudCredentials(t *testing.T) {
 	tests := []struct {
-		name              string
-		deploymentName    string
-		secretName        string
-		secretInStore     bool
-		decoySecretOnly   bool // lister has a different secret name so Get(secretName) fails (not brittle on tt.name)
-		platformType      configv1.PlatformType
-		wantErr           string
-		wantNotFoundOK    bool // if true, err must be NotFound and still contain wantErr in the message
-		wantVolumes       int
-		wantMountPath     string
-		wantAWSEnv        bool
-		noInfra           bool // if true, infra indexer is left empty so Get("cluster") fails
+		name            string
+		deploymentName  string
+		secretName      string
+		secretInStore   bool
+		decoySecretOnly bool // lister has a different secret name so Get(secretName) fails (not brittle on tt.name)
+		platformType    configv1.PlatformType
+		wantErr         string // full hook err.Error(); empty => expect nil error
+		wantVolumes     int
+		wantMountPath   string
+		wantAWSEnv      bool
+		noInfra         bool // if true, infra indexer is left empty so Get("cluster") fails
 	}{
 		{
 			name:           "non-controller deployment no-op",
@@ -55,7 +71,7 @@ func TestWithCloudCredentials(t *testing.T) {
 			secretInStore:   false,
 			decoySecretOnly: true,
 			platformType:    configv1.AWSPlatformType,
-			wantErr:         "Retrying",
+			wantErr:         expectedCloudSecretRetryingNotFound("missing-secret"),
 			wantVolumes:     0,
 		},
 		{
@@ -84,19 +100,18 @@ func TestWithCloudCredentials(t *testing.T) {
 			secretName:     testSecretName,
 			secretInStore:  true,
 			platformType:   configv1.PlatformType("Unsupported"),
-			wantErr:        "unsupported cloud provider",
+			wantErr:        expectedUnsupportedCloudProvider(configv1.PlatformType("Unsupported")),
 			wantVolumes:    0,
 		},
 		{
-			name:            "infra not found returns error",
-			deploymentName:  certmanagerControllerDeployment,
-			secretName:      testSecretName,
-			secretInStore:   true,
-			platformType:    configv1.AWSPlatformType,
-			wantErr:         "cluster",
-			wantNotFoundOK:  true,
-			noInfra:         true,
-			wantVolumes:     0,
+			name:           "infra not found returns error",
+			deploymentName: certmanagerControllerDeployment,
+			secretName:     testSecretName,
+			secretInStore:  true,
+			platformType:   configv1.AWSPlatformType,
+			wantErr:        expectedInfrastructureClusterNotFound(),
+			noInfra:        true,
+			wantVolumes:    0,
 		},
 		{
 			name:           "Azure platform is unsupported",
@@ -104,7 +119,7 @@ func TestWithCloudCredentials(t *testing.T) {
 			secretName:     testSecretName,
 			secretInStore:  true,
 			platformType:   configv1.AzurePlatformType,
-			wantErr:        "unsupported cloud provider",
+			wantErr:        expectedUnsupportedCloudProvider(configv1.AzurePlatformType),
 			wantVolumes:    0,
 		},
 	}
@@ -113,12 +128,12 @@ func TestWithCloudCredentials(t *testing.T) {
 			var kubeClient *fake.Clientset
 			if tt.secretInStore {
 				secret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: "cert-manager"},
+					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: operatorclient.TargetNamespace},
 				}
 				kubeClient = fake.NewSimpleClientset(secret)
 			} else if tt.decoySecretOnly {
 				kubeClient = fake.NewSimpleClientset(&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "cert-manager"},
+					ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: operatorclient.TargetNamespace},
 				})
 			} else {
 				kubeClient = fake.NewSimpleClientset()
@@ -126,7 +141,7 @@ func TestWithCloudCredentials(t *testing.T) {
 			kubeInformers := informers.NewSharedInformerFactory(kubeClient, 0)
 			if tt.secretInStore || tt.wantErr != "" {
 				secret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: "cert-manager"},
+					ObjectMeta: metav1.ObjectMeta{Name: tt.secretName, Namespace: operatorclient.TargetNamespace},
 				}
 				if tt.decoySecretOnly {
 					secret.Name = "other"
@@ -173,21 +188,10 @@ func TestWithCloudCredentials(t *testing.T) {
 
 			if tt.wantErr != "" {
 				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+					t.Fatalf("expected error %q, got nil", tt.wantErr)
 				}
-				matchSubstring := strings.Contains(err.Error(), tt.wantErr)
-				var ok bool
-				if tt.wantNotFoundOK {
-					ok = apierrors.IsNotFound(err) && matchSubstring
-				} else {
-					ok = matchSubstring
-				}
-				if !ok {
-					if tt.wantNotFoundOK {
-						t.Errorf("error = %v, want NotFound with message containing %q", err, tt.wantErr)
-					} else {
-						t.Errorf("error = %v, want substring %q", err, tt.wantErr)
-					}
+				if got := err.Error(); got != tt.wantErr {
+					t.Errorf("error = %q, want %q", got, tt.wantErr)
 				}
 				return
 			}
