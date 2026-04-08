@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -498,7 +499,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
-		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{fmt.Errorf("%s", statusMessage), updateErr}))
+		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
@@ -544,5 +545,5 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
 
-	return common.NewMultipleInstanceError(fmt.Errorf("%s", statusMessage))
+	return common.NewMultipleInstanceError(errors.New(statusMessage))
 }
