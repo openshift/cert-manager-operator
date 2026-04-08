@@ -47,7 +47,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should add the args to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override args to the cert-managaer operator object")
+			By("Adding cert-manager controller override args to the cert-manager operator object")
 			args := []string{
 				// good-have to sync these args updated with the args present in
 				// pkg/controller/deployment/deployment_overrides_validation.go,
@@ -88,7 +88,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should add the args to the cert-manager webhook deployment", func() {
 
-			By("Adding cert-manager webhook override args to the cert-managaer operator object")
+			By("Adding cert-manager webhook override args to the cert-manager operator object")
 			args := []string{"--v=3"}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerWebhookDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
@@ -109,7 +109,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should add the args to the cert-manager cainjector deployment", func() {
 
-			By("Adding cert-manager cainjector override args to the cert-managaer operator object")
+			By("Adding cert-manager cainjector override args to the cert-manager operator object")
 			args := []string{"--v=3"}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
@@ -131,7 +131,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should not add the args to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override args to the cert-managaer operator object")
+			By("Adding cert-manager controller override args to the cert-manager operator object")
 			args := []string{"--invalid-args=foo"}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
@@ -152,7 +152,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should not add the args to the cert-manager webhook deployment", func() {
 
-			By("Adding cert-manager webhook override args to the cert-managaer operator object")
+			By("Adding cert-manager webhook override args to the cert-manager operator object")
 			args := []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerWebhookDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
@@ -173,7 +173,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should not add the args to the cert-manager cainjector deployment", func() {
 
-			By("Adding cert-manager cainjector override args to the cert-managaer operator object")
+			By("Adding cert-manager cainjector override args to the cert-manager operator object")
 			args := []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"}
 			err := addOverrideArgs(certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
@@ -563,7 +563,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should add the env to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override env to the cert-managaer operator object")
+			By("Adding cert-manager controller override env to the cert-manager operator object")
 			env := []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy.example.com:8080"}, {Name: "HTTPS_PROXY", Value: "http://proxy.example.com:8088"}, {Name: "NO_PROXY", Value: "localhost"}}
 			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
 			Expect(err).NotTo(HaveOccurred())
@@ -584,7 +584,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 		It("should not add the env to the cert-manager controller deployment", func() {
 
-			By("Adding cert-manager controller override env to the cert-managaer operator object")
+			By("Adding cert-manager controller override env to the cert-manager operator object")
 			env := []corev1.EnvVar{{Name: "FOO", Value: "BAR"}}
 			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
 			Expect(err).NotTo(HaveOccurred())
