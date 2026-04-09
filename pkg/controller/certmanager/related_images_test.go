@@ -18,15 +18,15 @@ func Test_certManagerImage(t *testing.T) {
 		{
 			name: "Use default image on empty RELATED_IMAGE_CERT_MANAGER_CONTROLLER variable",
 			args: args{
-				defaultImage:       "quay.io/jetstack/cert-manager-controller:latest",
+				defaultImage:       testUpstreamCertManagerControllerImage,
 				relatedImageEnvVar: "",
 			},
-			want: "quay.io/jetstack/cert-manager-controller:latest",
+			want: testUpstreamCertManagerControllerImage,
 		},
 		{
 			name: "Use related image on non-empty RELATED_IMAGE_CERT_MANAGER_CONTROLLER variable",
 			args: args{
-				defaultImage:       "quay.io/jetstack/cert-manager-controller:latest",
+				defaultImage:       testUpstreamCertManagerControllerImage,
 				relatedImageEnvVar: "registry.redhat.io/cert-manager/cert-manager-operator-1.5-rhel-8:latest",
 			},
 			want: "registry.redhat.io/cert-manager/cert-manager-operator-1.5-rhel-8:latest",
