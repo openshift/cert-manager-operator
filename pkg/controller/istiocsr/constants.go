@@ -73,7 +73,7 @@ const (
 	// will be of the form <istiocsr_namespace>/<istiocsr_instance-Name>.
 	istiocsrResourceWatchLabelValueFmt = "%s_%s"
 
-	// IstiocsrCAConfigMapName is the name o the configmap which is mounted in istiocsr container, containing the
+	// IstiocsrCAConfigMapName is the name of the configmap which is mounted in istiocsr container, containing the
 	// CA certificate configured in the secret referenced in the issuer.
 	IstiocsrCAConfigMapName = istiocsrCommonName + "-issuer-ca-copy"
 
