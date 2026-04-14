@@ -1,16 +1,12 @@
 package certmanager
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/fake"
-	certmanoperatorinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -18,7 +14,94 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/ptr"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/fake"
+	certmanoperatorinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	certmanagerinformerv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
+
+// setupSyncedFakeCertManagerInformer builds a fake CertManagers client and a running, synced
+// CertManagerInformer. It registers a watch reactor so creates after List are not missed (see
+// client-go fake limitations). events receives each CertManager on add and delete; buffer size 1
+// matches the tests that wait for a single add then a single delete per case.
+func setupSyncedFakeCertManagerInformer(t *testing.T, ctx context.Context) (
+	fakeClient *fake.Clientset,
+	informer certmanagerinformerv1alpha1.CertManagerInformer,
+	events <-chan *v1alpha1.CertManager,
+) {
+	t.Helper()
+
+	watcherStarted := make(chan struct{})
+	fakeClient = fake.NewClientset()
+	fakeClient.PrependWatchReactor("certmanagers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		w, err := fakeClient.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(watcherStarted)
+		return true, w, nil
+	})
+
+	informer = certmanoperatorinformer.NewSharedInformerFactory(fakeClient, 0).Operator().V1alpha1().CertManagers()
+	ch := make(chan *v1alpha1.CertManager, 1)
+	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			ch <- obj.(*v1alpha1.CertManager)
+		},
+		DeleteFunc: func(obj any) {
+			switch o := obj.(type) {
+			case *v1alpha1.CertManager:
+				ch <- o
+			case cache.DeletedFinalStateUnknown:
+				if cm, ok := o.Obj.(*v1alpha1.CertManager); ok {
+					ch <- cm
+				}
+			}
+		},
+	})
+	require.NoError(t, err)
+
+	go informer.Informer().Run(ctx.Done())
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), informer.Informer().HasSynced), "failed to sync CertManager informer cache")
+	select {
+	case <-watcherStarted:
+	case <-time.After(wait.ForeverTestTimeout):
+		t.Fatal("watch reactor did not start")
+	}
+
+	return fakeClient, informer, ch
+}
+
+// withFakeCertManagerForTest creates obj in the fake API, waits for the informer add event, and
+// registers t.Cleanup to delete obj and wait for the delete event.
+func withFakeCertManagerForTest(t *testing.T, ctx context.Context, fakeClient *fake.Clientset, events <-chan *v1alpha1.CertManager, obj *v1alpha1.CertManager) {
+	t.Helper()
+	_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, obj, metav1.CreateOptions{})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, obj.Name, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			t.Errorf("cert-manager delete failed: %v", err)
+			return
+		}
+		select {
+		case <-events:
+		case <-time.After(wait.ForeverTestTimeout):
+			t.Errorf("Informer did not get the deleted cert manager object during cleanup")
+		}
+	})
+	select {
+	case <-events:
+	case <-time.After(wait.ForeverTestTimeout):
+		t.Fatal("Informer did not get the added cert manager object")
+	}
+}
 
 func TestMergeContainerResources(t *testing.T) {
 	tests := []struct {
@@ -335,89 +418,15 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-
-	// Create channel to know when the watch has started.
-	watcherStarted := make(chan struct{})
-	// Create the fake client.
-	fakeClient := fake.NewSimpleClientset()
-	// A watch reactor for cert manager objects that allows the injection of the watcherStarted channel.
-	fakeClient.PrependWatchReactor("certmanagers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
-		gvr := action.GetResource()
-		ns := action.GetNamespace()
-		watch, err := fakeClient.Tracker().Watch(gvr, ns)
-		if err != nil {
-			return false, nil, err
-		}
-		close(watcherStarted)
-		return true, watch, nil
-	})
-
-	// Create cert manager informers using the fake client.
-	certManagerInformers := certmanoperatorinformer.NewSharedInformerFactory(fakeClient, 0).Operator().V1alpha1().CertManagers()
-
-	// Create a channel to receive the cert manager objects from the informer.
-	certManagerChan := make(chan *v1alpha1.CertManager, 1)
-
-	// Add event handlers to the informer to write the cert manager objects to
-	// the channel received during the add and the delete events.
-	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj added: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-		DeleteFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-	})
-
-	// Make sure informer is running.
-	go certManagerInformers.Informer().Run(ctx.Done())
-
-	// This is not required in tests, but it serves as a proof-of-concept by
-	// ensuring that the informer goroutine have warmed up and called List before
-	// we send any events to it.
-	cache.WaitForCacheSync(ctx.Done(), certManagerInformers.Informer().HasSynced)
-
-	// The fake client doesn't support resource version. Any writes to the client
-	// after the informer's initial LIST and before the informer establishing the
-	// watcher will be missed by the informer. Therefore we wait until the watcher
-	// starts.
-	<-watcherStarted
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create the cert manager object using the fake client.
-			_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, &tc.certManagerObj, metav1.CreateOptions{})
-			if err != nil {
-				t.Fatalf("error injecting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the added cert manager object")
-			}
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideResources, err := getOverrideResourcesFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
 			require.Equal(t, tc.expectedOverrideResources, actualOverrideResources)
-
-			// Delete the cert manager object using the fake client.
-			err = fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.certManagerObj.Name, metav1.DeleteOptions{})
-			if err != nil {
-				t.Fatalf("error deleting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the deleted cert manager")
-			}
 		})
 	}
 }
@@ -856,89 +865,15 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-
-	// Create channel to know when the watch has started.
-	watcherStarted := make(chan struct{})
-	// Create the fake client.
-	fakeClient := fake.NewSimpleClientset()
-	// A watch reactor for cert manager objects that allows the injection of the watcherStarted channel.
-	fakeClient.PrependWatchReactor("certmanagers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
-		gvr := action.GetResource()
-		ns := action.GetNamespace()
-		watch, err := fakeClient.Tracker().Watch(gvr, ns)
-		if err != nil {
-			return false, nil, err
-		}
-		close(watcherStarted)
-		return true, watch, nil
-	})
-
-	// Create cert manager informers using the fake client.
-	certManagerInformers := certmanoperatorinformer.NewSharedInformerFactory(fakeClient, 0).Operator().V1alpha1().CertManagers()
-
-	// Create a channel to receive the cert manager objects from the informer.
-	certManagerChan := make(chan *v1alpha1.CertManager, 1)
-
-	// Add event handlers to the informer to write the cert manager objects to
-	// the channel received during the add and the delete events.
-	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj added: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-		DeleteFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-	})
-
-	// Make sure informer is running.
-	go certManagerInformers.Informer().Run(ctx.Done())
-
-	// This is not required in tests, but it serves as a proof-of-concept by
-	// ensuring that the informer goroutine have warmed up and called List before
-	// we send any events to it.
-	cache.WaitForCacheSync(ctx.Done(), certManagerInformers.Informer().HasSynced)
-
-	// The fake client doesn't support resource version. Any writes to the client
-	// after the informer's initial LIST and before the informer establishing the
-	// watcher will be missed by the informer. Therefore we wait until the watcher
-	// starts.
-	<-watcherStarted
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create the cert manager object using the fake client.
-			_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, &tc.certManagerObj, metav1.CreateOptions{})
-			if err != nil {
-				t.Fatalf("error injecting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the added cert manager object")
-			}
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideScheduling, err := getOverrideSchedulingFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
 			require.Equal(t, tc.expectedOverrideScheduling, actualOverrideScheduling)
-
-			// Delete the cert manager object using the fake client.
-			err = fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.certManagerObj.Name, metav1.DeleteOptions{})
-			if err != nil {
-				t.Fatalf("error deleting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the deleted cert manager")
-			}
 		})
 	}
 }
@@ -1057,72 +992,11 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-
-	// Create channel to know when the watch has started.
-	watcherStarted := make(chan struct{})
-	// Create the fake client.
-	fakeClient := fake.NewSimpleClientset()
-	// A watch reactor for cert manager objects that allows the injection of the watcherStarted channel.
-	fakeClient.PrependWatchReactor("certmanagers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
-		gvr := action.GetResource()
-		ns := action.GetNamespace()
-		watch, err := fakeClient.Tracker().Watch(gvr, ns)
-		if err != nil {
-			return false, nil, err
-		}
-		close(watcherStarted)
-		return true, watch, nil
-	})
-
-	// Create cert manager informers using the fake client.
-	certManagerInformers := certmanoperatorinformer.NewSharedInformerFactory(fakeClient, 0).Operator().V1alpha1().CertManagers()
-
-	// Create a channel to receive the cert manager objects from the informer.
-	certManagerChan := make(chan *v1alpha1.CertManager, 1)
-
-	// Add event handlers to the informer to write the cert manager objects to
-	// the channel received during the add and the delete events.
-	certManagerInformers.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj added: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-		DeleteFunc: func(obj any) {
-			certManagerObj := obj.(*v1alpha1.CertManager)
-			t.Logf("cert manager obj deleted: %s", certManagerObj.Name)
-			certManagerChan <- certManagerObj
-		},
-	})
-
-	// Make sure informer is running.
-	go certManagerInformers.Informer().Run(ctx.Done())
-
-	// This is not required in tests, but it serves as a proof-of-concept by
-	// ensuring that the informer goroutine have warmed up and called List before
-	// we send any events to it.
-	cache.WaitForCacheSync(ctx.Done(), certManagerInformers.Informer().HasSynced)
-
-	// The fake client doesn't support resource version. Any writes to the client
-	// after the informer's initial LIST and before the informer establishing the
-	// watcher will be missed by the informer. Therefore we wait until the watcher
-	// starts.
-	<-watcherStarted
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create the cert manager object using the fake client.
-			_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, &tc.certManagerObj, metav1.CreateOptions{})
-			if err != nil {
-				t.Fatalf("error injecting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the added cert manager object")
-			}
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideReplicas, err := getOverrideReplicasFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
@@ -1131,19 +1005,6 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 			} else {
 				require.NotNil(t, actualOverrideReplicas)
 				assert.Equal(t, *tc.expectedOverrideReplicas, *actualOverrideReplicas)
-			}
-
-			// Delete the cert manager object using the fake client.
-			err = fakeClient.OperatorV1alpha1().CertManagers().Delete(ctx, tc.certManagerObj.Name, metav1.DeleteOptions{})
-			if err != nil {
-				t.Fatalf("error deleting cert manager add: %v", err)
-			}
-
-			// Wait for the informer to get the event.
-			select {
-			case <-certManagerChan:
-			case <-time.After(wait.ForeverTestTimeout):
-				t.Fatal("Informer did not get the deleted cert manager")
 			}
 		})
 	}
