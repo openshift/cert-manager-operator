@@ -27,24 +27,24 @@ type fakeManager struct {
 	client client.Client
 }
 
-func (f *fakeManager) GetClient() client.Client              { return f.client }
-func (f *fakeManager) GetCache() cache.Cache                  { return nil }
-func (f *fakeManager) GetScheme() *runtime.Scheme             { return nil }
-func (f *fakeManager) GetConfig() *rest.Config                { return &rest.Config{} }
-func (f *fakeManager) GetHTTPClient() *http.Client            { return &http.Client{} }
-func (f *fakeManager) GetFieldIndexer() client.FieldIndexer   { return nil }
-func (f *fakeManager) GetEventRecorderFor(string) record.EventRecorder { return nil }
-func (f *fakeManager) GetRESTMapper() meta.RESTMapper         { return nil }
-func (f *fakeManager) GetAPIReader() client.Reader            { return f.client }
-func (f *fakeManager) Start(context.Context) error           { return nil }
-func (f *fakeManager) Add(manager.Runnable) error             { return nil }
-func (f *fakeManager) Elected() <-chan struct{}               { ch := make(chan struct{}); close(ch); return ch }
+func (f *fakeManager) GetClient() client.Client                                { return f.client }
+func (f *fakeManager) GetCache() cache.Cache                                   { return nil }
+func (f *fakeManager) GetScheme() *runtime.Scheme                              { return nil }
+func (f *fakeManager) GetConfig() *rest.Config                                 { return &rest.Config{} }
+func (f *fakeManager) GetHTTPClient() *http.Client                             { return &http.Client{} }
+func (f *fakeManager) GetFieldIndexer() client.FieldIndexer                    { return nil }
+func (f *fakeManager) GetEventRecorderFor(string) record.EventRecorder         { return nil }
+func (f *fakeManager) GetRESTMapper() meta.RESTMapper                          { return nil }
+func (f *fakeManager) GetAPIReader() client.Reader                             { return f.client }
+func (f *fakeManager) Start(context.Context) error                             { return nil }
+func (f *fakeManager) Add(manager.Runnable) error                              { return nil }
+func (f *fakeManager) Elected() <-chan struct{}                                { ch := make(chan struct{}); close(ch); return ch }
 func (f *fakeManager) AddMetricsServerExtraHandler(string, http.Handler) error { return nil }
-func (f *fakeManager) AddHealthzCheck(string, healthz.Checker) error { return nil }
-func (f *fakeManager) AddReadyzCheck(string, healthz.Checker) error   { return nil }
-func (f *fakeManager) GetWebhookServer() webhook.Server        { return nil }
-func (f *fakeManager) GetLogger() logr.Logger                 { return logr.Discard() }
-func (f *fakeManager) GetControllerOptions() config.Controller { return config.Controller{} }
+func (f *fakeManager) AddHealthzCheck(string, healthz.Checker) error           { return nil }
+func (f *fakeManager) AddReadyzCheck(string, healthz.Checker) error            { return nil }
+func (f *fakeManager) GetWebhookServer() webhook.Server                        { return nil }
+func (f *fakeManager) GetLogger() logr.Logger                                  { return logr.Discard() }
+func (f *fakeManager) GetControllerOptions() config.Controller                 { return config.Controller{} }
 
 // sentinelClient is a non-nil client.Client stub so NewClient tests can assert manager wiring
 // (pointer identity) without controller-runtime's fake client (not vendored).
@@ -80,23 +80,31 @@ func (noopSubResourceClient) Patch(context.Context, client.Object, client.Patch,
 func (*sentinelClient) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 	return nil
 }
-func (*sentinelClient) List(context.Context, client.ObjectList, ...client.ListOption) error { return nil }
+func (*sentinelClient) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	return nil
+}
 func (*sentinelClient) Apply(context.Context, runtime.ApplyConfiguration, ...client.ApplyOption) error {
 	return nil
 }
-func (*sentinelClient) Create(context.Context, client.Object, ...client.CreateOption) error { return nil }
-func (*sentinelClient) Delete(context.Context, client.Object, ...client.DeleteOption) error { return nil }
-func (*sentinelClient) Update(context.Context, client.Object, ...client.UpdateOption) error { return nil }
+func (*sentinelClient) Create(context.Context, client.Object, ...client.CreateOption) error {
+	return nil
+}
+func (*sentinelClient) Delete(context.Context, client.Object, ...client.DeleteOption) error {
+	return nil
+}
+func (*sentinelClient) Update(context.Context, client.Object, ...client.UpdateOption) error {
+	return nil
+}
 func (*sentinelClient) Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error {
 	return nil
 }
 func (*sentinelClient) DeleteAllOf(context.Context, client.Object, ...client.DeleteAllOfOption) error {
 	return nil
 }
-func (*sentinelClient) Status() client.SubResourceWriter                            { return noopSubResourceWriter{} }
-func (*sentinelClient) SubResource(string) client.SubResourceClient                 { return noopSubResourceClient{} }
-func (*sentinelClient) Scheme() *runtime.Scheme                                     { return nil }
-func (*sentinelClient) RESTMapper() meta.RESTMapper                                 { return nil }
+func (*sentinelClient) Status() client.SubResourceWriter            { return noopSubResourceWriter{} }
+func (*sentinelClient) SubResource(string) client.SubResourceClient { return noopSubResourceClient{} }
+func (*sentinelClient) Scheme() *runtime.Scheme                     { return nil }
+func (*sentinelClient) RESTMapper() meta.RESTMapper                 { return nil }
 func (*sentinelClient) GroupVersionKindFor(runtime.Object) (schema.GroupVersionKind, error) {
 	return schema.GroupVersionKind{}, nil
 }

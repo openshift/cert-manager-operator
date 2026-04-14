@@ -152,7 +152,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			},
 		},
 		{
-			name:      "custom values",
+			name: "custom values",
 			tmBuilder: testTrustManager().
 				WithLogLevel(5).
 				WithLogFormat("json").
