@@ -87,8 +87,8 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		if revision == "" {
 			continue
 		}
-		if revision == "default" {
-			name := fmt.Sprintf(istiodCertificateDefaultDNSName, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
+		if revision == defaultIstioRevision {
+			name := fmt.Sprintf(istiodCertificateCommonNameFmt, istiocsr.Spec.IstioCSRConfig.Istio.Namespace)
 			dnsNames = append(dnsNames, name)
 			continue
 		}

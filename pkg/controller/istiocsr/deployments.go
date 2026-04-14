@@ -137,7 +137,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 	istiocsrConfigs := istiocsr.Spec.IstioCSRConfig
 	// Default clusterID to "Kubernetes" if not provided.
-	clusterID := "Kubernetes"
+	clusterID := defaultClusterID
 	if istiocsrConfigs.Server != nil && istiocsrConfigs.Server.ClusterID != "" {
 		clusterID = istiocsrConfigs.Server.ClusterID
 	}
