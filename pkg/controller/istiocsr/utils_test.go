@@ -30,9 +30,9 @@ func baseDeployment(replicas int32, image string) *appsv1.Deployment {
 						Args:  []string{"--arg"},
 						Ports: []corev1.ContainerPort{{ContainerPort: 8080}},
 						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{Path: "/ready"}},
+							ProbeHandler:        corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{Path: "/ready"}},
 							InitialDelaySeconds: 0,
-							PeriodSeconds:        1,
+							PeriodSeconds:       1,
 						},
 						SecurityContext: &corev1.SecurityContext{},
 						Resources:       corev1.ResourceRequirements{},
@@ -106,9 +106,17 @@ func TestHasObjectChanged(t *testing.T) {
 			wantChanged: false,
 		},
 		{
-			name:    "Deployment labels different",
-			desired: func() *appsv1.Deployment { d := baseDeployment(1, "img"); d.Labels = map[string]string{"a": "1"}; return d }(),
-			fetched: func() *appsv1.Deployment { d := baseDeployment(1, "img"); d.Labels = map[string]string{"a": "2"}; return d }(),
+			name: "Deployment labels different",
+			desired: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Labels = map[string]string{"a": "1"}
+				return d
+			}(),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Labels = map[string]string{"a": "2"}
+				return d
+			}(),
 			wantChanged: true,
 		},
 		{
@@ -267,7 +275,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name: "ports length different",
+			name:    "ports length different",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
@@ -277,7 +285,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name: "ports content different",
+			name:    "ports content different",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
@@ -287,7 +295,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name: "readiness probe path different",
+			name:    "readiness probe path different",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
@@ -297,7 +305,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name: "serviceAccountName different",
+			name:    "serviceAccountName different",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
@@ -321,11 +329,11 @@ func TestHasObjectChanged_RoleAndRoleBinding(t *testing.T) {
 	t.Run("Role rules different", func(t *testing.T) {
 		desired := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
-			Rules:     []rbacv1.PolicyRule{{Verbs: []string{"get"}, APIGroups: []string{""}}},
+			Rules:      []rbacv1.PolicyRule{{Verbs: []string{"get"}, APIGroups: []string{""}}},
 		}
 		fetched := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
-			Rules:     []rbacv1.PolicyRule{{Verbs: []string{"list"}}},
+			Rules:      []rbacv1.PolicyRule{{Verbs: []string{"list"}}},
 		}
 		if !hasObjectChanged(desired, fetched) {
 			t.Error("hasObjectChanged() = false, want true for Role rules different")
@@ -500,15 +508,15 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 		wantTrue bool
 	}{
 		{
-			name:    "identical",
-			desired: &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
-			fetched: &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
+			name:     "identical",
+			desired:  &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
+			fetched:  &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
 			wantTrue: false,
 		},
 		{
-			name:    "different PolicyTypes",
-			desired: &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
-			fetched: &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}}},
+			name:     "different PolicyTypes",
+			desired:  &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}},
+			fetched:  &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}}},
 			wantTrue: true,
 		},
 	}

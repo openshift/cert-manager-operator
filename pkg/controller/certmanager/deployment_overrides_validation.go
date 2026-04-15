@@ -61,6 +61,9 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		// is stored. When this flag is enabled, the secret will be automatically removed when the
 		// certificate resource is deleted.
 		"--enable-certificate-owner-ref",
+		// Duration of the initial certificate request backoff when a certificate request fails. The backoff
+		// duration is exponentially increased based on consecutive failures, up to a maximum of 32 hours.
+		"--certificate-request-minimum-backoff-duration",
 	}
 	supportedCertManagerWebhookArgs := []string{
 		// Log Level
