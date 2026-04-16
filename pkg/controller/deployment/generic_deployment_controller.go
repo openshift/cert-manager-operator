@@ -67,6 +67,9 @@ func newGenericDeploymentController(
 		))
 
 		informers = append(informers, infraInformerFactory.Config().V1().Infrastructures().Informer())
+
+		hooks = append(hooks, withClusterTLSProfileFromAPIServer(infraInformerFactory.Config().V1().APIServers()))
+		informers = append(informers, infraInformerFactory.Config().V1().APIServers().Informer())
 	}
 
 	return deploymentcontroller.NewDeploymentController(
