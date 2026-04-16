@@ -160,6 +160,7 @@ rules:
   - clusteroperators
   - clusteroperators/status
   - infrastructures
+  - apiservers
   verbs:
   - create
   - delete
