@@ -59,7 +59,7 @@ func TestDeploymentObject(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
 			tm := tt.tm.Build()
-			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -88,7 +88,7 @@ func TestDeploymentSpec(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	r := testReconciler(t)
 	tm := testTrustManager().Build()
-	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,18 +130,13 @@ func TestDeploymentSpec(t *testing.T) {
 
 func TestDeploymentContainerArgs(t *testing.T) {
 	tests := []struct {
-		name               string
-		updateTrustManager func(*v1alpha1.TrustManager)
-		expectedArgs       []string
-		notExpectedArgs    []string
+		name            string
+		tmBuilder       *trustManagerBuilder
+		expectedArgs    []string
+		notExpectedArgs []string
 	}{
 		{
 			name: "default values",
-			updateTrustManager: func(tm *v1alpha1.TrustManager) {
-				tm.Spec.TrustManagerConfig.LogLevel = 1
-				tm.Spec.TrustManagerConfig.LogFormat = "text"
-				tm.Spec.TrustManagerConfig.TrustNamespace = "cert-manager"
-			},
 			expectedArgs: []string{
 				"--log-level=1",
 				"--log-format=text",
@@ -151,17 +146,18 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--metrics-port=9402",
 			},
 			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
 				"--filter-expired-certificates=true",
+				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
 		},
 		{
 			name: "custom values",
-			updateTrustManager: func(tm *v1alpha1.TrustManager) {
-				tm.Spec.TrustManagerConfig.LogLevel = 5
-				tm.Spec.TrustManagerConfig.LogFormat = "json"
-				tm.Spec.TrustManagerConfig.TrustNamespace = "custom-ns"
-				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicyEnabled
-			},
+			tmBuilder: testTrustManager().
+				WithLogLevel(5).
+				WithLogFormat("json").
+				WithTrustNamespace("custom-ns").
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled),
 			expectedArgs: []string{
 				"--log-level=5",
 				"--log-format=json",
@@ -174,14 +170,44 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			},
 		},
 		{
-			name: "falls back to default trust namespace when empty",
-			updateTrustManager: func(tm *v1alpha1.TrustManager) {
-				tm.Spec.TrustManagerConfig.LogLevel = 1
-				tm.Spec.TrustManagerConfig.LogFormat = "text"
-				tm.Spec.TrustManagerConfig.TrustNamespace = ""
-			},
+			name:      "falls back to default trust namespace when empty",
+			tmBuilder: testTrustManager().WithTrustNamespace(""),
 			expectedArgs: []string{
 				fmt.Sprintf("--trust-namespace=%s", defaultTrustNamespace),
+			},
+		},
+		{
+			name:      "includes secret-targets-enabled when policy is Custom with authorized secrets",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"my-bundle"}),
+			expectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
+		},
+		{
+			name:      "excludes secret-targets-enabled when policy is Disabled",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyDisabled, nil),
+			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
+		},
+		{
+			name:      "excludes secret-targets-enabled when policy is Custom but no authorized secrets",
+			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, nil),
+			notExpectedArgs: []string{
+				"--secret-targets-enabled=true",
+			},
+		},
+		{
+			name:      "includes default-package-location when defaultCAPackage is Enabled",
+			tmBuilder: testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			expectedArgs: []string{
+				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
+			},
+		},
+		{
+			name: "excludes default-package-location when defaultCAPackage is Disabled",
+			notExpectedArgs: []string{
+				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
 		},
 	}
@@ -191,12 +217,13 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
 
-			tm := testTrustManager().Build()
-			if tt.updateTrustManager != nil {
-				tt.updateTrustManager(tm)
+			tmBuilder := tt.tmBuilder
+			if tmBuilder == nil {
+				tmBuilder = testTrustManager()
 			}
+			tm := tmBuilder.Build()
 
-			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations())
+			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -214,6 +241,83 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeploymentDefaultCAPackage(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+
+	t.Run("adds arg, volume, mount, and hash annotation when enabled", func(t *testing.T) {
+		r := testReconciler(t)
+		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		expectedArg := fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation)
+		if !slices.Contains(dep.Spec.Template.Spec.Containers[0].Args, expectedArg) {
+			t.Errorf("expected arg %q not found in %v", expectedArg, dep.Spec.Template.Spec.Containers[0].Args)
+		}
+
+		hasVolume := false
+		for _, v := range dep.Spec.Template.Spec.Volumes {
+			if v.Name == defaultCAPackageVolumeName && v.ConfigMap != nil &&
+				v.ConfigMap.Name == defaultCAPackageConfigMapName {
+				hasVolume = true
+				break
+			}
+		}
+		if !hasVolume {
+			t.Errorf("expected volume %q with configMap %q, got volumes: %v",
+				defaultCAPackageVolumeName, defaultCAPackageConfigMapName, dep.Spec.Template.Spec.Volumes)
+		}
+
+		hasMount := false
+		for _, vm := range dep.Spec.Template.Spec.Containers[0].VolumeMounts {
+			if vm.Name == defaultCAPackageVolumeName && vm.MountPath == defaultCAPackageMountPath && vm.ReadOnly {
+				hasMount = true
+				break
+			}
+		}
+		if !hasMount {
+			t.Errorf("expected volume mount %q at %q (readOnly), got mounts: %v",
+				defaultCAPackageVolumeName, defaultCAPackageMountPath, dep.Spec.Template.Spec.Containers[0].VolumeMounts)
+		}
+
+		got, ok := dep.Spec.Template.Annotations[defaultCAPackageHashAnnotation]
+		if !ok {
+			t.Fatalf("expected pod template annotation %q to be set", defaultCAPackageHashAnnotation)
+		}
+		if got != "abc123hash" {
+			t.Errorf("expected hash annotation %q, got %q", "abc123hash", got)
+		}
+	})
+
+	t.Run("no arg, volume, or annotation when disabled", func(t *testing.T) {
+		r := testReconciler(t)
+		tm := testTrustManager().Build()
+		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		notExpectedArg := fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation)
+		if slices.Contains(dep.Spec.Template.Spec.Containers[0].Args, notExpectedArg) {
+			t.Errorf("unexpected arg %q found in %v", notExpectedArg, dep.Spec.Template.Spec.Containers[0].Args)
+		}
+
+		for _, v := range dep.Spec.Template.Spec.Volumes {
+			if v.Name == defaultCAPackageVolumeName && v.ConfigMap != nil {
+				t.Errorf("unexpected ConfigMap-backed volume %q when disabled", defaultCAPackageVolumeName)
+			}
+		}
+
+		if ann := dep.Spec.Template.Annotations; ann != nil {
+			if _, ok := ann[defaultCAPackageHashAnnotation]; ok {
+				t.Errorf("unexpected hash annotation when disabled")
+			}
+		}
+	})
 }
 
 func TestDeploymentOverrides(t *testing.T) {
@@ -285,7 +389,7 @@ func TestDeploymentOverrides(t *testing.T) {
 			tm := testTrustManager().Build()
 			tt.configure(tm)
 
-			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations())
+			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -321,6 +425,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 	tests := []struct {
 		name            string
 		tmBuilder       *trustManagerBuilder
+		caBundleHash    string
 		setImage        bool
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
@@ -343,7 +448,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations())
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error building desired deployment: %v", err)
 					}
@@ -359,7 +464,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations())
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -378,7 +483,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
-					dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+					dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -391,11 +496,48 @@ func TestDeploymentReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
+			name:     "apply when defaultCAPackage changed from Enabled to Disabled",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:         "apply when existing has pod template annotation drift",
+			tmBuilder:    testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			caBundleHash: "abc123hash",
+			setImage:     true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					dep.Spec.Template.Annotations[defaultCAPackageHashAnnotation] = "stale-hash"
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
 			name:     "apply when existing has image drift",
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations())
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -412,7 +554,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations())
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -429,7 +571,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations())
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -560,7 +702,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), tt.caBundleHash)
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {

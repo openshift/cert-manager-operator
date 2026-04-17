@@ -45,14 +45,21 @@ const (
 	// containing the image version of the istiocsr as value.
 	istiocsrImageVersionEnvVarName = "ISTIOCSR_OPERAND_IMAGE_VERSION"
 
+	// defaultClusterID is the default Kubernetes cluster identifier used by istio-csr
+	// when no custom cluster ID is configured.
+	defaultClusterID = "Kubernetes"
+
+	// defaultIstioRevision is the Istio default revision name. When this revision is
+	// specified, the DNS SAN uses the base istiod service name rather than a
+	// revision-prefixed name.
+	defaultIstioRevision = "default"
+
 	// istiocsrGRPCEndpointFmt is the format string for the istiocsr GRPC service endpoint.
 	istiocsrGRPCEndpointFmt = "%s.%s.svc:%d"
 
-	// istiodCertificateCommonNameFmt is the format string for deriving the istiod certificate common name.
+	// istiodCertificateCommonNameFmt is the format string for deriving the istiod certificate common name
+	// and default DNS name.
 	istiodCertificateCommonNameFmt = "istiod.%s.svc"
-
-	// istiodCertificateDefaultDNSName is the format string for deriving the istiod certificate default DNS name.
-	istiodCertificateDefaultDNSName = "istiod.%s.svc"
 
 	// istiodCertificateRevisionBasedDNSName is the format string for deriving the istiod certificate DNS name
 	// for each defined revision.
@@ -73,7 +80,7 @@ const (
 	// will be of the form <istiocsr_namespace>/<istiocsr_instance-Name>.
 	istiocsrResourceWatchLabelValueFmt = "%s_%s"
 
-	// IstiocsrCAConfigMapName is the name o the configmap which is mounted in istiocsr container, containing the
+	// IstiocsrCAConfigMapName is the name of the configmap which is mounted in istiocsr container, containing the
 	// CA certificate configured in the secret referenced in the issuer.
 	IstiocsrCAConfigMapName = istiocsrCommonName + "-issuer-ca-copy"
 

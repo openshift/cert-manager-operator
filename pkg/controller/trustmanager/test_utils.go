@@ -69,6 +69,39 @@ func (b *trustManagerBuilder) WithAffinity(affinity *corev1.Affinity) *trustMana
 	return b
 }
 
+func (b *trustManagerBuilder) WithLogLevel(level int32) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.LogLevel = level
+	return b
+}
+
+func (b *trustManagerBuilder) WithLogFormat(format string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.LogFormat = format
+	return b
+}
+
+func (b *trustManagerBuilder) WithTrustNamespace(ns string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.TrustNamespace = ns
+	return b
+}
+
+func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.FilterExpiredCertificatesPolicy) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.FilterExpiredCertificates = policy
+	return b
+}
+
+func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
+	return b
+}
+
+func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPolicy, authorizedSecrets []string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+		Policy:            policy,
+		AuthorizedSecrets: authorizedSecrets,
+	}
+	return b
+}
+
 func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 	return b.TrustManager
 }

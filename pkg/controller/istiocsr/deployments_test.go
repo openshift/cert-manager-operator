@@ -1105,7 +1105,7 @@ func TestUpdateArgList(t *testing.T) {
 				// Server config is nil, so clusterID should default
 			},
 			expectedArgs: map[string]string{
-				"cluster-id": "Kubernetes",
+				"cluster-id": defaultClusterID,
 			},
 		},
 		{
@@ -1116,7 +1116,7 @@ func TestUpdateArgList(t *testing.T) {
 				}
 			},
 			expectedArgs: map[string]string{
-				"cluster-id": "Kubernetes",
+				"cluster-id": defaultClusterID,
 			},
 		},
 		{

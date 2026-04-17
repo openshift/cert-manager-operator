@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 
@@ -21,6 +22,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 		updateIstioCSR             func(*v1alpha1.IstioCSR)
 		wantClusterRoleBindingName string
 		wantErr                    string
+		postAssert                 func(t *testing.T, m *fakes.FakeCtrlClient)
 	}{
 		{
 			name: "clusterrole reconciliation fails while checking if exists",
@@ -163,6 +165,11 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr")
+						cr.DeepCopyInto(o)
+						return true, nil
 					case *rbacv1.ClusterRoleBinding:
 						clusterRoleBinding := testClusterRoleBinding()
 						clusterRoleBinding.Labels = nil
@@ -179,15 +186,24 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr"
 				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
 			wantErr: `failed to update /cert-manager-istio-csr-dfkhk clusterrolebinding resource: test client error`,
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingUpdateUsesLiveName(t, m, "cert-manager-istio-csr-dfkhk")
+			},
 		},
 		{
 			name: "clusterrolebindings reconciliation updating to desired state successful",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr")
+						cr.DeepCopyInto(o)
+						return true, nil
 					case *rbacv1.ClusterRoleBinding:
 						clusterRoleBinding := testClusterRoleBinding()
 						clusterRoleBinding.Labels = nil
@@ -197,9 +213,102 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				})
 			},
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr"
 				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
 			},
 			wantClusterRoleBindingName: "cert-manager-istio-csr-dfkhk",
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingUpdateUsesLiveName(t, m, "cert-manager-istio-csr-dfkhk")
+			},
+		},
+		{
+			name: "clusterrolebindings reconciliation roleRef change delete fails",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr")
+						cr.DeepCopyInto(o)
+						return true, nil
+					case *rbacv1.ClusterRoleBinding:
+						clusterRoleBindingWithWrongRoleRef("stale-cluster-role").DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr"
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
+			},
+			wantErr: `failed to delete /cert-manager-istio-csr-dfkhk clusterrolebinding to replace roleRef: test client error`,
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingRoleRefReplaceNoUpdate(t, m)
+			},
+		},
+		{
+			name: "clusterrolebindings reconciliation roleRef change delete succeeds and recreate succeeds",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr")
+						cr.DeepCopyInto(o)
+						return true, nil
+					case *rbacv1.ClusterRoleBinding:
+						clusterRoleBindingWithWrongRoleRef("stale-cluster-role").DeepCopyInto(o)
+					}
+					return true, nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr"
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
+			},
+			wantClusterRoleBindingName: "cert-manager-istio-csr-dfkhk",
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingRoleRefReplaceUsesDeleteCreate(t, m, "cert-manager-istio-csr-dfkhk", "cert-manager-istio-csr")
+			},
+		},
+		{
+			name: "clusterrolebindings reconciliation roleRef change delete succeeds and recreate fails",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr")
+						cr.DeepCopyInto(o)
+						return true, nil
+					case *rbacv1.ClusterRoleBinding:
+						clusterRoleBindingWithWrongRoleRef("stale-cluster-role").DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					switch obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr"
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
+			},
+			wantErr: `failed to create /cert-manager-istio-csr-dfkhk clusterrolebinding resource: test client error`,
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingRoleRefReplaceUsesDeleteCreate(t, m, "cert-manager-istio-csr-dfkhk", "cert-manager-istio-csr")
+			},
 		},
 		{
 			name: "clusterrolebindings reconciliation creation fails",
@@ -319,6 +428,9 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 				i.Status.ClusterRole = "cert-manager-istio-csr-sdghj"
 			},
 			wantErr: `failed to update /cert-manager-istio-csr-sdghj clusterrole resource: test client error`,
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleUpdateUsesLiveName(t, m, "cert-manager-istio-csr-sdghj")
+			},
 		},
 		{
 			name: "clusterrole reconciliation creation fails",
@@ -547,6 +659,132 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					t.Errorf("createOrApplyRBACResource() got: %v, want: %v", istiocsr.Status.ClusterRoleBinding, tt.wantClusterRoleBindingName)
 				}
 			}
+			if tt.postAssert != nil {
+				wantOK := tt.wantErr == "" && err == nil
+				wantFail := tt.wantErr != "" && err != nil && err.Error() == tt.wantErr
+				if wantOK || wantFail {
+					tt.postAssert(t, mock)
+				}
+			}
 		})
 	}
+}
+
+// assertClusterRoleBindingUpdateUsesLiveName fails if UpdateWithRetry was not invoked for a
+// ClusterRoleBinding with the live metadata name and an empty GenerateName (regression guard for
+// updates that previously sent only generateName).
+func assertClusterRoleBindingUpdateUsesLiveName(t *testing.T, m *fakes.FakeCtrlClient, wantName string) {
+	t.Helper()
+	var crbUpdates int
+	for i := 0; i < m.UpdateWithRetryCallCount(); i++ {
+		_, obj, _ := m.UpdateWithRetryArgsForCall(i)
+		if crb, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+			crbUpdates++
+			if crb.GetName() != wantName {
+				t.Errorf("ClusterRoleBinding UpdateWithRetry: want metadata.name %q, got %q", wantName, crb.GetName())
+			}
+			if crb.GetGenerateName() != "" {
+				t.Errorf("ClusterRoleBinding UpdateWithRetry: want empty generateName, got %q", crb.GetGenerateName())
+			}
+		}
+	}
+	if crbUpdates == 0 {
+		t.Fatalf("expected at least one UpdateWithRetry for ClusterRoleBinding with live name set, got 0")
+	}
+}
+
+// assertClusterRoleUpdateUsesLiveName is the ClusterRole analogue of assertClusterRoleBindingUpdateUsesLiveName.
+func assertClusterRoleUpdateUsesLiveName(t *testing.T, m *fakes.FakeCtrlClient, wantName string) {
+	t.Helper()
+	var crUpdates int
+	for i := 0; i < m.UpdateWithRetryCallCount(); i++ {
+		_, obj, _ := m.UpdateWithRetryArgsForCall(i)
+		if cr, ok := obj.(*rbacv1.ClusterRole); ok {
+			crUpdates++
+			if cr.GetName() != wantName {
+				t.Errorf("ClusterRole UpdateWithRetry: want metadata.name %q, got %q", wantName, cr.GetName())
+			}
+			if cr.GetGenerateName() != "" {
+				t.Errorf("ClusterRole UpdateWithRetry: want empty generateName, got %q", cr.GetGenerateName())
+			}
+		}
+	}
+	if crUpdates == 0 {
+		t.Fatalf("expected at least one UpdateWithRetry for ClusterRole with live name set, got 0")
+	}
+}
+
+func assertNoClusterRoleBindingUpdateWithRetry(t *testing.T, m *fakes.FakeCtrlClient) {
+	t.Helper()
+	for i := 0; i < m.UpdateWithRetryCallCount(); i++ {
+		_, obj, _ := m.UpdateWithRetryArgsForCall(i)
+		if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+			t.Fatalf("expected no UpdateWithRetry on ClusterRoleBinding for roleRef replace path, got call index %d", i)
+		}
+	}
+}
+
+func clusterRoleBindingDeleteCount(m *fakes.FakeCtrlClient) int {
+	n := 0
+	for i := 0; i < m.DeleteCallCount(); i++ {
+		_, obj, _ := m.DeleteArgsForCall(i)
+		if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+			n++
+		}
+	}
+	return n
+}
+
+// assertClusterRoleBindingRoleRefReplaceNoUpdate checks roleRef reconciliation attempted delete and
+// did not fall through to UpdateWithRetry on the binding (e.g. delete failed first).
+func assertClusterRoleBindingRoleRefReplaceNoUpdate(t *testing.T, m *fakes.FakeCtrlClient) {
+	t.Helper()
+	assertNoClusterRoleBindingUpdateWithRetry(t, m)
+	if clusterRoleBindingDeleteCount(m) == 0 {
+		t.Fatalf("expected Delete on ClusterRoleBinding for roleRef replace")
+	}
+}
+
+// assertClusterRoleBindingRoleRefReplaceUsesDeleteCreate checks a RoleRef mismatch is corrected via
+// Delete + Create, not UpdateWithRetry, and the create uses the stable binding name and desired RoleRef.
+func assertClusterRoleBindingRoleRefReplaceUsesDeleteCreate(t *testing.T, m *fakes.FakeCtrlClient, wantBindingName, wantRoleRefName string) {
+	t.Helper()
+	assertNoClusterRoleBindingUpdateWithRetry(t, m)
+	if clusterRoleBindingDeleteCount(m) == 0 {
+		t.Fatalf("expected Delete on ClusterRoleBinding for roleRef replace")
+	}
+	var sawCreate bool
+	for i := 0; i < m.CreateCallCount(); i++ {
+		_, obj, _ := m.CreateArgsForCall(i)
+		crb, ok := obj.(*rbacv1.ClusterRoleBinding)
+		if !ok {
+			continue
+		}
+		sawCreate = true
+		if crb.GetName() != wantBindingName {
+			t.Errorf("Create ClusterRoleBinding: want metadata.name %q, got %q", wantBindingName, crb.GetName())
+		}
+		if crb.GetGenerateName() != "" {
+			t.Errorf("Create ClusterRoleBinding: want empty generateName for stable recreate, got %q", crb.GetGenerateName())
+		}
+		if crb.RoleRef.Name != wantRoleRefName {
+			t.Errorf("Create ClusterRoleBinding RoleRef.Name: want %q, got %q", wantRoleRefName, crb.RoleRef.Name)
+		}
+	}
+	if !sawCreate {
+		t.Fatalf("expected Create on ClusterRoleBinding after roleRef replace delete")
+	}
+}
+
+// clusterRoleBindingWithWrongRoleRef returns a binding aligned with the reconciler's desired object
+// (labels, subjects) but pointing at a different ClusterRole, so roleRef reconciliation deletes and recreates.
+func clusterRoleBindingWithWrongRoleRef(wrongRoleName string) *rbacv1.ClusterRoleBinding {
+	b := testClusterRoleBinding()
+	b.RoleRef.Name = wrongRoleName
+	labels := make(map[string]string, len(controllerDefaultResourceLabels)+1)
+	maps.Copy(labels, controllerDefaultResourceLabels)
+	labels[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
+	b.SetLabels(labels)
+	b.Subjects[0].Namespace = testIstioCSRNamespace
+	return b
 }

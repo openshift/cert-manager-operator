@@ -3,6 +3,7 @@ package trustmanager
 import (
 	"fmt"
 	"reflect"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -50,7 +51,7 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 // ClusterRole
 
 func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired := getClusterRoleObject(resourceLabels, resourceAnnotations)
+	desired := getClusterRoleObject(trustManager.Spec.TrustManagerConfig.SecretTargets, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling clusterrole resource", "name", resourceName)
 
@@ -73,12 +74,38 @@ func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManage
 	return nil
 }
 
-func getClusterRoleObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
+func getClusterRoleObject(secretTargets v1alpha1.SecretTargetsConfig, resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
 	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleAssetName))
 	common.UpdateName(clusterRole, trustManagerClusterRoleName)
 	common.UpdateResourceLabels(clusterRole, resourceLabels)
 	updateResourceAnnotations(clusterRole, resourceAnnotations)
+	appendSecretTargetRules(clusterRole, secretTargets)
 	return clusterRole
+}
+
+// appendSecretTargetRules adds cluster-wide secret read and scoped write rules
+// to the ClusterRole when the secretTargets policy is Custom. The authorizedSecrets
+// list is sorted to ensure deterministic rule ordering for comparison.
+func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1alpha1.SecretTargetsConfig) {
+	if !secretTargetsEnabled(secretTargets) {
+		return
+	}
+
+	clusterRole.Rules = append(clusterRole.Rules, rbacv1.PolicyRule{
+		APIGroups: []string{""},
+		Resources: []string{"secrets"},
+		Verbs:     []string{"get", "list", "watch"},
+	})
+
+	sortedSecrets := slices.Clone(secretTargets.AuthorizedSecrets)
+	slices.Sort(sortedSecrets)
+
+	clusterRole.Rules = append(clusterRole.Rules, rbacv1.PolicyRule{
+		APIGroups:     []string{""},
+		Resources:     []string{"secrets"},
+		ResourceNames: sortedSecrets,
+		Verbs:         []string{"create", "update", "patch", "delete"},
+	})
 }
 
 // ClusterRoleBinding

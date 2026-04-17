@@ -6,3 +6,10 @@ images:
 - name: controller
   newName: openshift.io/cert-manager-operator
   newTag: latest
+configMapGenerator:
+- name: trusted-ca-bundle
+  options:
+    disableNameSuffixHash: true
+    labels:
+      app.kubernetes.io/name: cert-manager-operator
+      config.openshift.io/inject-trusted-cabundle: "true"

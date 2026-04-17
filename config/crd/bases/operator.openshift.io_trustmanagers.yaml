@@ -1147,7 +1147,8 @@ spec:
                           policy controls whether and how trust-manager can write trust bundles to Secrets.
                           Allowed values are "Disabled" or "Custom".
                           "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
-                          "Custom" grants trust-manager permission to create and update only the secrets listed in authorizedSecrets.
+                          "Custom" grants trust-manager read access  to all secrets cluster-wide,
+                          and write access only to the secrets listed in authorizedSecrets.
                         enum:
                         - Disabled
                         - Custom
