@@ -260,7 +260,7 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 			}
 
 			// Apply the hook
-			hook := withClusterTLSProfileFromAPIServer(apiServerInformer)
+			hook := WithClusterTLSProfileFromAPIServer(apiServerInformer)
 			err := hook(&operatorv1.OperatorSpec{}, deployment)
 
 			if tt.expectError {
@@ -353,7 +353,7 @@ func TestWithClusterTLSProfileFromAPIServer_Controller(t *testing.T) {
 				},
 			}
 
-			hook := withClusterTLSProfileFromAPIServer(apiServerInformer)
+			hook := WithClusterTLSProfileFromAPIServer(apiServerInformer)
 			err := hook(&operatorv1.OperatorSpec{}, deployment)
 			require.NoError(t, err)
 
@@ -423,7 +423,7 @@ func TestWithClusterTLSProfileFromAPIServer_CAInjector(t *testing.T) {
 				},
 			}
 
-			hook := withClusterTLSProfileFromAPIServer(apiServerInformer)
+			hook := WithClusterTLSProfileFromAPIServer(apiServerInformer)
 			err := hook(&operatorv1.OperatorSpec{}, deployment)
 			require.NoError(t, err)
 
@@ -468,7 +468,7 @@ func TestWithClusterTLSProfileFromAPIServer_UnknownDeployment(t *testing.T) {
 		},
 	}
 
-	hook := withClusterTLSProfileFromAPIServer(apiServerInformer)
+	hook := WithClusterTLSProfileFromAPIServer(apiServerInformer)
 	err := hook(&operatorv1.OperatorSpec{}, deployment)
 	require.NoError(t, err)
 
@@ -501,7 +501,7 @@ func TestWithClusterTLSProfileFromAPIServer_APIServerNotFound(t *testing.T) {
 		},
 	}
 
-	hook := withClusterTLSProfileFromAPIServer(apiServerInformer)
+	hook := WithClusterTLSProfileFromAPIServer(apiServerInformer)
 	err := hook(&operatorv1.OperatorSpec{}, deployment)
 
 	// Should return an error when APIServer resource is not found

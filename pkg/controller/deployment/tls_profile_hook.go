@@ -11,11 +11,11 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
-// withClusterTLSProfileFromAPIServer applies TLS settings from
+// WithClusterTLSProfileFromAPIServer applies TLS settings from
 // apiserver.config.openshift.io/cluster to cert-manager operands. It is only
 // registered when the shared config.openshift.io informer factory is available
 // (OpenShift clusters).
-func withClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIServerInformer) func(*operatorv1.OperatorSpec, *appsv1.Deployment) error {
+func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIServerInformer) func(*operatorv1.OperatorSpec, *appsv1.Deployment) error {
 	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		if len(deployment.Spec.Template.Spec.Containers) != 1 {
 			return nil
