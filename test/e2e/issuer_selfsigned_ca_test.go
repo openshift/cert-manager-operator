@@ -441,7 +441,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 
 			By("waiting for route to serve the certificate and respond to HTTPS requests")
 			Eventually(func() error {
-				return httpsGetCallWithCA(fmt.Sprintf("https://%s/", hostname), caCert)
+				return httpsGetCallWithCA(ctx, fmt.Sprintf("https://%s/", hostname), caCert)
 			}, lowTimeout, fastPollInterval).Should(Succeed(), "route should eventually serve HTTPS traffic with the certificate")
 		})
 	})

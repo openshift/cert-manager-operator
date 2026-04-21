@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	cryptorand "crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"embed"
 	"encoding/hex"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -1534,21 +1534,29 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
-// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate
-func httpsGetCallWithCA(url string, caCertPEM []byte) error {
-	// Create a certificate pool and add the CA cert
+// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate.
+// The client's minimum TLS version, cipher suites, and curve preferences match
+// apiserver.config.openshift.io/cluster spec.tlsSecurityProfile (via
+// pkg/tlsprofile), consistent with cluster-wide TLS policy.
+func httpsGetCallWithCA(ctx context.Context, url string, caCertPEM []byte) error {
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCertPEM) {
 		return fmt.Errorf("failed to parse CA certificate")
 	}
 
-	// Create TLS config with custom CA
-	tlsConfig := &tls.Config{
-		RootCAs:    caCertPool,
-		MinVersion: tls.VersionTLS13,
+	apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get apiserver cluster: %w", err)
+	}
+	spec, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return fmt.Errorf("resolve cluster TLS profile: %w", err)
+	}
+	tlsConfig, err := tlsprofile.ClientTLSConfig(spec, caCertPool)
+	if err != nil {
+		return fmt.Errorf("build TLS client config from cluster profile: %w", err)
 	}
 
-	// Create HTTP client with custom TLS config
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
