@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -28,8 +29,8 @@ const (
 
 var errInvalidIssuerRefConfig = fmt.Errorf("invalid issuerRef config")
 
-func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	desired, err := r.getDeploymentObject(istiocsr, resourceLabels)
+func (r *Reconciler) createOrApplyDeployments(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+	desired, err := r.getDeploymentObject(ctx, istiocsr, resourceLabels)
 	if err != nil {
 		return fmt.Errorf("failed to generate deployment resource for creation in %s: %w", istiocsr.GetNamespace(), err)
 	}
@@ -70,7 +71,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	return nil
 }
 
-func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) (*appsv1.Deployment, error) {
+func (r *Reconciler) getDeploymentObject(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) (*appsv1.Deployment, error) {
 	if err := r.assertIssuerRefExists(istiocsr); err != nil {
 		return nil, fmt.Errorf("failed to verify issuer in %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 	}
@@ -81,7 +82,11 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 	common.UpdateResourceLabels(deployment, resourceLabels)
 	updatePodTemplateLabels(deployment, resourceLabels)
 
-	updateArgList(deployment, istiocsr)
+	clusterTLSArgs, err := r.servingTLSArgsFromCluster(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cluster TLS profile for istio-csr: %w", err)
+	}
+	updateArgList(deployment, istiocsr, clusterTLSArgs)
 
 	if err := updateResourceRequirement(deployment, istiocsr); err != nil {
 		return nil, fmt.Errorf("failed to update resource requirements: %w", err)
@@ -134,7 +139,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 	deployment.Spec.Template.Labels = resourceLabels
 }
 
-func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
+func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, clusterTLSArgs []string) {
 	istiocsrConfigs := istiocsr.Spec.IstioCSRConfig
 	// Default clusterID to "Kubernetes" if not provided.
 	clusterID := defaultClusterID
@@ -175,6 +180,8 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 	if istiocsrConfigs.IstioDataPlaneNamespaceSelector != "" {
 		args = append(args, fmt.Sprintf("--configmap-namespace-selector=%s", istiocsrConfigs.IstioDataPlaneNamespaceSelector))
 	}
+
+	args = append(args, clusterTLSArgs...)
 
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == istiocsrContainerName {

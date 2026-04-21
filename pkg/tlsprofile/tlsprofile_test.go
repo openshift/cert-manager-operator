@@ -57,3 +57,32 @@ func TestCertManagerWebhookTLSArgs_joinsCiphers(t *testing.T) {
 		t.Fatalf("unexpected tls ciphers: %q", argMap["--tls-cipher-suites"])
 	}
 }
+
+func TestIstioCSRServingGRPCArgs(t *testing.T) {
+	spec := &configv1.TLSProfileSpec{
+		Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "TLS_AES_128_GCM_SHA256"},
+		MinTLSVersion: configv1.VersionTLS12,
+	}
+	args := IstioCSRServingGRPCArgs(spec)
+	var minVer, ciphers string
+	curveCount := 0
+	for _, a := range args {
+		switch {
+		case strings.HasPrefix(a, "--serving-tls-min-version="):
+			minVer = strings.TrimPrefix(a, "--serving-tls-min-version=")
+		case strings.HasPrefix(a, "--serving-tls-cipher-suites="):
+			ciphers = strings.TrimPrefix(a, "--serving-tls-cipher-suites=")
+		case strings.HasPrefix(a, "--serving-tls-curve-preferences="):
+			curveCount++
+		}
+	}
+	if minVer != string(configv1.VersionTLS12) {
+		t.Fatalf("min version: got %q", minVer)
+	}
+	if !strings.Contains(ciphers, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256") {
+		t.Fatalf("ciphers: %q", ciphers)
+	}
+	if want := len(istioCSRGRPCCurvePreferenceNames()); curveCount != want {
+		t.Fatalf("curve arg count: got %d want %d", curveCount, want)
+	}
+}

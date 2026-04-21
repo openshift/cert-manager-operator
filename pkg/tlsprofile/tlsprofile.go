@@ -1,7 +1,5 @@
 // Package tlsprofile maps OpenShift API server TLS security profile settings to
-// cert-manager operand command-line flags. Curve preferences are not yet exposed
-// as cert-manager / trust-manager CLI options; operands still inherit Go's default
-// curve ordering for TLS 1.2/1.3 handshakes until upstream adds explicit controls.
+// cert-manager and cert-manager-istio-csr operand command-line flags.
 package tlsprofile
 
 import (
@@ -65,6 +63,28 @@ func CertManagerOperandMetricsTLSArgs(spec *configv1.TLSProfileSpec) []string {
 		"--metrics-tls-min-version=" + minVersion,
 		"--metrics-tls-cipher-suites=" + ciphers,
 	}
+}
+
+// IstioCSRServingGRPCArgs returns cert-manager-istio-csr flags for the gRPC serving
+// listener (see upstream --serving-tls-*). Cipher names use the same IANA-style
+// identifiers as Kubernetes component-base TLS flags; curve preferences use names
+// accepted by istio-csr (X25519, CurveP256, etc.).
+func IstioCSRServingGRPCArgs(spec *configv1.TLSProfileSpec) []string {
+	ciphers := joinIANACiphers(spec.Ciphers)
+	minVersion := string(spec.MinTLSVersion)
+	out := []string{
+		"--serving-tls-min-version=" + minVersion,
+		"--serving-tls-cipher-suites=" + ciphers,
+	}
+	for _, curve := range istioCSRGRPCCurvePreferenceNames() {
+		out = append(out, "--serving-tls-curve-preferences="+curve)
+	}
+	return out
+}
+
+func istioCSRGRPCCurvePreferenceNames() []string {
+	// Align with pkg/tlsprofile.DefaultCurvePreferences / openshift library-go TLS defaults.
+	return []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
 }
 
 func joinIANACiphers(openSSLNames []string) string {

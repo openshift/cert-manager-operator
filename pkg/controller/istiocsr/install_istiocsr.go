@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 	"maps"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
+func (r *Reconciler) reconcileIstioCSRDeployment(ctx context.Context, istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
 	if err := validateIstioCSRConfig(istiocsr); err != nil {
 		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
@@ -46,7 +47,7 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		return err
 	}
 
-	if err := r.createOrApplyDeployments(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyDeployments(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
 	}

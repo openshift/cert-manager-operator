@@ -26,6 +26,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
@@ -48,6 +49,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=config.openshift.io,resources=apiservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // New returns a new Reconciler instance.
@@ -154,6 +156,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&certmanagerv1.ClusterIssuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		Watches(
+			&configv1.APIServer{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllIstioCSRRequests),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
+				return o.GetName() == "cluster"
+			})),
+		).
 		Complete(r)
 }
 
@@ -197,10 +206,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to update %q istiocsr.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
 	}
 
-	return r.processReconcileRequest(istiocsr, req.NamespacedName)
+	return r.processReconcileRequest(ctx, istiocsr, req.NamespacedName)
 }
 
-func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
+func (r *Reconciler) processReconcileRequest(ctx context.Context, istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
 	istioCSRCreateRecon := false
 	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
 		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
@@ -215,7 +224,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		return ctrl.Result{}, err
 	}
 
-	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
+	reconcileErr := r.reconcileIstioCSRDeployment(ctx, istiocsr, istioCSRCreateRecon)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
 	}

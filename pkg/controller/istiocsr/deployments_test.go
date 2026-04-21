@@ -1079,7 +1079,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			if !tt.skipEnvVar {
 				t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", image)
 			}
-			err := r.createOrApplyDeployments(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyDeployments(context.Background(), istiocsr, controllerDefaultResourceLabels, false)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyDeployments() err: %v, wantErr: %v", err, tt.wantErr)
 			}
@@ -1155,7 +1155,7 @@ func TestUpdateArgList(t *testing.T) {
 				tt.updateIstioCSR(istiocsr)
 			}
 
-			updateArgList(deployment, istiocsr)
+			updateArgList(deployment, istiocsr, nil)
 
 			// Find the istio-csr container and check its arguments
 			var containerArgs []string
