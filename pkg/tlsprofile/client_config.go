@@ -32,6 +32,9 @@ func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tl
 		return nil, fmt.Errorf("min TLS version: %w", err)
 	}
 	iana := libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
+	if len(spec.Ciphers) > 0 && len(iana) == 0 {
+		return nil, fmt.Errorf("no cipher suites after OpenSSL→IANA mapping")
+	}
 	cipherIDs, err := cipherSuiteIDsFromIANANames(iana)
 	if err != nil {
 		return nil, err
@@ -48,7 +51,7 @@ func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tl
 
 func cipherSuiteIDsFromIANANames(names []string) ([]uint16, error) {
 	if len(names) == 0 {
-		return nil, fmt.Errorf("no cipher suites after OpenSSL→IANA mapping")
+		return nil, nil
 	}
 	out := make([]uint16, 0, len(names))
 	for _, name := range names {
