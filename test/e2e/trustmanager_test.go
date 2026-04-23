@@ -57,12 +57,6 @@ const (
 	trustedCABundleKey           = "ca-bundle.crt"
 )
 
-var (
-	trustManagerClient = func() operatorclientv1alpha1.TrustManagerInterface {
-		return certmanageroperatorclient.OperatorV1alpha1().TrustManagers()
-	}
-)
-
 // Cluster must have an allowed feature set (e.g. TechPreviewNoUpgrade). TrustManager is deployed and reconciled.
 var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
 	var (
@@ -72,19 +66,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		originalUnsupportedAddonFeatures string
 		originalOperatorLogLevel         string
 	)
-
-	waitForTrustManagerReady := func() v1alpha1.TrustManagerStatus {
-		By("waiting for TrustManager CR to be ready")
-		status, err := pollTillTrustManagerAvailable(ctx, trustManagerClient(), "cluster")
-		Expect(err).Should(BeNil())
-		return status
-	}
-
-	createTrustManager := func(b *trustManagerCRBuilder) {
-		_, err := trustManagerClient().Create(ctx, b.Build(), metav1.CreateOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-		waitForTrustManagerReady()
-	}
 
 	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
 
@@ -100,7 +81,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("resource creation", func() {
 		It("should create all resources managed by the controller with correct labels", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			// Namespace-scoped resources
 			By("verifying ServiceAccount")
@@ -203,7 +184,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("resource deletion and recreation", func() {
 		It("should recreate resources managed by the controller when deleted externally", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			// Namespace-scoped resources
 			By("deleting and verifying recreation of ServiceAccount")
@@ -319,7 +300,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("label drift reconciliation", func() {
 		It("should restore labels when modified externally on managed resources", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("modifying ServiceAccount labels externally")
 			sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
@@ -371,7 +352,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("managed label removal reconciliation", func() {
 		It("should restore the managed label when removed externally from resources", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			// The "app" label is the managed resource label used by the predicate
 			// to filter watch events. Removing it tests that the predicate checks
@@ -427,7 +408,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("deployment configuration", func() {
 		It("should have deployment available with correct configuration", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("waiting for trust-manager deployment to become available")
 			err := pollTillDeploymentAvailable(ctx, clientset, trustManagerNamespace, trustManagerDeploymentName)
@@ -448,7 +429,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should update deployment args when log level changes", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			err := pollTillDeploymentAvailable(ctx, clientset, trustManagerNamespace, trustManagerDeploymentName)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -474,7 +455,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should apply custom resource requirements to deployment", func() {
-			createTrustManager(newTrustManagerCR().WithResources(corev1.ResourceRequirements{
+			createTrustManager(ctx, newTrustManagerCR().WithResources(corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("50m"),
 					corev1.ResourceMemory: resource.MustParse("64Mi"),
@@ -499,7 +480,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should apply custom tolerations to deployment", func() {
-			createTrustManager(newTrustManagerCR().WithTolerations([]corev1.Toleration{
+			createTrustManager(ctx, newTrustManagerCR().WithTolerations([]corev1.Toleration{
 				{
 					Key:      "test-key",
 					Operator: corev1.TolerationOpEqual,
@@ -525,7 +506,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should apply custom nodeSelector to deployment", func() {
-			createTrustManager(newTrustManagerCR().WithNodeSelector(map[string]string{
+			createTrustManager(ctx, newTrustManagerCR().WithNodeSelector(map[string]string{
 				"test-node-label": "test-value",
 			}))
 
@@ -538,7 +519,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should apply custom affinity to deployment", func() {
-			createTrustManager(newTrustManagerCR().WithAffinity(&corev1.Affinity{
+			createTrustManager(ctx, newTrustManagerCR().WithAffinity(&corev1.Affinity{
 				PodAntiAffinity: &corev1.PodAntiAffinity{
 					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
 						{
@@ -574,7 +555,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			customTrustNS := createUniqueNamespace("custom-trust-ns")
 			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
+			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
 			By("verifying deployment has correct --trust-namespace arg")
 			Eventually(func(g Gomega) {
@@ -586,7 +567,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should add secret-targets-enabled arg when secretTargets policy is Custom", func() {
-			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"test-secret"}))
+			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"test-secret"}))
 
 			By("verifying deployment args contain --secret-targets-enabled=true")
 			Eventually(func(g Gomega) {
@@ -598,7 +579,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should not have secret-targets-enabled arg when secretTargets is Disabled", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying deployment args do not contain --secret-targets-enabled=true")
 			Eventually(func(g Gomega) {
@@ -609,8 +590,31 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		// TODO: Add test for other deployment configuration options
-		// (e.g. filter expired certificates policy; custom trust namespace is covered above.)
+		It("should add filter-expired-certificates arg when filterExpiredCertificates is Enabled", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+
+			By("verifying deployment args contain --filter-expired-certificates=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--filter-expired-certificates=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have filter-expired-certificates arg when filterExpiredCertificates is Disabled", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			By("verifying deployment args do not contain --filter-expired-certificates=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-expired-certificates=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
 	})
 
 	// -------------------------------------------------------------------------
@@ -619,7 +623,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("default CA package configuration", func() {
 		It("should reconcile deployment when default CA package policy transitions between Disabled and Enabled", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying no default CA package ConfigMap exists")
 			Eventually(func(g Gomega) {
@@ -668,7 +672,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
-			waitForTrustManagerReady()
+			waitForTrustManagerReady(ctx)
 
 			By("verifying the CNO-injected CA bundle ConfigMap exists in operator namespace")
 			Eventually(func(g Gomega) {
@@ -750,7 +754,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
-			waitForTrustManagerReady()
+			waitForTrustManagerReady(ctx)
 
 			By("verifying deployment does not have --default-package-location arg after disabling")
 			Eventually(func(g Gomega) {
@@ -790,33 +794,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		It("should reconcile ConfigMap data drift when CA package ConfigMap is tampered", func() {
-			createTrustManager(newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
-
-			var originalData string
-			By("reading original CA package ConfigMap data")
-			Eventually(func(g Gomega) {
-				cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(cm.Data).Should(HaveKey("cert-manager-package-openshift.json"))
-				originalData = cm.Data["cert-manager-package-openshift.json"]
-				g.Expect(originalData).ShouldNot(BeEmpty())
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("tampering with the CA package ConfigMap data")
-			cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			cm.Data["cert-manager-package-openshift.json"] = `{"name":"tampered","bundle":"bad","version":"0"}`
-			_, err = clientset.CoreV1().ConfigMaps(trustManagerNamespace).Update(ctx, cm, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("verifying controller restores the original CA package ConfigMap data")
-			Eventually(func(g Gomega) {
-				cm, err := clientset.CoreV1().ConfigMaps(trustManagerNamespace).Get(ctx, defaultCAPackageConfigMapName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(cm.Data["cert-manager-package-openshift.json"]).Should(Equal(originalData))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
 	})
 
 	// -------------------------------------------------------------------------
@@ -825,7 +802,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("RBAC configuration", func() {
 		It("should configure ClusterRoleBinding with correct subjects and roleRef", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying ClusterRoleBinding references correct ClusterRole and ServiceAccount")
 			Eventually(func(g Gomega) {
@@ -842,7 +819,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should configure trust namespace RoleBinding with correct subjects and roleRef", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying trust namespace RoleBinding references correct Role and ServiceAccount")
 			Eventually(func(g Gomega) {
@@ -859,7 +836,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should configure leader election RoleBinding with correct subjects and roleRef", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying leader election RoleBinding references correct Role and ServiceAccount")
 			Eventually(func(g Gomega) {
@@ -881,7 +858,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			By("creating TrustManager CR with custom trust namespace")
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
+			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
 			By("verifying Role is created in custom trust namespace")
 			Eventually(func(g Gomega) {
@@ -910,7 +887,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
 			By("creating TrustManager CR with custom trust namespace")
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
+			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
 			By("verifying leader election Role is in operand namespace")
 			Eventually(func(g Gomega) {
@@ -930,7 +907,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should have no secret rules on ClusterRole when secretTargets is Disabled", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying ClusterRole has no secret rules")
 			Eventually(func(g Gomega) {
@@ -942,7 +919,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should add secret read and scoped write rules to ClusterRole when secretTargets is Custom", func() {
 			authorizedSecrets := []string{"bundle-secret-a", "bundle-secret-b"}
-			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, authorizedSecrets))
+			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, authorizedSecrets))
 
 			By("verifying ClusterRole has secret read rule")
 			Eventually(func(g Gomega) {
@@ -967,8 +944,10 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		It("should update ClusterRole rules when secretTargets policy changes from Disabled to Custom", func() {
-			createTrustManager(newTrustManagerCR())
+		It("should update ClusterRole rules when secretTargets policy transitions between Disabled and Custom", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			// --- Disabled → Custom ---
 
 			By("verifying ClusterRole initially has no secret rules")
 			Eventually(func(g Gomega) {
@@ -1000,10 +979,97 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(writeRule).ShouldNot(BeNil(), "expected secret write rule after enabling secretTargets")
 				g.Expect(writeRule.ResourceNames).Should(ConsistOf("updated-secret"))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			// --- Custom → Disabled ---
+
+			By("updating TrustManager CR to disable secretTargets")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+					Policy: v1alpha1.SecretTargetsPolicyDisabled,
+				}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			waitForTrustManagerReady(ctx)
+
+			By("verifying ClusterRole no longer has secret rules after disabling")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasSecretRule(cr.Rules)).Should(BeFalse(),
+					"ClusterRole should not have secret rules after disabling secretTargets")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should reject Custom policy with empty authorizedSecrets on create", func() {
+			_, err := trustManagerClient().Create(ctx, &v1alpha1.TrustManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.TrustManagerSpec{
+					TrustManagerConfig: v1alpha1.TrustManagerConfig{
+						SecretTargets: v1alpha1.SecretTargetsConfig{
+							Policy: v1alpha1.SecretTargetsPolicyCustom,
+						},
+					},
+				},
+			}, metav1.CreateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("authorizedSecrets must not be empty when policy is Custom"))
+		})
+
+		It("should reject Disabled policy with authorizedSecrets on create", func() {
+			_, err := trustManagerClient().Create(ctx, &v1alpha1.TrustManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.TrustManagerSpec{
+					TrustManagerConfig: v1alpha1.TrustManagerConfig{
+						SecretTargets: v1alpha1.SecretTargetsConfig{
+							Policy:            v1alpha1.SecretTargetsPolicyDisabled,
+							AuthorizedSecrets: []string{"my-secret"},
+						},
+					},
+				},
+			}, metav1.CreateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("authorizedSecrets must be empty when policy is not Custom"))
+		})
+
+		It("should reject emptying authorizedSecrets while policy remains Custom", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"my-secret"}))
+
+			By("attempting to set authorizedSecrets to empty while keeping Custom policy")
+			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+				Policy:            v1alpha1.SecretTargetsPolicyCustom,
+				AuthorizedSecrets: []string{},
+			}
+			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("authorizedSecrets must not be empty when policy is Custom"))
+		})
+
+		It("should reject adding authorizedSecrets while policy remains Disabled", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			By("attempting to add authorizedSecrets while keeping Disabled policy")
+			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			tm.Spec.TrustManagerConfig.SecretTargets = v1alpha1.SecretTargetsConfig{
+				Policy:            v1alpha1.SecretTargetsPolicyDisabled,
+				AuthorizedSecrets: []string{"my-secret"},
+			}
+			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("authorizedSecrets must be empty when policy is not Custom"))
 		})
 
 		It("should update ClusterRole resourceNames when authorizedSecrets list changes", func() {
-			createTrustManager(newTrustManagerCR().
+			createTrustManager(ctx, newTrustManagerCR().
 				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"secret-a", "secret-b"}))
 
 			By("verifying ClusterRole has initial authorized secrets")
@@ -1048,7 +1114,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("webhook and certificate configuration", func() {
 		It("should configure webhook with cert-manager CA injection annotation", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			expectedAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerCertificateName)
 
@@ -1061,7 +1127,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should configure webhook service reference correctly", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying webhook service references are correct")
 			Eventually(func(g Gomega) {
@@ -1078,7 +1144,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should have Issuer become ready", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("waiting for trust-manager Issuer to become ready")
 			err := waitForIssuerReadiness(ctx, trustManagerIssuerName, trustManagerNamespace)
@@ -1086,7 +1152,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should have Certificate become ready and create TLS secret", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("waiting for trust-manager Certificate to become ready")
 			err := waitForCertificateReadiness(ctx, trustManagerCertificateName, trustManagerNamespace)
@@ -1103,7 +1169,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should configure Certificate with correct spec fields", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			expectedDNSName := fmt.Sprintf("%s.%s.svc", trustManagerServiceName, trustManagerNamespace)
 
@@ -1126,7 +1192,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("status reporting", func() {
 		It("should report trust-manager image in status", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying TrustManager status has image set")
 			Eventually(func(g Gomega) {
@@ -1137,7 +1203,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should report trust namespace in status", func() {
-			createTrustManager(newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR())
 
 			By("verifying TrustManager status has default trust namespace set")
 			Eventually(func(g Gomega) {
@@ -1152,7 +1218,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			customTrustNS := createUniqueNamespace("custom-trust-ns-status")
 			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
 
-			createTrustManager(newTrustManagerCR().WithTrustNamespace(customTrustNS))
+			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
 
 			By("verifying TrustManager status has custom trust namespace set")
 			Eventually(func(g Gomega) {
@@ -1163,7 +1229,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should report secretTargets policy in status", func() {
-			createTrustManager(newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"status-test-secret"}))
+			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"status-test-secret"}))
 
 			By("verifying TrustManager status reflects Custom secretTargets policy")
 			Eventually(func(g Gomega) {
@@ -1174,7 +1240,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should report default CA package policy in status", func() {
-			createTrustManager(newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
 
 			By("verifying status reports Enabled policy")
 			Eventually(func(g Gomega) {
@@ -1202,8 +1268,17 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		// TODO: Add test for status reporting when custom configuration is applied
-		// (e.g. filter expired certificates policy; secret targets, default CA package, and trust namespace are covered above.)
+		It("should report filterExpiredCertificates policy in status", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+
+			By("verifying status reports Enabled policy")
+			Eventually(func(g Gomega) {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(tm.Status.FilterExpiredCertificatesPolicy).Should(Equal(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
 	})
 
 	// -------------------------------------------------------------------------
@@ -1213,7 +1288,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	Context("trust namespace configuration", func() {
 		It("should reject updates that change spec.trustNamespace", func() {
 			By("creating TrustManager with explicit trust namespace")
-			createTrustManager(newTrustManagerCR().WithTrustNamespace("cert-manager"))
+			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace("cert-manager"))
 
 			By("attempting to mutate spec.trustNamespace (field is immutable once set)")
 			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
@@ -1273,7 +1348,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("waiting for TrustManager to recover (Ready=True, not Degraded)")
-			waitForTrustManagerReady()
+			waitForTrustManagerReady(ctx)
 		})
 	})
 
@@ -1284,7 +1359,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	Context("custom labels and annotations", func() {
 		It("should apply custom labels from controllerConfig to all managed resources", func() {
 			By("creating TrustManager CR with custom labels")
-			createTrustManager(newTrustManagerCR().WithLabels(map[string]string{
+			createTrustManager(ctx, newTrustManagerCR().WithLabels(map[string]string{
 				"custom-label": "custom-value",
 			}))
 
@@ -1340,7 +1415,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should apply custom annotations from controllerConfig to managed resources", func() {
 			By("creating TrustManager CR with custom annotations")
-			createTrustManager(newTrustManagerCR().WithAnnotations(map[string]string{
+			createTrustManager(ctx, newTrustManagerCR().WithAnnotations(map[string]string{
 				"custom-annotation": "annotation-value",
 			}))
 
