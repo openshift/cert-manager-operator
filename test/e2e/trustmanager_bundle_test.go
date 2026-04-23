@@ -827,8 +827,8 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Eventually(func(g Gomega) {
 				cm, err := k8sClientSet.CoreV1().ConfigMaps(operatorNamespace).Get(ctx, trustedCABundleConfigMapName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(cm.Data[trustedCABundleKey]).ShouldNot(Equal(originalInjectedData),
-					"CNO should have updated the injected CA bundle")
+				g.Expect(len(cm.Data[trustedCABundleKey])).Should(BeNumerically(">", len(originalInjectedData)),
+					"CNO-injected CA bundle should have grown after adding a cert")
 			}, highTimeout, slowPollInterval).Should(Succeed())
 
 			// --- Verify operator propagated the change ---
