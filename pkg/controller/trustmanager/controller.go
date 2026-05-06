@@ -38,7 +38,6 @@ const RequestEnqueueLabelValue = "cert-manager-trust-manager"
 type Reconciler struct {
 	common.CtrlClient
 
-	ctx           context.Context
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 	scheme        *runtime.Scheme
@@ -68,7 +67,6 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
-		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
@@ -189,11 +187,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to update %q trustmanager.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
 	}
 
-	return r.processReconcileRequest(trustManager, req.NamespacedName)
+	return r.processReconcileRequest(ctx, trustManager, req.NamespacedName)
 }
 
-func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
-	reconcileErr := r.reconcileTrustManagerDeployment(trustManager)
+func (r *Reconciler) processReconcileRequest(ctx context.Context, trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
+	reconcileErr := r.reconcileTrustManagerDeployment(ctx, trustManager)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile TrustManager deployment", "request", req)
 	}
@@ -203,7 +201,7 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 		reconcileErr,
 		r.log.WithValues("name", trustManager.GetName()),
 		func(prependErr error) error {
-			return r.updateCondition(trustManager, prependErr)
+			return r.updateCondition(ctx, trustManager, prependErr)
 		},
 		defaultRequeueTime,
 	)

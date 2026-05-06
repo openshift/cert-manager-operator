@@ -127,8 +127,8 @@ func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
 	return nil
 }
 
-func (r *Reconciler) updateCondition(trustManager *v1alpha1.TrustManager, prependErr error) error {
-	if err := r.updateStatus(r.ctx, trustManager); err != nil {
+func (r *Reconciler) updateCondition(ctx context.Context, trustManager *v1alpha1.TrustManager, prependErr error) error {
+	if err := r.updateStatus(ctx, trustManager); err != nil {
 		errUpdate := fmt.Errorf("failed to update %s status: %w", trustManager.GetName(), err)
 		if prependErr != nil {
 			return utilerrors.NewAggregate([]error{prependErr, errUpdate})
@@ -225,8 +225,8 @@ func managedMetadataModified(desired, existing client.Object) bool {
 }
 
 // namespaceExists checks if a namespace exists in the cluster.
-func (r *Reconciler) namespaceExists(namespace string) (bool, error) {
+func (r *Reconciler) namespaceExists(ctx context.Context, namespace string) (bool, error) {
 	ns := &corev1.Namespace{}
 	key := client.ObjectKey{Name: namespace}
-	return r.Exists(r.ctx, key, ns)
+	return r.Exists(ctx, key, ns)
 }

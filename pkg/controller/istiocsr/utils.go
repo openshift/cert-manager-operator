@@ -478,8 +478,8 @@ func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
 	return nil
 }
 
-func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr error) error {
-	if err := r.updateStatus(r.ctx, istiocsr); err != nil {
+func (r *Reconciler) updateCondition(ctx context.Context, istiocsr *v1alpha1.IstioCSR, prependErr error) error {
+	if err := r.updateStatus(ctx, istiocsr); err != nil {
 		errUpdate := fmt.Errorf("failed to update %s/%s status: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 		if prependErr != nil {
 			return utilerrors.NewAggregate([]error{err, errUpdate})
@@ -489,7 +489,7 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	return prependErr
 }
 
-func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
+func (r *Reconciler) disallowMultipleIstioCSRInstances(ctx context.Context, istiocsr *v1alpha1.IstioCSR) error {
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
 	if containsProcessingRejectedAnnotation(istiocsr) {
@@ -497,13 +497,13 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		// ensure status is updated.
 		var updateErr error
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-			updateErr = r.updateCondition(istiocsr, nil)
+			updateErr = r.updateCondition(ctx, istiocsr, nil)
 		}
 		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
-	if err := r.List(r.ctx, istiocsrList); err != nil {
+	if err := r.List(ctx, istiocsrList); err != nil {
 		return fmt.Errorf("failed to fetch list of istiocsr resources: %w", err)
 	}
 
@@ -534,10 +534,10 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	// This instance should be rejected as there's an older or equally old instance
 	var condUpdateErr, annUpdateErr error
 	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
-		condUpdateErr = r.updateCondition(istiocsr, nil)
+		condUpdateErr = r.updateCondition(ctx, istiocsr, nil)
 	}
 	if addProcessingRejectedAnnotation(istiocsr) {
-		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+		if err := r.UpdateWithRetry(ctx, istiocsr); err != nil {
 			annUpdateErr = fmt.Errorf("failed to update reject processing annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 		}
 	}
