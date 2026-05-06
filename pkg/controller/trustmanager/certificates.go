@@ -5,9 +5,7 @@ import (
 	"reflect"
 	"slices"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -17,29 +15,9 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-// createOrApplyIssuer reconciles the self-signed Issuer used for trust-manager's webhook TLS.
 func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getIssuerObject(resourceLabels, resourceAnnotations)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling issuer resource", "name", resourceName)
-
-	existing := &certmanagerv1.Issuer{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
-	}
-	if exists && !issuerModified(desired, existing) {
-		r.log.V(4).Info("issuer resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("issuer resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply issuer %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "issuer resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &certmanagerv1.Issuer{}, fieldOwner, issuerModified)
 }
 
 func getIssuerObject(resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Issuer {
@@ -51,29 +29,9 @@ func getIssuerObject(resourceLabels, resourceAnnotations map[string]string) *cer
 	return issuer
 }
 
-// createOrApplyCertificate reconciles the Certificate used for trust-manager's webhook TLS.
 func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getCertificateObject(resourceLabels, resourceAnnotations)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling certificate resource", "name", resourceName)
-
-	existing := &certmanagerv1.Certificate{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if certificate %q exists", resourceName)
-	}
-	if exists && !certificateModified(desired, existing) {
-		r.log.V(4).Info("certificate resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("certificate resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply certificate %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "certificate resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &certmanagerv1.Certificate{}, fieldOwner, certificateModified)
 }
 
 func getCertificateObject(resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Certificate {
@@ -96,15 +54,11 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 	return certificate
 }
 
-// issuerModified compares only the fields we manage via SSA.
 func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
 	return managedMetadataModified(desired, existing) ||
 		!reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
-// certificateModified compares only the fields we manage via SSA.
-// We compare individual spec fields rather than the full Spec because
-// cert-manager's webhook may default fields we don't set (e.g. Duration).
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if managedMetadataModified(desired, existing) {
 		return true
