@@ -19,8 +19,11 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
+	"github.com/openshift/cert-manager-operator/pkg/controller/trustmanager"
 	"github.com/openshift/cert-manager-operator/pkg/version"
 )
 
@@ -42,7 +45,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-// Manager holds the manager resource for the istio-csr controller
+// Manager holds the manager resource for a controller-runtime based controller.
 type Manager struct {
 	manager manager.Manager
 }
@@ -80,4 +83,37 @@ func NewControllerManager() (*Manager, error) {
 func (mgr *Manager) Start(ctx context.Context) error {
 	mgr.manager.GetEventRecorderFor("cert-manager-istio-csr-controller").Event(&v1alpha1.IstioCSR{}, corev1.EventTypeNormal, "ControllerStarted", "controller is starting")
 	return mgr.manager.Start(ctx)
+}
+
+// NewTrustManagerControllerManager creates a new manager for the trust-manager controller.
+func NewTrustManagerControllerManager() (*Manager, error) {
+	setupLog.Info("setting up operator manager", "controller", trustmanager.ControllerName)
+	setupLog.Info("controller", "version", version.Get())
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:   scheme,
+		NewCache: trustmanager.NewCacheBuilder,
+		Logger:   ctrl.Log.WithName("trustmanager-operator-manager"),
+		// Disable health and metrics endpoints to avoid port conflicts
+		// with the IstioCSR controller manager.
+		HealthProbeBindAddress: "0",
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trust-manager manager: %w", err)
+	}
+
+	r, err := trustmanager.New(mgr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s reconciler object: %w", trustmanager.ControllerName, err)
+	}
+	if err := r.SetupWithManager(mgr); err != nil {
+		return nil, fmt.Errorf("failed to create %s controller: %w", trustmanager.ControllerName, err)
+	}
+
+	return &Manager{
+		manager: mgr,
+	}, nil
 }

@@ -7,8 +7,7 @@ import (
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
-
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
@@ -145,11 +144,27 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
 		manager, err := NewControllerManager()
 		if err != nil {
-			return fmt.Errorf("failed to create controller manager: %w", err)
+			return fmt.Errorf("failed to create istiocsr controller manager: %w", err)
 		}
-		if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
-			return fmt.Errorf("failed to start istiocsr controller: %w", err)
+		go func() {
+			if err := manager.Start(ctx); err != nil {
+				klog.Errorf("failed to start istiocsr controller: %v", err)
+			}
+		}()
+	}
+
+	// enable controller-runtime and trust-manager controller
+	// only when "TrustManager" feature is turned on from --addon-features
+	if features.DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager) {
+		manager, err := NewTrustManagerControllerManager()
+		if err != nil {
+			return fmt.Errorf("failed to create trustmanager controller manager: %w", err)
 		}
+		go func() {
+			if err := manager.Start(ctx); err != nil {
+				klog.Errorf("failed to start trustmanager controller: %v", err)
+			}
+		}()
 	}
 
 	<-ctx.Done()
