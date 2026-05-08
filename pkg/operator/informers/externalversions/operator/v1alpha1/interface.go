@@ -12,6 +12,8 @@ type Interface interface {
 	CertManagers() CertManagerInformer
 	// IstioCSRs returns a IstioCSRInformer.
 	IstioCSRs() IstioCSRInformer
+	// TrustManagers returns a TrustManagerInformer.
+	TrustManagers() TrustManagerInformer
 }
 
 type version struct {
@@ -33,4 +35,9 @@ func (v *version) CertManagers() CertManagerInformer {
 // IstioCSRs returns a IstioCSRInformer.
 func (v *version) IstioCSRs() IstioCSRInformer {
 	return &istioCSRInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// TrustManagers returns a TrustManagerInformer.
+func (v *version) TrustManagers() TrustManagerInformer {
+	return &trustManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
