@@ -437,6 +437,37 @@ govulncheck: $(GOVULNCHECK) $(OUTPUT_DIR) ## Run govulncheck vulnerability scan.
 	@./hack/govulncheck.sh $(GOVULNCHECK) $(OUTPUT_DIR)
 
 # ============================================================================
+# E2E Coverage
+# ============================================================================
+
+##@ E2E Coverage
+##
+## Targets for building a coverage-instrumented operator image, collecting
+## coverage data written during E2E tests, and uploading the report to Codecov.
+##
+## Typical flow (local):
+##   make image-build-coverage image-push-coverage         # build & push coverage image
+##   COVERAGE_IMAGE=<pullspec> hack/e2e-coverage.sh setup  # patch CSV
+##   make test-e2e                                         # run E2E suite
+##   make e2e-coverage-collect                              # collect + upload
+##
+## In CI, hack/e2e-coverage.sh handles setup and collection automatically.
+
+COVERAGE_IMG ?= $(IMG)-e2e-coverage
+
+.PHONY: image-build-coverage
+image-build-coverage: ## Build coverage-instrumented container image.
+	$(CONTAINER_ENGINE) build -f images/ci/Dockerfile.coverage -t $(COVERAGE_IMG) .
+
+.PHONY: image-push-coverage
+image-push-coverage: ## Push coverage-instrumented container image.
+	$(CONTAINER_ENGINE) push $(COVERAGE_IMG) $(CONTAINER_PUSH_ARGS)
+
+.PHONY: e2e-coverage-collect
+e2e-coverage-collect: ## Collect e2e coverage data and optionally upload to Codecov.
+	ARTIFACT_DIR=$${ARTIFACT_DIR:-.} hack/e2e-coverage.sh collect
+
+# ============================================================================
 # Maintenance
 # ============================================================================
 
