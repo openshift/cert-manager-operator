@@ -41,9 +41,6 @@ import (
 	compbasemetrics "k8s.io/component-base/metrics"
 )
 
-// nothing will ever be sent down this channel
-var neverExitWatch <-chan time.Time = make(chan time.Time)
-
 // timeoutFactory abstracts watch timeout logic for testing
 type TimeoutFactory interface {
 	TimeoutCh() (<-chan time.Time, func() bool)
@@ -58,7 +55,8 @@ type realTimeoutFactory struct {
 // and a cleanup function to call when this happens.
 func (w *realTimeoutFactory) TimeoutCh() (<-chan time.Time, func() bool) {
 	if w.timeout == 0 {
-		return neverExitWatch, func() bool { return false }
+		// nothing will ever be sent down this channel
+		return nil, func() bool { return false }
 	}
 	t := time.NewTimer(w.timeout)
 	return t.C, t.Stop

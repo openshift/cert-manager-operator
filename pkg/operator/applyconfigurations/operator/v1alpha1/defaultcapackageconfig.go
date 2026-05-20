@@ -8,7 +8,13 @@ import (
 
 // DefaultCAPackageConfigApplyConfiguration represents a declarative configuration of the DefaultCAPackageConfig type for use
 // with apply.
+//
+// DefaultCAPackageConfig configures the default CA package feature for trust-manager.
 type DefaultCAPackageConfigApplyConfiguration struct {
+	// policy controls whether the default CA package feature is enabled.
+	// When set to "Enabled", the operator will inject OpenShift's trusted CA bundle
+	// into trust-manager, enabling the "useDefaultCAs: true" source in Bundle resources.
+	// When set to "Disabled", no default CA package is configured and Bundles cannot use useDefaultCAs (default behavior).
 	Policy *operatorv1alpha1.DefaultCAPackagePolicy `json:"policy,omitempty"`
 }
 

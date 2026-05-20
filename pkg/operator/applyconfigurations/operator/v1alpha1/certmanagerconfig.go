@@ -8,8 +8,15 @@ import (
 
 // CertManagerConfigApplyConfiguration represents a declarative configuration of the CertManagerConfig type for use
 // with apply.
+//
+// CertManagerConfig is for configuring cert-manager specifics.
 type CertManagerConfigApplyConfiguration struct {
-	IssuerRef          *v1.IssuerReference                   `json:"issuerRef,omitempty"`
+	// issuerRef contains details of the referenced object used for obtaining certificates.
+	// When `issuerRef.Kind` is `Issuer`, it must exist in the `.spec.istioCSRConfig.istio.namespace`.
+	// This field is immutable once set.
+	IssuerRef *v1.IssuerReference `json:"issuerRef,omitempty"`
+	// istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap.
+	// If empty, the operator will automatically extract the CA certificate from the Secret containing the istiod certificate obtained from cert-manager.
 	IstioCACertificate *ConfigMapReferenceApplyConfiguration `json:"istioCACertificate,omitempty"`
 }
 

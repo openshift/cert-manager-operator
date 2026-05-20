@@ -4,10 +4,15 @@ package v1alpha1
 
 // ConfigMapReferenceApplyConfiguration represents a declarative configuration of the ConfigMapReference type for use
 // with apply.
+//
+// ConfigMapReference holds the details of a configmap.
 type ConfigMapReferenceApplyConfiguration struct {
-	Name      *string `json:"name,omitempty"`
+	// name of the ConfigMap.
+	Name *string `json:"name,omitempty"`
+	// namespace in which the ConfigMap exists. If empty, ConfigMap will be looked up in IstioCSR created namespace.
 	Namespace *string `json:"namespace,omitempty"`
-	Key       *string `json:"key,omitempty"`
+	// key name holding the required data.
+	Key *string `json:"key,omitempty"`
 }
 
 // ConfigMapReferenceApplyConfiguration constructs a declarative configuration of the ConfigMapReference type for use with

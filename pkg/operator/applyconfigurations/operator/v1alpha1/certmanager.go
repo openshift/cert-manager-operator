@@ -13,6 +13,8 @@ import (
 
 // CertManagerApplyConfiguration represents a declarative configuration of the CertManager type for use
 // with apply.
+//
+// CertManager is the Schema for the certmanagers API
 type CertManagerApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
@@ -30,29 +32,14 @@ func CertManager(name string) *CertManagerApplyConfiguration {
 	return b
 }
 
-// ExtractCertManager extracts the applied configuration owned by fieldManager from
-// certManager. If no managedFields are found in certManager for fieldManager, a
-// CertManagerApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractCertManagerFrom extracts the applied configuration owned by fieldManager from
+// certManager for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // certManager must be a unmodified CertManager API object that was retrieved from the Kubernetes API.
-// ExtractCertManager provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractCertManagerFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractCertManager(certManager *operatorv1alpha1.CertManager, fieldManager string) (*CertManagerApplyConfiguration, error) {
-	return extractCertManager(certManager, fieldManager, "")
-}
-
-// ExtractCertManagerStatus is the same as ExtractCertManager except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractCertManagerStatus(certManager *operatorv1alpha1.CertManager, fieldManager string) (*CertManagerApplyConfiguration, error) {
-	return extractCertManager(certManager, fieldManager, "status")
-}
-
-func extractCertManager(certManager *operatorv1alpha1.CertManager, fieldManager string, subresource string) (*CertManagerApplyConfiguration, error) {
+func ExtractCertManagerFrom(certManager *operatorv1alpha1.CertManager, fieldManager string, subresource string) (*CertManagerApplyConfiguration, error) {
 	b := &CertManagerApplyConfiguration{}
 	err := managedfields.ExtractInto(certManager, internal.Parser().Type("com.github.openshift.cert-manager-operator.api.operator.v1alpha1.CertManager"), fieldManager, b, subresource)
 	if err != nil {
@@ -64,6 +51,27 @@ func extractCertManager(certManager *operatorv1alpha1.CertManager, fieldManager 
 	b.WithAPIVersion("operator.openshift.io/v1alpha1")
 	return b, nil
 }
+
+// ExtractCertManager extracts the applied configuration owned by fieldManager from
+// certManager. If no managedFields are found in certManager for fieldManager, a
+// CertManagerApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// certManager must be a unmodified CertManager API object that was retrieved from the Kubernetes API.
+// ExtractCertManager provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractCertManager(certManager *operatorv1alpha1.CertManager, fieldManager string) (*CertManagerApplyConfiguration, error) {
+	return ExtractCertManagerFrom(certManager, fieldManager, "")
+}
+
+// ExtractCertManagerStatus extracts the applied configuration owned by fieldManager from
+// certManager for the status subresource.
+func ExtractCertManagerStatus(certManager *operatorv1alpha1.CertManager, fieldManager string) (*CertManagerApplyConfiguration, error) {
+	return ExtractCertManagerFrom(certManager, fieldManager, "status")
+}
+
 func (b CertManagerApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value

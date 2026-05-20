@@ -8,18 +8,41 @@ import (
 
 // IstioCSRConfigApplyConfiguration represents a declarative configuration of the IstioCSRConfig type for use
 // with apply.
+//
+// IstioCSRConfig configures the istio-csr agent's behavior.
 type IstioCSRConfigApplyConfiguration struct {
-	LogLevel                        *int32                               `json:"logLevel,omitempty"`
-	LogFormat                       *string                              `json:"logFormat,omitempty"`
-	IstioDataPlaneNamespaceSelector *string                              `json:"istioDataPlaneNamespaceSelector,omitempty"`
-	CertManager                     *CertManagerConfigApplyConfiguration `json:"certManager,omitempty"`
-	IstiodTLSConfig                 *IstiodTLSConfigApplyConfiguration   `json:"istiodTLSConfig,omitempty"`
-	Server                          *ServerConfigApplyConfiguration      `json:"server,omitempty"`
-	Istio                           *IstioConfigApplyConfiguration       `json:"istio,omitempty"`
-	Resources                       *v1.ResourceRequirements             `json:"resources,omitempty"`
-	Affinity                        *v1.Affinity                         `json:"affinity,omitempty"`
-	Tolerations                     []v1.Toleration                      `json:"tolerations,omitempty"`
-	NodeSelector                    map[string]string                    `json:"nodeSelector,omitempty"`
+	// logLevel supports a value range as per [Kubernetes logging guidelines](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md#what-method-to-use).
+	LogLevel *int32 `json:"logLevel,omitempty"`
+	// logFormat specifies the output format for istio-csr agent logging.
+	// Supported log formats are text and json.
+	LogFormat *string `json:"logFormat,omitempty"`
+	// Istio-csr creates a ConfigMap named `istio-ca-root-cert` containing the root CA certificate, which the Istio data plane uses to verify server certificates. Its default behavior is to create and monitor ConfigMaps in all namespaces.
+	// The istioDataPlaneNamespaceSelector restricts the namespaces where the ConfigMap is created by using label selectors, such as maistra.io/member-of=istio-system. This selector is also attached to all desired namespaces that are part of the data plane.
+	// This field can have a maximum of 4096 characters.
+	IstioDataPlaneNamespaceSelector *string `json:"istioDataPlaneNamespaceSelector,omitempty"`
+	// certManager is for configuring cert-manager specifics.
+	CertManager *CertManagerConfigApplyConfiguration `json:"certManager,omitempty"`
+	// istiodTLSConfig is for configuring istiod certificate specifics.
+	IstiodTLSConfig *IstiodTLSConfigApplyConfiguration `json:"istiodTLSConfig,omitempty"`
+	// server is for configuring the server endpoint used by istio for obtaining the certificates.
+	Server *ServerConfigApplyConfiguration `json:"server,omitempty"`
+	// istio is for configuring the istio specifics.
+	Istio *IstioConfigApplyConfiguration `json:"istio,omitempty"`
+	// resources is for defining the resource requirements.
+	// Cannot be updated.
+	// ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	Resources *v1.ResourceRequirements `json:"resources,omitempty"`
+	// affinity is for setting scheduling affinity rules.
+	// ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+	Affinity *v1.Affinity `json:"affinity,omitempty"`
+	// tolerations is for setting the pod tolerations.
+	// This field can have a maximum of 50 entries.
+	// ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+	// nodeSelector is for defining the scheduling criteria using node labels.
+	// This field can have a maximum of 50 entries.
+	// ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // IstioCSRConfigApplyConfiguration constructs a declarative configuration of the IstioCSRConfig type for use with

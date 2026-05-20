@@ -8,9 +8,18 @@ import (
 
 // CertManagerSchedulingApplyConfiguration represents a declarative configuration of the CertManagerScheduling type for use
 // with apply.
+//
+// CertManagerScheduling describes the scheduling configurations for the cert-manager operands,
+// namely the controller, webhook and cainjector.
 type CertManagerSchedulingApplyConfiguration struct {
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-	Tolerations  []v1.Toleration   `json:"tolerations,omitempty"`
+	// Tolerations are attached to the pod to tolerate any taint that matches the
+	// taint's key, value and effect using the toleration's matching operator.
+	// More info: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
 }
 
 // CertManagerSchedulingApplyConfiguration constructs a declarative configuration of the CertManagerScheduling type for use with

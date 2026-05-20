@@ -8,13 +8,19 @@ import (
 
 // DeploymentConfigApplyConfiguration represents a declarative configuration of the DeploymentConfig type for use
 // with apply.
+//
+// DeploymentConfig defines the schema for
+// overriding deployment of cert-manager operands,
+// namely the controller, webhook and cainjector.
 type DeploymentConfigApplyConfiguration struct {
-	OverrideArgs       []string                                           `json:"overrideArgs,omitempty"`
-	OverrideEnv        []v1.EnvVar                                        `json:"overrideEnv,omitempty"`
-	OverrideLabels     map[string]string                                  `json:"overrideLabels,omitempty"`
-	OverrideResources  *CertManagerResourceRequirementsApplyConfiguration `json:"overrideResources,omitempty"`
-	OverrideReplicas   *int32                                             `json:"overrideReplicas,omitempty"`
-	OverrideScheduling *CertManagerSchedulingApplyConfiguration           `json:"overrideScheduling,omitempty"`
+	OverrideArgs      []string                                           `json:"overrideArgs,omitempty"`
+	OverrideEnv       []v1.EnvVar                                        `json:"overrideEnv,omitempty"`
+	OverrideLabels    map[string]string                                  `json:"overrideLabels,omitempty"`
+	OverrideResources *CertManagerResourceRequirementsApplyConfiguration `json:"overrideResources,omitempty"`
+	// OverrideReplicas defines the number of replicas for the operand deployment.
+	// If not specified, the default replicas from the deployment manifest will be used.
+	OverrideReplicas   *int32                                   `json:"overrideReplicas,omitempty"`
+	OverrideScheduling *CertManagerSchedulingApplyConfiguration `json:"overrideScheduling,omitempty"`
 }
 
 // DeploymentConfigApplyConfiguration constructs a declarative configuration of the DeploymentConfig type for use with

@@ -9,17 +9,43 @@ import (
 
 // TrustManagerConfigApplyConfiguration represents a declarative configuration of the TrustManagerConfig type for use
 // with apply.
+//
+// TrustManagerConfig configures the trust-manager operand's behavior.
 type TrustManagerConfigApplyConfiguration struct {
-	LogLevel                  *int32                                            `json:"logLevel,omitempty"`
-	LogFormat                 *string                                           `json:"logFormat,omitempty"`
-	TrustNamespace            *string                                           `json:"trustNamespace,omitempty"`
-	SecretTargets             *SecretTargetsConfigApplyConfiguration            `json:"secretTargets,omitempty"`
+	// logLevel configures the verbosity of trust-manager logging.
+	// Follows [Kubernetes logging guidelines](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md#what-method-to-use).
+	LogLevel *int32 `json:"logLevel,omitempty"`
+	// logFormat specifies the output format for trust-manager logging.
+	// Supported formats are "text" and "json".
+	LogFormat *string `json:"logFormat,omitempty"`
+	// trustNamespace is the namespace where trust-manager looks for trust sources
+	// (ConfigMaps and Secrets containing CA certificates).
+	// Defaults to "cert-manager" if not specified.
+	// This field is immutable once set.
+	// This field can have a maximum of 63 characters.
+	TrustNamespace *string `json:"trustNamespace,omitempty"`
+	// secretTargets configures whether trust-manager can write trust bundles to Secrets.
+	SecretTargets *SecretTargetsConfigApplyConfiguration `json:"secretTargets,omitempty"`
+	// filterExpiredCertificates controls whether trust-manager filters out
+	// expired certificates from trust bundles before distributing them.
+	// When set to "Enabled", expired certificates are removed from bundles.
+	// When set to "Disabled", expired certificates are included (default behavior).
 	FilterExpiredCertificates *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
-	DefaultCAPackage          *DefaultCAPackageConfigApplyConfiguration         `json:"defaultCAPackage,omitempty"`
-	Resources                 *v1.ResourceRequirements                          `json:"resources,omitempty"`
-	Affinity                  *v1.Affinity                                      `json:"affinity,omitempty"`
-	Tolerations               []v1.Toleration                                   `json:"tolerations,omitempty"`
-	NodeSelector              map[string]string                                 `json:"nodeSelector,omitempty"`
+	// defaultCAPackage configures the default CA package for trust-manager.
+	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
+	DefaultCAPackage *DefaultCAPackageConfigApplyConfiguration `json:"defaultCAPackage,omitempty"`
+	// resources defines the compute resource requirements for the trust-manager pod.
+	// ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	Resources *v1.ResourceRequirements `json:"resources,omitempty"`
+	// affinity defines scheduling constraints for the trust-manager pod.
+	// ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+	Affinity *v1.Affinity `json:"affinity,omitempty"`
+	// tolerations allows the trust-manager pod to be scheduled on tainted nodes.
+	// ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+	// nodeSelector restricts which nodes the trust-manager pod can be scheduled on.
+	// ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // TrustManagerConfigApplyConfiguration constructs a declarative configuration of the TrustManagerConfig type for use with

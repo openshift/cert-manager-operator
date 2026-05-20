@@ -8,7 +8,10 @@ import (
 
 // ConditionalStatusApplyConfiguration represents a declarative configuration of the ConditionalStatus type for use
 // with apply.
+//
+// ConditionalStatus represents the status conditions for an operand deployment.
 type ConditionalStatusApplyConfiguration struct {
+	// conditions holds information about the current state of the operand deployment.
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
 }
 

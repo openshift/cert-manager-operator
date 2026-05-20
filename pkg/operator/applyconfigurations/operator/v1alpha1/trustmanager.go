@@ -13,11 +13,19 @@ import (
 
 // TrustManagerApplyConfiguration represents a declarative configuration of the TrustManager type for use
 // with apply.
+//
+// TrustManager describes the configuration and information about the managed trust-manager deployment.
+// The name must be `cluster` to make TrustManager a singleton, allowing only one instance per cluster.
+// When a TrustManager CR is created, trust-manager operand is deployed in the cert-manager namespace.
 type TrustManagerApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *TrustManagerSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *TrustManagerStatusApplyConfiguration `json:"status,omitempty"`
+	// spec is the specification of the desired behavior of the TrustManager.
+	Spec *TrustManagerSpecApplyConfiguration `json:"spec,omitempty"`
+	// status is the most recently observed status of the TrustManager.
+	Status *TrustManagerStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // TrustManager constructs a declarative configuration of the TrustManager type for use with
@@ -30,29 +38,14 @@ func TrustManager(name string) *TrustManagerApplyConfiguration {
 	return b
 }
 
-// ExtractTrustManager extracts the applied configuration owned by fieldManager from
-// trustManager. If no managedFields are found in trustManager for fieldManager, a
-// TrustManagerApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractTrustManagerFrom extracts the applied configuration owned by fieldManager from
+// trustManager for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // trustManager must be a unmodified TrustManager API object that was retrieved from the Kubernetes API.
-// ExtractTrustManager provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractTrustManagerFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractTrustManager(trustManager *operatorv1alpha1.TrustManager, fieldManager string) (*TrustManagerApplyConfiguration, error) {
-	return extractTrustManager(trustManager, fieldManager, "")
-}
-
-// ExtractTrustManagerStatus is the same as ExtractTrustManager except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractTrustManagerStatus(trustManager *operatorv1alpha1.TrustManager, fieldManager string) (*TrustManagerApplyConfiguration, error) {
-	return extractTrustManager(trustManager, fieldManager, "status")
-}
-
-func extractTrustManager(trustManager *operatorv1alpha1.TrustManager, fieldManager string, subresource string) (*TrustManagerApplyConfiguration, error) {
+func ExtractTrustManagerFrom(trustManager *operatorv1alpha1.TrustManager, fieldManager string, subresource string) (*TrustManagerApplyConfiguration, error) {
 	b := &TrustManagerApplyConfiguration{}
 	err := managedfields.ExtractInto(trustManager, internal.Parser().Type("com.github.openshift.cert-manager-operator.api.operator.v1alpha1.TrustManager"), fieldManager, b, subresource)
 	if err != nil {
@@ -64,6 +57,27 @@ func extractTrustManager(trustManager *operatorv1alpha1.TrustManager, fieldManag
 	b.WithAPIVersion("operator.openshift.io/v1alpha1")
 	return b, nil
 }
+
+// ExtractTrustManager extracts the applied configuration owned by fieldManager from
+// trustManager. If no managedFields are found in trustManager for fieldManager, a
+// TrustManagerApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// trustManager must be a unmodified TrustManager API object that was retrieved from the Kubernetes API.
+// ExtractTrustManager provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractTrustManager(trustManager *operatorv1alpha1.TrustManager, fieldManager string) (*TrustManagerApplyConfiguration, error) {
+	return ExtractTrustManagerFrom(trustManager, fieldManager, "")
+}
+
+// ExtractTrustManagerStatus extracts the applied configuration owned by fieldManager from
+// trustManager for the status subresource.
+func ExtractTrustManagerStatus(trustManager *operatorv1alpha1.TrustManager, fieldManager string) (*TrustManagerApplyConfiguration, error) {
+	return ExtractTrustManagerFrom(trustManager, fieldManager, "status")
+}
+
 func (b TrustManagerApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value

@@ -22,7 +22,7 @@ func ValidateNodeSelectorConfig(nodeSelector map[string]string, fldPath *field.P
 func ValidateTolerationsConfig(tolerations []corev1.Toleration, fldPath *field.Path) error {
 	// convert corev1.Tolerations to core.Tolerations, required for validation.
 	convTolerations := *(*[]core.Toleration)(unsafe.Pointer(&tolerations))
-	return corevalidation.ValidateTolerations(convTolerations, fldPath.Child("tolerations")).ToAggregate()
+	return corevalidation.ValidateTolerations(convTolerations, fldPath.Child("tolerations"), corevalidation.PodValidationOptions{}).ToAggregate()
 }
 
 // ValidateResourceRequirements validates the ResourceRequirements configuration

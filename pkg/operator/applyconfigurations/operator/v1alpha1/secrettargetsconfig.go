@@ -8,9 +8,19 @@ import (
 
 // SecretTargetsConfigApplyConfiguration represents a declarative configuration of the SecretTargetsConfig type for use
 // with apply.
+//
+// SecretTargetsConfig configures whether and how trust-manager can write
+// trust bundles to Secrets.
 type SecretTargetsConfigApplyConfiguration struct {
-	Policy            *operatorv1alpha1.SecretTargetsPolicy `json:"policy,omitempty"`
-	AuthorizedSecrets []string                              `json:"authorizedSecrets,omitempty"`
+	// policy controls whether and how trust-manager can write trust bundles to Secrets.
+	// Allowed values are "Disabled" or "Custom".
+	// "Disabled" means trust-manager cannot write trust bundles to Secrets (default behavior).
+	// "Custom" grants trust-manager read access  to all secrets cluster-wide,
+	// and write access only to the secrets listed in authorizedSecrets.
+	Policy *operatorv1alpha1.SecretTargetsPolicy `json:"policy,omitempty"`
+	// authorizedSecrets is a list of specific secret names that trust-manager
+	// is authorized to create and update. This field is only valid when policy is "Custom".
+	AuthorizedSecrets []string `json:"authorizedSecrets,omitempty"`
 }
 
 // SecretTargetsConfigApplyConfiguration constructs a declarative configuration of the SecretTargetsConfig type for use with
