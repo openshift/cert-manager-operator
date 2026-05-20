@@ -11,7 +11,7 @@ const argKeyValSeparator = "="
 // MergeContainerArgs merges source args with override values using a map that
 // tracks unique keys for each arg of the form key[=value].
 func MergeContainerArgs(sourceArgs []string, overrideArgs []string) []string {
-	destArgMap := map[string]string{}
+	destArgMap := make(map[string]string)
 	ParseArgMap(destArgMap, sourceArgs)
 	ParseArgMap(destArgMap, overrideArgs)
 

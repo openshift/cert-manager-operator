@@ -1,4 +1,4 @@
-package deployment
+package common
 
 import (
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 
-	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
@@ -64,9 +63,9 @@ func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIS
 		container := deployment.Spec.Template.Spec.Containers[0]
 		sourceArgs := container.Args
 		if effective.MinTLSVersion == configv1.VersionTLS13 {
-			sourceArgs = common.StripArgsByKeys(sourceArgs, common.ArgKeysSet(tlsprofile.CertManagerCipherSuiteArgKeys))
+			sourceArgs = StripArgsByKeys(sourceArgs, ArgKeysSet(tlsprofile.CertManagerCipherSuiteArgKeys))
 		}
-		container.Args = common.MergeContainerArgs(sourceArgs, extra)
+		container.Args = MergeContainerArgs(sourceArgs, extra)
 		deployment.Spec.Template.Spec.Containers[0] = container
 		return nil
 	}

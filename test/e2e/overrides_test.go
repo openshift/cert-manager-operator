@@ -50,7 +50,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			By("Adding cert-manager controller override args to the cert-manager operator object")
 			args := []string{
 				// good-have to sync these args updated with the args present in
-				// pkg/controller/deployment/deployment_overrides_validation.go,
+				// pkg/controller/certmanager/deployment_overrides_validation.go,
 				// so the e2e is self-aware of overrideArgs.
 
 				"--acme-http01-solver-resource-limits-cpu=150m",

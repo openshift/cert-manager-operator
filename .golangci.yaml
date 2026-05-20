@@ -130,11 +130,11 @@ linters:
         linters:
           - godot
       # Exclude false positive hardcoded credential warnings (these are paths, not credentials)
-      - path: pkg/controller/deployment/credentials_request.go
+      - path: pkg/controller/certmanager/credentials_request.go
         text: "gcpCredentialsDir|cloudCredentialsVolumeName"
         linters:
           - gosec
-      - path: pkg/controller/deployment/deployment_overrides.go
+      - path: pkg/controller/certmanager/deployment_overrides.go
         text: "boundSATokenDir"
         linters:
           - gosec
@@ -150,7 +150,7 @@ linters:
       # Exclude unparam for functions that may be part of interfaces
       - linters:
           - unparam
-        path: pkg/controller/deployment/
+        path: pkg/controller/certmanager/
   settings:
     wrapcheck:
       # Ignore errors returned from these packages - they are either internal or
