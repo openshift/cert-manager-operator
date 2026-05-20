@@ -25,11 +25,12 @@ import (
 
 func TestCreateOrApplyDeployments(t *testing.T) {
 	tests := []struct {
-		name           string
-		preReq         func(*Reconciler, *fakes.FakeCtrlClient)
-		updateIstioCSR func(*v1alpha1.IstioCSR)
-		skipEnvVar     bool
-		wantErr        string
+		name             string
+		preReq           func(*Reconciler, *fakes.FakeCtrlClient)
+		updateIstioCSR   func(*v1alpha1.IstioCSR)
+		skipEnvVar       bool
+		wantErr          string
+		wantErrSubstring bool // if true, err must contain wantErr (for k8s validation text that differs by version)
 	}{
 		{
 			name: "deployment reconciliation successful",
@@ -669,7 +670,9 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
 				i.Spec.IstioCSRConfig.NodeSelector = map[string]string{"node/Label/2": "value2"}
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2": a qualified name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]') with an optional DNS subdomain prefix and '/' (e.g. 'example.com/MyName')`,
+			// Message after Invalid value varies by Kubernetes/apimachinery (e.g. "valid label key" vs "qualified name").
+			wantErr:          `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update node selector: spec.istioCSRConfig.nodeSelector: Invalid value: "node/Label/2":`,
+			wantErrSubstring: true,
 		},
 		{
 			name: "deployment reconciliation with invalid affinity configuration",
@@ -1080,7 +1083,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 				t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", image)
 			}
 			err := r.createOrApplyDeployments(istiocsr, controllerDefaultResourceLabels, false)
-			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
+			if tt.wantErrSubstring {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("createOrApplyDeployments() err: %v, want substring: %q", err, tt.wantErr)
+				}
+			} else if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyDeployments() err: %v, wantErr: %v", err, tt.wantErr)
 			}
 			if tt.wantErr == "" {
