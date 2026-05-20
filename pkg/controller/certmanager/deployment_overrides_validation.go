@@ -16,6 +16,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
@@ -93,17 +94,17 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		switch deploymentName {
 		case certmanagerControllerDeployment:
 			if certmanager.Spec.ControllerConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.ControllerConfig.OverrideArgs)
+				common.ParseArgMap(argMap, certmanager.Spec.ControllerConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManagerArgs)
 			}
 		case certmanagerWebhookDeployment:
 			if certmanager.Spec.WebhookConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.WebhookConfig.OverrideArgs)
+				common.ParseArgMap(argMap, certmanager.Spec.WebhookConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManagerWebhookArgs)
 			}
 		case certmanagerCAinjectorDeployment:
 			if certmanager.Spec.CAInjectorConfig != nil {
-				parseArgMap(argMap, certmanager.Spec.CAInjectorConfig.OverrideArgs)
+				common.ParseArgMap(argMap, certmanager.Spec.CAInjectorConfig.OverrideArgs)
 				return validateArgs(argMap, supportedCertManageCainjectorArgs)
 			}
 		default:
@@ -303,7 +304,7 @@ func validateScheduling(scheduling v1alpha1.CertManagerScheduling, fldPath *fiel
 	// Convert corev1.Tolerations to core.Tolerations.
 	tolerations := *(*[]core.Toleration)(unsafe.Pointer(&scheduling.Tolerations))
 
-	errs = append(errs, corevalidation.ValidateTolerations(tolerations, fldPath.Child("tolerations"))...)
+	errs = append(errs, corevalidation.ValidateTolerations(tolerations, fldPath.Child("tolerations"), corevalidation.PodValidationOptions{})...)
 
 	return errs.ToAggregate()
 }

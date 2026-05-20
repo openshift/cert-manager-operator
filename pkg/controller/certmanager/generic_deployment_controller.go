@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	deploymentpkg "github.com/openshift/cert-manager-operator/pkg/controller/deployment"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
@@ -67,6 +68,9 @@ func newGenericDeploymentController(
 		))
 
 		informers = append(informers, infraInformerFactory.Config().V1().Infrastructures().Informer())
+
+		hooks = append(hooks, deploymentpkg.WithClusterTLSProfileFromAPIServer(infraInformerFactory.Config().V1().APIServers()))
+		informers = append(informers, infraInformerFactory.Config().V1().APIServers().Informer())
 	}
 
 	return deploymentcontroller.NewDeploymentController(

@@ -8,6 +8,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 // unsupportedConfigOverrides overrides the values of container args in the deployment with
@@ -17,17 +18,17 @@ func unsupportedConfigOverrides(deployment *appsv1.Deployment, unsupportedConfig
 		return deployment
 	}
 	if len(unsupportedConfigOverrides.Webhook.Args) > 0 && deployment.Name == certmanagerWebhookDeployment {
-		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
+		deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.Webhook.Args)
 	}
 	if len(unsupportedConfigOverrides.CAInjector.Args) > 0 && deployment.Name == certmanagerCAinjectorDeployment {
-		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
+		deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.CAInjector.Args)
 	}
 	if len(unsupportedConfigOverrides.Controller.Args) > 0 && deployment.Name == certmanagerControllerDeployment {
-		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
+		deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(
 			deployment.Spec.Template.Spec.Containers[0].Args,
 			unsupportedConfigOverrides.Controller.Args)
 	}

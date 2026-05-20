@@ -15,6 +15,7 @@ import (
 	"github.com/operator-framework/operator-lib/proxy"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
@@ -81,7 +82,7 @@ func withOperandImageOverrideHook(operatorSpec *operatorv1.OperatorSpec, deploym
 
 	// replace acme-http01-solver-image image from env variables
 	if len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == certmanagerControllerDeployment {
-		deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(deployment.Spec.Template.Spec.Containers[0].Args,
+		deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(deployment.Spec.Template.Spec.Containers[0].Args,
 			[]string{fmt.Sprintf("--acme-http01-solver-image=%s", certManagerImage(upstreamACMESolverImage))})
 	}
 
@@ -98,7 +99,7 @@ func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertM
 		}
 
 		if overrideArgs != nil && len(overrideArgs) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
-			deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
+			deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(
 				deployment.Spec.Template.Spec.Containers[0].Args, overrideArgs)
 			sort.Strings(deployment.Spec.Template.Spec.Containers[0].Args)
 		}
