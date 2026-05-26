@@ -73,6 +73,10 @@ var (
 	slowPollInterval = 12 * time.Second
 	highTimeout      = 10 * time.Minute
 
+	// vaultSetupTimeout covers chained setup in setupVaultServer (TLS cert, Helm, pod init)
+	// and configureVaultPKI, which can exceed highTimeout on slow CI clusters.
+	vaultSetupTimeout = 30 * time.Minute
+
 	// fastPollInterval and lowTimeout are
 	// used together in poll(s) with fast reaction and
 	// smaller timeout window.

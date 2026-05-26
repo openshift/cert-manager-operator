@@ -117,9 +117,12 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 		})
 
 		By("setting up Vault server in cluster with PKI secrets engine enabled")
+		setupCtx, setupCancel := context.WithTimeout(context.Background(), vaultSetupTimeout)
+		defer setupCancel()
+
 		vaultReleaseName := "vault-" + randomStr(4)
 		var clusterRoleBindingName string
-		vaultPodName, vaultRootToken, clusterRoleBindingName, err = setupVaultServer(ctx, cfg, loader, certmanagerClient, ns.Name, vaultReleaseName)
+		vaultPodName, vaultRootToken, clusterRoleBindingName, err = setupVaultServer(setupCtx, cfg, loader, certmanagerClient, ns.Name, vaultReleaseName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(vaultPodName).NotTo(BeEmpty())
 		Expect(vaultRootToken).NotTo(BeEmpty())
@@ -135,7 +138,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 		vaultServiceURL = fmt.Sprintf("https://%s.%s.svc:8200", vaultReleaseName, ns.Name)
 
 		By("configuring Vault PKI engine")
-		err = configureVaultPKI(ctx, cfg, loader, ns.Name, vaultPodName, vaultRootToken)
+		err = configureVaultPKI(setupCtx, cfg, loader, ns.Name, vaultPodName, vaultRootToken)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
