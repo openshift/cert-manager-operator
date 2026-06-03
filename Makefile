@@ -19,7 +19,7 @@ export XDG_CONFIG_HOME ?= $(PROJECT_ROOT)/_output/.config
 # ============================================================================
 
 # DEFAULT_VERSION is the default version to use for image tags when not set.
-DEFAULT_VERSION := 1.19.0
+DEFAULT_VERSION := 1.19.1
 
 # Helper function to validate semver (Major.Minor.Patch format)
 # Returns 'valid' if the version matches semver (X.Y.Z) or 'latest', empty string otherwise
@@ -57,7 +57,7 @@ endif
 # --- Operand Versions ---
 
 # Versions of the cert-manager components managed by this operator
-CERT_MANAGER_VERSION ?= v1.19.4
+CERT_MANAGER_VERSION ?= v1.19.5
 ISTIO_CSR_VERSION ?= v0.16.0
 TRUST_MANAGER_VERSION ?= v0.20.3
 
