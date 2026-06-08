@@ -1,13 +1,14 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21 AS builder
 
-ARG RELEASE_BRANCH=v1.19.5-0.20260406104622-b7cc730655a5
+#TODO: For testing only, change back to the original branch after testing
+ARG RELEASE_BRANCH=cm-1106-rebase-v1.19.5
 
 ARG GO_BUILD_TAGS=strictfipsruntime,openssl
 ENV GOEXPERIMENT strictfipsruntime
 ENV CGO_ENABLED 1
 
 RUN mkdir -p /go/src/github.com/cert-manager
-RUN git clone --depth 1 --branch $RELEASE_BRANCH https://github.com/openshift/jetstack-cert-manager.git /go/src/github.com/cert-manager/cert-manager
+RUN git clone --depth 1 --branch $RELEASE_BRANCH https://github.com/mytreya-rh/jetstack-cert-manager.git /go/src/github.com/cert-manager/cert-manager
 WORKDIR /go/src/github.com/cert-manager/cert-manager
 
 RUN mkdir /app
