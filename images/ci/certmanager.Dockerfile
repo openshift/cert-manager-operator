@@ -1,6 +1,6 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21 AS builder
 
-ARG RELEASE_BRANCH=v1.19.4
+ARG RELEASE_BRANCH=release-1.19
 
 ARG GO_BUILD_TAGS=strictfipsruntime,openssl
 ENV GOEXPERIMENT strictfipsruntime
@@ -33,7 +33,7 @@ RUN go mod vendor
 RUN go build -mod=vendor -tags $GO_BUILD_TAGS -o /app/_output/webhook main.go
 
 
-FROM registry.access.redhat.com/ubi9-minimal:9.4
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 COPY --from=builder /app/_output/acmesolver /app/cmd/acmesolver/acmesolver
 COPY --from=builder /app/_output/cainjector /app/cmd/cainjector/cainjector
