@@ -1,0 +1,25 @@
+---
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+spec:
+  tags:
+  - name: cert-manager-operator-rhel9
+    from:
+      kind: DockerImage
+      name: openshift.io/cert-manager-operator:latest
+  - name: jetstack-cert-manager-rhel9
+    from:
+      kind: DockerImage
+      name: quay.io/jetstack/cert-manager-controller:v1.19.4
+  - name: jetstack-cert-manager-acmesolver-rhel9
+    from:
+      kind: DockerImage
+      name: quay.io/jetstack/cert-manager-acmesolver:v1.19.4
+  - name: cert-manager-istio-csr-rhel9
+    from:
+      kind: DockerImage
+      name: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
+  - name: cert-manager-trust-manager-rhel9
+    from:
+      kind: DockerImage
+      name: quay.io/jetstack/trust-manager:v0.20.3
