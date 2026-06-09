@@ -30,7 +30,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 		updateIstioCSR   func(*v1alpha1.IstioCSR)
 		skipEnvVar       bool
 		wantErr          string
-		wantErrSubstring bool // if true, err must contain wantErr (for k8s validation text that differs by version)
+		wantErrSubstring bool
 	}{
 		{
 			name: "deployment reconciliation successful",

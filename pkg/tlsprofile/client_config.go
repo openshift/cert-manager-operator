@@ -31,6 +31,15 @@ func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tl
 	if err != nil {
 		return nil, fmt.Errorf("min TLS version: %w", err)
 	}
+	tlsConfig := &tls.Config{
+		RootCAs:            rootCAs,
+		MinVersion:         minVer,
+		CurvePreferences:   append([]tls.CurveID(nil), DefaultCurvePreferences...),
+		InsecureSkipVerify: false,
+	}
+	if minVer == tls.VersionTLS13 {
+		return tlsConfig, nil
+	}
 	iana := libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
 	if len(spec.Ciphers) > 0 && len(iana) == 0 {
 		return nil, fmt.Errorf("no cipher suites after OpenSSL→IANA mapping")
@@ -39,14 +48,8 @@ func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tl
 	if err != nil {
 		return nil, err
 	}
-	curves := append([]tls.CurveID(nil), DefaultCurvePreferences...)
-	return &tls.Config{
-		RootCAs:            rootCAs,
-		MinVersion:         minVer,
-		CipherSuites:       cipherIDs,
-		CurvePreferences:   curves,
-		InsecureSkipVerify: false,
-	}, nil
+	tlsConfig.CipherSuites = cipherIDs
+	return tlsConfig, nil
 }
 
 func cipherSuiteIDsFromIANANames(names []string) ([]uint16, error) {

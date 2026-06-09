@@ -27,7 +27,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configapiv1 "github.com/openshift/api/config/v1"
 	opv1 "github.com/openshift/api/operator/v1"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	"github.com/tidwall/gjson"
@@ -1524,6 +1526,90 @@ func httpsGetCallWithCA(ctx context.Context, url string, caCertPEM []byte) error
 	}
 
 	return nil
+}
+
+type clusterTLSProfileState struct {
+	honor     bool
+	adherence configapiv1.TLSAdherencePolicy
+	spec      *configapiv1.TLSProfileSpec
+}
+
+// getClusterTLSProfileState reads apiserver.config.openshift.io/cluster and resolves
+// whether cert-manager operands must honor the cluster TLS profile plus the effective spec.
+func getClusterTLSProfileState(ctx context.Context) (*clusterTLSProfileState, error) {
+	apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get apiserver cluster: %w", err)
+	}
+
+	adherence := apiServer.Spec.TLSAdherence
+	if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
+		return &clusterTLSProfileState{
+			honor:     false,
+			adherence: adherence,
+		}, nil
+	}
+
+	spec, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return nil, fmt.Errorf("resolve cluster TLS profile: %w", err)
+	}
+
+	return &clusterTLSProfileState{
+		honor:     true,
+		adherence: adherence,
+		spec:      spec,
+	}, nil
+}
+
+func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
+	switch deploymentName {
+	case certmanagerWebhookDeployment:
+		return tlsprofile.CertManagerWebhookTLSArgs(spec)
+	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
+		return tlsprofile.CertManagerOperandMetricsTLSArgs(spec)
+	default:
+		return nil
+	}
+}
+
+// verifyOperandTLSArgsMatchClusterProfile waits until deployment container args include
+// the TLS flags derived from the cluster profile (same mapping as the operator hook).
+func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *configapiv1.TLSProfileSpec) error {
+	expected := expectedOperandTLSArgs(deploymentName, spec)
+	if len(expected) == 0 {
+		return fmt.Errorf("unsupported deployment %q", deploymentName)
+	}
+
+	if err := verifyDeploymentArgs(k8sClientSet, deploymentName, expected, true); err != nil {
+		return fmt.Errorf("deployment %q TLS args: %w", deploymentName, err)
+	}
+
+	if spec.MinTLSVersion != configapiv1.VersionTLS13 {
+		return nil
+	}
+
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("deployment %q has no containers", deploymentName)
+		}
+
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			for _, key := range tlsprofile.CertManagerCipherSuiteArgKeys {
+				if strings.HasPrefix(arg, key+"=") {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	})
 }
 
 // isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity

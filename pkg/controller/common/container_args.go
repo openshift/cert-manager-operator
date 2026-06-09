@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 )
@@ -19,7 +18,7 @@ func MergeContainerArgs(sourceArgs []string, overrideArgs []string) []string {
 	i := 0
 	for key, val := range destArgMap {
 		if len(val) > 0 {
-			destArgs[i] = fmt.Sprintf("%s%s%s", key, argKeyValSeparator, val)
+			destArgs[i] = key + argKeyValSeparator + val
 		} else {
 			destArgs[i] = key
 		}
