@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trust-manager
+  namespace: cert-manager
+  labels:
+    app: trust-manager
+    app.kubernetes.io/name: trust-manager
+    app.kubernetes.io/instance: trust-manager
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trust-manager
+  template:
+    metadata:
+      labels:
+        app: trust-manager
+    spec:
+      serviceAccountName: trust-manager
+      containers:
+        - name: trust-manager
+          image: trust-manager:latest
+          imagePullPolicy: IfNotPresent
+          args: []
+          ports:
+            - containerPort: 6443
+              name: webhook
+              protocol: TCP
+            - containerPort: 9402
+              name: metrics
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6060
+            initialDelaySeconds: 3
+            periodSeconds: 7
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+      securityContext:
+        runAsNonRoot: true

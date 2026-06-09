@@ -23,7 +23,9 @@ var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 
 	// features DISABLED by default,
 	// list of features which are expected to be disabled at runtime.
-	false: {},
+	false: {
+		featuregate.Feature("TrustManager"),
+	},
 }
 
 func TestFeatureGates(t *testing.T) {
@@ -43,7 +45,7 @@ func TestFeatureGates(t *testing.T) {
 			knownOperatorFeatures = append(knownOperatorFeatures, feat)
 		}
 
-		assert.Equal(t, knownOperatorFeatures, testFeatureNames,
+		assert.ElementsMatch(t, knownOperatorFeatures, testFeatureNames,
 			`the list of features known to the operator differ from what is being tested here,
 			it could be that there was a new Feature added to the api which wasn't added to the tests.
 			Please verify "api/operator/v1alpha1" and "pkg/operator/features" have identical features.`)
@@ -66,8 +68,9 @@ func TestFeatureGates(t *testing.T) {
 				continue
 			}
 
-			assert.Equal(t, spec.PreRelease == "TechPreview", !spec.Default,
-				"prerelease TechPreview %q feature should default to disabled",
+			isTechPreviewOrAlpha := spec.PreRelease == "TechPreview" || spec.PreRelease == featuregate.Alpha
+			assert.Equal(t, isTechPreviewOrAlpha, !spec.Default,
+				"prerelease TechPreview/Alpha %q feature should default to disabled",
 				feat)
 		}
 	})
