@@ -1,0 +1,28 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: TrustManager
+metadata:
+  name: cluster
+spec:
+  trustManagerConfig:
+    logLevel: {{.LogLevel}}
+    logFormat: "{{.LogFormat}}"
+{{- if .TrustNamespace}}
+    trustNamespace: "{{.TrustNamespace}}"
+{{- end}}
+{{- if .FilterExpiredCertificates}}
+    filterExpiredCertificates: "{{.FilterExpiredCertificates}}"
+{{- end}}
+{{- if .SecretTargetsPolicy}}
+    secretTargets:
+      policy: "{{.SecretTargetsPolicy}}"
+{{- if .AuthorizedSecrets}}
+      authorizedSecrets:
+{{- range .AuthorizedSecrets}}
+        - "{{.}}"
+{{- end}}
+{{- end}}
+{{- end}}
+{{- if .DefaultCAPackagePolicy}}
+    defaultCAPackage:
+      policy: "{{.DefaultCAPackagePolicy}}"
+{{- end}}
