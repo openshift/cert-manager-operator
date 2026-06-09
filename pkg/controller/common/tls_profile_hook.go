@@ -36,11 +36,6 @@ func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIS
 			return fmt.Errorf("failed to get apiserver.config.openshift.io/cluster: %w", err)
 		}
 
-		effective, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
-		if err != nil {
-			return err
-		}
-
 		adherence := apiServer.Spec.TLSAdherence
 		if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
 			klog.V(4).Infof("skipping cluster TLS profile for deployment %s: apiserver tlsAdherence=%q", deployment.Name, adherence)
@@ -48,6 +43,13 @@ func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIS
 		}
 		if adherence != configv1.TLSAdherencePolicyStrictAllComponents {
 			klog.Warningf("apiserver.config.openshift.io/cluster has unknown tlsAdherence %q; treating as StrictAllComponents for cert-manager operands", adherence)
+		}
+
+		// Resolve TLSSecurityProfile only after tlsAdherence confirms this operand
+		// must honor the cluster profile; invalid profile settings are irrelevant when skipped.
+		effective, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+		if err != nil {
+			return err
 		}
 
 		var extra []string

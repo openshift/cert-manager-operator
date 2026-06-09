@@ -255,6 +255,22 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 			expectError: true,
 		},
 		{
+			name: "webhook ignores invalid TLS profile when tlsAdherence is LegacyAdheringComponentsOnly",
+			tlsProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileType("BadType"),
+			},
+			tlsAdherence:   configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			deploymentName: certmanagerWebhookDeployment,
+			containerCount: 1,
+			existingArgs: []string{
+				"--v=2",
+			},
+			expectedArgs: []string{
+				"--v=2",
+			},
+			expectError: false,
+		},
+		{
 			name: "webhook does not get cluster TLS flags when tlsAdherence is LegacyAdheringComponentsOnly",
 			tlsProfile: &configv1.TLSSecurityProfile{
 				Type: configv1.TLSProfileIntermediateType,
