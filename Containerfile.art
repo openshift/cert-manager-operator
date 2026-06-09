@@ -6,7 +6,7 @@ WORKDIR $SOURCE_DIR
 COPY . $SOURCE_DIR
 COPY LICENSE /licenses/
 
-RUN make build --warn-undefined-variables
+RUN make build-operator --warn-undefined-variables
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
