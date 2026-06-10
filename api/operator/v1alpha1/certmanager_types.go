@@ -22,6 +22,7 @@ type CertManagerSpec struct {
 	//   - "--acme-http01-solver-nameservers="8.8.8.8:53,1.1.1.1:53"
 	//   - "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53"
 	//   - "--dns01-recursive-nameservers-only"
+	//   - "--certificate-request-minimum-backoff-duration=30m"
 	//
 	// For OverrideEnvs,
 	// This field appends values to .spec.template.spec.containers[...].env. The container
