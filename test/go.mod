@@ -22,6 +22,7 @@ require (
 	github.com/openshift/api v0.0.0-20260423140559-e9fad7d4cba1
 	github.com/openshift/cert-manager-operator v0.0.0-00010101000000-000000000000
 	github.com/openshift/client-go v0.0.0-20260330134249-7e1499aaacd7
+	github.com/openshift/library-go v0.0.0-20260429151228-ecbc792a4313
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
 	github.com/vmware-archive/yaml-patch v0.0.11
@@ -101,7 +102,6 @@ require (
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/openshift/library-go v0.0.0-20260429151228-ecbc792a4313 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
