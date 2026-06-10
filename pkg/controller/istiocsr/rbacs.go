@@ -116,6 +116,12 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	if !exist {
+		// Status may still reference a prior generated name after external deletion;
+		// recreate with that stable name so clients and e2e tests can rely on it.
+		useStableRBACNameForRecreate(desired, istiocsr.Status.ClusterRole)
+		if desired.GetName() != "" {
+			roleName = fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+		}
 		if err := r.Create(r.ctx, desired); err != nil {
 			return "", common.FromClientError(err, "failed to create %s clusterrole resource", roleName)
 		}
@@ -138,6 +144,16 @@ func (r *Reconciler) getClusterRoleObject(istioCSRNamespace string, resourceLabe
 func updateToUseGenerateName(obj client.Object) {
 	obj.SetName("")
 	obj.SetGenerateName("cert-manager-istio-csr-")
+}
+
+// useStableRBACNameForRecreate pins the object name when status already records one
+// but the live resource was deleted; initial install still uses GenerateName.
+func useStableRBACNameForRecreate(obj client.Object, statusName string) {
+	if statusName == "" {
+		return
+	}
+	obj.SetName(statusName)
+	obj.SetGenerateName("")
 }
 
 func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, desired, existing *rbacv1.ClusterRole) (string, error) {
@@ -214,6 +230,10 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 	}
 
 	if !exist {
+		useStableRBACNameForRecreate(desired, istiocsr.Status.ClusterRoleBinding)
+		if desired.GetName() != "" {
+			roleBindingName = fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+		}
 		if err := r.Create(r.ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s clusterrolebinding resource", roleBindingName)
 		}
