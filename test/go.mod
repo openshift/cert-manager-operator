@@ -156,4 +156,4 @@ require (
 
 replace github.com/openshift/cert-manager-operator => ../
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.5-0.20260609123647-f1bffb5baa29
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.5-0.20260610160211-8f1ff9a3f6e7
