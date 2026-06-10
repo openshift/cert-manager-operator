@@ -47,7 +47,6 @@ func newGenericDeploymentController(
 		withContainerResourcesValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
 		withPodSchedulingOverrideHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name, getOverrideSchedulingFor),
 		withPodSchedulingValidateHook(certManagerOperatorInformers.Operator().V1alpha1().CertManagers(), deployment.Name),
-		withUnsupportedArgsOverrideHook,
 		withCAConfigMap(kubeInformersForTargetNamespace.Core().V1().ConfigMaps(), deployment, trustedCAConfigmapName),
 		withSABoundToken,
 	}
@@ -72,6 +71,9 @@ func newGenericDeploymentController(
 		hooks = append(hooks, common.WithClusterTLSProfileFromAPIServer(infraInformerFactory.Config().V1().APIServers()))
 		informers = append(informers, infraInformerFactory.Config().V1().APIServers().Informer())
 	}
+
+	// unsupportedConfigOverrides must run after cluster TLS so break-glass operand args win.
+	hooks = append(hooks, withUnsupportedArgsOverrideHook)
 
 	return deploymentcontroller.NewDeploymentController(
 		controllerName,
