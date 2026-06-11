@@ -109,9 +109,9 @@ func TestUnsupportedConfigOverridesWinOverClusterTLSProfile(t *testing.T) {
 				},
 			},
 			wantTLSArgs: map[string]string{
-				"--tls-min-version":         "VersionTLS10",
-				"--tls-cipher-suites":       "CUSTOM_MAIN",
-				"--metrics-tls-min-version": "VersionTLS10",
+				"--tls-min-version":           "VersionTLS10",
+				"--tls-cipher-suites":         "CUSTOM_MAIN",
+				"--metrics-tls-min-version":   "VersionTLS10",
 				"--metrics-tls-cipher-suites": "CUSTOM_METRICS",
 			},
 		},
@@ -167,7 +167,7 @@ func TestUnsupportedConfigOverridesWinOverClusterTLSProfile(t *testing.T) {
 			wantTLSArgs: map[string]string{
 				"--tls-min-version":           "VersionTLS13",
 				"--metrics-tls-min-version":   "VersionTLS13",
-				"--tls-cipher-suites":           "CUSTOM_MAIN",
+				"--tls-cipher-suites":         "CUSTOM_MAIN",
 				"--metrics-tls-cipher-suites": "CUSTOM_METRICS",
 			},
 		},
