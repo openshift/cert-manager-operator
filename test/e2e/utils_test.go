@@ -1934,7 +1934,9 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	// Create Helm installer pod
 	helmCmd := fmt.Sprintf("helm install %s ./vault -n %s --values /helm/custom-values.yaml", releaseName, namespace)
 
-	privileged := true
+	allowPrivilegeEscalation := false
+	runAsNonRoot := true
+	privileged := false
 	installerPodName := "vault-installer"
 	helmPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1957,7 +1959,12 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						Privileged: &privileged,
+						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+						RunAsNonRoot:             &runAsNonRoot,
+						Privileged:               &privileged,
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 				},
 			},
