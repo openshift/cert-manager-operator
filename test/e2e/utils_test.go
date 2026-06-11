@@ -29,7 +29,6 @@ import (
 	. "github.com/onsi/gomega"
 	configapiv1 "github.com/openshift/api/config/v1"
 	opv1 "github.com/openshift/api/operator/v1"
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
 	"github.com/tidwall/gjson"
@@ -1528,38 +1527,71 @@ func httpsGetCallWithCA(ctx context.Context, url string, caCertPEM []byte) error
 	return nil
 }
 
-type clusterTLSProfileState struct {
-	honor     bool
-	adherence configapiv1.TLSAdherencePolicy
-	spec      *configapiv1.TLSProfileSpec
+type apiserverTLSConfig struct {
+	tlsProfile *configapiv1.TLSSecurityProfile
+	adherence  configapiv1.TLSAdherencePolicy
 }
 
-// getClusterTLSProfileState reads apiserver.config.openshift.io/cluster and resolves
-// whether cert-manager operands must honor the cluster TLS profile plus the effective spec.
-func getClusterTLSProfileState(ctx context.Context) (*clusterTLSProfileState, error) {
+// getClusterAPIServerTLSConfig returns the current apiserver.config.openshift.io/cluster TLS settings.
+func getClusterAPIServerTLSConfig(ctx context.Context) (*apiserverTLSConfig, error) {
 	apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("get apiserver cluster: %w", err)
+		return nil, err
 	}
 
-	adherence := apiServer.Spec.TLSAdherence
-	if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
-		return &clusterTLSProfileState{
-			honor:     false,
-			adherence: adherence,
-		}, nil
+	cfg := &apiserverTLSConfig{
+		adherence: apiServer.Spec.TLSAdherence,
+	}
+	if apiServer.Spec.TLSSecurityProfile != nil {
+		cfg.tlsProfile = apiServer.Spec.TLSSecurityProfile.DeepCopy()
+	}
+	return cfg, nil
+}
+
+// updateClusterAPIServerTLSConfig patches apiserver.config.openshift.io/cluster TLS settings.
+func updateClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.TLSSecurityProfile, adherence configapiv1.TLSAdherencePolicy) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updated := apiServer.DeepCopy()
+		if profile != nil {
+			updated.Spec.TLSSecurityProfile = profile.DeepCopy()
+		} else {
+			updated.Spec.TLSSecurityProfile = nil
+		}
+		updated.Spec.TLSAdherence = adherence
+
+		_, err = configClient.APIServers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// restoreClusterAPIServerTLSConfig reverts apiserver TLS settings captured before a test mutation.
+// tlsAdherence cannot be removed once set, so an originally unset value is restored to the
+// platform default LegacyAdheringComponentsOnly.
+func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTLSConfig) error {
+	if original == nil {
+		return nil
 	}
 
-	spec, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
-	if err != nil {
-		return nil, fmt.Errorf("resolve cluster TLS profile: %w", err)
+	adherence := original.adherence
+	if adherence == configapiv1.TLSAdherencePolicyNoOpinion {
+		adherence = configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly
 	}
+	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
+}
 
-	return &clusterTLSProfileState{
-		honor:     true,
-		adherence: adherence,
-		spec:      spec,
-	}, nil
+func isTLSAdherenceUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "tlsadherence")
 }
 
 func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
