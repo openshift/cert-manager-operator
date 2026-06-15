@@ -9,13 +9,21 @@ import (
 
 // TrustManagerStatusApplyConfiguration represents a declarative configuration of the TrustManagerStatus type for use
 // with apply.
+//
+// TrustManagerStatus defines the observed state of TrustManager.
 type TrustManagerStatusApplyConfiguration struct {
+	// conditions holds information about the current state of the trust-manager deployment.
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
-	TrustManagerImage                   *string                                           `json:"trustManagerImage,omitempty"`
-	TrustNamespace                      *string                                           `json:"trustNamespace,omitempty"`
-	SecretTargetsPolicy                 *operatorv1alpha1.SecretTargetsPolicy             `json:"secretTargetsPolicy,omitempty"`
-	DefaultCAPackagePolicy              *operatorv1alpha1.DefaultCAPackagePolicy          `json:"defaultCAPackagePolicy,omitempty"`
-	FilterExpiredCertificatesPolicy     *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
+	// trustManagerImage is the container image (name:tag) used for trust-manager.
+	TrustManagerImage *string `json:"trustManagerImage,omitempty"`
+	// trustNamespace is the namespace where trust-manager looks for trust sources.
+	TrustNamespace *string `json:"trustNamespace,omitempty"`
+	// secretTargetsPolicy indicates the current secret targets policy.
+	SecretTargetsPolicy *operatorv1alpha1.SecretTargetsPolicy `json:"secretTargetsPolicy,omitempty"`
+	// defaultCAPackagePolicy indicates the current default CA package policy.
+	DefaultCAPackagePolicy *operatorv1alpha1.DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
+	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
+	FilterExpiredCertificatesPolicy *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
 }
 
 // TrustManagerStatusApplyConfiguration constructs a declarative configuration of the TrustManagerStatus type for use with

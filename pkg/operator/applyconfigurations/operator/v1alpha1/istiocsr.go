@@ -13,11 +13,20 @@ import (
 
 // IstioCSRApplyConfiguration represents a declarative configuration of the IstioCSR type for use
 // with apply.
+//
+// IstioCSR describes the configuration and information about the managed istio-csr agent.
+// The name must be `default` to make IstioCSR a singleton that is, to allow only one instance of IstioCSR per namespace.
+//
+// When an IstioCSR is created, istio-csr agent is deployed in the IstioCSR-created namespace.
 type IstioCSRApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration `json:",inline"`
+	// metadata is the standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *IstioCSRSpecApplyConfiguration   `json:"spec,omitempty"`
-	Status                           *IstioCSRStatusApplyConfiguration `json:"status,omitempty"`
+	// spec is the specification of the desired behavior of the IstioCSR.
+	Spec *IstioCSRSpecApplyConfiguration `json:"spec,omitempty"`
+	// status is the most recently observed status of the IstioCSR.
+	Status *IstioCSRStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // IstioCSR constructs a declarative configuration of the IstioCSR type for use with
@@ -31,29 +40,14 @@ func IstioCSR(name, namespace string) *IstioCSRApplyConfiguration {
 	return b
 }
 
-// ExtractIstioCSR extracts the applied configuration owned by fieldManager from
-// istioCSR. If no managedFields are found in istioCSR for fieldManager, a
-// IstioCSRApplyConfiguration is returned with only the Name, Namespace (if applicable),
-// APIVersion and Kind populated. It is possible that no managed fields were found for because other
-// field managers have taken ownership of all the fields previously owned by fieldManager, or because
-// the fieldManager never owned fields any fields.
+// ExtractIstioCSRFrom extracts the applied configuration owned by fieldManager from
+// istioCSR for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
 // istioCSR must be a unmodified IstioCSR API object that was retrieved from the Kubernetes API.
-// ExtractIstioCSR provides a way to perform a extract/modify-in-place/apply workflow.
+// ExtractIstioCSRFrom provides a way to perform a extract/modify-in-place/apply workflow.
 // Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
-// Experimental!
-func ExtractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
-	return extractIstioCSR(istioCSR, fieldManager, "")
-}
-
-// ExtractIstioCSRStatus is the same as ExtractIstioCSR except
-// that it extracts the status subresource applied configuration.
-// Experimental!
-func ExtractIstioCSRStatus(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
-	return extractIstioCSR(istioCSR, fieldManager, "status")
-}
-
-func extractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string, subresource string) (*IstioCSRApplyConfiguration, error) {
+func ExtractIstioCSRFrom(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string, subresource string) (*IstioCSRApplyConfiguration, error) {
 	b := &IstioCSRApplyConfiguration{}
 	err := managedfields.ExtractInto(istioCSR, internal.Parser().Type("com.github.openshift.cert-manager-operator.api.operator.v1alpha1.IstioCSR"), fieldManager, b, subresource)
 	if err != nil {
@@ -66,6 +60,27 @@ func extractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string, s
 	b.WithAPIVersion("operator.openshift.io/v1alpha1")
 	return b, nil
 }
+
+// ExtractIstioCSR extracts the applied configuration owned by fieldManager from
+// istioCSR. If no managedFields are found in istioCSR for fieldManager, a
+// IstioCSRApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// istioCSR must be a unmodified IstioCSR API object that was retrieved from the Kubernetes API.
+// ExtractIstioCSR provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractIstioCSR(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
+	return ExtractIstioCSRFrom(istioCSR, fieldManager, "")
+}
+
+// ExtractIstioCSRStatus extracts the applied configuration owned by fieldManager from
+// istioCSR for the status subresource.
+func ExtractIstioCSRStatus(istioCSR *operatorv1alpha1.IstioCSR, fieldManager string) (*IstioCSRApplyConfiguration, error) {
+	return ExtractIstioCSRFrom(istioCSR, fieldManager, "status")
+}
+
 func (b IstioCSRApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value

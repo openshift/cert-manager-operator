@@ -4,7 +4,12 @@ package v1alpha1
 
 // ControllerConfigApplyConfiguration represents a declarative configuration of the ControllerConfig type for use
 // with apply.
+//
+// ControllerConfig configures the controller for setting up defaults to
+// enable the istio-csr agent.
 type ControllerConfigApplyConfiguration struct {
+	// labels to apply to all resources created for the istio-csr agent deployment.
+	// This field can have a maximum of 20 entries.
 	Labels map[string]string `json:"labels,omitempty"`
 }
 

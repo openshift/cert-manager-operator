@@ -9,10 +9,23 @@ import (
 
 // NetworkPolicyApplyConfiguration represents a declarative configuration of the NetworkPolicy type for use
 // with apply.
+//
+// NetworkPolicy represents a custom network policy configuration for operator-managed components.
+// It includes a name for identification and the network policy rules to be enforced.
 type NetworkPolicyApplyConfiguration struct {
-	Name          *string                         `json:"name,omitempty"`
+	// Name is a unique identifier for this network policy configuration.
+	// This name will be used as part of the generated NetworkPolicy resource name.
+	Name *string `json:"name,omitempty"`
+	// ComponentName represents the different cert-manager components that can have network policies applied.
 	ComponentName *operatorv1alpha1.ComponentName `json:"componentName,omitempty"`
-	Egress        []v1.NetworkPolicyEgressRule    `json:"egress,omitempty"`
+	// egress is a list of egress rules to be applied to the selected pods. Outgoing traffic
+	// is allowed if there are no NetworkPolicies selecting the pod (and cluster policy
+	// otherwise allows the traffic), OR if the traffic matches at least one egress rule
+	// across all of the NetworkPolicy objects whose podSelector matches the pod. If
+	// this field is empty then this NetworkPolicy limits all outgoing traffic (and serves
+	// solely to ensure that the pods it selects are isolated by default).
+	// The operator will automatically handle ingress rules based on the current running ports.
+	Egress []v1.NetworkPolicyEgressRule `json:"egress,omitempty"`
 }
 
 // NetworkPolicyApplyConfiguration constructs a declarative configuration of the NetworkPolicy type for use with

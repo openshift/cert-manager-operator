@@ -10,7 +10,7 @@ injector:
 server:
   image:
     repository: "docker.io/hashicorp/vault"
-    tag: "latest"
+    tag: "1.17.2"
   dataStorage:
     enabled: true
     size: 1Gi

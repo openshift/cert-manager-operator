@@ -8,13 +8,21 @@ import (
 
 // IstioCSRStatusApplyConfiguration represents a declarative configuration of the IstioCSRStatus type for use
 // with apply.
+//
+// IstioCSRStatus is the most recently observed status of the IstioCSR.
 type IstioCSRStatusApplyConfiguration struct {
+	// conditions holds information about the current state of the istio-csr agent deployment.
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
-	IstioCSRImage                       *string `json:"istioCSRImage,omitempty"`
-	IstioCSRGRPCEndpoint                *string `json:"istioCSRGRPCEndpoint,omitempty"`
-	ServiceAccount                      *string `json:"serviceAccount,omitempty"`
-	ClusterRole                         *string `json:"clusterRole,omitempty"`
-	ClusterRoleBinding                  *string `json:"clusterRoleBinding,omitempty"`
+	// istioCSRImage is the name of the image and the tag used for deploying istio-csr.
+	IstioCSRImage *string `json:"istioCSRImage,omitempty"`
+	// istioCSRGRPCEndpoint is the service endpoint of istio-csr, made available for users to configure in the istiod config to enable Istio to use istio-csr for certificate requests.
+	IstioCSRGRPCEndpoint *string `json:"istioCSRGRPCEndpoint,omitempty"`
+	// serviceAccount created by the controller for the istio-csr agent.
+	ServiceAccount *string `json:"serviceAccount,omitempty"`
+	// clusterRole created by the controller for the istio-csr agent.
+	ClusterRole *string `json:"clusterRole,omitempty"`
+	// clusterRoleBinding created by the controller for the istio-csr agent.
+	ClusterRoleBinding *string `json:"clusterRoleBinding,omitempty"`
 }
 
 // IstioCSRStatusApplyConfiguration constructs a declarative configuration of the IstioCSRStatus type for use with

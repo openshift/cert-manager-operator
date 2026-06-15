@@ -8,11 +8,11 @@ require (
 	github.com/google/go-jsonnet v0.21.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.1
 	github.com/onsi/ginkgo/v2 v2.27.5
-	github.com/openshift/api v0.0.0-20260105191300-d1c4dc4fd37b
+	github.com/openshift/api v0.0.0-20260423140559-e9fad7d4cba1
 	github.com/openshift/build-machinery-go v0.0.0-20251023084048-5d77c1a5e5af
 	golang.org/x/tools v0.41.0
 	golang.org/x/vuln v1.1.4
-	k8s.io/code-generator v0.34.4
+	k8s.io/code-generator v0.35.1
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20250308055145-5fe7bb3edc86
 	sigs.k8s.io/controller-tools v0.19.0
 	sigs.k8s.io/kustomize/kustomize/v5 v5.7.1
@@ -277,9 +277,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
-	k8s.io/api v0.34.4 // indirect
-	k8s.io/apiextensions-apiserver v0.34.4 // indirect
-	k8s.io/apimachinery v0.34.4 // indirect
+	k8s.io/api v0.35.1 // indirect
+	k8s.io/apiextensions-apiserver v0.35.1 // indirect
+	k8s.io/apimachinery v0.35.1 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect

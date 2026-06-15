@@ -636,6 +636,49 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			},
 			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
 		},
+		{
+			name: "clusterrole reconciliation recreates with stable name from status when deleted",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch object.(type) {
+					case *rbacv1.ClusterRole:
+						return false, nil
+					}
+					return true, nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr-9hncv"
+			},
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleCreateUsesStableName(t, m, "cert-manager-istio-csr-9hncv")
+			},
+		},
+		{
+			name: "clusterrolebindings reconciliation recreates with stable name from status when deleted",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
+					switch o := object.(type) {
+					case *rbacv1.ClusterRole:
+						cr := testClusterRole()
+						cr.SetName("cert-manager-istio-csr-9hncv")
+						cr.DeepCopyInto(o)
+						return true, nil
+					case *rbacv1.ClusterRoleBinding:
+						return false, nil
+					}
+					return true, nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.ClusterRole = "cert-manager-istio-csr-9hncv"
+				i.Status.ClusterRoleBinding = "cert-manager-istio-csr-dfkhk"
+			},
+			wantClusterRoleBindingName: "cert-manager-istio-csr-dfkhk",
+			postAssert: func(t *testing.T, m *fakes.FakeCtrlClient) {
+				assertClusterRoleBindingCreateUsesStableName(t, m, "cert-manager-istio-csr-dfkhk")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -690,6 +733,50 @@ func assertClusterRoleBindingUpdateUsesLiveName(t *testing.T, m *fakes.FakeCtrlC
 	}
 	if crbUpdates == 0 {
 		t.Fatalf("expected at least one UpdateWithRetry for ClusterRoleBinding with live name set, got 0")
+	}
+}
+
+// assertClusterRoleCreateUsesStableName checks a deleted ClusterRole is recreated using
+// the name recorded in IstioCSR status rather than a new GenerateName suffix.
+func assertClusterRoleCreateUsesStableName(t *testing.T, m *fakes.FakeCtrlClient, wantName string) {
+	t.Helper()
+	var crCreates int
+	for i := 0; i < m.CreateCallCount(); i++ {
+		_, obj, _ := m.CreateArgsForCall(i)
+		if cr, ok := obj.(*rbacv1.ClusterRole); ok {
+			crCreates++
+			if cr.GetName() != wantName {
+				t.Errorf("ClusterRole Create: want metadata.name %q, got %q", wantName, cr.GetName())
+			}
+			if cr.GetGenerateName() != "" {
+				t.Errorf("ClusterRole Create: want empty generateName, got %q", cr.GetGenerateName())
+			}
+		}
+	}
+	if crCreates == 0 {
+		t.Fatalf("expected Create on ClusterRole for stable-name recreation, got 0")
+	}
+}
+
+// assertClusterRoleBindingCreateUsesStableName checks a deleted ClusterRoleBinding is recreated
+// using the name recorded in IstioCSR status.
+func assertClusterRoleBindingCreateUsesStableName(t *testing.T, m *fakes.FakeCtrlClient, wantName string) {
+	t.Helper()
+	var crbCreates int
+	for i := 0; i < m.CreateCallCount(); i++ {
+		_, obj, _ := m.CreateArgsForCall(i)
+		if crb, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+			crbCreates++
+			if crb.GetName() != wantName {
+				t.Errorf("ClusterRoleBinding Create: want metadata.name %q, got %q", wantName, crb.GetName())
+			}
+			if crb.GetGenerateName() != "" {
+				t.Errorf("ClusterRoleBinding Create: want empty generateName, got %q", crb.GetGenerateName())
+			}
+		}
+	}
+	if crbCreates == 0 {
+		t.Fatalf("expected Create on ClusterRoleBinding for stable-name recreation, got 0")
 	}
 }
 

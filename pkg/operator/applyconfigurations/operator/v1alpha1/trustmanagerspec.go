@@ -4,9 +4,14 @@ package v1alpha1
 
 // TrustManagerSpecApplyConfiguration represents a declarative configuration of the TrustManagerSpec type for use
 // with apply.
+//
+// TrustManagerSpec defines the desired state of TrustManager.
+// Note: trust-manager operand is always deployed in the cert-manager namespace.
 type TrustManagerSpecApplyConfiguration struct {
-	TrustManagerConfig *TrustManagerConfigApplyConfiguration           `json:"trustManagerConfig,omitempty"`
-	ControllerConfig   *TrustManagerControllerConfigApplyConfiguration `json:"controllerConfig,omitempty"`
+	// trustManagerConfig configures the trust-manager operand's behavior.
+	TrustManagerConfig *TrustManagerConfigApplyConfiguration `json:"trustManagerConfig,omitempty"`
+	// controllerConfig configures the operator's behavior for resource creation.
+	ControllerConfig *TrustManagerControllerConfigApplyConfiguration `json:"controllerConfig,omitempty"`
 }
 
 // TrustManagerSpecApplyConfiguration constructs a declarative configuration of the TrustManagerSpec type for use with

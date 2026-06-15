@@ -8,14 +8,30 @@ import (
 
 // IstiodTLSConfigApplyConfiguration represents a declarative configuration of the IstiodTLSConfig type for use
 // with apply.
+//
+// IstiodTLSConfig is for configuring istiod certificate specifics.
 type IstiodTLSConfigApplyConfiguration struct {
-	CommonName             *string      `json:"commonName,omitempty"`
-	TrustDomain            *string      `json:"trustDomain,omitempty"`
-	CertificateDNSNames    []string     `json:"certificateDNSNames,omitempty"`
-	CertificateDuration    *v1.Duration `json:"certificateDuration,omitempty"`
+	// commonName is the common name to be set in the cert-manager.io Certificate created for istiod.
+	// The commonName will be of the form istiod.<istio_namespace>.svc when not set.
+	// This field can have a maximum of 64 characters.
+	CommonName *string `json:"commonName,omitempty"`
+	// trustDomain is the Istio cluster's trust domain, which will also be used for deriving the SPIFFE URI.
+	// This field can have a maximum of 63 characters.
+	TrustDomain *string `json:"trustDomain,omitempty"`
+	// certificateDNSNames contains the additional DNS names to be added to the istiod certificate SAN.
+	// This field can have a maximum of 25 entries.
+	CertificateDNSNames []string `json:"certificateDNSNames,omitempty"`
+	// certificateDuration is the validity period for the istio-csr and istiod certificates.
+	CertificateDuration *v1.Duration `json:"certificateDuration,omitempty"`
+	// certificateRenewBefore is the time before expiry to renew the istio-csr and istiod certificates.
 	CertificateRenewBefore *v1.Duration `json:"certificateRenewBefore,omitempty"`
-	PrivateKeySize         *int32       `json:"privateKeySize,omitempty"`
-	PrivateKeyAlgorithm    *string      `json:"privateKeyAlgorithm,omitempty"`
+	// privateKeySize is the key size for the istio-csr and istiod certificates. Allowed values when privateKeyAlgorithm is RSA are 2048, 4096, 8192; and for ECDSA, they are 256, 384.
+	// This field is immutable once set.
+	PrivateKeySize *int32 `json:"privateKeySize,omitempty"`
+	// privateKeyAlgorithm is the algorithm to use when generating private keys. Allowed values are RSA, and ECDSA.
+	// This field is immutable once set.
+	PrivateKeyAlgorithm *string `json:"privateKeyAlgorithm,omitempty"`
+	// MaxCertificateDuration is the maximum validity duration that can be requested for a certificate.
 	MaxCertificateDuration *v1.Duration `json:"maxCertificateDuration,omitempty"`
 }
 

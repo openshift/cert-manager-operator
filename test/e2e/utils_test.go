@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	cryptorand "crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"embed"
 	"encoding/hex"
@@ -28,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configapiv1 "github.com/openshift/api/config/v1"
 	opv1 "github.com/openshift/api/operator/v1"
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	operatorv1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1"
@@ -35,6 +35,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -72,6 +73,14 @@ var (
 
 	slowPollInterval = 12 * time.Second
 	highTimeout      = 10 * time.Minute
+
+	// vaultSetupTimeout covers chained setup in setupVaultServer (TLS cert, Helm, pod init)
+	// and configureVaultPKI, which can exceed highTimeout on slow CI clusters.
+	vaultSetupTimeout = 30 * time.Minute
+
+	// vaultPodStartTimeout is the per-step wait for the Vault server pod after Helm install.
+	// Image pulls and PVC binding on CI often exceed the previous 3m default.
+	vaultPodStartTimeout = 10 * time.Minute
 
 	// fastPollInterval and lowTimeout are
 	// used together in poll(s) with fast reaction and
@@ -1467,21 +1476,29 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
-// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate
-func httpsGetCallWithCA(url string, caCertPEM []byte) error {
-	// Create a certificate pool and add the CA cert
+// httpsGetCallWithCA performs an HTTPS GET request with custom CA certificate.
+// The client's minimum TLS version, cipher suites, and curve preferences match
+// apiserver.config.openshift.io/cluster spec.tlsSecurityProfile (via
+// pkg/tlsprofile), consistent with cluster-wide TLS policy.
+func httpsGetCallWithCA(ctx context.Context, url string, caCertPEM []byte) error {
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCertPEM) {
 		return fmt.Errorf("failed to parse CA certificate")
 	}
 
-	// Create TLS config with custom CA
-	tlsConfig := &tls.Config{
-		RootCAs:    caCertPool,
-		MinVersion: tls.VersionTLS13,
+	apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get apiserver cluster: %w", err)
+	}
+	spec, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return fmt.Errorf("resolve cluster TLS profile: %w", err)
+	}
+	tlsConfig, err := tlsprofile.ClientTLSConfig(spec, caCertPool)
+	if err != nil {
+		return fmt.Errorf("build TLS client config from cluster profile: %w", err)
 	}
 
-	// Create HTTP client with custom TLS config
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
@@ -1508,6 +1525,123 @@ func httpsGetCallWithCA(url string, caCertPEM []byte) error {
 	}
 
 	return nil
+}
+
+type apiserverTLSConfig struct {
+	tlsProfile *configapiv1.TLSSecurityProfile
+	adherence  configapiv1.TLSAdherencePolicy
+}
+
+// getClusterAPIServerTLSConfig returns the current apiserver.config.openshift.io/cluster TLS settings.
+func getClusterAPIServerTLSConfig(ctx context.Context) (*apiserverTLSConfig, error) {
+	apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &apiserverTLSConfig{
+		adherence: apiServer.Spec.TLSAdherence,
+	}
+	if apiServer.Spec.TLSSecurityProfile != nil {
+		cfg.tlsProfile = apiServer.Spec.TLSSecurityProfile.DeepCopy()
+	}
+	return cfg, nil
+}
+
+// updateClusterAPIServerTLSConfig patches apiserver.config.openshift.io/cluster TLS settings.
+func updateClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.TLSSecurityProfile, adherence configapiv1.TLSAdherencePolicy) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updated := apiServer.DeepCopy()
+		if profile != nil {
+			updated.Spec.TLSSecurityProfile = profile.DeepCopy()
+		} else {
+			updated.Spec.TLSSecurityProfile = nil
+		}
+		updated.Spec.TLSAdherence = adherence
+
+		_, err = configClient.APIServers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+// restoreClusterAPIServerTLSConfig reverts apiserver TLS settings captured before a test mutation.
+// tlsAdherence cannot be removed once set, so an originally unset value is restored to the
+// platform default LegacyAdheringComponentsOnly.
+func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTLSConfig) error {
+	if original == nil {
+		return nil
+	}
+
+	adherence := original.adherence
+	if adherence == configapiv1.TLSAdherencePolicyNoOpinion {
+		adherence = configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly
+	}
+	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
+}
+
+func isTLSAdherenceUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "tlsadherence")
+}
+
+func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
+	switch deploymentName {
+	case certmanagerWebhookDeployment:
+		return tlsprofile.CertManagerWebhookTLSArgs(spec)
+	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
+		return tlsprofile.CertManagerOperandMetricsTLSArgs(spec)
+	default:
+		return nil
+	}
+}
+
+// verifyOperandTLSArgsMatchClusterProfile waits until deployment container args include
+// the TLS flags derived from the cluster profile (same mapping as the operator hook).
+func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *configapiv1.TLSProfileSpec) error {
+	expected := expectedOperandTLSArgs(deploymentName, spec)
+	if len(expected) == 0 {
+		return fmt.Errorf("unsupported deployment %q", deploymentName)
+	}
+
+	if err := verifyDeploymentArgs(k8sClientSet, deploymentName, expected, true); err != nil {
+		return fmt.Errorf("deployment %q TLS args: %w", deploymentName, err)
+	}
+
+	if spec.MinTLSVersion != configapiv1.VersionTLS13 {
+		return nil
+	}
+
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("deployment %q has no containers", deploymentName)
+		}
+
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			for _, key := range tlsprofile.CertManagerCipherSuiteArgKeys {
+				if strings.HasPrefix(arg, key+"=") {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	})
 }
 
 // isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
@@ -1726,6 +1860,36 @@ EOF`
 	return nil
 }
 
+// formatVaultPodsStatus returns a human-readable summary of Vault-labeled pods for CI logs.
+func formatVaultPodsStatus(pods []corev1.Pod) string {
+	if len(pods) == 0 {
+		return "no pods found with label app.kubernetes.io/name=vault"
+	}
+	var b strings.Builder
+	for _, pod := range pods {
+		fmt.Fprintf(&b, "pod=%s phase=%s", pod.Name, pod.Status.Phase)
+		for _, cs := range pod.Status.ContainerStatuses {
+			fmt.Fprintf(&b, " container=%s", cs.Name)
+			switch {
+			case cs.State.Running != nil:
+				b.WriteString(" state=running")
+			case cs.State.Waiting != nil:
+				fmt.Fprintf(&b, " state=waiting reason=%s message=%q", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+			case cs.State.Terminated != nil:
+				fmt.Fprintf(&b, " state=terminated reason=%s exitCode=%d message=%q",
+					cs.State.Terminated.Reason, cs.State.Terminated.ExitCode, cs.State.Terminated.Message)
+			}
+		}
+		for _, cond := range pod.Status.Conditions {
+			if cond.Status != corev1.ConditionTrue {
+				fmt.Fprintf(&b, " condition=%s:%s:%s", cond.Type, cond.Status, cond.Message)
+			}
+		}
+		b.WriteString("; ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
 // setupVaultServer deploys and initializes a Vault server using Helm.
 // This is more maintainable than custom StatefulSet logic.
 // It returns the pod name, root token, ClusterRoleBinding name, and any error encountered.
@@ -1802,7 +1966,10 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	// Create Helm installer pod
 	helmCmd := fmt.Sprintf("helm install %s ./vault -n %s --values /helm/custom-values.yaml", releaseName, namespace)
 
-	privileged := true
+	allowPrivilegeEscalation := false
+	runAsNonRoot := true
+	runAsUser := int64(1001)
+	privileged := false
 	installerPodName := "vault-installer"
 	helmPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1825,7 +1992,13 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 						},
 					},
 					SecurityContext: &corev1.SecurityContext{
-						Privileged: &privileged,
+						AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+						RunAsNonRoot:             &runAsNonRoot,
+						RunAsUser:                &runAsUser,
+						Privileged:               &privileged,
+						Capabilities: &corev1.Capabilities{
+							Drop: []corev1.Capability{"ALL"},
+						},
 					},
 				},
 			},
@@ -1875,9 +2048,10 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	}
 
 	// Wait for Vault pod to be running
-	log.Printf("Waiting for Vault pod to start...")
+	log.Printf("Waiting for Vault pod to start (timeout %s)...", vaultPodStartTimeout)
 	var vaultPodName string
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 3*time.Minute, true,
+	var lastPods []corev1.Pod
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, vaultPodStartTimeout, true,
 		func(context.Context) (bool, error) {
 			pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: vaultPodLabel,
@@ -1885,11 +2059,23 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 			if err != nil {
 				return false, nil
 			}
+			lastPods = pods.Items
 			if len(pods.Items) == 0 {
 				return false, nil
 			}
 			pod := pods.Items[0]
 			vaultPodName = pod.Name
+			if pod.Status.Phase == corev1.PodFailed {
+				return false, fmt.Errorf("vault pod failed: %s", formatVaultPodsStatus(pods.Items))
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.State.Waiting != nil {
+					switch cs.State.Waiting.Reason {
+					case "ErrImagePull", "ImagePullBackOff", "CrashLoopBackOff", "CreateContainerConfigError":
+						return false, fmt.Errorf("vault pod not starting: %s", formatVaultPodsStatus(pods.Items))
+					}
+				}
+			}
 			if pod.Status.Phase == corev1.PodRunning {
 				// Check if container is running (not ready, since Vault needs to be unsealed)
 				for _, cs := range pod.Status.ContainerStatuses {
@@ -1903,7 +2089,8 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 		},
 	)
 	if err != nil {
-		return "", "", "", fmt.Errorf("timeout waiting for Vault pod to start: %w", err)
+		status := formatVaultPodsStatus(lastPods)
+		return "", "", "", fmt.Errorf("timeout waiting for Vault pod to start after %s: %w; %s", vaultPodStartTimeout, err, status)
 	}
 
 	// Initialize and unseal Vault

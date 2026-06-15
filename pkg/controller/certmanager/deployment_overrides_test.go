@@ -1,11 +1,9 @@
 package certmanager
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 )
@@ -267,7 +266,7 @@ func TestParseEnvMap(t *testing.T) {
 				require.Equal(t, tt.wantEnv, got)
 			}
 			if tt.wantArgs != nil {
-				got := mergeContainerArgs(tt.sourceArgs, tt.overrideArgs)
+				got := common.MergeContainerArgs(tt.sourceArgs, tt.overrideArgs)
 				require.Equal(t, tt.wantArgs, got)
 			}
 		})
@@ -421,77 +420,6 @@ func TestMergeContainerEnvProxyOverride(t *testing.T) {
 			envAfterProxy := mergeContainerEnvs([]corev1.EnvVar{}, tc.clusterProxyEnv)
 			finalEnv := mergeContainerEnvs(envAfterProxy, tc.userOverrideEnv)
 			require.Equal(t, tc.expected, finalEnv)
-		})
-	}
-}
-
-func TestMergeContainerArgs(t *testing.T) {
-	tests := []struct {
-		name         string
-		sourceArgs   []string
-		overrideArgs []string
-		expected     []string
-	}{
-		{
-			name:         "overrideargs replaces source arg values",
-			sourceArgs:   []string{"--key1=value1", "--key2=value2"},
-			overrideArgs: []string{"--key1=value1", "--key2=value5"},
-			expected:     []string{"--key1=value1", "--key2=value5"},
-		},
-		{
-			name:         "after merge, args are sorted in increasing order",
-			sourceArgs:   []string{"--xxx1=value1", "--xyz=value2"},
-			overrideArgs: []string{"--def=value1", "--abc=value5"},
-			expected:     []string{"--abc=value5", "--def=value1", "--xxx1=value1", "--xyz=value2"},
-		},
-		{
-			name:         "after merge, duplicates are removed",
-			sourceArgs:   []string{"--abc=value1", "", "--xyz=value2"},
-			overrideArgs: []string{"--xyz=value1", "--abc=value1"},
-			expected:     []string{"--abc=value1", "--xyz=value1"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			actualArgs := mergeContainerArgs(tc.sourceArgs, tc.overrideArgs)
-			require.Equal(t, tc.expected, actualArgs)
-		})
-	}
-}
-
-func TestParseArgMap(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    []string
-		wantMap map[string]string
-	}{
-		{
-			name: "parses keys, empty token, and multi-segment values",
-			args: []string{
-				"", // should be ignored at the time of parse
-				"--", "--foo", "--v=1", "--test=v1=v2", "--gates=Feature1=True",
-				"--log-level=Debug=false,Info=false,Warning=True,Error=true",
-				"--extra-flags='--v=2 --gates=Feature2=True'",
-			},
-			wantMap: map[string]string{
-				"--":            "",
-				"--foo":         "",
-				"--v":           "1",
-				"--test":        "v1=v2",
-				"--gates":       "Feature1=True",
-				"--log-level":   "Debug=false,Info=false,Warning=True,Error=true",
-				"--extra-flags": "'--v=2 --gates=Feature2=True'",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			argMap := make(map[string]string)
-			parseArgMap(argMap, tt.args)
-			if !reflect.DeepEqual(argMap, tt.wantMap) {
-				t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(tt.wantMap, argMap))
-			}
 		})
 	}
 }

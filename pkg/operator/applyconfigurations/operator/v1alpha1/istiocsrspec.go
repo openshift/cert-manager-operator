@@ -4,8 +4,12 @@ package v1alpha1
 
 // IstioCSRSpecApplyConfiguration represents a declarative configuration of the IstioCSRSpec type for use
 // with apply.
+//
+// IstioCSRSpec is the specification of the desired behavior of the IstioCSR.
 type IstioCSRSpecApplyConfiguration struct {
-	IstioCSRConfig   *IstioCSRConfigApplyConfiguration   `json:"istioCSRConfig,omitempty"`
+	// istioCSRConfig configures the istio-csr agent's behavior.
+	IstioCSRConfig *IstioCSRConfigApplyConfiguration `json:"istioCSRConfig,omitempty"`
+	// controllerConfig configures the controller for setting up defaults to enable the istio-csr agent.
 	ControllerConfig *ControllerConfigApplyConfiguration `json:"controllerConfig,omitempty"`
 }
 

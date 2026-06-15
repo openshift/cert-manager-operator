@@ -4,8 +4,13 @@ package v1alpha1
 
 // TrustManagerControllerConfigApplyConfiguration represents a declarative configuration of the TrustManagerControllerConfig type for use
 // with apply.
+//
+// TrustManagerControllerConfig configures the operator's behavior for
+// creating trust-manager resources.
 type TrustManagerControllerConfigApplyConfiguration struct {
-	Labels      map[string]string `json:"labels,omitempty"`
+	// labels to apply to all resources created for the trust-manager deployment.
+	Labels map[string]string `json:"labels,omitempty"`
+	// annotations to apply to all resources created for the trust-manager deployment.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 

@@ -8,6 +8,8 @@ import (
 
 // CertManagerStatusApplyConfiguration represents a declarative configuration of the CertManagerStatus type for use
 // with apply.
+//
+// CertManagerStatus defines the observed state of CertManager.
 type CertManagerStatusApplyConfiguration struct {
 	v1.OperatorStatusApplyConfiguration `json:",inline"`
 }

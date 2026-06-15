@@ -4,6 +4,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 var logLevels = map[operatorv1.LogLevel]string{
@@ -21,7 +23,7 @@ func withLogLevel(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Depl
 		return nil
 	}
 
-	deployment.Spec.Template.Spec.Containers[0].Args = mergeContainerArgs(
+	deployment.Spec.Template.Spec.Containers[0].Args = common.MergeContainerArgs(
 		deployment.Spec.Template.Spec.Containers[0].Args,
 		[]string{verbosityArg},
 	)

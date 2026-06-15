@@ -4,9 +4,16 @@ package v1alpha1
 
 // IstioConfigApplyConfiguration represents a declarative configuration of the IstioConfig type for use
 // with apply.
+//
+// IstioConfig is for configuring the istio specifics.
 type IstioConfigApplyConfiguration struct {
+	// revisions are the Istio revisions that are currently installed in the cluster.
+	// Changing this field will modify the DNS names that will be requested for the istiod certificate.
+	// This field can have a maximum of 25 entries.
 	Revisions []string `json:"revisions,omitempty"`
-	Namespace *string  `json:"namespace,omitempty"`
+	// namespace of the Istio control plane.
+	// This field can have a maximum of 63 characters.
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // IstioConfigApplyConfiguration constructs a declarative configuration of the IstioConfig type for use with

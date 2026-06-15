@@ -4,9 +4,15 @@ package v1alpha1
 
 // ServerConfigApplyConfiguration represents a declarative configuration of the ServerConfig type for use
 // with apply.
+//
+// ServerConfig is for configuring the server endpoint used by istio
+// for obtaining the certificates.
 type ServerConfigApplyConfiguration struct {
+	// clusterID is the Istio cluster ID used to verify incoming CSRs.
+	// This field can have a maximum of 253 characters.
 	ClusterID *string `json:"clusterID,omitempty"`
-	Port      *int32  `json:"port,omitempty"`
+	// port to serve the istio-csr gRPC service.
+	Port *int32 `json:"port,omitempty"`
 }
 
 // ServerConfigApplyConfiguration constructs a declarative configuration of the ServerConfig type for use with
