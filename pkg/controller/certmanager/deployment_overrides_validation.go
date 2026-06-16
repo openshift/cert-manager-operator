@@ -3,6 +3,7 @@ package certmanager
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -94,7 +95,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 	validateArgs := func(argMap map[string]string, supportedArgs []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedArgs, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("validation failed due to unsupported arg %q=%q; supported args are: %s", k, v, strings.Join(supportedArgs, ", "))
 			}
 		}
 		return nil
@@ -189,7 +190,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 	validateEnv := func(argMap map[string]corev1.EnvVar, supportedEnv []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedEnv, k) {
-				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
+				return fmt.Errorf("validation failed due to unsupported env var %q=%q; supported env vars are: %s", k, v, strings.Join(supportedEnv, ", "))
 			}
 		}
 		return nil
@@ -238,7 +239,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 	validateLabels := func(labels map[string]string, supportedLabelKeys []string) error {
 		for k, v := range labels {
 			if !slices.Contains(supportedLabelKeys, k) {
-				return fmt.Errorf("validation failed due to unsupported label %q=%q", k, v)
+				return fmt.Errorf("validation failed due to unsupported label %q=%q; supported labels are: %s", k, v, strings.Join(supportedLabelKeys, ", "))
 			}
 		}
 		return nil
@@ -316,12 +317,12 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 	errs := []error{}
 	for k, v := range resources.Limits {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s; supported resources are: %s", k, v.String(), strings.Join(supportedResourceNames, ", ")))
 		}
 	}
 	for k, v := range resources.Requests {
 		if !slices.Contains(supportedResourceNames, string(k)) {
-			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
+			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s; supported resources are: %s", k, v.String(), strings.Join(supportedResourceNames, ", ")))
 		}
 	}
 	return utilerrors.NewAggregate(errs)

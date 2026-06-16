@@ -309,7 +309,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerControllerDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--totally-unknown-flag"="value"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--totally-unknown-flag"="value"; supported args are: --acme-http01-solver-nameservers, --acme-http01-solver-resource-limits-cpu, --acme-http01-solver-resource-limits-memory, --acme-http01-solver-resource-request-cpu, --acme-http01-solver-resource-request-memory, --dns01-recursive-nameservers, --dns01-recursive-nameservers-only, --v, -V, --metrics-listen-address, --issuer-ambient-credentials, --enable-certificate-owner-ref, --certificate-request-minimum-backoff-duration`,
 		},
 		{
 			name: "controller accepts performance tuning flags",
@@ -546,7 +546,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerWebhookDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--metrics-listen-address"="0.0.0.0:9402"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--metrics-listen-address"="0.0.0.0:9402"; supported args are: --v, -V`,
 		},
 		{
 			name: "webhook rejects certificate-request-minimum-backoff-duration",
@@ -559,7 +559,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerWebhookDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--certificate-request-minimum-backoff-duration"="1m"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--certificate-request-minimum-backoff-duration"="1m"; supported args are: --v, -V`,
 		},
 		{
 			name: "nil webhook config skips validation",
@@ -607,7 +607,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerCAinjectorDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--dns01-recursive-nameservers"="8.8.8.8:53"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--dns01-recursive-nameservers"="8.8.8.8:53"; supported args are: --v, -V`,
 		},
 		{
 			name: "nil cainjector config skips validation",
