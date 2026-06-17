@@ -4,7 +4,10 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
@@ -12,6 +15,26 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes"
 )
+
+type LogEntry struct {
+	CertChain []string `json:"certChain"`
+}
+
+// parseGRPCurlLogEntry returns the last valid JSON log line from a grpcurl job pod.
+// Pod logs may contain noise from retries or incomplete trailing lines.
+func parseGRPCurlLogEntry(logData []byte) (LogEntry, error) {
+	lines := bytes.Split(bytes.TrimSpace(logData), []byte("\n"))
+	var entry LogEntry
+	for i := len(lines) - 1; i >= 0; i-- {
+		if len(lines[i]) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(lines[i], &entry); err == nil {
+			return entry, nil
+		}
+	}
+	return LogEntry{}, fmt.Errorf("no valid grpcurl JSON log entry found in pod logs")
+}
 
 // waitForIstioCSROperandReady waits for the cert-manager-istio-csr deployment and IstioCSR CR status.
 func waitForIstioCSROperandReady(ctx context.Context, clientset *kubernetes.Clientset, loader library.DynamicResourceLoader, namespace string) (v1alpha1.IstioCSRStatus, error) {

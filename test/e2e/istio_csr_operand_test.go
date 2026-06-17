@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -722,8 +721,8 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			logData, err := io.ReadAll(logStream)
 			Expect(err).NotTo(HaveOccurred())
 
-			var entry LogEntry
-			Expect(json.Unmarshal(logData, &entry)).NotTo(HaveOccurred())
+			entry, err := parseGRPCurlLogEntry(logData)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(entry.CertChain).NotTo(BeEmpty())
 
 			for _, certPEM := range entry.CertChain {

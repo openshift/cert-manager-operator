@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -24,10 +23,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-type LogEntry struct {
-	CertChain []string `json:"certChain"`
-}
 
 var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
@@ -201,8 +196,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			logData, err := io.ReadAll(logs)
 			Expect(err).Should(BeNil())
 
-			var entry LogEntry
-			err = json.Unmarshal(logData, &entry)
+			entry, err := parseGRPCurlLogEntry(logData)
 			Expect(err).Should(BeNil())
 			Expect(entry.CertChain).ShouldNot(BeEmpty())
 
@@ -277,8 +271,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			logData, err := io.ReadAll(logs)
 			Expect(err).Should(BeNil())
 
-			var entry LogEntry
-			err = json.Unmarshal(logData, &entry)
+			entry, err := parseGRPCurlLogEntry(logData)
 			Expect(err).Should(BeNil())
 			Expect(entry.CertChain).ShouldNot(BeEmpty())
 		})
