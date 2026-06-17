@@ -2147,17 +2147,17 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 				return true, nil
 			}
 			if pod.Status.Phase == corev1.PodFailed {
-				// Get logs for debugging
-				logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(20))}).DoRaw(ctx)
-				return false, fmt.Errorf("Helm installer pod failed: %s", string(logs))
+				return false, fmt.Errorf("Helm installer pod failed: %s", formatVaultPodsStatus([]corev1.Pod{*pod}))
 			}
 			return false, nil
 		},
 	)
 	if err != nil {
-		// Try to get logs for debugging
-		logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(50))}).DoRaw(ctx)
-		return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w, logs: %s", err, string(logs))
+		installerPod, getErr := kubeClient.CoreV1().Pods(namespace).Get(ctx, installerPodName, metav1.GetOptions{})
+		if getErr == nil {
+			return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w, status: %s", err, formatVaultPodsStatus([]corev1.Pod{*installerPod}))
+		}
+		return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w", err)
 	}
 
 	// Wait for Vault pod to be running
