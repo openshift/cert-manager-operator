@@ -27,6 +27,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// acmeHTTP01OpenShiftIngressClass is required on OpenShift so HTTP-01 challenge Ingresses get Routes.
+const acmeHTTP01OpenShiftIngressClass = "openshift-default"
+
+func acmeHTTP01OpenShiftIngress() *acmev1.ACMEChallengeSolverHTTP01Ingress {
+	ingressClass := acmeHTTP01OpenShiftIngressClass
+	return &acmev1.ACMEChallengeSolverHTTP01Ingress{
+		IngressClassName: &ingressClass,
+	}
+}
+
 var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -68,8 +78,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					},
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(library.UpsertConfigMap(ctx, loader.KubeClient, trustedCA)).NotTo(HaveOccurred())
 
 			DeferCleanup(func(cleanupCtx context.Context) {
 				loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(cleanupCtx, "trusted-ca", metav1.DeleteOptions{})
@@ -126,7 +135,6 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 
 		BeforeEach(func() {
 			clusterIssuerName := "letsencrypt-http01"
-			ingressClassName := "openshift-default"
 			secretName = "ingress-http01-secret"
 
 			By("creating a cluster issuer")
@@ -146,9 +154,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 							Solvers: []acmev1.ACMEChallengeSolver{
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{
-											IngressClassName: &ingressClassName,
-										},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 							},
@@ -172,6 +178,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 			By("creating Ingress object")
 			ingressHost = fmt.Sprintf("ahi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME http-01 Ingress"
 			pathType := networkingv1.PathTypePrefix
+			ingressClassName := acmeHTTP01OpenShiftIngressClass
 			ingress := &networkingv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-http01",
@@ -311,7 +318,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 							Solvers: []acmev1.ACMEChallengeSolver{
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 							},
@@ -369,8 +376,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					"client-secret": "dummy-client-secret",
 				},
 			}
-			_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, azureDNSSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create Azure DNS secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, azureDNSSecret)).NotTo(HaveOccurred(), "failed to create Azure DNS secret")
 
 			DeferCleanup(func(ctx context.Context) {
 				err := loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, azureDNSSecretName, metav1.DeleteOptions{})
@@ -389,8 +395,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					"secret-access-key": "dummy-secret-key",
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, route53Secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create Route53 secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, route53Secret)).NotTo(HaveOccurred(), "failed to create Route53 secret")
 
 			DeferCleanup(func(ctx context.Context) {
 				err := loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, route53SecretName, metav1.DeleteOptions{})
@@ -423,7 +428,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 										DNSZones: []string{testDomain},
 									},
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 								// Solver 2: DNS-01 (Azure) with specific dnsNames selector
@@ -470,7 +475,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					},
 				},
 			}
-			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+			_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
 
 			DeferCleanup(func(ctx context.Context) {

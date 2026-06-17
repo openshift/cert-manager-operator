@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -319,22 +320,20 @@ func createNamespaceWithCleanup(ctx context.Context, prefix string, labels map[s
 }
 
 func createSourceConfigMap(ctx context.Context, namespace, name, key, data string) {
-	_, err := k8sClientSet.CoreV1().ConfigMaps(namespace).Create(ctx, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+	Expect(library.UpsertConfigMap(ctx, k8sClientSet, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Data:       map[string]string{key: data},
-	}, metav1.CreateOptions{})
-	Expect(err).ShouldNot(HaveOccurred())
+	})).ShouldNot(HaveOccurred())
 	DeferCleanup(func() {
 		_ = k8sClientSet.CoreV1().ConfigMaps(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	})
 }
 
 func createSourceSecret(ctx context.Context, namespace, name, key, data string) {
-	_, err := k8sClientSet.CoreV1().Secrets(namespace).Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+	Expect(library.UpsertSecret(ctx, k8sClientSet, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Data:       map[string][]byte{key: []byte(data)},
-	}, metav1.CreateOptions{})
-	Expect(err).ShouldNot(HaveOccurred())
+	})).ShouldNot(HaveOccurred())
 	DeferCleanup(func() {
 		_ = k8sClientSet.CoreV1().Secrets(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	})

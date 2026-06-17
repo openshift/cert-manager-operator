@@ -9,6 +9,7 @@ spec:
     metadata:
       labels:
         app: {{.JobName}}
+        sidecar.istio.io/inject: "false"
       name: {{.JobName}}
     spec:
       automountServiceAccountToken: false

@@ -16,6 +16,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/openshift/cert-manager-operator/test/library"
 	"github.com/tidwall/gjson"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -101,9 +102,6 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 	}
 
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
-		DeferCleanup(cancel)
-
 		By("waiting for operator status to become available")
 		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
@@ -140,6 +138,9 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 		By("configuring Vault PKI engine")
 		err = configureVaultPKI(setupCtx, cfg, loader, ns.Name, vaultPodName, vaultRootToken)
 		Expect(err).NotTo(HaveOccurred())
+
+		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
+		DeferCleanup(cancel)
 	})
 
 	Context("AppRole authentication", func() {
@@ -151,20 +152,19 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 			certCommonName := certName + ".cluster.local"
 
 			By("configuring Vault AppRole authentication")
-			tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", vaultRootToken)
-			vaultCmd := fmt.Sprintf(`%s && vault auth enable approle && vault write auth/approle/role/%s token_policies="cert-manager" token_ttl=1h token_max_ttl=4h`, tokenEnv, appRoleVaultRoleName)
+			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault auth enable approle && vault write auth/approle/role/%s token_policies="cert-manager" token_ttl=1h token_max_ttl=4h`, appRoleVaultRoleName))
 			_, err := execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to configure Vault AppRole authentication")
 
 			By("retrieving AppRole role ID")
-			vaultCmd = fmt.Sprintf(`%s && vault read -format=json auth/approle/role/%s/role-id`, tokenEnv, appRoleVaultRoleName)
+			vaultCmd = vaultShellCmd(fmt.Sprintf(`vault read -format=json auth/approle/role/%s/role-id`, appRoleVaultRoleName))
 			output, err := execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to retrieve AppRole role ID")
 			vaultRoleID := gjson.Get(output, "data.role_id").String()
 			Expect(vaultRoleID).NotTo(BeEmpty(), "AppRole role ID should not be empty")
 
 			By("retrieving AppRole secret ID")
-			vaultCmd = fmt.Sprintf(`%s && vault write -format=json -force auth/approle/role/%s/secret-id`, tokenEnv, appRoleVaultRoleName)
+			vaultCmd = vaultShellCmd(fmt.Sprintf(`vault write -format=json -force auth/approle/role/%s/secret-id`, appRoleVaultRoleName))
 			output, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to retrieve AppRole secret ID")
 			vaultSecretID := gjson.Get(output, "data.secret_id").String()
@@ -180,8 +180,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 					"secretId": vaultSecretID,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create AppRole secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, secret)).NotTo(HaveOccurred(), "failed to create AppRole secret")
 
 			By("creating Vault issuer with AppRole authentication")
 			issuer := createVaultIssuer(issuerName, certmanagerv1.VaultAuth{
@@ -215,8 +214,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 			certCommonName := certName + ".cluster.local"
 
 			By("creating Vault token with cert-manager policy")
-			tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", vaultRootToken)
-			vaultCmd := fmt.Sprintf(`%s && vault token create -format=json -policy=cert-manager -ttl=720h`, tokenEnv)
+			vaultCmd := vaultShellCmd(`vault token create -format=json -policy=cert-manager -ttl=720h`)
 			output, err := execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to create Vault token")
 			vaultToken := gjson.Get(output, "auth.client_token").String()
@@ -232,8 +230,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 					"token": vaultToken,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create token secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, secret)).NotTo(HaveOccurred(), "failed to create token secret")
 
 			By("creating Vault issuer with token authentication")
 			issuer := createVaultIssuer(issuerName, certmanagerv1.VaultAuth{
@@ -283,14 +280,12 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 				},
 				Type: corev1.SecretTypeServiceAccountToken,
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, tokenSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create service account token secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, tokenSecret)).NotTo(HaveOccurred(), "failed to create service account token secret")
 
 			By("configuring Kubernetes auth in Vault")
-			tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", vaultRootToken)
-			vaultCmd := fmt.Sprintf(`%s && vault auth enable kubernetes && vault write auth/kubernetes/config kubernetes_host="%s" kubernetes_ca_cert=@%s && \
+			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault auth enable kubernetes && vault write auth/kubernetes/config kubernetes_host="%s" kubernetes_ca_cert=@%s && \
 vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_service_account_namespaces=%s token_policies=cert-manager ttl=1h`,
-				tokenEnv, vaultKubernetesHost, vaultServiceAccountCA, serviceAccountName, ns.Name)
+				vaultKubernetesHost, vaultServiceAccountCA, serviceAccountName, ns.Name))
 			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to configure Kubernetes auth in Vault")
 
@@ -375,10 +370,9 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 			Expect(err).NotTo(HaveOccurred(), "failed to create role binding")
 
 			By("configuring Kubernetes auth in Vault")
-			tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", vaultRootToken)
-			vaultCmd := fmt.Sprintf(`%s && vault auth enable kubernetes && vault write auth/kubernetes/config kubernetes_host="%s" kubernetes_ca_cert=@%s && \
+			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault auth enable kubernetes && vault write auth/kubernetes/config kubernetes_host="%s" kubernetes_ca_cert=@%s && \
 vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_service_account_namespaces=%s token_policies=cert-manager ttl=1h`,
-				tokenEnv, vaultKubernetesHost, vaultServiceAccountCA, serviceAccountName, ns.Name)
+				vaultKubernetesHost, vaultServiceAccountCA, serviceAccountName, ns.Name))
 			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to configure Kubernetes auth in Vault")
 
@@ -468,8 +462,10 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 			Expect(oidcIssuer).NotTo(BeEmpty(), "OIDC issuer URL should not be empty")
 
 			By("configuring JWT auth in Vault")
-			tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", vaultRootToken)
-			vaultCmd := fmt.Sprintf(`%s && vault auth enable jwt && vault write auth/jwt/config oidc_discovery_url=%s`, tokenEnv, oidcIssuer)
+			_, err = execVaultInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "auth", "enable", "jwt")
+			Expect(err).NotTo(HaveOccurred(), "failed to enable JWT auth in Vault")
+
+			jwtConfigArgs := []string{"write", "auth/jwt/config", "oidc_discovery_url=" + oidcIssuer}
 
 			// Handle non-STS environments where OIDC issuer is internal URL
 			if strings.Contains(oidcIssuer, "kubernetes.default.svc") {
@@ -515,15 +511,15 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 				})
 
 				// Add CA certificate for internal OIDC issuer
-				vaultCmd += " oidc_discovery_ca_pem=@" + vaultServiceAccountCA
+				jwtConfigArgs = append(jwtConfigArgs, "oidc_discovery_ca_pem=@"+vaultServiceAccountCA)
 			}
 
-			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
+			_, err = execVaultInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, jwtConfigArgs...)
 			Expect(err).NotTo(HaveOccurred(), "failed to configure JWT auth in Vault")
 
 			By("creating JWT role in Vault")
-			vaultCmd = fmt.Sprintf(`%s && vault write auth/jwt/role/issuer role_type=jwt bound_audiences="vault://%s/%s" user_claim=sub bound_subject="system:serviceaccount:%s:%s" token_policies=cert-manager ttl=1m`,
-				tokenEnv, ns.Name, issuerName, ns.Name, serviceAccountName)
+			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault write auth/jwt/role/issuer role_type=jwt bound_audiences="vault://%s/%s" user_claim=sub bound_subject="system:serviceaccount:%s:%s" token_policies=cert-manager ttl=1m`,
+				ns.Name, issuerName, ns.Name, serviceAccountName))
 			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to create JWT role in Vault")
 

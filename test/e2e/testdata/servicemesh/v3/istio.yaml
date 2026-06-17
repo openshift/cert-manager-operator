@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+---
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: istio-system
+  updateStrategy:
+    inactiveRevisionDeletionGracePeriodSeconds: 30
+    type: InPlace
+  values:
+    global:
+      caAddress: {{.CAAddress}}
+      multiCluster:
+        clusterName: {{.ClusterID}}
+    pilot:
+      env:
+        ENABLE_CA_SERVER: "false"
+  version: {{.IstioVersion}}

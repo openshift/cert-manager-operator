@@ -739,6 +739,30 @@ func getSubscriptionEnvVar(ctx context.Context, loader library.DynamicResourceLo
 	return "", nil
 }
 
+// certManagerOperatorSubscriptionInstalled reports whether the operator was installed via OLM.
+func certManagerOperatorSubscriptionInstalled(ctx context.Context, loader library.DynamicResourceLoader) (bool, error) {
+	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
+	subs, err := subscriptionClient.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	return len(subs.Items) > 0, nil
+}
+
+// tryPatchSubscriptionWithEnvVars patches subscription env on OLM clusters and is a no-op when
+// the operator was installed without a Subscription (e.g. make deploy + make local-run).
+func tryPatchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
+	installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		fmt.Fprintf(GinkgoWriter, "no OLM Subscription in cert-manager-operator; skipping subscription env patch\n")
+		return nil
+	}
+	return patchSubscriptionWithEnvVars(ctx, loader, envVars)
+}
+
 // patchSubscriptionWithEnvVars uses the k8s dynamic client to patch the only Subscription object
 // in the cert-manager-operator namespace, inject specified env vars into spec.config.env
 func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
@@ -1080,6 +1104,9 @@ func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, 
 		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 
@@ -1187,6 +1214,132 @@ func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResour
 	return istioCSRStatus, err
 }
 
+// waitForIstioCSRConditionMessage polls until IstioCSR status has a condition of the
+// given type and status whose message contains messageSubstring.
+func waitForIstioCSRConditionMessage(ctx context.Context, loader library.DynamicResourceLoader, namespace, name, conditionType string, conditionStatus metav1.ConditionStatus, messageSubstring string, timeout, interval time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(pollCtx context.Context) (bool, error) {
+		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Get(pollCtx, name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		if err != nil {
+			return false, err
+		}
+		if !found {
+			return false, nil
+		}
+
+		for _, c := range conditions {
+			cm, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			t, _ := cm["type"].(string)
+			s, _ := cm["status"].(string)
+			if t != conditionType || s != string(conditionStatus) {
+				continue
+			}
+			msg, _ := cm["message"].(string)
+			if strings.Contains(msg, messageSubstring) {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+}
+
+// istioCSRDeploymentMissingHint explains why cert-manager-istio-csr may never appear for a new operand.
+func istioCSRDeploymentMissingHint(ctx context.Context, operandNamespace string) string {
+	if loader.DynamicClient == nil {
+		return ""
+	}
+
+	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(operandNamespace)
+	obj, err := istiocsrClient.Get(ctx, istioCSRResourceName, metav1.GetOptions{})
+	if err == nil {
+		if ann := obj.GetAnnotations(); ann != nil && ann[istioCSRRejectAnnotation] == "true" {
+			return "IstioCSR was rejected because another istiocsr instance already exists; only one cluster-wide operand is supported"
+		}
+
+		conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		if err == nil && found {
+			for _, c := range conditions {
+				cm, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				t, _ := cm["type"].(string)
+				s, _ := cm["status"].(string)
+				if t == string(v1alpha1.Degraded) && s == string(metav1.ConditionTrue) {
+					msg, _ := cm["message"].(string)
+					if msg != "" {
+						return fmt.Sprintf("IstioCSR is Degraded: %s", msg)
+					}
+				}
+			}
+		}
+
+		spec, found, err := unstructured.NestedMap(obj.Object, "spec", "istioCSRConfig", "istio")
+		if err == nil && found {
+			istioNS, _ := spec["namespace"].(string)
+			if istioNS != "" && istioNS != operandNamespace {
+				return fmt.Sprintf(
+					"spec.istioCSRConfig.istio.namespace is %q but cert-manager Issuer istio-ca is created in %q; they must match",
+					istioNS,
+					operandNamespace,
+				)
+			}
+		}
+	}
+
+	list, err := loader.DynamicClient.Resource(istiocsrSchema).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return ""
+	}
+	for _, item := range list.Items {
+		if item.GetNamespace() == operandNamespace {
+			continue
+		}
+		return fmt.Sprintf(
+			"another IstioCSR already exists at %s/%s; only one cluster-wide operand is supported",
+			item.GetNamespace(),
+			item.GetName(),
+		)
+	}
+	return ""
+}
+
+// cleanupAllIstioCSROperands removes every IstioCSR CR so grpc tests can create a fresh operand.
+func cleanupAllIstioCSROperands(ctx context.Context, loader library.DynamicResourceLoader) error {
+	client := loader.DynamicClient.Resource(istiocsrSchema)
+	list, err := client.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, item := range list.Items {
+		ns := item.GetNamespace()
+		name := item.GetName()
+		if err := client.Namespace(ns).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete IstioCSR %s/%s: %w", ns, name, err)
+		}
+	}
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		list, err := client.List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(list.Items) == 0 {
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
 // once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
@@ -1217,6 +1370,9 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 		deployment, getErr := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if getErr != nil {
 			if apierrors.IsNotFound(getErr) {
+				if hint := istioCSRDeploymentMissingHint(ctx, namespace); hint != "" {
+					return fmt.Errorf("timeout waiting for deployment %s/%s: deployment does not exist (%s)", namespace, deploymentName, hint)
+				}
 				return fmt.Errorf("timeout waiting for deployment %s/%s: deployment does not exist", namespace, deploymentName)
 			}
 			return fmt.Errorf("timeout waiting for deployment %s/%s: failed to get status: %v", namespace, deploymentName, getErr)
@@ -1427,6 +1583,8 @@ func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoper
 	return nil
 }
 
+const vaultTokenFile = "/tmp/e2e-vault-token"
+
 // execInPod executes a command in a specific container of a pod and returns the output.
 func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, command ...string) (string, error) {
 	req := kubeClient.CoreV1().RESTClient().
@@ -1457,6 +1615,60 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	}
 
 	return stdout.String(), nil
+}
+
+// execInPodWithStdin executes a command in a pod with optional stdin data.
+func execInPodWithStdin(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, stdin []byte, command ...string) (string, error) {
+	req := kubeClient.CoreV1().RESTClient().
+		Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: containerName,
+			Command:   command,
+			Stdout:    true,
+			Stderr:    true,
+			Stdin:     len(stdin) > 0,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Stdin:  bytes.NewReader(stdin),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %w, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// setVaultTokenInPod writes the Vault root token to a file in the pod via stdin so the
+// token is never embedded in shell command strings that may appear in error logs.
+func setVaultTokenInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, rootToken string) error {
+	_, err := execInPodWithStdin(ctx, cfg, kubeClient, namespace, podName, "vault", []byte(rootToken),
+		"sh", "-c", fmt.Sprintf("cat > %s && chmod 600 %s", vaultTokenFile, vaultTokenFile))
+	return err
+}
+
+// vaultShellCmd prefixes a shell script with VAULT_TOKEN loaded from the pod-local token file.
+func vaultShellCmd(script string) string {
+	return fmt.Sprintf("export VAULT_TOKEN=$(cat %s) && %s", vaultTokenFile, script)
+}
+
+// execVaultInPod runs vault with the given arguments, loading VAULT_TOKEN from the pod-local token file.
+// Arguments are passed to vault via exec rather than interpolated into a shell string.
+func execVaultInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName string, vaultArgs ...string) (string, error) {
+	cmd := append([]string{"sh", "-c", fmt.Sprintf("export VAULT_TOKEN=$(cat %s) && exec vault \"$@\"", vaultTokenFile), "vault"}, vaultArgs...)
+	return execInPod(ctx, cfg, kubeClient, namespace, podName, "vault", cmd...)
 }
 
 // isPodReady returns true if the pod is running and has the Ready condition set to true.
@@ -1682,13 +1894,12 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			},
 		},
 	}
-	_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureClusterIssuer(ctx, certmanagerClient, clusterIssuer); err != nil {
 		return fmt.Errorf("failed to create ClusterIssuer: %w", err)
 	}
 
 	// Wait for ClusterIssuer to become ready
-	err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
 		func(context.Context) (bool, error) {
 			issuer, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Get(ctx, clusterIssuerName, metav1.GetOptions{})
 			if err != nil {
@@ -1730,8 +1941,7 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			},
 		},
 	}
-	_, err = certmanagerClient.CertmanagerV1().Certificates(namespace).Create(ctx, cert, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureCertificate(ctx, certmanagerClient, cert); err != nil {
 		return fmt.Errorf("failed to create Certificate: %w", err)
 	}
 
@@ -1761,8 +1971,9 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, namespace, vaultPodName, rootToken string) error {
 	kubeClient := loader.KubeClient
 
-	// Set VAULT_TOKEN environment variable for subsequent commands
-	tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", rootToken)
+	if err := setVaultTokenInPod(ctx, cfg, kubeClient, namespace, vaultPodName, rootToken); err != nil {
+		return fmt.Errorf("failed to set vault token in pod: %w", err)
+	}
 
 	// Enable and configure root PKI engine
 	commands := []struct {
@@ -1771,32 +1982,32 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	}{
 		{
 			"enable PKI secrets engine",
-			tokenEnv + " && vault secrets enable pki",
+			"vault secrets enable pki",
 		},
 		{
 			"tune PKI max lease TTL",
-			tokenEnv + " && vault secrets tune -max-lease-ttl=8760h pki",
+			"vault secrets tune -max-lease-ttl=8760h pki",
 		},
 		{
 			"generate root CA",
-			tokenEnv + " && vault write pki/root/generate/internal common_name=cluster.local ttl=8760h",
+			"vault write pki/root/generate/internal common_name=cluster.local ttl=8760h",
 		},
 		{
 			"configure CA and CRL URLs",
-			tokenEnv + " && vault write pki/config/urls issuing_certificates=\"https://vault:8200/v1/pki/ca\" crl_distribution_points=\"https://vault:8200/v1/pki/crl\"",
+			"vault write pki/config/urls issuing_certificates=\"https://vault:8200/v1/pki/ca\" crl_distribution_points=\"https://vault:8200/v1/pki/crl\"",
 		},
 		{
 			"enable intermediate PKI",
-			tokenEnv + " && vault secrets enable -path=pki_int pki",
+			"vault secrets enable -path=pki_int pki",
 		},
 		{
 			"tune intermediate PKI max lease TTL",
-			tokenEnv + " && vault secrets tune -max-lease-ttl=4380h pki_int",
+			"vault secrets tune -max-lease-ttl=4380h pki_int",
 		},
 	}
 
 	for _, cmdInfo := range commands {
-		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", cmdInfo.cmd)
+		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", vaultShellCmd(cmdInfo.cmd))
 		if err != nil {
 			return fmt.Errorf("failed to %s: %w", cmdInfo.description, err)
 		}
@@ -1804,7 +2015,7 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 
 	// Generate intermediate CSR
 	csrOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
-		tokenEnv+` && vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`)
+		vaultShellCmd(`vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`))
 	if err != nil {
 		return fmt.Errorf("failed to generate intermediate CSR: %w", err)
 	}
@@ -1814,9 +2025,9 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	}
 
 	// Sign intermediate with root CA - use heredoc to properly handle multi-line CSR
-	signCmd := tokenEnv + ` && vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
+	signCmd := vaultShellCmd(`vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
 ` + csr + `
-EOF`
+EOF`)
 	certOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", signCmd)
 	if err != nil {
 		return fmt.Errorf("failed to sign intermediate certificate: %w", err)
@@ -1827,9 +2038,9 @@ EOF`
 	}
 
 	// Set signed certificate - use heredoc to properly handle multi-line certificate
-	setSignedCmd := tokenEnv + ` && vault write pki_int/intermediate/set-signed certificate=- <<EOF
+	setSignedCmd := vaultShellCmd(`vault write pki_int/intermediate/set-signed certificate=- <<EOF
 ` + signedCert + `
-EOF`
+EOF`)
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", setSignedCmd)
 	if err != nil {
 		return fmt.Errorf("failed to set signed intermediate certificate: %w", err)
@@ -1837,20 +2048,20 @@ EOF`
 
 	// Create role for cert-manager
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
-		tokenEnv+` && vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`)
+		vaultShellCmd(`vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`))
 	if err != nil {
 		return fmt.Errorf("failed to create PKI role: %w", err)
 	}
 
 	// Create policy for cert-manager
-	policyCmd := tokenEnv + ` && vault policy write cert-manager - <<EOF
+	policyCmd := vaultShellCmd(`vault policy write cert-manager - <<EOF
 path "pki_int/sign/cluster-dot-local" {
   capabilities = ["create", "update"]
 }
 path "pki_int/issue/cluster-dot-local" {
   capabilities = ["create", "update"]
 }
-EOF`
+EOF`)
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
 	if err != nil {
 		return fmt.Errorf("failed to create cert-manager policy: %w", err)
@@ -1921,8 +2132,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 			"custom-values.yaml": helmValues,
 		},
 	}
-	_, err = kubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, helmConfigMap, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := library.UpsertConfigMap(ctx, kubeClient, helmConfigMap); err != nil {
 		return "", "", "", fmt.Errorf("failed to create Helm config ConfigMap for Vault %s in namespace %s: %w", releaseName, namespace, err)
 	}
 
@@ -1961,6 +2171,16 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return "", "", "", fmt.Errorf("failed to create ClusterRoleBinding: %w", err)
+	}
+	if apierrors.IsAlreadyExists(err) {
+		existing, getErr := kubeClient.RbacV1().ClusterRoleBindings().Get(ctx, clusterRoleBindingName, metav1.GetOptions{})
+		if getErr != nil {
+			return "", "", "", fmt.Errorf("failed to get existing ClusterRoleBinding: %w", getErr)
+		}
+		clusterRoleBinding.ResourceVersion = existing.ResourceVersion
+		if _, err = kubeClient.RbacV1().ClusterRoleBindings().Update(ctx, clusterRoleBinding, metav1.UpdateOptions{}); err != nil {
+			return "", "", "", fmt.Errorf("failed to update ClusterRoleBinding: %w", err)
+		}
 	}
 
 	// Create Helm installer pod
@@ -2017,7 +2237,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 		},
 	}
 	_, err = kubeClient.CoreV1().Pods(namespace).Create(ctx, helmPod, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		return "", "", "", fmt.Errorf("failed to create Helm installer pod: %w", err)
 	}
 
@@ -2034,17 +2254,17 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 				return true, nil
 			}
 			if pod.Status.Phase == corev1.PodFailed {
-				// Get logs for debugging
-				logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(20))}).DoRaw(ctx)
-				return false, fmt.Errorf("Helm installer pod failed: %s", string(logs))
+				return false, fmt.Errorf("Helm installer pod failed: %s", formatVaultPodsStatus([]corev1.Pod{*pod}))
 			}
 			return false, nil
 		},
 	)
 	if err != nil {
-		// Try to get logs for debugging
-		logs, _ := kubeClient.CoreV1().Pods(namespace).GetLogs(installerPodName, &corev1.PodLogOptions{TailLines: ptr.To(int64(50))}).DoRaw(ctx)
-		return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w, logs: %s", err, string(logs))
+		installerPod, getErr := kubeClient.CoreV1().Pods(namespace).Get(ctx, installerPodName, metav1.GetOptions{})
+		if getErr == nil {
+			return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w, status: %s", err, formatVaultPodsStatus([]corev1.Pod{*installerPod}))
+		}
+		return "", "", "", fmt.Errorf("timeout waiting for Helm installer: %w", err)
 	}
 
 	// Wait for Vault pod to be running

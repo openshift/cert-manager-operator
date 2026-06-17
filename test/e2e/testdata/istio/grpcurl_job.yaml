@@ -1,15 +1,16 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: grpcurl-istio-csr
+  name: {{if .JobName}}{{.JobName}}{{else}}grpcurl-istio-csr{{end}}
 spec:
   backoffLimit: 10
   completions: 1
   template:
     metadata:
       labels:
-        app: grpcurl-istio-csr
-      name: grpcurl-istio-csr
+        app: {{if .JobName}}{{.JobName}}{{else}}grpcurl-istio-csr{{end}}
+        sidecar.istio.io/inject: "false"
+      name: {{if .JobName}}{{.JobName}}{{else}}grpcurl-istio-csr{{end}}
     spec:
       automountServiceAccountToken: false
       containers:
@@ -38,7 +39,7 @@ spec:
             - mountPath: /var/run/secrets/istio-ca
               name: sa-token
       restartPolicy: OnFailure
-      serviceAccountName: '{{.IstioCSRStatus.ServiceAccount}}'
+      serviceAccountName: '{{if .ServiceAccountName}}{{.ServiceAccountName}}{{else}}{{.IstioCSRStatus.ServiceAccount}}{{end}}'
       volumes:
         - name: sa-token
           projected:
@@ -52,5 +53,5 @@ spec:
           secret:
             secretName: istiod-tls
         - configMap:
-            name: proto-cm
+            name: {{if .ProtoConfigMapName}}{{.ProtoConfigMapName}}{{else}}proto-cm{{end}}
           name: proto
