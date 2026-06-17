@@ -428,7 +428,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerControllerDeployment,
-			wantErrMsg:     `validation failed: --kube-api-burst value must be numeric, got "xyz"`,
+			wantErrMsg:     `validation failed: --kube-api-burst value must be a positive integer, got "xyz"`,
 		},
 		{
 			name: "controller rejects zero concurrent-workers",

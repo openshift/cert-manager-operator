@@ -137,8 +137,9 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 // validatePerformanceArgs performs sanity checks on the performance tuning
 // arguments to catch invalid configurations.
 func validatePerformanceArgs(argMap map[string]string) error {
-	// Validate that numeric args are positive integers where applicable.
-	positiveIntArgs := []string{argConcurrentWorkers, argMaxConcurrentChallenges}
+	// Validate that integer args are positive.
+	positiveIntArgs := []string{argConcurrentWorkers, argMaxConcurrentChallenges, argKubeAPIBurst}
+	parsedInts := make(map[string]int)
 	for _, arg := range positiveIntArgs {
 		if valStr, ok := argMap[arg]; ok {
 			val, err := strconv.Atoi(valStr)
@@ -148,30 +149,29 @@ func validatePerformanceArgs(argMap map[string]string) error {
 			if val <= 0 {
 				return fmt.Errorf("validation failed: %s must be greater than 0, got %d", arg, val)
 			}
+			parsedInts[arg] = val
 		}
 	}
 
-	// Validate QPS and burst are numeric and positive.
-	positiveFloatArgs := []string{argKubeAPIQPS, argKubeAPIBurst}
-	parsedFloats := make(map[string]float64)
-	for _, arg := range positiveFloatArgs {
-		if valStr, ok := argMap[arg]; ok {
-			val, err := strconv.ParseFloat(valStr, 64)
-			if err != nil {
-				return fmt.Errorf("validation failed: %s value must be numeric, got %q", arg, valStr)
-			}
-			if val <= 0 {
-				return fmt.Errorf("validation failed: %s must be greater than 0, got %v", arg, val)
-			}
-			parsedFloats[arg] = val
+	// Validate QPS is a positive float32
+	var qps float32
+	var qpsOk bool
+	if qpsStr, ok := argMap[argKubeAPIQPS]; ok {
+		val, err := strconv.ParseFloat(qpsStr, 32)
+		if err != nil {
+			return fmt.Errorf("validation failed: %s value must be numeric, got %q", argKubeAPIQPS, qpsStr)
 		}
+		if val <= 0 {
+			return fmt.Errorf("validation failed: %s must be greater than 0, got %v", argKubeAPIQPS, val)
+		}
+		qps = float32(val)
+		qpsOk = true
 	}
 
 	// Validate burst >= qps when both are specified.
-	qps, qpsOk := parsedFloats[argKubeAPIQPS]
-	burst, burstOk := parsedFloats[argKubeAPIBurst]
-	if qpsOk && burstOk && burst < qps {
-		return fmt.Errorf("validation failed: --kube-api-burst (%v) must be >= --kube-api-qps (%v)", burst, qps)
+	burst, burstOk := parsedInts[argKubeAPIBurst]
+	if qpsOk && burstOk && float32(burst) < qps {
+		return fmt.Errorf("validation failed: --kube-api-burst (%d) must be >= --kube-api-qps (%v)", burst, qps)
 	}
 
 	return nil
