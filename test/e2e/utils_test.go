@@ -1571,6 +1571,13 @@ func vaultShellCmd(script string) string {
 	return fmt.Sprintf("export VAULT_TOKEN=$(cat %s) && %s", vaultTokenFile, script)
 }
 
+// execVaultInPod runs vault with the given arguments, loading VAULT_TOKEN from the pod-local token file.
+// Arguments are passed to vault via exec rather than interpolated into a shell string.
+func execVaultInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName string, vaultArgs ...string) (string, error) {
+	cmd := append([]string{"sh", "-c", fmt.Sprintf("export VAULT_TOKEN=$(cat %s) && exec vault \"$@\"", vaultTokenFile), "vault"}, vaultArgs...)
+	return execInPod(ctx, cfg, kubeClient, namespace, podName, "vault", cmd...)
+}
+
 // isPodReady returns true if the pod is running and has the Ready condition set to true.
 // It returns false for pods that are being deleted.
 func isPodReady(pod *corev1.Pod) bool {

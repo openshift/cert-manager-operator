@@ -464,7 +464,10 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 			Expect(oidcIssuer).NotTo(BeEmpty(), "OIDC issuer URL should not be empty")
 
 			By("configuring JWT auth in Vault")
-			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault auth enable jwt && vault write auth/jwt/config oidc_discovery_url=%s`, oidcIssuer))
+			_, err = execVaultInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "auth", "enable", "jwt")
+			Expect(err).NotTo(HaveOccurred(), "failed to enable JWT auth in Vault")
+
+			jwtConfigArgs := []string{"write", "auth/jwt/config", "oidc_discovery_url=" + oidcIssuer}
 
 			// Handle non-STS environments where OIDC issuer is internal URL
 			if strings.Contains(oidcIssuer, "kubernetes.default.svc") {
@@ -510,14 +513,14 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 				})
 
 				// Add CA certificate for internal OIDC issuer
-				vaultCmd = vaultShellCmd(fmt.Sprintf(`vault auth enable jwt && vault write auth/jwt/config oidc_discovery_url=%s oidc_discovery_ca_pem=@%s`, oidcIssuer, vaultServiceAccountCA))
+				jwtConfigArgs = append(jwtConfigArgs, "oidc_discovery_ca_pem=@"+vaultServiceAccountCA)
 			}
 
-			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
+			_, err = execVaultInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, jwtConfigArgs...)
 			Expect(err).NotTo(HaveOccurred(), "failed to configure JWT auth in Vault")
 
 			By("creating JWT role in Vault")
-			vaultCmd = vaultShellCmd(fmt.Sprintf(`vault write auth/jwt/role/issuer role_type=jwt bound_audiences="vault://%s/%s" user_claim=sub bound_subject="system:serviceaccount:%s:%s" token_policies=cert-manager ttl=1m`,
+			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault write auth/jwt/role/issuer role_type=jwt bound_audiences="vault://%s/%s" user_claim=sub bound_subject="system:serviceaccount:%s:%s" token_policies=cert-manager ttl=1m`,
 				ns.Name, issuerName, ns.Name, serviceAccountName))
 			_, err = execInPod(ctx, cfg, loader.KubeClient, ns.Name, vaultPodName, "vault", "sh", "-c", vaultCmd)
 			Expect(err).NotTo(HaveOccurred(), "failed to create JWT role in Vault")
