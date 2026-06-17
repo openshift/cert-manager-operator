@@ -1253,6 +1253,37 @@ func waitForIstioCSRConditionMessage(ctx context.Context, loader library.Dynamic
 	})
 }
 
+// istioCSRDeploymentMissingHint explains why cert-manager-istio-csr may never appear for a new operand.
+func istioCSRDeploymentMissingHint(ctx context.Context, operandNamespace string) string {
+	if loader.DynamicClient == nil {
+		return ""
+	}
+
+	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(operandNamespace)
+	obj, err := istiocsrClient.Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
+	if err == nil {
+		if ann := obj.GetAnnotations(); ann != nil && ann[istioCSRP0RejectAnnotation] == "true" {
+			return "IstioCSR was rejected because another istiocsr instance already exists; only one cluster-wide operand is supported"
+		}
+	}
+
+	list, err := loader.DynamicClient.Resource(istiocsrSchema).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return ""
+	}
+	for _, item := range list.Items {
+		if item.GetNamespace() == operandNamespace {
+			continue
+		}
+		return fmt.Sprintf(
+			"another IstioCSR already exists at %s/%s; do not run Feature:ServiceMesh in the same job as standalone IstioCSR grpc tests",
+			item.GetNamespace(),
+			item.GetName(),
+		)
+	}
+	return ""
+}
+
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
 // once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
@@ -1283,6 +1314,9 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 		deployment, getErr := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if getErr != nil {
 			if apierrors.IsNotFound(getErr) {
+				if hint := istioCSRDeploymentMissingHint(ctx, namespace); hint != "" {
+					return fmt.Errorf("timeout waiting for deployment %s/%s: deployment does not exist (%s)", namespace, deploymentName, hint)
+				}
 				return fmt.Errorf("timeout waiting for deployment %s/%s: deployment does not exist", namespace, deploymentName)
 			}
 			return fmt.Errorf("timeout waiting for deployment %s/%s: failed to get status: %v", namespace, deploymentName, getErr)

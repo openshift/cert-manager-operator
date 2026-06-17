@@ -632,6 +632,10 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		BeforeAll(func() {
 			clusterID = deriveClusterID(cfg)
 
+			DeferCleanup(func() {
+				_ = cleanupOSSMIstioCSROperand(ctx, loader)
+			})
+
 			By("creating istio-csr issuer chain for OSSM v3 smoke")
 			err := ensureOSSMIssuerChain(ctx, clientset, certmanagerClient)
 			if err != nil {

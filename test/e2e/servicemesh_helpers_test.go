@@ -476,6 +476,28 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 	return waitForIssuerReadiness(ctx, ossmIstioSystemIssuerName, ossmIstioSystemNamespace)
 }
 
+func cleanupOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResourceLoader) error {
+	By("cleaning up OSSM IstioCSR operand in istio-csr namespace")
+	client := loader.DynamicClient.Resource(istiocsrSchema).Namespace(ossmIstioCSRNamespace)
+	err := client.Delete(ctx, istioCSRP0ISTIOCSRName, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		_, err := client.Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+}
+
 func ensureOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResourceLoader, clusterID string) error {
 	clientset, ok := loader.KubeClient.(*kubernetes.Clientset)
 	if !ok {

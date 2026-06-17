@@ -188,7 +188,7 @@ E2E_TIMEOUT ?= 2h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests.
 # See https://onsi.github.io/ginkgo/#spec-labels
 # The default is to run tests on the AWS platform.
-E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint}
+E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint} && !Feature:ServiceMesh
 
 # ============================================================================
 # Default Target
