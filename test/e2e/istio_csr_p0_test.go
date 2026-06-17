@@ -691,11 +691,17 @@ var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Fe
 
 			meshMemberNS, err = loader.CreateTestingNS("osm-member", true)
 			Expect(err).NotTo(HaveOccurred())
-			meshMemberNS.Labels = map[string]string{
-				istioCSRP0MaistraMemberOfLabel: istioCPNamespace,
-			}
-			meshMemberNS, err = clientset.CoreV1().Namespaces().Update(ctx, meshMemberNS, metav1.UpdateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func(g Gomega) {
+				ns, getErr := clientset.CoreV1().Namespaces().Get(ctx, meshMemberNS.Name, metav1.GetOptions{})
+				g.Expect(getErr).NotTo(HaveOccurred())
+				if ns.Labels == nil {
+					ns.Labels = map[string]string{}
+				}
+				ns.Labels[istioCSRP0MaistraMemberOfLabel] = istioCPNamespace
+				updated, updateErr := clientset.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
+				g.Expect(updateErr).NotTo(HaveOccurred())
+				meshMemberNS = updated
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 			DeferCleanup(func() {
 				loader.DeleteTestingNS(meshMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
 			})
