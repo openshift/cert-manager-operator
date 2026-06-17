@@ -40,8 +40,9 @@ const (
 	ossmIstioInjectionLabel      = "istio-injection"
 	ossmIstioInjectionEnabled    = "enabled"
 	ossmDataPlaneSelector        = "istio-injection=enabled"
-	ossmDefaultIstioVersion      = "v1.24.3"
-	ossmDefaultOperatorVersion   = "3.2.5"
+	// Defaults match Makefile E2E_OSM_* vars; override via env or make test-e2e.
+	ossmDefaultIstioVersion    = "v1.24.3"
+	ossmDefaultOperatorVersion = "3.2.5"
 	ossmIstiodWaitTimeout        = 15 * time.Minute
 	ossmIssuerSelfSignedName     = "istio-csr-selfsigned-issuer"
 	ossmRootCACertName           = "istio-csr-root-ca"
@@ -74,8 +75,7 @@ var (
 // deriveClusterID returns the Istio multi-cluster ID derived from the API server URL.
 // Example: https://api.bhb.gcp.devcluster.openshift.com:6443 -> api-bhb-gcp-devcluster-openshift-com:6443
 func deriveClusterID(cfg *rest.Config) string {
-	host := strings.TrimPrefix(cfg.Host, "https://")
-	host = strings.TrimPrefix(host, "http://")
+	host := strings.TrimPrefix(strings.TrimPrefix(cfg.Host, "https://"), "http://")
 
 	hostPart, port, found := strings.Cut(host, ":")
 	if !found {
@@ -375,8 +375,7 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 			},
 		},
 	}
-	_, err := certClient.CertmanagerV1().Issuers(operandNamespace).Create(ctx, selfSignedIssuer, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureIssuer(ctx, certClient, selfSignedIssuer); err != nil {
 		return err
 	}
 
@@ -391,15 +390,14 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 			SecretName: ossmRootCASecretName,
 			IsCA:       true,
 			Duration:   &metav1.Duration{Duration: 3 * time.Hour},
-			IssuerRef: certmanagermetav1.ObjectReference{
+			IssuerRef: certmanagermetav1.IssuerReference{
 				Name:  ossmIssuerSelfSignedName,
 				Kind:  "Issuer",
 				Group: "cert-manager.io",
 			},
 		},
 	}
-	_, err = certClient.CertmanagerV1().Certificates(operandNamespace).Create(ctx, rootCA, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureCertificate(ctx, certClient, rootCA); err != nil {
 		return err
 	}
 	if err := waitForCertificateReadiness(ctx, ossmRootCACertName, operandNamespace); err != nil {
@@ -417,8 +415,7 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 			},
 		},
 	}
-	_, err = certClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureClusterIssuer(ctx, certClient, clusterIssuer); err != nil {
 		return err
 	}
 	if err := waitForClusterIssuerReadiness(ctx, ossmClusterIssuerName); err != nil {
@@ -440,15 +437,14 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 			SecretName: ossmIstioSystemCASecretName,
 			IsCA:       true,
 			Duration:   &metav1.Duration{Duration: 2 * time.Hour},
-			IssuerRef: certmanagermetav1.ObjectReference{
+			IssuerRef: certmanagermetav1.IssuerReference{
 				Name:  ossmClusterIssuerName,
 				Kind:  "ClusterIssuer",
 				Group: "cert-manager.io",
 			},
 		},
 	}
-	_, err = certClient.CertmanagerV1().Certificates(ossmIstioSystemNamespace).Create(ctx, istioCA, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureCertificate(ctx, certClient, istioCA); err != nil {
 		return err
 	}
 	if err := waitForCertificateReadiness(ctx, ossmIstioSystemCACertName, ossmIstioSystemNamespace); err != nil {
@@ -469,8 +465,7 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 			},
 		},
 	}
-	_, err = certClient.CertmanagerV1().Issuers(ossmIstioSystemNamespace).Create(ctx, istioIssuer, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureIssuer(ctx, certClient, istioIssuer); err != nil {
 		return err
 	}
 	return waitForIssuerReadiness(ctx, ossmIstioSystemIssuerName, ossmIstioSystemNamespace)
@@ -479,7 +474,7 @@ func ensureOSSMIssuerChain(ctx context.Context, clientset *kubernetes.Clientset,
 func cleanupOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResourceLoader) error {
 	By("cleaning up OSSM IstioCSR operand in istio-csr namespace")
 	client := loader.DynamicClient.Resource(istiocsrSchema).Namespace(ossmIstioCSRNamespace)
-	err := client.Delete(ctx, istioCSRP0ISTIOCSRName, metav1.DeleteOptions{})
+	err := client.Delete(ctx, istioCSRResourceName, metav1.DeleteOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -487,7 +482,7 @@ func cleanupOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResou
 		return err
 	}
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		_, err := client.Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
+		_, err := client.Get(ctx, istioCSRResourceName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
@@ -509,11 +504,12 @@ func ensureOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResour
 
 	By("creating IstioCSR operand for OSSM v3 smoke")
 	loader.CreateFromFile(
-		AssetFunc(testassets.ReadFile).WithTemplateValues(OSSMIstioCSROperandConfig{
+		AssetFunc(testassets.ReadFile).WithTemplateValues(IstioCSRConfig{
 			Namespace: ossmIstioCSRNamespace,
 			ClusterID: clusterID,
+			Profile:   istioCSRProfileOSSM,
 		}),
-		filepath.Join("testdata", "servicemesh", "istio-csr-operand.yaml"),
+		istioCSROperandManifest,
 		ossmIstioCSRNamespace,
 	)
 	return nil

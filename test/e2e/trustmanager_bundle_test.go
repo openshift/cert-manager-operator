@@ -58,6 +58,7 @@ import (
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	configopenshiftv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 
 	corev1 "k8s.io/api/core/v1"
@@ -796,7 +797,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 					return err
 				}, lowTimeout, fastPollInterval).Should(Succeed())
 			} else {
-				_, err := k8sClientSet.CoreV1().ConfigMaps(openshiftConfigNS).Create(ctx, &corev1.ConfigMap{
+				Expect(library.UpsertConfigMap(ctx, k8sClientSet, &corev1.ConfigMap{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      userCABundleName,
 						Namespace: openshiftConfigNS,
@@ -804,8 +805,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 					Data: map[string]string{
 						"ca-bundle.crt": testCACert,
 					},
-				}, metav1.CreateOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
+				})).ShouldNot(HaveOccurred())
 			}
 
 			if originalTrustedCAName != userCABundleName {

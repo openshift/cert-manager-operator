@@ -78,8 +78,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					},
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(library.UpsertConfigMap(ctx, loader.KubeClient, trustedCA)).NotTo(HaveOccurred())
 
 			DeferCleanup(func(cleanupCtx context.Context) {
 				loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(cleanupCtx, "trusted-ca", metav1.DeleteOptions{})
@@ -377,8 +376,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					"client-secret": "dummy-client-secret",
 				},
 			}
-			_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, azureDNSSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create Azure DNS secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, azureDNSSecret)).NotTo(HaveOccurred(), "failed to create Azure DNS secret")
 
 			DeferCleanup(func(ctx context.Context) {
 				err := loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, azureDNSSecretName, metav1.DeleteOptions{})
@@ -397,8 +395,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					"secret-access-key": "dummy-secret-key",
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, route53Secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create Route53 secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, route53Secret)).NotTo(HaveOccurred(), "failed to create Route53 secret")
 
 			DeferCleanup(func(ctx context.Context) {
 				err := loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, route53SecretName, metav1.DeleteOptions{})
@@ -478,7 +475,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					},
 				},
 			}
-			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
+			_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
 
 			DeferCleanup(func(ctx context.Context) {

@@ -30,49 +30,40 @@ import (
 )
 
 const (
-	istioCSRP0ClusterIssuerName          = "selfsigned-issuer"
-	istioCSRP0CAClusterIssuerName        = "istiocsr-p0-ca-clusterissuer"
-	istioCSRP0CASecretName               = "root-secret"
-	istioCSRP0CACertificateName          = "my-selfsigned-ca"
-	istioCSRP0RejectAnnotation           = "operator.openshift.io/istio-csr-reject-multiple-instance"
-	istioCSRP0ManagedResourceLabel       = "app.kubernetes.io/name=cert-manager-istio-csr"
-	istioCSRP0ManagedByLabel             = "app.kubernetes.io/managed-by"
-	istioCSRP0ManagedByExpectedValue     = "cert-manager-operator"
-	istioCSRP0ManagedAppLabel            = "app"
-	istioCSRP0ManagedAppExpectedValue    = "cert-manager-istio-csr"
-	istioCSRP0ISTIOCSRName               = "default"
-	istioCSRP0GRPCServiceName            = "cert-manager-istio-csr"
-	istioCSRP0GRPCServicePortName        = "web"
-	istioCSRP0MissingConfigMapKeyMessage = "not found in ConfigMap"
+	istioCSRClusterIssuerName          = "selfsigned-issuer"
+	istioCSRCAClusterIssuerName        = "istiocsr-ca-clusterissuer"
+	istioCSRCASecretName               = "root-secret"
+	istioCSRCACertificateName          = "my-selfsigned-ca"
+	istioCSRRejectAnnotation           = "operator.openshift.io/istio-csr-reject-multiple-instance"
+	istioCSRManagedResourceLabel       = "app.kubernetes.io/name=cert-manager-istio-csr"
+	istioCSRResourceName               = "default"
+	istioCSRGRPCServiceName            = "cert-manager-istio-csr"
+	istioCSRGRPCServicePortName        = "web"
+	istioCSRMissingConfigMapKeyMessage = "not found in ConfigMap"
 
-	istioCSRP0IstiodTLSSecretName = "istiod-tls"
+	istioCSRIstiodTLSSecretName = "istiod-tls"
 
 	// Non-routable ACME directory URL for negative-path tests; operator rejects ACME issuers by type only.
-	istioCSRP0ACMEPlaceholderServer = "https://example.invalid/directory"
+	istioCSRACMEPlaceholderServer = "https://example.invalid/directory"
 )
 
-type istioCSRP0Config struct {
-	issuerRefKind                 string
-	issuerRefName                 string
-	serverPort                    int32
-	logLevel                      int32
-	logFormat                     string
-	istioControlPlaneNamespace    string
-	istioDataPlaneSelector        string
-	customCAConfigMapName         string
-	customCAConfigMapNamespace    string
-	customCAConfigMapKey          string
-	controllerConfigLabels        map[string]string
-	addServerBlock                bool
-	addIstioDataPlaneSelector     bool
-	addCustomCAConfigMap          bool
-	addControllerConfigLabels     bool
+type istioCSRBuildConfig struct {
+	issuerRefKind              string
+	issuerRefName              string
+	serverPort                 int32
+	logLevel                   int32
+	logFormat                  string
+	customCAConfigMapName      string
+	customCAConfigMapNamespace string
+	customCAConfigMapKey       string
+	addServerBlock             bool
+	addCustomCAConfigMap       bool
 }
 
 func generateMeshWorkloadCSR(meshNamespace, serviceAccountName string) string {
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			Organization: []string{"OpenShift Service Mesh E2E"},
+			Organization: []string{"OpenShift cert-manager IstioCSR E2E"},
 		},
 		URIs: []*url.URL{
 			{
@@ -88,9 +79,11 @@ func generateMeshWorkloadCSR(meshNamespace, serviceAccountName string) string {
 	return csr
 }
 
-func copySecretToNamespace(ctx context.Context, clientset *kubernetes.Clientset, sourceNS, targetNS, secretName string) {
+func copySecretToNamespace(ctx context.Context, clientset *kubernetes.Clientset, sourceNS, targetNS, secretName string) error {
 	source, err := clientset.CoreV1().Secrets(sourceNS).Get(ctx, secretName, metav1.GetOptions{})
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		return fmt.Errorf("get secret %s/%s: %w", sourceNS, secretName, err)
+	}
 
 	copied := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -100,13 +93,13 @@ func copySecretToNamespace(ctx context.Context, clientset *kubernetes.Clientset,
 		Data: source.Data,
 		Type: source.Type,
 	}
-	_, err = clientset.CoreV1().Secrets(targetNS).Create(ctx, copied, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		Expect(err).NotTo(HaveOccurred())
+	if err := library.UpsertSecret(ctx, clientset, copied); err != nil {
+		return fmt.Errorf("upsert secret %s/%s: %w", targetNS, secretName, err)
 	}
+	return nil
 }
 
-var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
+var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 
@@ -114,7 +107,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		By("ensuring self-signed ClusterIssuer exists")
 		clusterIssuer := &certmanagerv1.ClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: istioCSRP0ClusterIssuerName,
+				Name: istioCSRClusterIssuerName,
 			},
 			Spec: certmanagerv1.IssuerSpec{
 				IssuerConfig: certmanagerv1.IssuerConfig{
@@ -122,13 +115,10 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				},
 			},
 		}
-		_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			Expect(err).NotTo(HaveOccurred())
-		}
+		Expect(ensureClusterIssuer(ctx, certmanagerClient, clusterIssuer)).NotTo(HaveOccurred())
 
 		By("waiting for self-signed ClusterIssuer readiness")
-		Expect(waitForClusterIssuerReadiness(ctx, istioCSRP0ClusterIssuerName)).NotTo(HaveOccurred())
+		Expect(waitForClusterIssuerReadiness(ctx, istioCSRClusterIssuerName)).NotTo(HaveOccurred())
 	}
 
 	createIssuerPrerequisites := func(namespace string) {
@@ -147,7 +137,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 	}
 
-	newIstioCSR := func(namespace string, cfg istioCSRP0Config) *unstructured.Unstructured {
+	newIstioCSR := func(namespace string, cfg istioCSRBuildConfig) *unstructured.Unstructured {
 		issuerRefKind := "Issuer"
 		if cfg.issuerRefKind != "" {
 			issuerRefKind = cfg.issuerRefKind
@@ -156,17 +146,13 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		if cfg.issuerRefName != "" {
 			issuerRefName = cfg.issuerRefName
 		}
-		istioNamespace := namespace
-		if cfg.istioControlPlaneNamespace != "" {
-			istioNamespace = cfg.istioControlPlaneNamespace
-		}
 
 		istioCSR := &unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"apiVersion": "operator.openshift.io/v1alpha1",
 				"kind":       "IstioCSR",
 				"metadata": map[string]interface{}{
-					"name":      istioCSRP0ISTIOCSRName,
+					"name":      istioCSRResourceName,
 					"namespace": namespace,
 				},
 				"spec": map[string]interface{}{
@@ -182,7 +168,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 							"trustDomain": "cluster.local",
 						},
 						"istio": map[string]interface{}{
-							"namespace": istioNamespace,
+							"namespace": namespace,
 						},
 					},
 				},
@@ -201,9 +187,6 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				"port": cfg.serverPort,
 			}
 		}
-		if cfg.addIstioDataPlaneSelector {
-			istioCSRConfig["istioDataPlaneNamespaceSelector"] = cfg.istioDataPlaneSelector
-		}
 		if cfg.addCustomCAConfigMap {
 			istioCSRConfig["certManager"].(map[string]interface{})["istioCACertificate"] = map[string]interface{}{
 				"name": cfg.customCAConfigMapName,
@@ -211,11 +194,6 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			}
 			if cfg.customCAConfigMapNamespace != "" {
 				istioCSRConfig["certManager"].(map[string]interface{})["istioCACertificate"].(map[string]interface{})["namespace"] = cfg.customCAConfigMapNamespace
-			}
-		}
-		if cfg.addControllerConfigLabels {
-			istioCSR.Object["spec"].(map[string]interface{})["controllerConfig"] = map[string]interface{}{
-				"labels": cfg.controllerConfigLabels,
 			}
 		}
 
@@ -231,24 +209,6 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				Expect(err).NotTo(HaveOccurred())
 			}
 		})
-	}
-
-	waitForIstioCSRReady := func(namespace string) {
-		By("waiting for IstioCSR to become ready")
-		err := pollTillDeploymentAvailable(ctx, clientset, namespace, "cert-manager-istio-csr")
-		Expect(err).NotTo(HaveOccurred())
-
-		_, err = pollTillIstioCSRAvailable(ctx, loader, namespace, istioCSRP0ISTIOCSRName)
-		Expect(err).NotTo(HaveOccurred())
-	}
-
-	getIstioCSRStatus := func(namespace string) map[string]interface{} {
-		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		status, found, err := unstructured.NestedMap(obj.Object, "status")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(found).To(BeTrue())
-		return status
 	}
 
 	getGRPCPortFromEndpoint := func(endpoint string) int32 {
@@ -267,14 +227,14 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		ensureClusterIssuerReady()
 	})
 
-	It("should reject IstioCSR with name other than default", Label("ISTIOCSR-P0-001"), func() {
+	It("should reject IstioCSR with name other than default", Label("ISTIOCSR-001"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-invalid-name", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
 			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
-		invalid := newIstioCSR(ns.Name, istioCSRP0Config{})
+		invalid := newIstioCSR(ns.Name, istioCSRBuildConfig{})
 		invalid.SetName("not-default")
 
 		_, err = loader.DynamicClient.Resource(istiocsrSchema).Namespace(ns.Name).Create(ctx, invalid, metav1.CreateOptions{})
@@ -282,7 +242,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		Expect(err.Error()).To(ContainSubstring("metadata.name"))
 	})
 
-	It("should reject processing of second IstioCSR instance across namespaces", Label("ISTIOCSR-P0-002"), func() {
+	It("should reject processing of second IstioCSR instance across namespaces", Label("ISTIOCSR-002"), func() {
 		firstNS, err := loader.CreateTestingNS("istiocsr-first", true)
 		Expect(err).NotTo(HaveOccurred())
 		secondNS, err := loader.CreateTestingNS("istiocsr-second", true)
@@ -295,24 +255,24 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		createIssuerPrerequisites(firstNS.Name)
 		createIssuerPrerequisites(secondNS.Name)
 
-		createIstioCSR(firstNS.Name, newIstioCSR(firstNS.Name, istioCSRP0Config{}))
-		waitForIstioCSRReady(firstNS.Name)
+		createIstioCSR(firstNS.Name, newIstioCSR(firstNS.Name, istioCSRBuildConfig{}))
+		expectIstioCSROperandReady(ctx, clientset, loader, firstNS.Name)
 
-		createIstioCSR(secondNS.Name, newIstioCSR(secondNS.Name, istioCSRP0Config{}))
+		createIstioCSR(secondNS.Name, newIstioCSR(secondNS.Name, istioCSRBuildConfig{}))
 		By("waiting for IstioCSR Ready=False with multiple-instance rejection message")
-		Expect(waitForIstioCSRConditionMessage(ctx, loader, secondNS.Name, istioCSRP0ISTIOCSRName, v1alpha1.Ready, metav1.ConditionFalse, "multiple instances of istiocsr exists", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
+		Expect(waitForIstioCSRConditionMessage(ctx, loader, secondNS.Name, istioCSRResourceName, v1alpha1.Ready, metav1.ConditionFalse, "multiple instances of istiocsr exists", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 
-		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(secondNS.Name).Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
+		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(secondNS.Name).Get(ctx, istioCSRResourceName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(obj.GetAnnotations()).To(HaveKey(istioCSRP0RejectAnnotation))
+		Expect(obj.GetAnnotations()).To(HaveKey(istioCSRRejectAnnotation))
 
 		Consistently(func() bool {
-			_, err := clientset.AppsV1().Deployments(secondNS.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+			_, err := clientset.AppsV1().Deployments(secondNS.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 			return apierrors.IsNotFound(err)
 		}, "30s", "5s").Should(BeTrue())
 	})
 
-	It("should support ClusterIssuer for IstioCSR reconciliation", Label("ISTIOCSR-P0-003"), func() {
+	It("should support ClusterIssuer for IstioCSR reconciliation", Label("ISTIOCSR-003"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-clusterissuer", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -324,23 +284,23 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		DeferCleanup(func() {
 			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 		})
-		Expect(waitForCertificateReadiness(ctx, istioCSRP0CACertificateName, ns.Name)).NotTo(HaveOccurred())
+		Expect(waitForCertificateReadiness(ctx, istioCSRCACertificateName, ns.Name)).NotTo(HaveOccurred())
 
 		By("copying CA secret to cert-manager namespace for CA ClusterIssuer readiness")
-		copySecretToNamespace(ctx, clientset, ns.Name, operandNamespace, istioCSRP0CASecretName)
+		Expect(copySecretToNamespace(ctx, clientset, ns.Name, operandNamespace, istioCSRCASecretName)).NotTo(HaveOccurred())
 		DeferCleanup(func() {
-			_ = clientset.CoreV1().Secrets(operandNamespace).Delete(ctx, istioCSRP0CASecretName, metav1.DeleteOptions{})
+			_ = clientset.CoreV1().Secrets(operandNamespace).Delete(ctx, istioCSRCASecretName, metav1.DeleteOptions{})
 		})
 
 		By("creating CA ClusterIssuer backed by root-secret")
 		caClusterIssuer := &certmanagerv1.ClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: istioCSRP0CAClusterIssuerName,
+				Name: istioCSRCAClusterIssuerName,
 			},
 			Spec: certmanagerv1.IssuerSpec{
 				IssuerConfig: certmanagerv1.IssuerConfig{
 					CA: &certmanagerv1.CAIssuer{
-						SecretName: istioCSRP0CASecretName,
+						SecretName: istioCSRCASecretName,
 					},
 				},
 			},
@@ -348,22 +308,20 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, caClusterIssuer, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
-			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, istioCSRP0CAClusterIssuerName, metav1.DeleteOptions{})
+			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, istioCSRCAClusterIssuerName, metav1.DeleteOptions{})
 		})
-		Expect(waitForClusterIssuerReadiness(ctx, istioCSRP0CAClusterIssuerName)).NotTo(HaveOccurred())
+		Expect(waitForClusterIssuerReadiness(ctx, istioCSRCAClusterIssuerName)).NotTo(HaveOccurred())
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			issuerRefKind: "ClusterIssuer",
-			issuerRefName: istioCSRP0CAClusterIssuerName,
+			issuerRefName: istioCSRCAClusterIssuerName,
 		})
 		createIstioCSR(ns.Name, istioCSR)
-		waitForIstioCSRReady(ns.Name)
-
-		status := getIstioCSRStatus(ns.Name)
-		Expect(status["istioCSRGRPCEndpoint"]).NotTo(BeEmpty())
+		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		Expect(status.IstioCSRGRPCEndpoint).NotTo(BeEmpty())
 	})
 
-	It("should report degraded state for unsupported ACME issuer", Label("ISTIOCSR-P0-004"), func() {
+	It("should report degraded state for unsupported ACME issuer", Label("ISTIOCSR-004"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-acme", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -379,7 +337,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				IssuerConfig: certmanagerv1.IssuerConfig{
 					ACME: &acmev1.ACMEIssuer{
 						Email:  "istiocsr@example.com",
-						Server: istioCSRP0ACMEPlaceholderServer,
+						Server: istioCSRACMEPlaceholderServer,
 						PrivateKey: certmanagermetav1.SecretKeySelector{
 							LocalObjectReference: certmanagermetav1.LocalObjectReference{Name: "acme-private-key"},
 						},
@@ -390,15 +348,15 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		_, err = certmanagerClient.CertmanagerV1().Issuers(ns.Name).Create(ctx, acmeIssuer, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			issuerRefName: "acme-issuer",
 		})
 		createIstioCSR(ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with unsupported ACME issuer message")
-		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRP0ISTIOCSRName, v1alpha1.Degraded, metav1.ConditionTrue, "unsupported ACME issuer", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
+		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "unsupported ACME issuer", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-P0-005"), func() {
+	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-005"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-port", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -406,29 +364,26 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			addServerBlock: true,
 			serverPort:     7443,
 		})
 		createIstioCSR(ns.Name, istioCSR)
-		waitForIstioCSRReady(ns.Name)
+		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		Expect(status.IstioCSRGRPCEndpoint).To(ContainSubstring(":7443"))
 
-		status := getIstioCSRStatus(ns.Name)
-		endpoint := status["istioCSRGRPCEndpoint"].(string)
-		Expect(endpoint).To(ContainSubstring(":7443"))
-
-		svc, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+		svc, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		var grpcPort int32
 		for _, p := range svc.Spec.Ports {
-			if p.Name == istioCSRP0GRPCServicePortName {
+			if p.Name == istioCSRGRPCServicePortName {
 				grpcPort = p.Port
 			}
 		}
 		Expect(grpcPort).To(Equal(int32(7443)))
 	})
 
-	It("should reconcile custom log arguments after deployment drift", Label("ISTIOCSR-P0-006"), func() {
+	It("should reconcile custom log arguments after deployment drift", Label("ISTIOCSR-006"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-log", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -436,14 +391,14 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			logLevel:  5,
 			logFormat: "json",
 		})
 		createIstioCSR(ns.Name, istioCSR)
-		waitForIstioCSRReady(ns.Name)
+		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
-		deployment, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+		deployment, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 		Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
@@ -454,14 +409,14 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func(g Gomega) {
-			current, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+			current, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(current.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
 			g.Expect(current.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should recreate ServiceAccount when deleted", Label("ISTIOCSR-P0-017"), func() {
+	It("should recreate ServiceAccount when deleted", Label("ISTIOCSR-017"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-sa", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -469,16 +424,13 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRP0Config{}))
-		waitForIstioCSRReady(ns.Name)
-
-		status := getIstioCSRStatus(ns.Name)
-		serviceAccountName := status["serviceAccount"].(string)
-		Expect(clientset.CoreV1().ServiceAccounts(ns.Name).Delete(ctx, serviceAccountName, metav1.DeleteOptions{})).NotTo(HaveOccurred())
-		Expect(pollTillServiceAccountAvailable(ctx, clientset, ns.Name, serviceAccountName)).NotTo(HaveOccurred())
+		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		Expect(clientset.CoreV1().ServiceAccounts(ns.Name).Delete(ctx, status.ServiceAccount, metav1.DeleteOptions{})).NotTo(HaveOccurred())
+		Expect(pollTillServiceAccountAvailable(ctx, clientset, ns.Name, status.ServiceAccount)).NotTo(HaveOccurred())
 	})
 
-	It("should reconcile gRPC service drift", Label("ISTIOCSR-P0-018"), func() {
+	It("should reconcile gRPC service drift", Label("ISTIOCSR-018"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-service", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -486,16 +438,14 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRP0Config{}))
-		waitForIstioCSRReady(ns.Name)
+		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		expectedPort := getGRPCPortFromEndpoint(status.IstioCSRGRPCEndpoint)
 
-		status := getIstioCSRStatus(ns.Name)
-		expectedPort := getGRPCPortFromEndpoint(status["istioCSRGRPCEndpoint"].(string))
-
-		service, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+		service, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		for i := range service.Spec.Ports {
-			if service.Spec.Ports[i].Name == istioCSRP0GRPCServicePortName {
+			if service.Spec.Ports[i].Name == istioCSRGRPCServicePortName {
 				service.Spec.Ports[i].Port = 9443
 			}
 		}
@@ -503,11 +453,11 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func(g Gomega) {
-			current, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRP0GRPCServiceName, metav1.GetOptions{})
+			current, err := clientset.CoreV1().Services(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 			g.Expect(err).NotTo(HaveOccurred())
 			var grpcPort int32
 			for _, p := range current.Spec.Ports {
-				if p.Name == istioCSRP0GRPCServicePortName {
+				if p.Name == istioCSRGRPCServicePortName {
 					grpcPort = p.Port
 				}
 			}
@@ -515,7 +465,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should recreate deleted network policy", Label("ISTIOCSR-P0-019"), func() {
+	It("should recreate deleted network policy", Label("ISTIOCSR-019"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-netpol", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -523,11 +473,11 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRP0Config{}))
-		waitForIstioCSRReady(ns.Name)
+		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 		networkPolicies, err := clientset.NetworkingV1().NetworkPolicies(ns.Name).List(ctx, metav1.ListOptions{
-			LabelSelector: istioCSRP0ManagedResourceLabel,
+			LabelSelector: istioCSRManagedResourceLabel,
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(networkPolicies.Items).NotTo(BeEmpty())
@@ -541,7 +491,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should publish complete IstioCSR status contract", Label("ISTIOCSR-P0-020"), func() {
+	It("should publish complete IstioCSR status contract", Label("ISTIOCSR-020"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-status", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -549,27 +499,26 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRP0Config{}))
-		waitForIstioCSRReady(ns.Name)
+		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		Expect(status.IstioCSRImage).NotTo(BeEmpty(), "status.istioCSRImage should be populated")
+		Expect(status.IstioCSRGRPCEndpoint).NotTo(BeEmpty(), "status.istioCSRGRPCEndpoint should be populated")
+		Expect(status.ServiceAccount).NotTo(BeEmpty(), "status.serviceAccount should be populated")
+		Expect(status.ClusterRole).NotTo(BeEmpty(), "status.clusterRole should be populated")
+		Expect(status.ClusterRoleBinding).NotTo(BeEmpty(), "status.clusterRoleBinding should be populated")
 
-		status := getIstioCSRStatus(ns.Name)
-		for _, field := range []string{"istioCSRImage", "istioCSRGRPCEndpoint", "serviceAccount", "clusterRole", "clusterRoleBinding"} {
-			Expect(status[field]).NotTo(BeEmpty(), "status.%s should be populated", field)
-		}
+		Expect(status.IstioCSRGRPCEndpoint).To(ContainSubstring(fmt.Sprintf(".%s.svc:", ns.Name)))
+		Expect(getGRPCPortFromEndpoint(status.IstioCSRGRPCEndpoint)).To(BeNumerically(">", 0))
 
-		endpoint := status["istioCSRGRPCEndpoint"].(string)
-		Expect(endpoint).To(ContainSubstring(fmt.Sprintf(".%s.svc:", ns.Name)))
-		Expect(getGRPCPortFromEndpoint(endpoint)).To(BeNumerically(">", 0))
-
-		_, err = clientset.RbacV1().ClusterRoles().Get(ctx, status["clusterRole"].(string), metav1.GetOptions{})
+		_, err = clientset.RbacV1().ClusterRoles().Get(ctx, status.ClusterRole, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		_, err = clientset.RbacV1().ClusterRoleBindings().Get(ctx, status["clusterRoleBinding"].(string), metav1.GetOptions{})
+		_, err = clientset.RbacV1().ClusterRoleBindings().Get(ctx, status.ClusterRoleBinding, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		_, err = clientset.CoreV1().ServiceAccounts(ns.Name).Get(ctx, status["serviceAccount"].(string), metav1.GetOptions{})
+		_, err = clientset.CoreV1().ServiceAccounts(ns.Name).Get(ctx, status.ServiceAccount, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("should report degraded when referenced CA ConfigMap key is missing", Label("ISTIOCSR-P0-023"), func() {
+	It("should report degraded when referenced CA ConfigMap key is missing", Label("ISTIOCSR-023"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-missing-key", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -586,10 +535,9 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				"other-key.pem": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
 			},
 		}
-		_, err = clientset.CoreV1().ConfigMaps(ns.Name).Create(ctx, cm, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred())
+		Expect(library.UpsertConfigMap(ctx, clientset, cm)).NotTo(HaveOccurred())
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			addCustomCAConfigMap:      true,
 			customCAConfigMapName:     cm.Name,
 			customCAConfigMapNamespace: "",
@@ -597,10 +545,10 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIstioCSR(ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with missing ConfigMap key message")
-		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRP0ISTIOCSRName, v1alpha1.Degraded, metav1.ConditionTrue, istioCSRP0MissingConfigMapKeyMessage, highTimeout, slowPollInterval)).NotTo(HaveOccurred())
+		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, istioCSRMissingConfigMapKeyMessage, highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	It("should report degraded when referenced CA ConfigMap namespace does not exist", Label("ISTIOCSR-P0-027"), func() {
+	It("should report degraded when referenced CA ConfigMap namespace does not exist", Label("ISTIOCSR-027"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-missing-ns", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
@@ -608,7 +556,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIssuerPrerequisites(ns.Name)
 
-		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			addCustomCAConfigMap:       true,
 			customCAConfigMapName:      "external-ca",
 			customCAConfigMapNamespace: "non-existent-istiocsr-ca-ns",
@@ -616,10 +564,10 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 		})
 		createIstioCSR(ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with missing CA ConfigMap namespace message")
-		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRP0ISTIOCSRName, v1alpha1.Degraded, metav1.ConditionTrue, "failed to fetch CA certificate ConfigMap", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
+		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "failed to fetch CA certificate ConfigMap", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	Context("OpenShift Service Mesh smoke", Label("Feature:ServiceMesh"), Ordered, func() {
+	Context("OpenShift Service Mesh smoke", Label("Feature:IstioCSR-ServiceMesh"), Ordered, func() {
 		var (
 			istioCPNamespace string
 			clusterID        string
@@ -645,25 +593,15 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			By("creating IstioCSR operand in istio-csr namespace")
 			err = ensureOSSMIstioCSROperand(ctx, loader, clusterID)
 			Expect(err).NotTo(HaveOccurred())
-			waitForIstioCSRReady(ossmIstioCSRNamespace)
+			istioCSRStatus = expectIstioCSROperandReady(ctx, clientset, loader, ossmIstioCSRNamespace)
+			Expect(istioCSRStatus.IstioCSRGRPCEndpoint).NotTo(BeEmpty())
+			Expect(istioCSRStatus.ServiceAccount).NotTo(BeEmpty())
 
-			statusMap := getIstioCSRStatus(ossmIstioCSRNamespace)
-			Expect(statusMap["istioCSRGRPCEndpoint"]).NotTo(BeEmpty())
-			Expect(statusMap["serviceAccount"]).NotTo(BeEmpty())
-
-			caAddress, ok := statusMap["istioCSRGRPCEndpoint"].(string)
-			Expect(ok).To(BeTrue())
-			Expect(caAddress).NotTo(BeEmpty())
-
-			cpNamespace, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, caAddress, clusterID)
+			cpNamespace, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, istioCSRStatus.IstioCSRGRPCEndpoint, clusterID)
 			if err != nil {
 				Skip(fmt.Sprintf("OpenShift Service Mesh v3 not available: %v", err))
 			}
 			istioCPNamespace = cpNamespace
-
-			var err2 error
-			istioCSRStatus, err2 = pollTillIstioCSRAvailable(ctx, loader, ossmIstioCSRNamespace, istioCSRP0ISTIOCSRName)
-			Expect(err2).NotTo(HaveOccurred())
 
 			meshMemberNS, err = loader.CreateTestingNS("osm-apps-1", true)
 			Expect(err).NotTo(HaveOccurred())
@@ -731,18 +669,17 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 					"ca.proto": string(protoBytes),
 				},
 			}
-			_, err = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Create(ctx, protoCM, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(library.UpsertConfigMap(ctx, clientset, protoCM)).NotTo(HaveOccurred())
 			DeferCleanup(func() {
 				_ = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Delete(ctx, protoCM.Name, metav1.DeleteOptions{})
 			})
 
 			Eventually(func(g Gomega) {
-				_, err := clientset.CoreV1().Secrets(istioCPNamespace).Get(ctx, istioCSRP0IstiodTLSSecretName, metav1.GetOptions{})
+				_, err := clientset.CoreV1().Secrets(istioCPNamespace).Get(ctx, istioCSRIstiodTLSSecretName, metav1.GetOptions{})
 				g.Expect(err).NotTo(HaveOccurred())
 			}, highTimeout, slowPollInterval).Should(Succeed())
 
-			copySecretToNamespace(ctx, clientset, istioCPNamespace, meshMemberNS.Name, istioCSRP0IstiodTLSSecretName)
+			Expect(copySecretToNamespace(ctx, clientset, istioCPNamespace, meshMemberNS.Name, istioCSRIstiodTLSSecretName)).NotTo(HaveOccurred())
 
 			err = pollTillServiceAccountAvailable(ctx, clientset, meshMemberNS.Name, meshWorkloadSA)
 			Expect(err).NotTo(HaveOccurred())

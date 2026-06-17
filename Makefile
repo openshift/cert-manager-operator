@@ -63,6 +63,11 @@ TRUST_MANAGER_VERSION ?= v0.20.3
 
 # --- Test Versions ---
 
+# OpenShift Service Mesh versions for IstioCSR ServiceMesh e2e tests.
+# Keep servicemesh_helpers_test.go ossmDefault* constants in sync when bumping.
+E2E_OSM_ISTIO_VERSION ?= v1.24.3
+E2E_OSM_OPERATOR_VERSION ?= 3.2.5
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION ?= 1.32.0
 
@@ -279,6 +284,8 @@ test-apis: $(SETUP_ENVTEST) $(GINKGO)
 TEST ?=
 .PHONY: test-e2e
 test-e2e: test-e2e-wait-for-stable-state ## Run end-to-end tests.
+	E2E_OSM_ISTIO_VERSION=$(E2E_OSM_ISTIO_VERSION) \
+	E2E_OSM_OPERATOR_VERSION=$(E2E_OSM_OPERATOR_VERSION) \
 	go test -C $(PROJECT_ROOT)/test/e2e \
 		-timeout $(E2E_TIMEOUT) \
 		-count 1 -v -p 1 \

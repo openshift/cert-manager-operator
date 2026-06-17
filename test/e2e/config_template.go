@@ -47,10 +47,36 @@ type OSSMv3Config struct {
 	CAAddress       string
 }
 
-// OSSMIstioCSROperandConfig customizes the IstioCSR CR for OSSM v3 smoke tests.
-type OSSMIstioCSROperandConfig struct {
-	Namespace string
-	ClusterID string
+const (
+	istioCSRProfileMinimal  = "minimal"
+	istioCSRProfileOSSM     = "ossm"
+	istioCSROperandManifest = "testdata/istio/istio_csr_template.yaml"
+)
+
+// IstioCSRConfig customizes the IstioCSR operand manifest.
+// Profile is "minimal" (default) for isolated IstioCSR tests or "ossm" for Service Mesh smoke.
+// IstioNamespace is spec.istioCSRConfig.istio.namespace; for the minimal profile it must match
+// the test namespace where the istio-ca Issuer is created.
+type IstioCSRConfig struct {
+	Namespace                       string
+	IstioNamespace                  string
+	ClusterID                       string
+	IstioDataPlaneNamespaceSelector string
+	Profile                         string
+	IssuerName                      string
+}
+
+func istioCSRConfigForNS(namespace string, overrides IstioCSRConfig) IstioCSRConfig {
+	if overrides.Namespace == "" {
+		overrides.Namespace = namespace
+	}
+	if overrides.IstioNamespace == "" {
+		overrides.IstioNamespace = namespace
+	}
+	if overrides.Profile == "" {
+		overrides.Profile = istioCSRProfileMinimal
+	}
+	return overrides
 }
 
 // replaceWithTemplate puts field values from a template struct

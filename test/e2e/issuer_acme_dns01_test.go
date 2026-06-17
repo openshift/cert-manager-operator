@@ -108,8 +108,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 					},
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Create(ctx, trustedCA, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(library.UpsertConfigMap(ctx, loader.KubeClient, trustedCA)).NotTo(HaveOccurred())
 
 			DeferCleanup(func(cleanupCtx context.Context) {
 				loader.KubeClient.CoreV1().ConfigMaps("cert-manager").Delete(cleanupCtx, "trusted-ca", metav1.DeleteOptions{})
@@ -272,8 +271,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 				secretKey: secretAccessKey,
 			},
 		}
-		_, err := loader.KubeClient.CoreV1().Secrets(namespace).Create(ctx, awsSecret, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
+		Expect(library.UpsertSecret(ctx, loader.KubeClient, awsSecret)).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
 	}
 
 	// setupAmbientAWSCredentials sets up ambient AWS credentials via CredentialsRequest and subscription patch
@@ -343,8 +341,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 				secretKey: serviceAccount,
 			},
 		}
-		_, err := loader.KubeClient.CoreV1().Secrets(namespace).Create(ctx, gcpSecret, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
+		Expect(library.UpsertSecret(ctx, loader.KubeClient, gcpSecret)).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
 	}
 
 	// setupAmbientGCPCredentials sets up ambient GCP credentials via CredentialsRequest and subscription patch
@@ -532,8 +529,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 				secretKey: clientSecret,
 			},
 		}
-		_, err := loader.KubeClient.CoreV1().Secrets(namespace).Create(ctx, azureSecret, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
+		Expect(library.UpsertSecret(ctx, loader.KubeClient, azureSecret)).NotTo(HaveOccurred(), fmt.Sprintf("failed to create secret %s", secretName))
 	}
 
 	Context("with AWS Route53", Label("Platform:AWS", "CredentialsMode:Mint"), func() {
@@ -978,8 +974,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 					"credentials": credContent,
 				},
 			}
-			_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, stsSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create STS credential secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, stsSecret)).NotTo(HaveOccurred(), "failed to create STS credential secret")
 
 			DeferCleanup(func(ctx context.Context) {
 				By("Deleting manually created STS credential secret")
@@ -990,7 +985,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			})
 
 			By("patching subscription to inject 'CLOUD_CREDENTIALS_SECRET_NAME' env var")
-			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 				"CLOUD_CREDENTIALS_SECRET_NAME": secretName,
 			})
 			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with 'CLOUD_CREDENTIALS_SECRET_NAME'")
@@ -1243,8 +1238,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 					"service_account.json": credContent,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets("cert-manager").Create(ctx, stsSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create GCP STS credentials secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, stsSecret)).NotTo(HaveOccurred(), "failed to create GCP STS credentials secret")
 
 			DeferCleanup(func(ctx context.Context, namespace, name string) {
 				By("Deleting GCP STS credentials secret")

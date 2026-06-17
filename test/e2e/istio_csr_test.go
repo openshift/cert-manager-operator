@@ -19,7 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,22 +27,6 @@ import (
 
 type LogEntry struct {
 	CertChain []string `json:"certChain"`
-}
-
-type IstioCSRConfig struct {
-	// IstioNamespace is spec.istioCSRConfig.istio.namespace. The controller resolves
-	// cert-manager Issuer refs from this namespace; it must match the test namespace
-	// where istio-ca is created.
-	IstioNamespace                  string
-	ClusterID                       string
-	IstioDataPlaneNamespaceSelector string
-}
-
-func istioCSRConfigForNS(namespace string, overrides IstioCSRConfig) IstioCSRConfig {
-	if overrides.IstioNamespace == "" {
-		overrides.IstioNamespace = namespace
-	}
-	return overrides
 }
 
 var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
@@ -68,18 +51,6 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		csr, err := library.GenerateCSR(csrTemplate)
 		Expect(err).Should(BeNil())
 		return csr
-	}
-
-	waitForIstioCSRReady := func(ns *corev1.Namespace) v1alpha1.IstioCSRStatus {
-		By("poll till cert-manager-istio-csr deployment is available")
-		err := pollTillDeploymentAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
-		Expect(err).Should(BeNil())
-
-		By("poll till istiocsr object is available")
-		istioCSRStatus, err := pollTillIstioCSRAvailable(ctx, loader, ns.Name, "default")
-		Expect(err).Should(BeNil())
-
-		return istioCSRStatus
 	}
 
 	BeforeAll(func() {
@@ -163,7 +134,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					"ca.proto": protoContent,
 				},
 			}
-			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Create(ctx, configMap, metav1.CreateOptions{})
+			err = library.UpsertConfigMap(ctx, clientset, configMap)
 			Expect(err).Should(BeNil())
 			DeferCleanup(func() {
 				clientset.CoreV1().ConfigMaps(ns.Name).Delete(ctx, configMap.Name, metav1.DeleteOptions{})
@@ -177,12 +148,12 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			By("creating istiocsr.operator.openshift.io resource")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			By("poll till the service account is available")
 			err := pollTillServiceAccountAvailable(ctx, clientset, ns.Name, serviceAccountName)
@@ -250,14 +221,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			By("poll till the service account is available")
 			err := pollTillServiceAccountAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
@@ -320,14 +291,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			By("poll till the service account is available")
 			err := pollTillServiceAccountAvailable(ctx, clientset, ns.Name, "cert-manager-istio-csr")
@@ -423,15 +394,15 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
 				}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 			log.Printf("IstioCSR status: %+v", istioCSRStatus)
 
 			By("verifying ConfigMap creation based on namespace selector")
@@ -480,13 +451,13 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			By("creating istiocsr.operator.openshift.io resource without istioDataPlaneNamespaceSelector")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
 				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
-			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
+			), istioCSROperandManifest, ns.Name)
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 			log.Printf("IstioCSR status: %+v", istioCSRStatus)
 
 			By("waiting for istio-ca-root-cert ConfigMap to be created in all test namespaces")
@@ -646,7 +617,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					}),
 				},
 			}
-			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Creating IstioCSR resource")
@@ -662,7 +633,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			})
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 			log.Printf("IstioCSR status: %+v", istioCSRStatus)
 
 			// Verify that the source ConfigMap data is copied to the operator-managed ConfigMap
@@ -686,7 +657,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					}),
 				},
 			}
-			_, err := clientset.CoreV1().ConfigMaps(nonCACertConfigMap.Namespace).Create(ctx, nonCACertConfigMap, metav1.CreateOptions{})
+			err := library.UpsertConfigMap(ctx, clientset, nonCACertConfigMap)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Creating IstioCSR resource")
@@ -730,7 +701,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					}),
 				},
 			}
-			_, err = clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			err = library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Creating IstioCSR resource with custom namespace reference")
@@ -746,7 +717,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			})
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
-			istioCSRStatus := waitForIstioCSRReady(ns)
+			istioCSRStatus := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 			log.Printf("IstioCSR status: %+v", istioCSRStatus)
 
 			// Verify that the source ConfigMap data is copied from custom namespace to the operator-managed ConfigMap
@@ -773,7 +744,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					configMapRefKey: initialCert,
 				},
 			}
-			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Creating IstioCSR resource")
@@ -789,7 +760,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			})
 
 			By("Waiting for IstioCSR to be ready")
-			_ = waitForIstioCSRReady(ns)
+			_ = expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			By("Verifying initial ConfigMap is copied")
 			Eventually(func() bool {
@@ -838,7 +809,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 					configMapRefKey: initialCert,
 				},
 			}
-			_, err := clientset.CoreV1().ConfigMaps(caCertConfigMap.Namespace).Create(ctx, caCertConfigMap, metav1.CreateOptions{})
+			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("Creating IstioCSR resource")
@@ -854,7 +825,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			})
 
 			By("Waiting for IstioCSR to be ready")
-			_ = waitForIstioCSRReady(ns)
+			_ = expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			By("Verifying initial ConfigMap is copied and mounted")
 			Eventually(func() bool {

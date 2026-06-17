@@ -16,6 +16,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/openshift/cert-manager-operator/test/library"
 	"github.com/tidwall/gjson"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -101,9 +102,6 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 	}
 
 	BeforeEach(func() {
-		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
-		DeferCleanup(cancel)
-
 		By("waiting for operator status to become available")
 		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
@@ -140,6 +138,9 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 		By("configuring Vault PKI engine")
 		err = configureVaultPKI(setupCtx, cfg, loader, ns.Name, vaultPodName, vaultRootToken)
 		Expect(err).NotTo(HaveOccurred())
+
+		ctx, cancel = context.WithTimeout(context.Background(), highTimeout)
+		DeferCleanup(cancel)
 	})
 
 	Context("AppRole authentication", func() {
@@ -179,8 +180,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 					"secretId": vaultSecretID,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create AppRole secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, secret)).NotTo(HaveOccurred(), "failed to create AppRole secret")
 
 			By("creating Vault issuer with AppRole authentication")
 			issuer := createVaultIssuer(issuerName, certmanagerv1.VaultAuth{
@@ -230,8 +230,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 					"token": vaultToken,
 				},
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, secret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create token secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, secret)).NotTo(HaveOccurred(), "failed to create token secret")
 
 			By("creating Vault issuer with token authentication")
 			issuer := createVaultIssuer(issuerName, certmanagerv1.VaultAuth{
@@ -281,8 +280,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 				},
 				Type: corev1.SecretTypeServiceAccountToken,
 			}
-			_, err = loader.KubeClient.CoreV1().Secrets(ns.Name).Create(ctx, tokenSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create service account token secret")
+			Expect(library.UpsertSecret(ctx, loader.KubeClient, tokenSecret)).NotTo(HaveOccurred(), "failed to create service account token secret")
 
 			By("configuring Kubernetes auth in Vault")
 			vaultCmd := vaultShellCmd(fmt.Sprintf(`vault auth enable kubernetes && vault write auth/kubernetes/config kubernetes_host="%s" kubernetes_ca_cert=@%s && \

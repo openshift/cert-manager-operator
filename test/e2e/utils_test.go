@@ -1260,9 +1260,9 @@ func istioCSRDeploymentMissingHint(ctx context.Context, operandNamespace string)
 	}
 
 	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(operandNamespace)
-	obj, err := istiocsrClient.Get(ctx, istioCSRP0ISTIOCSRName, metav1.GetOptions{})
+	obj, err := istiocsrClient.Get(ctx, istioCSRResourceName, metav1.GetOptions{})
 	if err == nil {
-		if ann := obj.GetAnnotations(); ann != nil && ann[istioCSRP0RejectAnnotation] == "true" {
+		if ann := obj.GetAnnotations(); ann != nil && ann[istioCSRRejectAnnotation] == "true" {
 			return "IstioCSR was rejected because another istiocsr instance already exists; only one cluster-wide operand is supported"
 		}
 
@@ -1894,13 +1894,12 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			},
 		},
 	}
-	_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureClusterIssuer(ctx, certmanagerClient, clusterIssuer); err != nil {
 		return fmt.Errorf("failed to create ClusterIssuer: %w", err)
 	}
 
 	// Wait for ClusterIssuer to become ready
-	err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
 		func(context.Context) (bool, error) {
 			issuer, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Get(ctx, clusterIssuerName, metav1.GetOptions{})
 			if err != nil {
@@ -1942,8 +1941,7 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			},
 		},
 	}
-	_, err = certmanagerClient.CertmanagerV1().Certificates(namespace).Create(ctx, cert, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ensureCertificate(ctx, certmanagerClient, cert); err != nil {
 		return fmt.Errorf("failed to create Certificate: %w", err)
 	}
 
@@ -2134,8 +2132,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 			"custom-values.yaml": helmValues,
 		},
 	}
-	_, err = kubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, helmConfigMap, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := library.UpsertConfigMap(ctx, kubeClient, helmConfigMap); err != nil {
 		return "", "", "", fmt.Errorf("failed to create Helm config ConfigMap for Vault %s in namespace %s: %w", releaseName, namespace, err)
 	}
 
@@ -2174,6 +2171,16 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return "", "", "", fmt.Errorf("failed to create ClusterRoleBinding: %w", err)
+	}
+	if apierrors.IsAlreadyExists(err) {
+		existing, getErr := kubeClient.RbacV1().ClusterRoleBindings().Get(ctx, clusterRoleBindingName, metav1.GetOptions{})
+		if getErr != nil {
+			return "", "", "", fmt.Errorf("failed to get existing ClusterRoleBinding: %w", getErr)
+		}
+		clusterRoleBinding.ResourceVersion = existing.ResourceVersion
+		if _, err = kubeClient.RbacV1().ClusterRoleBindings().Update(ctx, clusterRoleBinding, metav1.UpdateOptions{}); err != nil {
+			return "", "", "", fmt.Errorf("failed to update ClusterRoleBinding: %w", err)
+		}
 	}
 
 	// Create Helm installer pod
@@ -2230,7 +2237,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 		},
 	}
 	_, err = kubeClient.CoreV1().Pods(namespace).Create(ctx, helmPod, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		return "", "", "", fmt.Errorf("failed to create Helm installer pod: %w", err)
 	}
 

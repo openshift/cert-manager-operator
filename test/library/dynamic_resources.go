@@ -42,6 +42,9 @@ func NewDynamicResourceLoader(context context.Context, t *testing.T) DynamicReso
 }
 
 func (d DynamicResourceLoader) noErrorSkipExists(err error) {
+	// Intentionally ignores AlreadyExists for manifest-driven fixture setup. Callers that
+	// require specific object data should use library.UpsertSecret/UpsertConfigMap or an
+	// ensure* helper instead of relying on CreateFromFile idempotency alone.
 	if !k8serrors.IsAlreadyExists(err) {
 		require.NoError(d.t, err)
 	}

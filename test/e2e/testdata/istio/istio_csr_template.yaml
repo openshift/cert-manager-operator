@@ -2,22 +2,51 @@ apiVersion: operator.openshift.io/v1alpha1
 kind: IstioCSR
 metadata:
   name: default
-  namespace: istio-system
+  namespace: {{.Namespace}}
 spec:
+{{- if eq .Profile "ossm"}}
+  controllerConfig:
+    labels:
+      env: istio-test
+{{- end}}
   istioCSRConfig:
     certManager:
       issuerRef:
-        name: istio-ca
-        kind: Issuer
         group: cert-manager.io
-    istiodTLSConfig:
-      trustDomain: cluster.local
+        kind: Issuer
+        name: {{if .IssuerName}}{{.IssuerName}}{{else if eq .Profile "ossm"}}istio-csr-issuer{{else}}istio-ca{{end}}
     istio:
-      namespace: {{.IstioNamespace}}
-{{- if .ClusterID}}
+      namespace: {{if eq .Profile "ossm"}}istio-system{{else}}{{.IstioNamespace}}{{end}}
+{{- if eq .Profile "ossm"}}
+      revisions:
+      - default
+{{- end}}
+{{- if eq .Profile "ossm"}}
+    istioDataPlaneNamespaceSelector: istio-injection=enabled
+{{- else if .IstioDataPlaneNamespaceSelector}}
+    istioDataPlaneNamespaceSelector: "{{.IstioDataPlaneNamespaceSelector}}"
+{{- end}}
+    istiodTLSConfig:
+{{- if eq .Profile "ossm"}}
+      certificateDNSNames:
+      - istiod-default.istio-system.svc
+      certificateDuration: 1h0m0s
+      certificateRenewBefore: 30m0s
+      commonName: istiod.istio-system.svc
+      maxCertificateDuration: 1h0m0s
+      privateKeyAlgorithm: RSA
+      privateKeySize: 4096
+      trustDomain: cluster.local
+{{- else}}
+      trustDomain: cluster.local
+{{- end}}
+{{- if eq .Profile "ossm"}}
+    logFormat: text
+    logLevel: 1
     server:
       clusterID: {{.ClusterID}}
-{{- end}}
-{{- if .IstioDataPlaneNamespaceSelector}}
-    istioDataPlaneNamespaceSelector: "{{.IstioDataPlaneNamespaceSelector}}"
+      port: 443
+{{- else if .ClusterID}}
+    server:
+      clusterID: {{.ClusterID}}
 {{- end}}
