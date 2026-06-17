@@ -31,8 +31,19 @@ type LogEntry struct {
 }
 
 type IstioCSRConfig struct {
+	// IstioNamespace is spec.istioCSRConfig.istio.namespace. The controller resolves
+	// cert-manager Issuer refs from this namespace; it must match the test namespace
+	// where istio-ca is created.
+	IstioNamespace                  string
 	ClusterID                       string
 	IstioDataPlaneNamespaceSelector string
+}
+
+func istioCSRConfigForNS(namespace string, overrides IstioCSRConfig) IstioCSRConfig {
+	if overrides.IstioNamespace == "" {
+		overrides.IstioNamespace = namespace
+	}
+	return overrides
 }
 
 var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
@@ -81,6 +92,9 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			"OPERATOR_LOG_LEVEL": "5",
 		})
 		Expect(err).NotTo(HaveOccurred())
+
+		By("removing leftover IstioCSR operands from earlier suites in the same job")
+		Expect(cleanupAllIstioCSROperands(ctx, loader)).NotTo(HaveOccurred())
 	})
 
 	var ns *corev1.Namespace
@@ -162,10 +176,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("creating istiocsr.operator.openshift.io resource")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{},
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{},
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
@@ -233,14 +247,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("creating istiocsr.operator.openshift.io resource with custom clusterID")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
@@ -303,14 +317,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("creating istiocsr.operator.openshift.io resource with custom clusterID")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					ClusterID: clusterName,
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			istioCSRStatus := waitForIstioCSRReady(ns)
@@ -406,14 +420,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		It("should only create istio-ca-root-cert ConfigMap in namespaces matching the selector", func() {
 			By("creating istiocsr.operator.openshift.io resource with istioDataPlaneNamespaceSelector")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{
 					IstioDataPlaneNamespaceSelector: "cert-manager.io/test-ca-injection=enabled",
-				},
+				}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
@@ -465,10 +479,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		It("should create istio-ca-root-cert ConfigMap in all namespaces when istioDataPlaneNamespaceSelector is not set", func() {
 			By("creating istiocsr.operator.openshift.io resource without istioDataPlaneNamespaceSelector")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{},
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 			defer loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
-				IstioCSRConfig{},
+				istioCSRConfigForNS(ns.Name, IstioCSRConfig{}),
 			), filepath.Join("testdata", "istio", "istio_csr_template.yaml"), ns.Name)
 
 			By("waiting for IstioCSR to be ready and deployment to be created")
@@ -507,6 +521,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		)
 
 		type istioCSRTemplateData struct {
+			IstioNamespace  string
 			CustomNamespace string
 			ConfigMapName   string
 			ConfigMapKey    string
@@ -636,6 +651,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("Creating IstioCSR resource")
 			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
 				CustomNamespace: "", // Empty string for same namespace
 				ConfigMapName:   configMapRefName,
 				ConfigMapKey:    configMapRefKey,
@@ -675,6 +691,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("Creating IstioCSR resource")
 			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
 				CustomNamespace: "", // Empty string for same namespace
 				ConfigMapName:   configMapRefName,
 				ConfigMapKey:    configMapRefKey,
@@ -718,6 +735,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("Creating IstioCSR resource with custom namespace reference")
 			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
 				CustomNamespace: customNamespace.Name,
 				ConfigMapName:   configMapRefName,
 				ConfigMapKey:    configMapRefKey,
@@ -760,6 +778,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("Creating IstioCSR resource")
 			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
 				CustomNamespace: "",
 				ConfigMapName:   configMapRefName,
 				ConfigMapKey:    configMapRefKey,
@@ -824,6 +843,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			By("Creating IstioCSR resource")
 			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
 				CustomNamespace: "",
 				ConfigMapName:   configMapRefName,
 				ConfigMapKey:    configMapRefKey,

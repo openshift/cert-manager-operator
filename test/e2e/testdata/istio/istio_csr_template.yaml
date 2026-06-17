@@ -13,7 +13,7 @@ spec:
     istiodTLSConfig:
       trustDomain: cluster.local
     istio:
-      namespace: istio-system
+      namespace: {{.IstioNamespace}}
 {{- if .ClusterID}}
     server:
       clusterID: {{.ClusterID}}

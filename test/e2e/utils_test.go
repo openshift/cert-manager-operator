@@ -1265,6 +1265,36 @@ func istioCSRDeploymentMissingHint(ctx context.Context, operandNamespace string)
 		if ann := obj.GetAnnotations(); ann != nil && ann[istioCSRP0RejectAnnotation] == "true" {
 			return "IstioCSR was rejected because another istiocsr instance already exists; only one cluster-wide operand is supported"
 		}
+
+		conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		if err == nil && found {
+			for _, c := range conditions {
+				cm, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				t, _ := cm["type"].(string)
+				s, _ := cm["status"].(string)
+				if t == string(v1alpha1.Degraded) && s == string(metav1.ConditionTrue) {
+					msg, _ := cm["message"].(string)
+					if msg != "" {
+						return fmt.Sprintf("IstioCSR is Degraded: %s", msg)
+					}
+				}
+			}
+		}
+
+		spec, found, err := unstructured.NestedMap(obj.Object, "spec", "istioCSRConfig", "istio")
+		if err == nil && found {
+			istioNS, _ := spec["namespace"].(string)
+			if istioNS != "" && istioNS != operandNamespace {
+				return fmt.Sprintf(
+					"spec.istioCSRConfig.istio.namespace is %q but cert-manager Issuer istio-ca is created in %q; they must match",
+					istioNS,
+					operandNamespace,
+				)
+			}
+		}
 	}
 
 	list, err := loader.DynamicClient.Resource(istiocsrSchema).List(ctx, metav1.ListOptions{})
@@ -1276,12 +1306,38 @@ func istioCSRDeploymentMissingHint(ctx context.Context, operandNamespace string)
 			continue
 		}
 		return fmt.Sprintf(
-			"another IstioCSR already exists at %s/%s; do not run Feature:ServiceMesh in the same job as standalone IstioCSR grpc tests",
+			"another IstioCSR already exists at %s/%s; only one cluster-wide operand is supported",
 			item.GetNamespace(),
 			item.GetName(),
 		)
 	}
 	return ""
+}
+
+// cleanupAllIstioCSROperands removes every IstioCSR CR so grpc tests can create a fresh operand.
+func cleanupAllIstioCSROperands(ctx context.Context, loader library.DynamicResourceLoader) error {
+	client := loader.DynamicClient.Resource(istiocsrSchema)
+	list, err := client.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, item := range list.Items {
+		ns := item.GetNamespace()
+		name := item.GetName()
+		if err := client.Namespace(ns).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete IstioCSR %s/%s: %w", ns, name, err)
+		}
+	}
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		list, err := client.List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(list.Items) == 0 {
+			return true, nil
+		}
+		return false, nil
+	})
 }
 
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
