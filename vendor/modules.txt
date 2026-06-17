@@ -519,40 +519,67 @@ github.com/go-openapi/jsonpointer
 github.com/go-openapi/jsonreference
 github.com/go-openapi/jsonreference/internal
 # github.com/go-openapi/swag v0.24.1
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag
 # github.com/go-openapi/swag/cmdutils v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/cmdutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/cmdutils
 # github.com/go-openapi/swag/conv v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/conv v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/conv
 # github.com/go-openapi/swag/fileutils v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/fileutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/fileutils
 # github.com/go-openapi/swag/jsonname v0.25.1
 ## explicit; go 1.24.0
+# github.com/go-openapi/swag/jsonname v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/jsonname
 # github.com/go-openapi/swag/jsonutils v0.24.0
-## explicit; go 1.20
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/jsonutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/jsonutils
+github.com/go-openapi/swag/jsonutils/adapters
+github.com/go-openapi/swag/jsonutils/adapters/ifaces
+github.com/go-openapi/swag/jsonutils/adapters/stdlib/json
 # github.com/go-openapi/swag/loading v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/loading v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/loading
 # github.com/go-openapi/swag/mangling v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/mangling v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/mangling
 # github.com/go-openapi/swag/netutils v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/netutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/netutils
 # github.com/go-openapi/swag/stringutils v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/stringutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/stringutils
 # github.com/go-openapi/swag/typeutils v0.24.0
-## explicit; go 1.20.0
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/typeutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/typeutils
 # github.com/go-openapi/swag/yamlutils v0.24.0
-## explicit; go 1.20
+## explicit; go 1.24.0
+# github.com/go-openapi/swag/yamlutils v0.25.4
+## explicit; go 1.24.0
 github.com/go-openapi/swag/yamlutils
 # github.com/go-task/slim-sprig/v3 v3.0.0
 ## explicit; go 1.20
@@ -1020,7 +1047,6 @@ github.com/jingyugao/rowserrcheck/passes/rowserr
 github.com/jjti/go-spancheck
 # github.com/josharian/intern v1.0.0
 ## explicit; go 1.5
-github.com/josharian/intern
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
@@ -1086,10 +1112,6 @@ github.com/macabu/inamedparam
 github.com/magiconair/properties
 # github.com/mailru/easyjson v0.9.0
 ## explicit; go 1.20
-github.com/mailru/easyjson
-github.com/mailru/easyjson/buffer
-github.com/mailru/easyjson/jlexer
-github.com/mailru/easyjson/jwriter
 # github.com/manuelarte/embeddedstructfieldcheck v0.4.0
 ## explicit; go 1.23.0
 github.com/manuelarte/embeddedstructfieldcheck/analyzer
@@ -1239,7 +1261,9 @@ github.com/onsi/gomega/types
 # github.com/opencontainers/go-digest v1.0.0
 ## explicit; go 1.13
 github.com/opencontainers/go-digest
-# github.com/openshift/api v0.0.0-20260423140559-e9fad7d4cba1
+# github.com/openshift/api v0.0.0-20260423140559-e9fad7d4cba1 => github.com/ingvagabund/api v0.0.0-20260608151207-ccf82b04671a
+## explicit; go 1.25.0
+# github.com/openshift/api v0.0.0-20260605005319-1194f4c62539 => github.com/ingvagabund/api v0.0.0-20260608151207-ccf82b04671a
 ## explicit; go 1.25.0
 github.com/openshift/api
 github.com/openshift/api/apiextensions
@@ -1328,7 +1352,7 @@ github.com/openshift/build-machinery-go/make/targets/openshift/operator
 github.com/openshift/build-machinery-go/scripts
 # github.com/openshift/cert-manager-operator v0.0.0-00010101000000-000000000000 => .
 ## explicit; go 1.25.0
-# github.com/openshift/client-go v0.0.0-20260330134249-7e1499aaacd7
+# github.com/openshift/client-go v0.0.0-20260330134249-7e1499aaacd7 => github.com/ingvagabund/client-go v0.0.0-20260608152916-388a325b5910
 ## explicit; go 1.25.0
 github.com/openshift/client-go/config/applyconfigurations
 github.com/openshift/client-go/config/applyconfigurations/config/v1
@@ -1792,6 +1816,8 @@ go.yaml.in/yaml/v2
 go.yaml.in/yaml/v3
 # golang.org/x/crypto v0.47.0
 ## explicit; go 1.24.0
+# golang.org/x/crypto v0.48.0
+## explicit; go 1.24.0
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305
 golang.org/x/crypto/cryptobyte
@@ -1812,12 +1838,16 @@ golang.org/x/exp/slices
 golang.org/x/exp/typeparams
 # golang.org/x/mod v0.32.0
 ## explicit; go 1.24.0
+# golang.org/x/mod v0.33.0
+## go 1.24.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
 golang.org/x/mod/sumdb/dirhash
 # golang.org/x/net v0.49.0
+## explicit; go 1.24.0
+# golang.org/x/net v0.50.0
 ## explicit; go 1.24.0
 golang.org/x/net/context
 golang.org/x/net/html
@@ -1828,6 +1858,7 @@ golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
+golang.org/x/net/internal/httpsfv
 golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
 golang.org/x/net/proxy
@@ -1852,6 +1883,8 @@ golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
 # golang.org/x/sys v0.40.0
 ## explicit; go 1.24.0
+# golang.org/x/sys v0.41.0
+## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
@@ -1859,6 +1892,8 @@ golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
 # golang.org/x/telemetry v0.0.0-20260109210033-bd525da824e2
 ## explicit; go 1.24.0
+# golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4
+## go 1.24.0
 golang.org/x/telemetry
 golang.org/x/telemetry/counter
 golang.org/x/telemetry/internal/config
@@ -1870,8 +1905,12 @@ golang.org/x/telemetry/internal/telemetry
 golang.org/x/telemetry/internal/upload
 # golang.org/x/term v0.39.0
 ## explicit; go 1.24.0
+# golang.org/x/term v0.40.0
+## explicit; go 1.24.0
 golang.org/x/term
 # golang.org/x/text v0.33.0
+## explicit; go 1.24.0
+# golang.org/x/text v0.34.0
 ## explicit; go 1.24.0
 golang.org/x/text/cases
 golang.org/x/text/encoding
@@ -1908,6 +1947,8 @@ golang.org/x/text/width
 golang.org/x/time/rate
 # golang.org/x/tools v0.41.0
 ## explicit; go 1.24.0
+# golang.org/x/tools v0.42.0
+## go 1.24.0
 golang.org/x/tools/cover
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/appends
@@ -3091,7 +3132,9 @@ k8s.io/gengo/v2/namer
 k8s.io/gengo/v2/parser
 k8s.io/gengo/v2/types
 # k8s.io/klog/v2 v2.130.1
-## explicit; go 1.18
+## explicit; go 1.21
+# k8s.io/klog/v2 v2.140.0
+## explicit; go 1.21
 k8s.io/klog/v2
 k8s.io/klog/v2/internal/buffer
 k8s.io/klog/v2/internal/clock
@@ -3115,7 +3158,9 @@ k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
 # k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-## explicit; go 1.23.0
+## explicit; go 1.24.0
+# k8s.io/kube-openapi v0.0.0-20260519202549-bbf5c5577288
+## explicit; go 1.24.0
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/builder3
 k8s.io/kube-openapi/pkg/builder3/util
@@ -3126,6 +3171,11 @@ k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/handler3
 k8s.io/kube-openapi/pkg/internal
 k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json
+k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json/internal
+k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json/internal/jsonflags
+k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json/internal/jsonopts
+k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json/internal/jsonwire
+k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json/jsontext
 k8s.io/kube-openapi/pkg/internal/third_party/govalidator
 k8s.io/kube-openapi/pkg/schemaconv
 k8s.io/kube-openapi/pkg/schemamutation
@@ -3160,7 +3210,9 @@ k8s.io/kubernetes/pkg/fieldpath
 k8s.io/kubernetes/pkg/util/parsers
 k8s.io/kubernetes/pkg/util/tolerations
 # k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
-## explicit; go 1.18
+## explicit; go 1.23
+# k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
+## explicit; go 1.23
 k8s.io/utils/buffer
 k8s.io/utils/clock
 k8s.io/utils/internal/third_party/forked/golang/golang-lru
@@ -3402,6 +3454,8 @@ sigs.k8s.io/randfill
 sigs.k8s.io/randfill/bytesource
 # sigs.k8s.io/structured-merge-diff/v6 v6.3.1
 ## explicit; go 1.23
+# sigs.k8s.io/structured-merge-diff/v6 v6.3.2
+## explicit; go 1.23
 sigs.k8s.io/structured-merge-diff/v6/fieldpath
 sigs.k8s.io/structured-merge-diff/v6/merge
 sigs.k8s.io/structured-merge-diff/v6/schema
@@ -3410,4 +3464,6 @@ sigs.k8s.io/structured-merge-diff/v6/value
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
+# github.com/openshift/api => github.com/ingvagabund/api v0.0.0-20260608151207-ccf82b04671a
+# github.com/openshift/client-go => github.com/ingvagabund/client-go v0.0.0-20260608152916-388a325b5910
 # github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.19.4
