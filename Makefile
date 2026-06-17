@@ -189,8 +189,9 @@ E2E_TIMEOUT ?= 2h
 # See https://onsi.github.io/ginkgo/#spec-labels
 # The default is to run tests on the AWS platform.
 # To skip OSM smoke (Feature:ServiceMesh), use:
-#   Platform:Generic && !(Feature: isSubsetOf {ServiceMesh})
-# (Feature:!ServiceMesh is invalid Ginkgo syntax.)
+#   Platform:Generic && !Feature:ServiceMesh
+# (or grouped as Platform:Generic && !(Feature:ServiceMesh); Feature:!ServiceMesh is
+# invalid — the ! must prefix the whole label, e.g. !Feature:ServiceMesh)
 E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint}
 
 # ============================================================================

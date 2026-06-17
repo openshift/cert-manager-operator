@@ -161,7 +161,7 @@ func copySecretToNamespace(ctx context.Context, clientset *kubernetes.Clientset,
 	}
 }
 
-var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
+var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 
@@ -756,7 +756,7 @@ var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Fe
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should return cert-chain for mesh workload SPIFFE identity via gRPC", Label("OSM-SMOKE-TC-002"), func() {
+		It("should return cert-chain for mesh workload SPIFFE identity via gRPC [Skipped:Disconnected]", Label("OSM-SMOKE-TC-002"), func() {
 			const (
 				grpcAppName          = "grpcurl-istio-csr-osm"
 				meshWorkloadSA       = "mesh-workload"

@@ -1490,6 +1490,8 @@ func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoper
 	return nil
 }
 
+const vaultTokenFile = "/tmp/e2e-vault-token"
+
 // execInPod executes a command in a specific container of a pod and returns the output.
 func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, command ...string) (string, error) {
 	req := kubeClient.CoreV1().RESTClient().
@@ -1520,6 +1522,53 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	}
 
 	return stdout.String(), nil
+}
+
+// execInPodWithStdin executes a command in a pod with optional stdin data.
+func execInPodWithStdin(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, stdin []byte, command ...string) (string, error) {
+	req := kubeClient.CoreV1().RESTClient().
+		Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: containerName,
+			Command:   command,
+			Stdout:    true,
+			Stderr:    true,
+			Stdin:     len(stdin) > 0,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("failed to create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Stdin:  bytes.NewReader(stdin),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %w, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// setVaultTokenInPod writes the Vault root token to a file in the pod via stdin so the
+// token is never embedded in shell command strings that may appear in error logs.
+func setVaultTokenInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, rootToken string) error {
+	_, err := execInPodWithStdin(ctx, cfg, kubeClient, namespace, podName, "vault", []byte(rootToken),
+		"sh", "-c", fmt.Sprintf("cat > %s && chmod 600 %s", vaultTokenFile, vaultTokenFile))
+	return err
+}
+
+// vaultShellCmd prefixes a shell script with VAULT_TOKEN loaded from the pod-local token file.
+func vaultShellCmd(script string) string {
+	return fmt.Sprintf("export VAULT_TOKEN=$(cat %s) && %s", vaultTokenFile, script)
 }
 
 // isPodReady returns true if the pod is running and has the Ready condition set to true.
@@ -1824,8 +1873,9 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, namespace, vaultPodName, rootToken string) error {
 	kubeClient := loader.KubeClient
 
-	// Set VAULT_TOKEN environment variable for subsequent commands
-	tokenEnv := fmt.Sprintf("export VAULT_TOKEN=%s", rootToken)
+	if err := setVaultTokenInPod(ctx, cfg, kubeClient, namespace, vaultPodName, rootToken); err != nil {
+		return fmt.Errorf("failed to set vault token in pod: %w", err)
+	}
 
 	// Enable and configure root PKI engine
 	commands := []struct {
@@ -1834,32 +1884,32 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	}{
 		{
 			"enable PKI secrets engine",
-			tokenEnv + " && vault secrets enable pki",
+			"vault secrets enable pki",
 		},
 		{
 			"tune PKI max lease TTL",
-			tokenEnv + " && vault secrets tune -max-lease-ttl=8760h pki",
+			"vault secrets tune -max-lease-ttl=8760h pki",
 		},
 		{
 			"generate root CA",
-			tokenEnv + " && vault write pki/root/generate/internal common_name=cluster.local ttl=8760h",
+			"vault write pki/root/generate/internal common_name=cluster.local ttl=8760h",
 		},
 		{
 			"configure CA and CRL URLs",
-			tokenEnv + " && vault write pki/config/urls issuing_certificates=\"https://vault:8200/v1/pki/ca\" crl_distribution_points=\"https://vault:8200/v1/pki/crl\"",
+			"vault write pki/config/urls issuing_certificates=\"https://vault:8200/v1/pki/ca\" crl_distribution_points=\"https://vault:8200/v1/pki/crl\"",
 		},
 		{
 			"enable intermediate PKI",
-			tokenEnv + " && vault secrets enable -path=pki_int pki",
+			"vault secrets enable -path=pki_int pki",
 		},
 		{
 			"tune intermediate PKI max lease TTL",
-			tokenEnv + " && vault secrets tune -max-lease-ttl=4380h pki_int",
+			"vault secrets tune -max-lease-ttl=4380h pki_int",
 		},
 	}
 
 	for _, cmdInfo := range commands {
-		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", cmdInfo.cmd)
+		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", vaultShellCmd(cmdInfo.cmd))
 		if err != nil {
 			return fmt.Errorf("failed to %s: %w", cmdInfo.description, err)
 		}
@@ -1867,7 +1917,7 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 
 	// Generate intermediate CSR
 	csrOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
-		tokenEnv+` && vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`)
+		vaultShellCmd(`vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`))
 	if err != nil {
 		return fmt.Errorf("failed to generate intermediate CSR: %w", err)
 	}
@@ -1877,9 +1927,9 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	}
 
 	// Sign intermediate with root CA - use heredoc to properly handle multi-line CSR
-	signCmd := tokenEnv + ` && vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
+	signCmd := vaultShellCmd(`vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
 ` + csr + `
-EOF`
+EOF`)
 	certOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", signCmd)
 	if err != nil {
 		return fmt.Errorf("failed to sign intermediate certificate: %w", err)
@@ -1890,9 +1940,9 @@ EOF`
 	}
 
 	// Set signed certificate - use heredoc to properly handle multi-line certificate
-	setSignedCmd := tokenEnv + ` && vault write pki_int/intermediate/set-signed certificate=- <<EOF
+	setSignedCmd := vaultShellCmd(`vault write pki_int/intermediate/set-signed certificate=- <<EOF
 ` + signedCert + `
-EOF`
+EOF`)
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", setSignedCmd)
 	if err != nil {
 		return fmt.Errorf("failed to set signed intermediate certificate: %w", err)
@@ -1900,20 +1950,20 @@ EOF`
 
 	// Create role for cert-manager
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
-		tokenEnv+` && vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`)
+		vaultShellCmd(`vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`))
 	if err != nil {
 		return fmt.Errorf("failed to create PKI role: %w", err)
 	}
 
 	// Create policy for cert-manager
-	policyCmd := tokenEnv + ` && vault policy write cert-manager - <<EOF
+	policyCmd := vaultShellCmd(`vault policy write cert-manager - <<EOF
 path "pki_int/sign/cluster-dot-local" {
   capabilities = ["create", "update"]
 }
 path "pki_int/issue/cluster-dot-local" {
   capabilities = ["create", "update"]
 }
-EOF`
+EOF`)
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
 	if err != nil {
 		return fmt.Errorf("failed to create cert-manager policy: %w", err)
