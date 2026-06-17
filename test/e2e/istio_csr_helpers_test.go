@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
@@ -20,20 +21,45 @@ type LogEntry struct {
 	CertChain []string `json:"certChain"`
 }
 
-// parseGRPCurlLogEntry returns the last valid JSON log line from a grpcurl job pod.
-// Pod logs may contain noise from retries or incomplete trailing lines.
+const grpcurlLogExcerptMaxLen = 512
+
+func formatGRPCurlLogExcerpt(logData []byte) string {
+	if len(logData) == 0 {
+		return "<empty>"
+	}
+
+	excerpt := logData
+	if len(excerpt) > grpcurlLogExcerptMaxLen {
+		excerpt = append(append([]byte(nil), excerpt[:grpcurlLogExcerptMaxLen]...), []byte("...")...)
+	}
+	return strings.ReplaceAll(string(excerpt), "\n", `\n`)
+}
+
+// parseGRPCurlLogEntry extracts the grpcurl CreateCertificate JSON response from pod logs.
+// It accepts compact or multi-line JSON, and falls back to the last valid line when retries
+// leave non-JSON noise before or after the response.
 func parseGRPCurlLogEntry(logData []byte) (LogEntry, error) {
-	lines := bytes.Split(bytes.TrimSpace(logData), []byte("\n"))
+	trimmed := bytes.TrimSpace(logData)
 	var entry LogEntry
+	if len(trimmed) > 0 && json.Unmarshal(trimmed, &entry) == nil {
+		return entry, nil
+	}
+
+	lines := bytes.Split(trimmed, []byte("\n"))
 	for i := len(lines) - 1; i >= 0; i-- {
-		if len(lines[i]) == 0 {
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
 			continue
 		}
-		if err := json.Unmarshal(lines[i], &entry); err == nil {
+		if err := json.Unmarshal(line, &entry); err == nil {
 			return entry, nil
 		}
 	}
-	return LogEntry{}, fmt.Errorf("no valid grpcurl JSON log entry found in pod logs")
+
+	return LogEntry{}, fmt.Errorf(
+		"no valid grpcurl JSON log entry found in pod logs (excerpt: %s)",
+		formatGRPCurlLogExcerpt(trimmed),
+	)
 }
 
 // waitForIstioCSROperandReady waits for the cert-manager-istio-csr deployment and IstioCSR CR status.
