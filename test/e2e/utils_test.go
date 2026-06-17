@@ -1187,6 +1187,45 @@ func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResour
 	return istioCSRStatus, err
 }
 
+// waitForIstioCSRConditionMessage polls until IstioCSR status has a condition of the
+// given type and status whose message contains messageSubstring.
+func waitForIstioCSRConditionMessage(ctx context.Context, loader library.DynamicResourceLoader, namespace, name, conditionType string, conditionStatus metav1.ConditionStatus, messageSubstring string, timeout, interval time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(pollCtx context.Context) (bool, error) {
+		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Get(pollCtx, name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		if err != nil {
+			return false, err
+		}
+		if !found {
+			return false, nil
+		}
+
+		for _, c := range conditions {
+			cm, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			t, _ := cm["type"].(string)
+			s, _ := cm["status"].(string)
+			if t != conditionType || s != string(conditionStatus) {
+				continue
+			}
+			msg, _ := cm["message"].(string)
+			if strings.Contains(msg, messageSubstring) {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+}
+
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
 // once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {

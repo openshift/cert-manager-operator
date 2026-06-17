@@ -155,7 +155,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			})
 		})
 
-		It("should return cert-chain as response", func() {
+		It("should return cert-chain as response", Label("CM-867-TC-010"), func() {
 			serviceAccountName := "cert-manager-istio-csr"
 			grpcAppName := "grpcurl-istio-csr"
 
