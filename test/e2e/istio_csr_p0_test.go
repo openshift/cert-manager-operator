@@ -47,6 +47,9 @@ const (
 
 	istioCSRP0MaistraMemberOfLabel = "maistra.io/member-of"
 	istioCSRP0IstiodTLSSecretName  = "istiod-tls"
+
+	// Non-routable ACME directory URL for negative-path tests; operator rejects ACME issuers by type only.
+	istioCSRP0ACMEPlaceholderServer = "https://example.invalid/directory"
 )
 
 type istioCSRP0Config struct {
@@ -406,7 +409,7 @@ var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Fe
 				IssuerConfig: certmanagerv1.IssuerConfig{
 					ACME: &acmev1.ACMEIssuer{
 						Email:  "istiocsr@example.com",
-						Server: "https://acme-v02.api.letsencrypt.org/directory",
+						Server: istioCSRP0ACMEPlaceholderServer,
 						PrivateKey: certmanagermetav1.SecretKeySelector{
 							LocalObjectReference: certmanagermetav1.LocalObjectReference{Name: "acme-private-key"},
 						},
