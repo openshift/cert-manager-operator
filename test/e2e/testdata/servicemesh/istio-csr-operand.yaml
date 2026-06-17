@@ -1,0 +1,35 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: IstioCSR
+metadata:
+  name: default
+  namespace: {{.Namespace}}
+spec:
+  controllerConfig:
+    labels:
+      env: istio-test
+  istioCSRConfig:
+    certManager:
+      issuerRef:
+        group: cert-manager.io
+        kind: Issuer
+        name: istio-csr-issuer
+    istio:
+      namespace: istio-system
+      revisions:
+      - default
+    istioDataPlaneNamespaceSelector: istio-injection=enabled
+    istiodTLSConfig:
+      certificateDNSNames:
+      - istiod-default.istio-system.svc
+      certificateDuration: 1h0m0s
+      certificateRenewBefore: 30m0s
+      commonName: istiod.istio-system.svc
+      maxCertificateDuration: 1h0m0s
+      privateKeyAlgorithm: RSA
+      privateKeySize: 4096
+      trustDomain: cluster.local
+    logFormat: text
+    logLevel: 1
+    server:
+      clusterID: {{.ClusterID}}
+      port: 443

@@ -27,6 +27,8 @@ type IstioCSRGRPCurlJobConfig struct {
 	IstioCSRStatus            v1alpha1.IstioCSRStatus
 	ClusterID                 string
 	JobName                   string
+	ProtoConfigMapName        string
+	ServiceAccountName        string
 }
 
 // ServiceMonitorConfig customizes fields in the ServiceMonitor spec
@@ -35,6 +37,20 @@ type ServiceMonitorConfig struct {
 	Namespace     string
 	AppName       string
 	ComponentName string
+}
+
+// OSSMv3Config customizes OpenShift Service Mesh v3 install manifests.
+type OSSMv3Config struct {
+	OperatorVersion string
+	IstioVersion    string
+	ClusterID       string
+	CAAddress       string
+}
+
+// OSSMIstioCSROperandConfig customizes the IstioCSR CR for OSSM v3 smoke tests.
+type OSSMIstioCSROperandConfig struct {
+	Namespace string
+	ClusterID string
 }
 
 // replaceWithTemplate puts field values from a template struct

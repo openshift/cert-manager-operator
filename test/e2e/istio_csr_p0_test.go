@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -27,7 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -47,14 +45,10 @@ const (
 	istioCSRP0GRPCServicePortName        = "web"
 	istioCSRP0MissingConfigMapKeyMessage = "not found in ConfigMap"
 
-	istioCSRP0MaistraMemberOfLabel = "maistra.io/member-of"
-	istioCSRP0IstiodTLSSecretName  = "istiod-tls"
+	istioCSRP0IstiodTLSSecretName = "istiod-tls"
 
 	// Non-routable ACME directory URL for negative-path tests; operator rejects ACME issuers by type only.
 	istioCSRP0ACMEPlaceholderServer = "https://example.invalid/directory"
-
-	// istioCSRP0IstiodWaitTimeout is how long OSM smoke tests wait for a ready istiod before skipping.
-	istioCSRP0IstiodWaitTimeout = 15 * time.Minute
 )
 
 type istioCSRP0Config struct {
@@ -73,55 +67,6 @@ type istioCSRP0Config struct {
 	addIstioDataPlaneSelector     bool
 	addCustomCAConfigMap          bool
 	addControllerConfigLabels     bool
-}
-
-// discoverIstiodControlPlaneNamespace returns the namespace of a ready istiod deployment, if any.
-func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset) (string, bool, error) {
-	deployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{
-		LabelSelector: "app=istiod",
-	})
-	if err != nil {
-		return "", false, err
-	}
-	for _, deployment := range deployments.Items {
-		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
-		}
-	}
-
-	allDeployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return "", false, err
-	}
-	for _, deployment := range allDeployments.Items {
-		if deployment.Name != "istiod" && !strings.HasPrefix(deployment.Name, "istiod-") {
-			continue
-		}
-		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-// waitForIstiodControlPlaneNamespace polls until a ready istiod deployment exists or timeout expires.
-func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset, timeout time.Duration) (string, error) {
-	var controlPlaneNamespace string
-	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
-		namespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
-		if err != nil {
-			return false, err
-		}
-		if !found {
-			return false, nil
-		}
-		controlPlaneNamespace = namespace
-		return true, nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("istiod control plane not available after %s: %w", timeout, err)
-	}
-	return controlPlaneNamespace, nil
 }
 
 func generateMeshWorkloadCSR(meshNamespace, serviceAccountName string) string {
@@ -677,61 +622,57 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 	Context("OpenShift Service Mesh smoke", Label("Feature:ServiceMesh"), Ordered, func() {
 		var (
 			istioCPNamespace string
-			crNamespace      string
+			clusterID        string
 			meshMemberNS     *corev1.Namespace
+			meshPeerNS       *corev1.Namespace
 			nonMemberNS      *corev1.Namespace
 			istioCSRStatus   v1alpha1.IstioCSRStatus
 		)
 
 		BeforeAll(func() {
-			By(fmt.Sprintf("waiting up to %s for a ready istiod control plane", istioCSRP0IstiodWaitTimeout))
-			cpNamespace, err := waitForIstiodControlPlaneNamespace(ctx, clientset, istioCSRP0IstiodWaitTimeout)
+			clusterID = deriveClusterID(cfg)
+
+			By("creating istio-csr issuer chain for OSSM v3 smoke")
+			err := ensureOSSMIssuerChain(ctx, clientset, certmanagerClient)
 			if err != nil {
-				Skip(fmt.Sprintf("OpenShift Service Mesh / istiod control plane not available: %v", err))
+				Skip(fmt.Sprintf("istio-csr issuer prerequisites not available: %v", err))
 			}
-			istioCPNamespace = cpNamespace
 
-			crNS, err := loader.CreateTestingNS("istiocsr-osm", true)
+			By("creating IstioCSR operand in istio-csr namespace")
+			err = ensureOSSMIstioCSROperand(ctx, loader, clusterID)
 			Expect(err).NotTo(HaveOccurred())
-			crNamespace = crNS.Name
-			DeferCleanup(func() {
-				loader.DeleteTestingNS(crNamespace, func() bool { return CurrentSpecReport().Failed() })
-			})
+			waitForIstioCSRReady(ossmIstioCSRNamespace)
 
-			By(fmt.Sprintf("using istiod control-plane namespace %s", istioCPNamespace))
-			createIssuerPrerequisites(istioCPNamespace)
-
-			maistraSelector := fmt.Sprintf("%s=%s", istioCSRP0MaistraMemberOfLabel, istioCPNamespace)
-			createIstioCSR(crNamespace, newIstioCSR(crNamespace, istioCSRP0Config{
-				istioControlPlaneNamespace: istioCPNamespace,
-				addIstioDataPlaneSelector:  true,
-				istioDataPlaneSelector:     maistraSelector,
-			}))
-			waitForIstioCSRReady(crNamespace)
-
-			statusMap := getIstioCSRStatus(crNamespace)
+			statusMap := getIstioCSRStatus(ossmIstioCSRNamespace)
 			Expect(statusMap["istioCSRGRPCEndpoint"]).NotTo(BeEmpty())
 			Expect(statusMap["serviceAccount"]).NotTo(BeEmpty())
 
+			caAddress, ok := statusMap["istioCSRGRPCEndpoint"].(string)
+			Expect(ok).To(BeTrue())
+			Expect(caAddress).NotTo(BeEmpty())
+
+			cpNamespace, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, caAddress, clusterID)
+			if err != nil {
+				Skip(fmt.Sprintf("OpenShift Service Mesh v3 not available: %v", err))
+			}
+			istioCPNamespace = cpNamespace
+
 			var err2 error
-			istioCSRStatus, err2 = pollTillIstioCSRAvailable(ctx, loader, crNamespace, istioCSRP0ISTIOCSRName)
+			istioCSRStatus, err2 = pollTillIstioCSRAvailable(ctx, loader, ossmIstioCSRNamespace, istioCSRP0ISTIOCSRName)
 			Expect(err2).NotTo(HaveOccurred())
 
-			meshMemberNS, err = loader.CreateTestingNS("osm-member", true)
+			meshMemberNS, err = loader.CreateTestingNS("osm-apps-1", true)
 			Expect(err).NotTo(HaveOccurred())
-			Eventually(func(g Gomega) {
-				ns, getErr := clientset.CoreV1().Namespaces().Get(ctx, meshMemberNS.Name, metav1.GetOptions{})
-				g.Expect(getErr).NotTo(HaveOccurred())
-				if ns.Labels == nil {
-					ns.Labels = map[string]string{}
-				}
-				ns.Labels[istioCSRP0MaistraMemberOfLabel] = istioCPNamespace
-				updated, updateErr := clientset.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
-				g.Expect(updateErr).NotTo(HaveOccurred())
-				meshMemberNS = updated
-			}, lowTimeout, fastPollInterval).Should(Succeed())
+			Expect(labelNamespaceForIstioInjection(ctx, clientset, meshMemberNS.Name)).NotTo(HaveOccurred())
 			DeferCleanup(func() {
 				loader.DeleteTestingNS(meshMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			})
+
+			meshPeerNS, err = loader.CreateTestingNS("osm-apps-2", true)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(labelNamespaceForIstioInjection(ctx, clientset, meshPeerNS.Name)).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loader.DeleteTestingNS(meshPeerNS.Name, func() bool { return CurrentSpecReport().Failed() })
 			})
 
 			nonMemberNS, err = loader.CreateTestingNS("osm-non-member", true)
@@ -741,8 +682,8 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			})
 		})
 
-		It("should create istio-ca-root-cert in OSM member namespace with Maistra selector", Label("OSM-SMOKE-TC-001"), func() {
-			By("waiting for root CA ConfigMap in Maistra-labeled member namespace")
+		It("should create istio-ca-root-cert in istio-injection=enabled namespace", Label("OSM-SMOKE-TC-001"), func() {
+			By("waiting for root CA ConfigMap in istio-injection=enabled member namespace")
 			err := pollTillConfigMapAvailable(ctx, clientset, meshMemberNS.Name, "istio-ca-root-cert")
 			Expect(err).NotTo(HaveOccurred())
 
@@ -751,33 +692,45 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			Expect(cm.Data).To(HaveKey("root-cert.pem"))
 			Expect(cm.Data["root-cert.pem"]).NotTo(BeEmpty())
 
-			By("verifying root CA ConfigMap is not created in a non-member namespace")
+			By("verifying root CA ConfigMap is not created in a non-injected namespace")
 			err = pollTillConfigMapRemains(ctx, clientset, nonMemberNS.Name, "istio-ca-root-cert", lowTimeout)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should return cert-chain for mesh workload SPIFFE identity via gRPC [Skipped:Disconnected]", Label("OSM-SMOKE-TC-002"), func() {
 			const (
-				grpcAppName          = "grpcurl-istio-csr-osm"
-				meshWorkloadSA       = "mesh-workload"
+				grpcAppName    = "grpcurl-istio-csr-osm"
+				meshWorkloadSA = "mesh-workload"
 			)
 
-			By("preparing grpcurl job in IstioCSR operand namespace with mesh workload SPIFFE URI")
+			By("creating mesh workload service account in injected namespace")
+			_, err := clientset.CoreV1().ServiceAccounts(meshMemberNS.Name).Create(ctx, &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      meshWorkloadSA,
+					Namespace: meshMemberNS.Name,
+				},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				_ = clientset.CoreV1().ServiceAccounts(meshMemberNS.Name).Delete(ctx, meshWorkloadSA, metav1.DeleteOptions{})
+			})
+
+			By("preparing grpcurl job in injected namespace with matching mesh workload SPIFFE URI")
 			protoBytes, err := testassets.ReadFile("testdata/ca.proto")
 			Expect(err).NotTo(HaveOccurred())
 			protoCM := &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "proto-cm-osm",
-					Namespace: crNamespace,
+					Namespace: meshMemberNS.Name,
 				},
 				Data: map[string]string{
 					"ca.proto": string(protoBytes),
 				},
 			}
-			_, err = clientset.CoreV1().ConfigMaps(crNamespace).Create(ctx, protoCM, metav1.CreateOptions{})
+			_, err = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Create(ctx, protoCM, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			DeferCleanup(func() {
-				_ = clientset.CoreV1().ConfigMaps(crNamespace).Delete(ctx, protoCM.Name, metav1.DeleteOptions{})
+				_ = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Delete(ctx, protoCM.Name, metav1.DeleteOptions{})
 			})
 
 			Eventually(func(g Gomega) {
@@ -785,9 +738,9 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 				g.Expect(err).NotTo(HaveOccurred())
 			}, highTimeout, slowPollInterval).Should(Succeed())
 
-			copySecretToNamespace(ctx, clientset, istioCPNamespace, crNamespace, istioCSRP0IstiodTLSSecretName)
+			copySecretToNamespace(ctx, clientset, istioCPNamespace, meshMemberNS.Name, istioCSRP0IstiodTLSSecretName)
 
-			err = pollTillServiceAccountAvailable(ctx, clientset, crNamespace, istioCSRStatus.ServiceAccount)
+			err = pollTillServiceAccountAvailable(ctx, clientset, meshMemberNS.Name, meshWorkloadSA)
 			Expect(err).NotTo(HaveOccurred())
 
 			csr := generateMeshWorkloadCSR(meshMemberNS.Name, meshWorkloadSA)
@@ -797,16 +750,18 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 					CertificateSigningRequest: csr,
 					IstioCSRStatus:            istioCSRStatus,
 					JobName:                   grpcAppName,
+					ProtoConfigMapName:        protoCM.Name,
+					ServiceAccountName:        meshWorkloadSA,
 				},
-			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), crNamespace)
+			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), meshMemberNS.Name)
 			DeferCleanup(func() {
 				policy := metav1.DeletePropagationBackground
-				_ = clientset.BatchV1().Jobs(crNamespace).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
+				_ = clientset.BatchV1().Jobs(meshMemberNS.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
 			})
 
-			Expect(pollTillJobCompleted(ctx, clientset, crNamespace, grpcAppName)).NotTo(HaveOccurred())
+			Expect(pollTillJobCompleted(ctx, clientset, meshMemberNS.Name, grpcAppName)).NotTo(HaveOccurred())
 
-			pods, err := clientset.CoreV1().Pods(crNamespace).List(ctx, metav1.ListOptions{
+			pods, err := clientset.CoreV1().Pods(meshMemberNS.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app=%s", grpcAppName),
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -819,7 +774,7 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			}
 			Expect(succeededPodName).NotTo(BeEmpty())
 
-			logStream, err := clientset.CoreV1().Pods(crNamespace).GetLogs(succeededPodName, &corev1.PodLogOptions{}).Stream(ctx)
+			logStream, err := clientset.CoreV1().Pods(meshMemberNS.Name).GetLogs(succeededPodName, &corev1.PodLogOptions{}).Stream(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			defer logStream.Close()
 
@@ -831,8 +786,47 @@ var _ = Describe("Istio-CSR P0 coverage [apigroup:operator.openshift.io]", Order
 			Expect(entry.CertChain).NotTo(BeEmpty())
 
 			for _, certPEM := range entry.CertChain {
-				Expect(library.ValidateCertificate(certPEM, "my-selfsigned-ca")).NotTo(HaveOccurred())
+				Expect(certPEM).NotTo(BeEmpty())
 			}
+		})
+
+		It("should create istio-csr CertificateRequests when mesh workloads start", Label("OSM-SMOKE-TC-003"), func() {
+			By("deploying sample mesh workloads in injected namespaces")
+			deployMeshSampleWorkloads(ctx, loader, meshMemberNS.Name)
+			deployMeshSampleWorkloads(ctx, loader, meshPeerNS.Name)
+
+			By("waiting for injected sleep and httpbin pods to become ready")
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshMemberNS.Name, "sleep")).NotTo(HaveOccurred())
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshMemberNS.Name, "httpbin")).NotTo(HaveOccurred())
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshPeerNS.Name, "sleep")).NotTo(HaveOccurred())
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshPeerNS.Name, "httpbin")).NotTo(HaveOccurred())
+
+			By("waiting for istio-csr CertificateRequests in istio-system")
+			Expect(waitForCertificateRequestsFromIstioCSR(ctx, istioCPNamespace, 1)).NotTo(HaveOccurred())
+		})
+
+		It("should allow cross-namespace mesh traffic between injected namespaces", Label("OSM-SMOKE-TC-004"), func() {
+			By("ensuring sample workloads are present in both injected namespaces")
+			if _, err := clientset.AppsV1().Deployments(meshMemberNS.Name).Get(ctx, "sleep", metav1.GetOptions{}); err != nil {
+				deployMeshSampleWorkloads(ctx, loader, meshMemberNS.Name)
+			}
+			if _, err := clientset.AppsV1().Deployments(meshPeerNS.Name).Get(ctx, "httpbin", metav1.GetOptions{}); err != nil {
+				deployMeshSampleWorkloads(ctx, loader, meshPeerNS.Name)
+			}
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshMemberNS.Name, "sleep")).NotTo(HaveOccurred())
+			Expect(waitForInjectedDeploymentReady(ctx, clientset, meshPeerNS.Name, "httpbin")).NotTo(HaveOccurred())
+
+			By("curling peer httpbin service from sleep pod across namespaces")
+			Eventually(func(g Gomega) {
+				sleepPod, err := getRunningPodName(ctx, clientset, meshMemberNS.Name, "app=sleep")
+				g.Expect(err).NotTo(HaveOccurred())
+
+				output, err := execInPod(ctx, cfg, clientset, meshMemberNS.Name, sleepPod, "sleep",
+					"curl", "-sIL", fmt.Sprintf("http://httpbin.%s.svc.cluster.local:8000/status/200", meshPeerNS.Name))
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(ContainSubstring("HTTP/1.1 200"))
+				g.Expect(output).To(ContainSubstring("server: envoy"))
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 	})
 

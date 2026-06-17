@@ -1104,6 +1104,9 @@ func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, 
 		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
 

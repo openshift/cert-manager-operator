@@ -5,6 +5,7 @@ package library
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,37 +58,45 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 	require.NoError(d.t, err)
 
 	decoder := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(b), 1024)
-	var rawObj runtime.RawExtension
-	err = decoder.Decode(&rawObj)
-	require.NoError(d.t, err)
-
-	obj, gvk, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
-	require.NoError(d.t, err)
-
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	require.NoError(d.t, err)
-
-	unstructuredObj := &unstructured.Unstructured{Object: unstructuredMap}
-
-	gr, err := restmapper.GetAPIGroupResources(d.KubeClient.Discovery())
-	require.NoError(d.t, err)
-
-	mapper := restmapper.NewDiscoveryRESTMapper(gr)
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	require.NoError(d.t, err)
-
-	var dri dynamic.ResourceInterface
-	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-		if overrideNamespace != "" {
-			unstructuredObj.SetNamespace(overrideNamespace)
+	for {
+		var rawObj runtime.RawExtension
+		err := decoder.Decode(&rawObj)
+		if err == io.EOF {
+			break
 		}
-		require.NotEmpty(d.t, unstructuredObj.GetNamespace(), "Namespace can not be empty!")
-		dri = d.DynamicClient.Resource(mapping.Resource).Namespace(unstructuredObj.GetNamespace())
-	} else {
-		dri = d.DynamicClient.Resource(mapping.Resource)
-	}
+		require.NoError(d.t, err)
+		if len(rawObj.Raw) == 0 {
+			continue
+		}
 
-	do(d.t, unstructuredObj, dri)
+		obj, gvk, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
+		require.NoError(d.t, err)
+
+		unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+		require.NoError(d.t, err)
+
+		unstructuredObj := &unstructured.Unstructured{Object: unstructuredMap}
+
+		gr, err := restmapper.GetAPIGroupResources(d.KubeClient.Discovery())
+		require.NoError(d.t, err)
+
+		mapper := restmapper.NewDiscoveryRESTMapper(gr)
+		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		require.NoError(d.t, err)
+
+		var dri dynamic.ResourceInterface
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			if overrideNamespace != "" {
+				unstructuredObj.SetNamespace(overrideNamespace)
+			}
+			require.NotEmpty(d.t, unstructuredObj.GetNamespace(), "Namespace can not be empty!")
+			dri = d.DynamicClient.Resource(mapping.Resource).Namespace(unstructuredObj.GetNamespace())
+		} else {
+			dri = d.DynamicClient.Resource(mapping.Resource)
+		}
+
+		do(d.t, unstructuredObj, dri)
+	}
 }
 
 func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
