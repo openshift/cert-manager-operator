@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -26,6 +27,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -50,6 +52,9 @@ const (
 
 	// Non-routable ACME directory URL for negative-path tests; operator rejects ACME issuers by type only.
 	istioCSRP0ACMEPlaceholderServer = "https://example.invalid/directory"
+
+	// istioCSRP0IstiodWaitTimeout is how long OSM smoke tests wait for a ready istiod before skipping.
+	istioCSRP0IstiodWaitTimeout = 15 * time.Minute
 )
 
 type istioCSRP0Config struct {
@@ -97,6 +102,26 @@ func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kuberne
 		}
 	}
 	return "", false, nil
+}
+
+// waitForIstiodControlPlaneNamespace polls until a ready istiod deployment exists or timeout expires.
+func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset, timeout time.Duration) (string, error) {
+	var controlPlaneNamespace string
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
+		namespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
+		if err != nil {
+			return false, err
+		}
+		if !found {
+			return false, nil
+		}
+		controlPlaneNamespace = namespace
+		return true, nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("istiod control plane not available after %s: %w", timeout, err)
+	}
+	return controlPlaneNamespace, nil
 }
 
 func generateMeshWorkloadCSR(meshNamespace, serviceAccountName string) string {
@@ -659,10 +684,10 @@ var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Fe
 		)
 
 		BeforeAll(func() {
-			cpNamespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
-			Expect(err).NotTo(HaveOccurred())
-			if !found {
-				Skip("OpenShift Service Mesh / istiod control plane not found; skipping Service Mesh smoke tests")
+			By(fmt.Sprintf("waiting up to %s for a ready istiod control plane", istioCSRP0IstiodWaitTimeout))
+			cpNamespace, err := waitForIstiodControlPlaneNamespace(ctx, clientset, istioCSRP0IstiodWaitTimeout)
+			if err != nil {
+				Skip(fmt.Sprintf("OpenShift Service Mesh / istiod control plane not available: %v", err))
 			}
 			istioCPNamespace = cpNamespace
 

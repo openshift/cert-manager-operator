@@ -76,8 +76,8 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 
-		By("increase operator log verbosity")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		By("increase operator log verbosity when operator is OLM-managed")
+		err = tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"OPERATOR_LOG_LEVEL": "5",
 		})
 		Expect(err).NotTo(HaveOccurred())

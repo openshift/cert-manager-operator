@@ -739,6 +739,30 @@ func getSubscriptionEnvVar(ctx context.Context, loader library.DynamicResourceLo
 	return "", nil
 }
 
+// certManagerOperatorSubscriptionInstalled reports whether the operator was installed via OLM.
+func certManagerOperatorSubscriptionInstalled(ctx context.Context, loader library.DynamicResourceLoader) (bool, error) {
+	subscriptionClient := loader.DynamicClient.Resource(subscriptionSchema).Namespace("cert-manager-operator")
+	subs, err := subscriptionClient.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	return len(subs.Items) > 0, nil
+}
+
+// tryPatchSubscriptionWithEnvVars patches subscription env on OLM clusters and is a no-op when
+// the operator was installed without a Subscription (e.g. make deploy + make local-run).
+func tryPatchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {
+	installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		fmt.Fprintf(GinkgoWriter, "no OLM Subscription in cert-manager-operator; skipping subscription env patch\n")
+		return nil
+	}
+	return patchSubscriptionWithEnvVars(ctx, loader, envVars)
+}
+
 // patchSubscriptionWithEnvVars uses the k8s dynamic client to patch the only Subscription object
 // in the cert-manager-operator namespace, inject specified env vars into spec.config.env
 func patchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {

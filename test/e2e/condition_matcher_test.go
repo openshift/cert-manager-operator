@@ -102,6 +102,9 @@ func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interfa
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
+			if apierrors.IsUnauthorized(err) || apierrors.IsForbidden(err) {
+				return false, fmt.Errorf("cannot get certmanagers.operator.openshift.io/cluster (run 'oc login' and 'oc get certmanager cluster'): %w", err)
+			}
 			return false, err
 		}
 

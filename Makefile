@@ -188,6 +188,9 @@ E2E_TIMEOUT ?= 2h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests.
 # See https://onsi.github.io/ginkgo/#spec-labels
 # The default is to run tests on the AWS platform.
+# To skip OSM smoke (Feature:ServiceMesh), use:
+#   Platform:Generic && !(Feature: isSubsetOf {ServiceMesh})
+# (Feature:!ServiceMesh is invalid Ginkgo syntax.)
 E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint}
 
 # ============================================================================
@@ -283,7 +286,7 @@ test-e2e: test-e2e-wait-for-stable-state ## Run end-to-end tests.
 		-timeout $(E2E_TIMEOUT) \
 		-count 1 -v -p 1 \
 		-tags e2e -run "$(TEST)" . \
-		-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
+		-ginkgo.label-filter='$(E2E_GINKGO_LABEL_FILTER)'
 
 .PHONY: test-e2e-wait-for-stable-state
 test-e2e-wait-for-stable-state:

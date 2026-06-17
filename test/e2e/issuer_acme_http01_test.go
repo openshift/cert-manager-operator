@@ -27,6 +27,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// acmeHTTP01OpenShiftIngressClass is required on OpenShift so HTTP-01 challenge Ingresses get Routes.
+const acmeHTTP01OpenShiftIngressClass = "openshift-default"
+
+func acmeHTTP01OpenShiftIngress() *acmev1.ACMEChallengeSolverHTTP01Ingress {
+	ingressClass := acmeHTTP01OpenShiftIngressClass
+	return &acmev1.ACMEChallengeSolverHTTP01Ingress{
+		IngressClassName: &ingressClass,
+	}
+}
+
 var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -126,7 +136,6 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 
 		BeforeEach(func() {
 			clusterIssuerName := "letsencrypt-http01"
-			ingressClassName := "openshift-default"
 			secretName = "ingress-http01-secret"
 
 			By("creating a cluster issuer")
@@ -146,9 +155,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 							Solvers: []acmev1.ACMEChallengeSolver{
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{
-											IngressClassName: &ingressClassName,
-										},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 							},
@@ -172,6 +179,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 			By("creating Ingress object")
 			ingressHost = fmt.Sprintf("ahi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME http-01 Ingress"
 			pathType := networkingv1.PathTypePrefix
+			ingressClassName := acmeHTTP01OpenShiftIngressClass
 			ingress := &networkingv1.Ingress{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-http01",
@@ -311,7 +319,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 							Solvers: []acmev1.ACMEChallengeSolver{
 								{
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 							},
@@ -423,7 +431,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 										DNSZones: []string{testDomain},
 									},
 									HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-										Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{},
+										Ingress: acmeHTTP01OpenShiftIngress(),
 									},
 								},
 								// Solver 2: DNS-01 (Azure) with specific dnsNames selector
