@@ -188,17 +188,7 @@ E2E_TIMEOUT ?= 2h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests.
 # See https://onsi.github.io/ginkgo/#spec-labels
 # The default is to run tests on the AWS platform.
-# To skip OSM smoke (Feature:ServiceMesh), use:
-#   Platform:Generic && !Feature:ServiceMesh
-# (or grouped as Platform:Generic && !(Feature:ServiceMesh); Feature:!ServiceMesh is
-# invalid — the ! must prefix the whole label, e.g. !Feature:ServiceMesh)
 E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint}
-
-# E2E_GINKGO_LABEL_FILTER_TECH_PREVIEW is used by the e2e-operator-tech-preview CI job.
-# Runs Generic-platform specs (including TrustManager TechPreview) and excludes
-# TechPreview:Inverted (Default feature set). Do not wrap the value in extra quotes
-# when passing to ginkgo — that produces a syntax error (Invalid token '(').
-E2E_GINKGO_LABEL_FILTER_TECH_PREVIEW ?= Platform: isSubsetOf {Generic} && !TechPreview:Inverted
 
 # ============================================================================
 # Default Target
@@ -263,7 +253,7 @@ generate-fakes: ## Generate fake implementations for testing using counterfeiter
 	go generate ./...
 
 # Targets that need Go workspace mode (CI sets GOFLAGS=-mod=vendor which conflicts with go.work)
-fmt vet test test-e2e test-e2e-tech-preview run update-vendor update-dep: GOFLAGS=
+fmt vet test test-e2e run update-vendor update-dep: GOFLAGS=
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -293,11 +283,7 @@ test-e2e: test-e2e-wait-for-stable-state ## Run end-to-end tests.
 		-timeout $(E2E_TIMEOUT) \
 		-count 1 -v -p 1 \
 		-tags e2e -run "$(TEST)" . \
-		-ginkgo.label-filter='$(E2E_GINKGO_LABEL_FILTER)'
-
-.PHONY: test-e2e-tech-preview
-test-e2e-tech-preview: ## Run end-to-end tests for Tech Preview CI (e2e-operator-tech-preview).
-	$(MAKE) test-e2e E2E_GINKGO_LABEL_FILTER='$(E2E_GINKGO_LABEL_FILTER_TECH_PREVIEW)'
+		-ginkgo.label-filter=$(E2E_GINKGO_LABEL_FILTER)
 
 .PHONY: test-e2e-wait-for-stable-state
 test-e2e-wait-for-stable-state:
