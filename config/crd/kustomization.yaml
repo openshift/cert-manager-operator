@@ -15,6 +15,7 @@ resources:
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
+- patches/managementstate_default_in_certmanagers.yaml
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_certmanagers.yaml
