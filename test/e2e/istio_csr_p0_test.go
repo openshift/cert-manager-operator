@@ -31,6 +31,9 @@ import (
 
 const (
 	istioCSRP0ClusterIssuerName          = "selfsigned-issuer"
+	istioCSRP0CAClusterIssuerName        = "istiocsr-p0-ca-clusterissuer"
+	istioCSRP0CASecretName               = "root-secret"
+	istioCSRP0CACertificateName          = "my-selfsigned-ca"
 	istioCSRP0RejectAnnotation           = "operator.openshift.io/istio-csr-reject-multiple-instance"
 	istioCSRP0ManagedResourceLabel       = "app.kubernetes.io/name=cert-manager-istio-csr"
 	istioCSRP0ManagedByLabel             = "app.kubernetes.io/managed-by"
@@ -343,9 +346,42 @@ var _ = Describe("Istio-CSR P0 coverage", Ordered, Label("Platform:Generic", "Fe
 			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
+		By("creating CA certificate in test namespace using self-signed ClusterIssuer")
+		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		})
+		Expect(waitForCertificateReadiness(ctx, istioCSRP0CACertificateName, ns.Name)).NotTo(HaveOccurred())
+
+		By("copying CA secret to cert-manager namespace for CA ClusterIssuer readiness")
+		copySecretToNamespace(ctx, clientset, ns.Name, operandNamespace, istioCSRP0CASecretName)
+		DeferCleanup(func() {
+			_ = clientset.CoreV1().Secrets(operandNamespace).Delete(ctx, istioCSRP0CASecretName, metav1.DeleteOptions{})
+		})
+
+		By("creating CA ClusterIssuer backed by root-secret")
+		caClusterIssuer := &certmanagerv1.ClusterIssuer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioCSRP0CAClusterIssuerName,
+			},
+			Spec: certmanagerv1.IssuerSpec{
+				IssuerConfig: certmanagerv1.IssuerConfig{
+					CA: &certmanagerv1.CAIssuer{
+						SecretName: istioCSRP0CASecretName,
+					},
+				},
+			},
+		}
+		_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, caClusterIssuer, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() {
+			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, istioCSRP0CAClusterIssuerName, metav1.DeleteOptions{})
+		})
+		Expect(waitForClusterIssuerReadiness(ctx, istioCSRP0CAClusterIssuerName)).NotTo(HaveOccurred())
+
 		istioCSR := newIstioCSR(ns.Name, istioCSRP0Config{
 			issuerRefKind: "ClusterIssuer",
-			issuerRefName: istioCSRP0ClusterIssuerName,
+			issuerRefName: istioCSRP0CAClusterIssuerName,
 		})
 		createIstioCSR(ns.Name, istioCSR)
 		waitForIstioCSRReady(ns.Name)
