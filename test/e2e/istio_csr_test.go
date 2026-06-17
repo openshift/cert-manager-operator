@@ -39,7 +39,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 
-	generateCSR := func() string {
+	generateCSR := func(namespace string) string {
 		csrTemplate := &x509.CertificateRequest{
 			Subject: pkix.Name{
 				Organization:       []string{"My Organization"},
@@ -49,7 +49,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				Province:           []string{"California"},
 			},
 			URIs: []*url.URL{
-				{Scheme: "spiffe", Host: "cluster.local", Path: "/ns/istio-system/sa/cert-manager-istio-csr"},
+				{Scheme: "spiffe", Host: "cluster.local", Path: fmt.Sprintf("/ns/%s/sa/cert-manager-istio-csr", namespace)},
 			},
 			SignatureAlgorithm: x509.SHA256WithRSA,
 		}
@@ -91,7 +91,8 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("istio-system", true)
+		// Use a generated name: the real istio-system namespace may already exist when OSSM smoke tests run.
+		namespace, err := loader.CreateTestingNS("istio-csr-e2e", false)
 		Expect(err).NotTo(HaveOccurred())
 		ns = namespace
 
@@ -174,7 +175,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			Expect(err).Should(BeNil())
 
 			By("generate csr request")
-			csr := generateCSR()
+			csr := generateCSR(ns.Name)
 
 			By("creating an grpcurl job")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
@@ -249,7 +250,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			Expect(err).Should(BeNil())
 
 			By("generate csr request")
-			csr := generateCSR()
+			csr := generateCSR(ns.Name)
 
 			By("creating grpcurl job with matching clusterID")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
@@ -319,7 +320,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			Expect(err).Should(BeNil())
 
 			By("generate csr request")
-			csr := generateCSR()
+			csr := generateCSR(ns.Name)
 
 			By("creating grpcurl job with wrong clusterID")
 			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
