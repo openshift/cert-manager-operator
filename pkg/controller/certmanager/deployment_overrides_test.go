@@ -37,7 +37,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			"--v=2",
 			"--cluster-resource-namespace=$(POD_NAMESPACE)",
 			"--leader-election-namespace=kube-system",
-			"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.19.4",
+			"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.20.2",
 			"--max-concurrent-challenges=60",
 			"--feature-gates=ACMEHTTP01IngressPathTypeExact=false",
 		},
@@ -125,7 +125,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.19.4",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.20.2",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
 				"--feature-gates=ACMEHTTP01IngressPathTypeExact=false",
 				"--featureX=enable",
@@ -177,7 +177,7 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 				},
 			},
 			wantArgs: []string{
-				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.19.4",
+				"--acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.20.2",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
 				"--feature-gates=ACMEHTTP01IngressPathTypeExact=false",
 				"--featureY=disable",
