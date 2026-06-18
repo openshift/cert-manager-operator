@@ -515,8 +515,10 @@ spec:
           - certificates/finalizers
           - certificates/status
           - clusterissuers
+          - clusterissuers/finalizers
           - clusterissuers/status
           - issuers
+          - issuers/finalizers
           - issuers/status
           verbs:
           - create
@@ -604,6 +606,8 @@ spec:
           - gateways/finalizers
           - httproutes
           - httproutes/finalizers
+          - listenersets
+          - listenersets/finalizers
           verbs:
           - create
           - delete
