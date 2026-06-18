@@ -1126,6 +1126,7 @@ rules:
     resources:
       - gateways
       - httproutes
+      - listenersets
     verbs:
       - get
       - list
@@ -1135,6 +1136,7 @@ rules:
     resources:
       - gateways/finalizers
       - httproutes/finalizers
+      - listenersets/finalizers
     verbs:
       - update
   - apiGroups:
@@ -1341,6 +1343,13 @@ rules:
       - acme.cert-manager.io
     resources:
       - orders/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - clusterissuers/finalizers
+      - issuers/finalizers
     verbs:
       - update
   - apiGroups:
