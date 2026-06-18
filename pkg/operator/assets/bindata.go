@@ -646,7 +646,7 @@ func certManagerDeploymentCertManagerCertManagerControllerCertificatesigningrequ
 var _certManagerDeploymentCertManagerNamespaceYaml = []byte(`apiVersion: v1
 kind: Namespace
 metadata:
-  annotations:
+  labels:
     openshift.io/cluster-monitoring: "true"
   name: cert-manager
 `)
