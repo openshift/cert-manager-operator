@@ -592,7 +592,7 @@ spec:
                                     type: string
                                   accessKeyIDSecretRef:
                                     description: |-
-                                      The SecretAccessKey is used for authentication. If set, pull the AWS
+                                      The AccessKeyID is used for authentication. If set, pull the AWS
                                       access key ID from a key within a Kubernetes Secret.
                                       Cannot be set when AccessKeyID is set.
                                       If neither the Access Key nor Key ID are set, we fall back to using env
@@ -3650,7 +3650,7 @@ spec:
                     cloud:
                       description: |-
                         Cloud specifies the CyberArk Certificate Manager SaaS configuration settings.
-                        Only one of CyberArk Certificate Manager may be specified.
+                        Only one of cloud or tpp mode may be specified at the same time.
                       properties:
                         apiTokenSecretRef:
                           description: APITokenSecretRef is a secret key selector for the CyberArk Certificate Manager SaaS API token.
@@ -3680,7 +3680,7 @@ spec:
                     tpp:
                       description: |-
                         TPP specifies CyberArk Certificate Manager Self-Hosted configuration settings.
-                        Only one of CyberArk Certificate Manager may be specified.
+                        Only one of cloud or tpp mode may be specified at the same time.
                       properties:
                         caBundle:
                           description: |-

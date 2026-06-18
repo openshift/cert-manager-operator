@@ -52,3 +52,26 @@ do
         eval ".[\"${file}\"]" _output/targets_as_map.json \
         > "${file}"
 done
+
+echo "---- Patching accessKeyIDSecretRef CRD descriptions ----"
+# Upstream cert-manager incorrectly documents accessKeyIDSecretRef as SecretAccessKey.
+for crd in config/crd/bases/challenges.acme.cert-manager.io-crd.yaml \
+           config/crd/bases/issuers.cert-manager.io-crd.yaml \
+           config/crd/bases/clusterissuers.cert-manager.io-crd.yaml; do
+    if [[ -f "$crd" ]]; then
+        sed -i \
+            's/The SecretAccessKey is used for authentication\. If set, pull the AWS/The AccessKeyID is used for authentication. If set, pull the AWS/' \
+            "$crd"
+    fi
+done
+
+echo "---- Patching Venafi cloud/tpp CRD descriptions ----"
+# Upstream cert-manager does not clearly state that cloud and tpp are mutually exclusive.
+for crd in config/crd/bases/issuers.cert-manager.io-crd.yaml \
+           config/crd/bases/clusterissuers.cert-manager.io-crd.yaml; do
+    if [[ -f "$crd" ]]; then
+        sed -i \
+            's/Only one of CyberArk Certificate Manager may be specified\./Only one of cloud or tpp mode may be specified at the same time./' \
+            "$crd"
+    fi
+done
