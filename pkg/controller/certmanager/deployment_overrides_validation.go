@@ -2,6 +2,7 @@ package certmanager
 
 import (
 	"fmt"
+	"strconv"
 	"unsafe"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +19,13 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
+)
+
+const (
+	argConcurrentWorkers       = "--concurrent-workers"
+	argKubeAPIQPS              = "--kube-api-qps"
+	argKubeAPIBurst            = "--kube-api-burst"
+	argMaxConcurrentChallenges = "--max-concurrent-challenges"
 )
 
 // withContainerArgsValidateHook validates the container args with those that
@@ -65,6 +73,14 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		// Duration of the initial certificate request backoff when a certificate request fails. The backoff
 		// duration is exponentially increased based on consecutive failures, up to a maximum of 32 hours.
 		"--certificate-request-minimum-backoff-duration",
+		// The number of concurrent workers for each controller. (default 5)
+		argConcurrentWorkers,
+		// Maximum queries-per-second to the Kubernetes API server. (default 20)
+		argKubeAPIQPS,
+		// Maximum burst queries-per-second to the Kubernetes API server. Must be >= kube-api-qps. (default 50)
+		argKubeAPIBurst,
+		// Maximum number of challenges that can be scheduled as 'processing' at once. (default 60)
+		argMaxConcurrentChallenges,
 	}
 	supportedCertManagerWebhookArgs := []string{
 		// Log Level
@@ -95,7 +111,10 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 		case certmanagerControllerDeployment:
 			if certmanager.Spec.ControllerConfig != nil {
 				common.ParseArgMap(argMap, certmanager.Spec.ControllerConfig.OverrideArgs)
-				return validateArgs(argMap, supportedCertManagerArgs)
+				if err := validateArgs(argMap, supportedCertManagerArgs); err != nil {
+					return err
+				}
+				return validatePerformanceArgs(argMap)
 			}
 		case certmanagerWebhookDeployment:
 			if certmanager.Spec.WebhookConfig != nil {
@@ -113,6 +132,49 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 
 		return nil
 	}
+}
+
+// validatePerformanceArgs performs sanity checks on the performance tuning
+// arguments to catch invalid configurations.
+func validatePerformanceArgs(argMap map[string]string) error {
+	// Validate that integer args are positive.
+	positiveIntArgs := []string{argConcurrentWorkers, argMaxConcurrentChallenges, argKubeAPIBurst}
+	parsedInts := make(map[string]int)
+	for _, arg := range positiveIntArgs {
+		if valStr, ok := argMap[arg]; ok {
+			val, err := strconv.Atoi(valStr)
+			if err != nil {
+				return fmt.Errorf("validation failed: %s value must be a positive integer, got %q", arg, valStr)
+			}
+			if val <= 0 {
+				return fmt.Errorf("validation failed: %s must be greater than 0, got %d", arg, val)
+			}
+			parsedInts[arg] = val
+		}
+	}
+
+	// Validate QPS is a positive float32
+	var qps float32
+	var qpsOk bool
+	if qpsStr, ok := argMap[argKubeAPIQPS]; ok {
+		val, err := strconv.ParseFloat(qpsStr, 32)
+		if err != nil {
+			return fmt.Errorf("validation failed: %s value must be numeric, got %q", argKubeAPIQPS, qpsStr)
+		}
+		if val <= 0 {
+			return fmt.Errorf("validation failed: %s must be greater than 0, got %v", argKubeAPIQPS, val)
+		}
+		qps = float32(val)
+		qpsOk = true
+	}
+
+	// Validate burst >= qps when both are specified.
+	burst, burstOk := parsedInts[argKubeAPIBurst]
+	if qpsOk && burstOk && float32(burst) < qps {
+		return fmt.Errorf("validation failed: --kube-api-burst (%d) must be >= --kube-api-qps (%v)", burst, qps)
+	}
+
+	return nil
 }
 
 // withContainerEnvValidateHook validates the container env with those that

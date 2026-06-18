@@ -312,6 +312,183 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 			wantErrMsg:     `validation failed due to unsupported arg "--totally-unknown-flag"="value"`,
 		},
 		{
+			name: "controller accepts performance tuning flags",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--concurrent-workers=20",
+							"--kube-api-qps=150",
+							"--kube-api-burst=300",
+							"--max-concurrent-challenges=300",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller accepts burst equal to qps",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=100",
+							"--kube-api-burst=100",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller accepts only kube-api-qps without burst",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--kube-api-qps=150"},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller accepts only kube-api-burst without qps",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--kube-api-burst=200"},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller accepts decimal kube-api-qps value",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=150.5",
+							"--kube-api-burst=200",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller rejects burst less than qps",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=100",
+							"--kube-api-burst=50",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --kube-api-burst (50) must be >= --kube-api-qps (100)`,
+		},
+		{
+			name: "controller rejects non-numeric kube-api-qps",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=abc",
+							"--kube-api-burst=100",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --kube-api-qps value must be numeric, got "abc"`,
+		},
+		{
+			name: "controller rejects non-numeric kube-api-burst",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=100",
+							"--kube-api-burst=xyz",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --kube-api-burst value must be a positive integer, got "xyz"`,
+		},
+		{
+			name: "controller rejects zero concurrent-workers",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--concurrent-workers=0"},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --concurrent-workers must be greater than 0, got 0`,
+		},
+		{
+			name: "controller rejects negative max-concurrent-challenges",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--max-concurrent-challenges=-5"},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --max-concurrent-challenges must be greater than 0, got -5`,
+		},
+		{
+			name: "controller rejects zero kube-api-qps",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=0",
+							"--kube-api-burst=50",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --kube-api-qps must be greater than 0, got 0`,
+		},
+		{
+			name: "controller rejects negative kube-api-burst",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{
+							"--kube-api-qps=20",
+							"--kube-api-burst=-1",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     `validation failed: --kube-api-burst must be greater than 0, got -1`,
+		},
+		{
 			name: "controller validates only controllerConfig webhook override args ignored",
 			certManagerObj: v1alpha1.CertManager{
 				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
