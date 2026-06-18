@@ -1315,7 +1315,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				degradedCondition := meta.FindStatusCondition(tm.Status.Conditions, v1alpha1.Degraded)
 				g.Expect(degradedCondition).ShouldNot(BeNil())
 				g.Expect(degradedCondition.Status).Should(Equal(metav1.ConditionTrue))
-				g.Expect(degradedCondition.Reason).Should(Equal(v1alpha1.ReasonFailed))
+				g.Expect(degradedCondition.Reason).Should(Equal(v1alpha1.ReasonWaitingForDependencies))
 				g.Expect(degradedCondition.Message).Should(And(
 					ContainSubstring("trust namespace"),
 					ContainSubstring(nonExistentNS),
@@ -1325,10 +1325,12 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				readyCondition := meta.FindStatusCondition(tm.Status.Conditions, v1alpha1.Ready)
 				g.Expect(readyCondition).ShouldNot(BeNil())
 				g.Expect(readyCondition.Status).Should(Equal(metav1.ConditionFalse))
-				g.Expect(readyCondition.Reason).Should(Equal(v1alpha1.ReasonFailed))
-				// Irrecoverable path: Ready message is left empty; detail is on Degraded only
-				// (see HandleReconcileResult for IsIrrecoverableError).
+				g.Expect(readyCondition.Reason).Should(Equal(v1alpha1.ReasonWaitingForDependencies))
 				g.Expect(readyCondition.Message).Should(BeEmpty())
+
+				progressingCondition := meta.FindStatusCondition(tm.Status.Conditions, v1alpha1.Progressing)
+				g.Expect(progressingCondition).ShouldNot(BeNil())
+				g.Expect(progressingCondition.Status).Should(Equal(metav1.ConditionFalse))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			// Irrecoverable errors are not requeued, and Namespace is not watched, so creating the

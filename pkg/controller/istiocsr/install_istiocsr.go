@@ -10,7 +10,8 @@ import (
 
 func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
 	if err := validateIstioCSRConfig(istiocsr); err != nil {
-		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName())
+		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName()).
+			WithConditionReason(v1alpha1.ReasonValidationFailed)
 	}
 
 	// if user has set custom labels to be added to all resources created by the controller

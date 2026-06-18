@@ -181,6 +181,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Reason:  v1alpha1.ReasonReady,
 					Message: "reconciliation successful",
 				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
+				},
 			},
 		},
 		{
@@ -207,12 +212,17 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:   v1alpha1.Degraded,
 					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonFailed,
+					Reason: v1alpha1.ReasonValidationFailed,
 				},
 				{
 					Type:   v1alpha1.Ready,
 					Status: metav1.ConditionFalse,
-					Reason: v1alpha1.ReasonFailed,
+					Reason: v1alpha1.ReasonValidationFailed,
+				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonValidationFailed,
 				},
 			},
 		},
@@ -250,6 +260,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Status: metav1.ConditionFalse,
 					Reason: v1alpha1.ReasonInProgress,
 				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionTrue,
+					Reason: v1alpha1.ReasonReconciling,
+				},
 			},
 			wantErr: "failed to check if serviceaccount",
 		},
@@ -279,7 +294,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:   v1alpha1.Degraded,
 					Status: metav1.ConditionTrue,
-					Reason: v1alpha1.ReasonFailed,
+					Reason: v1alpha1.ReasonWaitingForDependencies,
 					Message: fmt.Sprintf(
 						"reconciliation failed with irrecoverable error not retrying: trust namespace %q validation failed: trust namespace %q does not exist, create the namespace before creating TrustManager CR",
 						defaultTrustNamespace,
@@ -289,7 +304,12 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:   v1alpha1.Ready,
 					Status: metav1.ConditionFalse,
-					Reason: v1alpha1.ReasonFailed,
+					Reason: v1alpha1.ReasonWaitingForDependencies,
+				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonWaitingForDependencies,
 				},
 			},
 		},
@@ -330,6 +350,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Status:  metav1.ConditionTrue,
 					Reason:  v1alpha1.ReasonReady,
 					Message: "reconciliation successful",
+				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
 				},
 			},
 		},

@@ -284,6 +284,89 @@ func TestIsRetryRequiredError(t *testing.T) {
 	}
 }
 
+func TestWithConditionReason(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        *ReconcileError
+		reason     string
+		wantNil    bool
+		wantReason string
+	}{
+		{
+			name:       "sets condition reason on irrecoverable error",
+			err:        NewIrrecoverableError(fmt.Errorf("x"), "msg"),
+			reason:     "ValidationFailed",
+			wantReason: "ValidationFailed",
+		},
+		{
+			name:       "sets condition reason on retry error",
+			err:        NewRetryRequiredError(fmt.Errorf("x"), "msg"),
+			reason:     "ResourceApplyFailed",
+			wantReason: "ResourceApplyFailed",
+		},
+		{
+			name:    "nil error returns nil",
+			err:     nil,
+			reason:  "ValidationFailed",
+			wantNil: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.WithConditionReason(tt.reason)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("expected non-nil")
+			}
+			if got.ConditionReason != tt.wantReason {
+				t.Errorf("ConditionReason = %q, want %q", got.ConditionReason, tt.wantReason)
+			}
+		})
+	}
+}
+
+func TestGetConditionReason(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantReason string
+	}{
+		{
+			name:       "extracts reason from ReconcileError",
+			err:        NewIrrecoverableError(fmt.Errorf("x"), "msg").WithConditionReason("ValidationFailed"),
+			wantReason: "ValidationFailed",
+		},
+		{
+			name:       "returns empty for ReconcileError without ConditionReason",
+			err:        NewIrrecoverableError(fmt.Errorf("x"), "msg"),
+			wantReason: "",
+		},
+		{
+			name:       "returns empty for plain error",
+			err:        fmt.Errorf("plain"),
+			wantReason: "",
+		},
+		{
+			name:       "returns empty for nil",
+			err:        nil,
+			wantReason: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetConditionReason(tt.err)
+			if got != tt.wantReason {
+				t.Errorf("GetConditionReason() = %q, want %q", got, tt.wantReason)
+			}
+		})
+	}
+}
+
 func TestIsMultipleInstanceError(t *testing.T) {
 	tests := []struct {
 		name string

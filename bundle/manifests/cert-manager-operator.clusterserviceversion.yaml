@@ -817,11 +817,29 @@ spec:
                 - name: UNSUPPORTED_ADDON_FEATURES
                 image: openshift.io/cert-manager-operator:latest
                 imagePullPolicy: IfNotPresent
+                livenessProbe:
+                  failureThreshold: 3
+                  httpGet:
+                    path: /healthz
+                    port: https
+                    scheme: HTTPS
+                  initialDelaySeconds: 15
+                  periodSeconds: 10
+                  timeoutSeconds: 5
                 name: cert-manager-operator
                 ports:
                 - containerPort: 8443
                   name: https
                   protocol: TCP
+                readinessProbe:
+                  failureThreshold: 3
+                  httpGet:
+                    path: /readyz
+                    port: https
+                    scheme: HTTPS
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
                 resources:
                   requests:
                     cpu: 10m
