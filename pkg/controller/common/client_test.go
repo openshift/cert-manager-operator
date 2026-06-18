@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
 
 // fakeManager implements manager.Manager for unit testing NewClient.
@@ -34,6 +36,7 @@ func (f *fakeManager) GetConfig() *rest.Config                                 {
 func (f *fakeManager) GetHTTPClient() *http.Client                             { return &http.Client{} }
 func (f *fakeManager) GetFieldIndexer() client.FieldIndexer                    { return nil }
 func (f *fakeManager) GetEventRecorderFor(string) record.EventRecorder         { return nil }
+func (f *fakeManager) GetEventRecorder(string) events.EventRecorder            { return nil }
 func (f *fakeManager) GetRESTMapper() meta.RESTMapper                          { return nil }
 func (f *fakeManager) GetAPIReader() client.Reader                             { return f.client }
 func (f *fakeManager) Start(context.Context) error                             { return nil }
@@ -45,6 +48,7 @@ func (f *fakeManager) AddReadyzCheck(string, healthz.Checker) error            {
 func (f *fakeManager) GetWebhookServer() webhook.Server                        { return nil }
 func (f *fakeManager) GetLogger() logr.Logger                                  { return logr.Discard() }
 func (f *fakeManager) GetControllerOptions() config.Controller                 { return config.Controller{} }
+func (f *fakeManager) GetConverterRegistry() conversion.Registry             { return nil }
 
 // sentinelClient is a non-nil client.Client stub so NewClient tests can assert manager wiring
 // (pointer identity) without controller-runtime's fake client (not vendored).
@@ -61,6 +65,9 @@ func (noopSubResourceWriter) Update(context.Context, client.Object, ...client.Su
 func (noopSubResourceWriter) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
 	return nil
 }
+func (noopSubResourceWriter) Apply(context.Context, runtime.ApplyConfiguration, ...client.SubResourceApplyOption) error {
+	return nil
+}
 
 type noopSubResourceClient struct{}
 
@@ -74,6 +81,9 @@ func (noopSubResourceClient) Update(context.Context, client.Object, ...client.Su
 	return nil
 }
 func (noopSubResourceClient) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
+	return nil
+}
+func (noopSubResourceClient) Apply(context.Context, runtime.ApplyConfiguration, ...client.SubResourceApplyOption) error {
 	return nil
 }
 
