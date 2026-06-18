@@ -8,6 +8,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -15,7 +16,7 @@ import (
 )
 
 func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	r.log.V(4).Info("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
+	klog.V(4).InfoS("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 
 	// Apply static network policy assets for istio-csr
 	for _, assetPath := range istioCSRNetworkPolicyAssets {
@@ -65,7 +66,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPolicy, istioCSRCreateRecon bool) error {
 	desired := policy.DeepCopy()
 	policyName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling network policy resource", "name", policyName)
+	klog.V(4).InfoS("reconciling network policy resource", "name", policyName)
 
 	fetched := &networkingv1.NetworkPolicy{}
 	key := types.NamespacedName{
@@ -82,13 +83,13 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 			r.eventRecorder.Eventf(policy, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s network policy resource already exists, maybe from previous installation", policyName)
 		}
 		if hasObjectChanged(desired, fetched) {
-			r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
+			klog.V(1).InfoS("network policy has been modified, updating to desired state", "name", policyName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s network policy resource", policyName)
 			}
 			r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
 		} else {
-			r.log.V(4).Info("network policy resource already exists and is in expected state", "name", policyName)
+			klog.V(4).InfoS("network policy resource already exists and is in expected state", "name", policyName)
 		}
 	}
 
