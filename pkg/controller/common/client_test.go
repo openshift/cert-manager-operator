@@ -48,7 +48,7 @@ func (f *fakeManager) AddReadyzCheck(string, healthz.Checker) error            {
 func (f *fakeManager) GetWebhookServer() webhook.Server                        { return nil }
 func (f *fakeManager) GetLogger() logr.Logger                                  { return logr.Discard() }
 func (f *fakeManager) GetControllerOptions() config.Controller                 { return config.Controller{} }
-func (f *fakeManager) GetConverterRegistry() conversion.Registry             { return nil }
+func (f *fakeManager) GetConverterRegistry() conversion.Registry               { return nil }
 
 // sentinelClient is a non-nil client.Client stub so NewClient tests can assert manager wiring
 // (pointer identity) without controller-runtime's fake client (not vendored).
