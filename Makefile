@@ -169,7 +169,7 @@ TLS_VERIFY ?= true
 CONTAINER_PUSH_ARGS ?= $(if $(filter $(CONTAINER_ENGINE),docker),,--tls-verify=$(TLS_VERIFY))
 
 # Container image used for running make targets in a container
-CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21
+CONTAINER_IMAGE_NAME ?= registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-4.23
 
 # ============================================================================
 # Build Configuration

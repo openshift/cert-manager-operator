@@ -1,6 +1,6 @@
 module github.com/openshift/cert-manager-operator/tools
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/go-bindata/go-bindata v3.1.2+incompatible

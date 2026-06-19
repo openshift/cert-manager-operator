@@ -496,7 +496,7 @@ spec:
                             type: string
                           accessKeyIDSecretRef:
                             description: |-
-                              The AccessKeyID is used for authentication. If set, pull the AWS
+                              The SecretAccessKey is used for authentication. If set, pull the AWS
                               access key ID from a key within a Kubernetes Secret.
                               Cannot be set when AccessKeyID is set.
                               If neither the Access Key nor Key ID are set, we fall back to using env
