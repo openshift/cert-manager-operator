@@ -82,6 +82,10 @@ var (
 	// Image pulls and PVC binding on CI often exceed the previous 3m default.
 	vaultPodStartTimeout = 10 * time.Minute
 
+	// multiOperandReadyTimeout covers concurrent TrustManager and IstioCSR install on slow CI:
+	// operator rollout, image pulls, and CR reconciliation can exceed highTimeout individually.
+	multiOperandReadyTimeout = 20 * time.Minute
+
 	// fastPollInterval and lowTimeout are
 	// used together in poll(s) with fast reaction and
 	// smaller timeout window.
@@ -1167,9 +1171,13 @@ func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.
 // pollTillIstioCSRAvailable poll the istioCSR object and returns non-nil error and istioCSRStatus
 // once the istiocsr is available, otherwise should return a time-out error
 func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResourceLoader, namespace, istioCsrName string) (v1alpha1.IstioCSRStatus, error) {
+	return pollTillIstioCSRAvailableWithTimeout(ctx, loader, namespace, istioCsrName, highTimeout)
+}
+
+func pollTillIstioCSRAvailableWithTimeout(ctx context.Context, loader library.DynamicResourceLoader, namespace, istioCsrName string, timeout time.Duration) (v1alpha1.IstioCSRStatus, error) {
 	var istioCSRStatus v1alpha1.IstioCSRStatus
 	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace)
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(context.Context) (bool, error) {
 		customResource, err := istiocsrClient.Get(ctx, istioCsrName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -1343,7 +1351,11 @@ func cleanupAllIstioCSROperands(ctx context.Context, loader library.DynamicResou
 // pollTillDeploymentAvailable poll the deployment object and returns non-nil error
 // once the deployment is available, otherwise should return a time-out error
 func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string) error {
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	return pollTillDeploymentAvailableWithTimeout(ctx, clientSet, namespace, deploymentName, highTimeout)
+}
+
+func pollTillDeploymentAvailableWithTimeout(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string, timeout time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(context.Context) (bool, error) {
 		deployment, err := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -2085,15 +2097,15 @@ func formatVaultPodsStatus(pods []corev1.Pod) string {
 			case cs.State.Running != nil:
 				b.WriteString(" state=running")
 			case cs.State.Waiting != nil:
-				fmt.Fprintf(&b, " state=waiting reason=%s message=%q", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				fmt.Fprintf(&b, " state=waiting reason=%s", cs.State.Waiting.Reason)
 			case cs.State.Terminated != nil:
-				fmt.Fprintf(&b, " state=terminated reason=%s exitCode=%d message=%q",
-					cs.State.Terminated.Reason, cs.State.Terminated.ExitCode, cs.State.Terminated.Message)
+				fmt.Fprintf(&b, " state=terminated reason=%s exitCode=%d",
+					cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
 			}
 		}
 		for _, cond := range pod.Status.Conditions {
 			if cond.Status != corev1.ConditionTrue {
-				fmt.Fprintf(&b, " condition=%s:%s:%s", cond.Type, cond.Status, cond.Message)
+				fmt.Fprintf(&b, " condition=%s:%s", cond.Type, cond.Status)
 			}
 		}
 		b.WriteString("; ")
@@ -2199,6 +2211,12 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 		Spec: corev1.PodSpec{
 			ServiceAccountName: serviceAccountName,
 			RestartPolicy:      corev1.RestartPolicyNever,
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: &runAsNonRoot,
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:            "helm",
@@ -2218,6 +2236,9 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 						Privileged:               &privileged,
 						Capabilities: &corev1.Capabilities{
 							Drop: []corev1.Capability{"ALL"},
+						},
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
 					},
 				},
