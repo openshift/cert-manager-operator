@@ -140,19 +140,21 @@ func readClusterPreviewFeatureGate(ctx context.Context, configClient configv1cli
 // (--unsupported-addon-features=IstioCSR=true). FeatureIstioCSR is GA and does not depend on the
 // cluster FeatureSet; the featuregate remains available so users can disable it when unused.
 func IsIstioCSRFeatureGateEnabled() bool {
-	return DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR)
+	if !DefaultFeatureGate.Enabled(v1alpha1.FeatureIstioCSR) {
+		log.V(1).Info("IstioCSR feature: internal featuregate is not enabled")
+		return false
+	}
+	log.V(1).Info("IstioCSR feature: enabled")
+	return true
 }
 
 // IsTrustManagerFeatureGateEnabled reports whether the TrustManager operand may run.
-// When config.openshift.io FeatureGate is served, the cluster must use a preview FeatureSet
-// (e.g. TechPreviewNoUpgrade); spec.featureSet Default does not start TrustManager even if
-// --unsupported-addon-features=TrustManager=true. The internal operator featuregate must also be on.
-// When stateErr is set, TrustManager stays off. When the FeatureGate API is not served, only the
-// internal gate applies.
+//
+// TrustManager remains a TechPreview feature and is gated by the internal operator featuregate
+// (--unsupported-addon-features=TrustManager=true). The cluster FeatureSet check
+// (featuregates.config.openshift.io/cluster spec.featureSet) was removed: for increased adoption.
+// Cluster FeatureSet state is still tracked via FeatureGateState but does not gate TrustManager.
 func (f *FeatureGateState) IsTrustManagerFeatureGateEnabled() bool {
-	if !f.passesClusterPreviewGating(string(v1alpha1.FeatureTrustManager)) {
-		return false
-	}
 	if !DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager) {
 		log.V(1).Info("TrustManager feature: internal featuregate is not enabled")
 		return false

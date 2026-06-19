@@ -158,8 +158,8 @@ func TestAllowedPreviewClusterFeatureSets(t *testing.T) {
 	}
 }
 
-// TestIsTrustManagerFeatureGateEnabled covers cluster featureset plus TrustManager operator
-// featuregate (--unsupported-addon-features).
+// TestIsTrustManagerFeatureGateEnabled covers the TrustManager operator featuregate
+// (--unsupported-addon-features).
 func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 	defer func() {
 		_ = SetupWithFlagValue("TrustManager=false")
@@ -171,9 +171,10 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 		assert func(t *testing.T, st *FeatureGateState)
 	}{
 		{
-			name: "returns false when cluster feature gate discovery fails",
+			name: "returns true when operator featuregate on even if cluster feature gate discovery fails",
 			prep: func(t *testing.T) *configfake.Clientset {
 				t.Helper()
+				require.NoError(t, SetupWithFlagValue("TrustManager=true"))
 				cs := newFakeConfigClient(t, true, clusterFeatureGateObject(ocpfeaturegate.TechPreviewNoUpgrade))
 				cs.AddReactor("get", "resource", func(clientgotesting.Action) (bool, runtime.Object, error) {
 					return true, nil, fmt.Errorf("simulated discovery failure")
@@ -182,13 +183,13 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			},
 			assert: func(t *testing.T, st *FeatureGateState) {
 				t.Helper()
-				assert.False(t, st.IsTrustManagerFeatureGateEnabled())
+				assert.True(t, st.IsTrustManagerFeatureGateEnabled())
 				require.Error(t, st.Err())
 				assert.True(t, errors.Is(st.Err(), ErrFeatureGateDiscovery))
 			},
 		},
 		{
-			name: "returns false when featuregates/cluster cannot be read",
+			name: "returns true when operator featuregate on even if featuregates/cluster cannot be read",
 			prep: func(t *testing.T) *configfake.Clientset {
 				t.Helper()
 				require.NoError(t, SetupWithFlagValue("TrustManager=true"))
@@ -203,7 +204,7 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			},
 			assert: func(t *testing.T, st *FeatureGateState) {
 				t.Helper()
-				assert.False(t, st.IsTrustManagerFeatureGateEnabled())
+				assert.True(t, st.IsTrustManagerFeatureGateEnabled())
 				assert.True(t, errors.Is(st.Err(), ErrFeatureGateClusterGet))
 			},
 		},
@@ -221,7 +222,7 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			},
 		},
 		{
-			name: "returns false when cluster featureset is Default even with operator featuregate set",
+			name: "returns true when cluster featureset is Default with operator featuregate set",
 			prep: func(t *testing.T) *configfake.Clientset {
 				t.Helper()
 				require.NoError(t, SetupWithFlagValue("TrustManager=true"))
@@ -229,7 +230,7 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 			},
 			assert: func(t *testing.T, st *FeatureGateState) {
 				t.Helper()
-				assert.False(t, st.IsTrustManagerFeatureGateEnabled())
+				assert.True(t, st.IsTrustManagerFeatureGateEnabled())
 			},
 		},
 		{

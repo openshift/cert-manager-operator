@@ -167,12 +167,11 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 }
 
 // setupFeatureGates applies operator feature flags from UnsupportedAddonFeatures
-// (--unsupported-addon-features) and builds cluster-side FeatureGateState used for
-// feature preview gating. Transient discovery or featuregates/cluster read errors
+// (--unsupported-addon-features) and builds cluster-side FeatureGateState by reading
+// featuregates/cluster when served. Transient discovery or featuregates/cluster read errors
 // are retried up to three times with 30s backoff; persistent failure leaves stateErr set
-// so feature stays off without aborting the rest of startup. ErrNilConfigClient
-// is not retried. Returns an error only for invalid addon feature syntax or if ctx is
-// canceled while waiting between retries.
+// on FeatureGateState without aborting the rest of startup. Returns an error only for invalid
+// addon feature syntax or if ctx is canceled while waiting between retries.
 func setupFeatureGates(ctx context.Context, configClient configv1client.Interface) (*features.FeatureGateState, error) {
 	const (
 		// maxFeatureGateAttempts caps how many times we call NewFeatureGateState when discovery or
