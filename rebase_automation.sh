@@ -34,6 +34,30 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Extract the raw value from a Makefile variable assignment.
+get_makefile_var_raw() {
+    local var=$1
+    grep "^${var} " Makefile | head -1 | sed -E 's/^[^=]+=[[:space:]]*//' | tr -d '"'
+}
+
+# Resolve Makefile values, dereferencing a single $(VAR) reference.
+resolve_makefile_value() {
+    local value=$1
+    value=$(echo "$value" | tr -d ' ')
+    if [[ "$value" =~ ^\$\(([A-Za-z_][A-Za-z0-9_]*)\)$ ]]; then
+        get_makefile_var_raw "${BASH_REMATCH[1]}"
+    else
+        echo "$value"
+    fi
+}
+
+# Normalize Makefile version values (resolve references and strip a leading v).
+normalize_makefile_version() {
+    local value
+    value=$(resolve_makefile_value "$1")
+    echo "${value#v}"
+}
+
 # Function to display usage
 usage() {
     cat << EOF
@@ -142,19 +166,19 @@ detect_current_versions() {
     
     # Extract current bundle version from Makefile
     if [[ -z "$OLD_BUNDLE_VERSION" ]]; then
-        OLD_BUNDLE_VERSION=$(grep "^BUNDLE_VERSION" Makefile | cut -d'=' -f2 | tr -d ' ?')
+        OLD_BUNDLE_VERSION=$(normalize_makefile_version "$(get_makefile_var_raw BUNDLE_VERSION)")
         log_info "Auto-detected OLD_BUNDLE_VERSION: $OLD_BUNDLE_VERSION"
     fi
     
     # Extract current cert-manager version from Makefile
     if [[ -z "$OLD_CERT_MANAGER_VERSION" ]]; then
-        OLD_CERT_MANAGER_VERSION=$(grep "^CERT_MANAGER_VERSION" Makefile | cut -d'=' -f2 | tr -d ' ?"v')
+        OLD_CERT_MANAGER_VERSION=$(normalize_makefile_version "$(get_makefile_var_raw CERT_MANAGER_VERSION)")
         log_info "Auto-detected OLD_CERT_MANAGER_VERSION: $OLD_CERT_MANAGER_VERSION"
     fi
     
     # Extract current istio-csr version from Makefile
     if [[ -z "$OLD_ISTIO_CSR_VERSION" ]]; then
-        OLD_ISTIO_CSR_VERSION=$(grep "^ISTIO_CSR_VERSION" Makefile | cut -d'=' -f2 | tr -d ' ?"v')
+        OLD_ISTIO_CSR_VERSION=$(normalize_makefile_version "$(get_makefile_var_raw ISTIO_CSR_VERSION)")
         log_info "Auto-detected OLD_ISTIO_CSR_VERSION: $OLD_ISTIO_CSR_VERSION"
     fi
     
@@ -278,23 +302,29 @@ step2_update_makefile() {
     # Update BUNDLE_VERSION (if changing)
     if [[ "$bundle_changing" == "true" ]]; then
         log_info "Updating BUNDLE_VERSION: $OLD_BUNDLE_VERSION -> $NEW_BUNDLE_VERSION"
-        sed -i "s/^BUNDLE_VERSION ?= $OLD_BUNDLE_VERSION/BUNDLE_VERSION ?= $NEW_BUNDLE_VERSION/" Makefile
+        local bundle_raw
+        bundle_raw=$(get_makefile_var_raw BUNDLE_VERSION)
+        if [[ "$bundle_raw" == '$(DEFAULT_VERSION)' ]]; then
+            sed -i "s|^DEFAULT_VERSION := ${OLD_BUNDLE_VERSION}|DEFAULT_VERSION := ${NEW_BUNDLE_VERSION}|" Makefile
+        else
+            sed -i "s|^BUNDLE_VERSION ?= ${bundle_raw}|BUNDLE_VERSION ?= ${NEW_BUNDLE_VERSION}|" Makefile
+        fi
         
         # Update CHANNELS (only if bundle version is changing)
         log_info "Updating CHANNELS: stable-v1,stable-v$old_channel_version -> stable-v1,stable-v$new_channel_version"
-        sed -i "s/^CHANNELS ?= \"stable-v1,stable-v$old_channel_version\"/CHANNELS ?= \"stable-v1,stable-v$new_channel_version\"/" Makefile
+        sed -i "s|^CHANNELS ?= stable-v1,stable-v${old_channel_version}|CHANNELS ?= stable-v1,stable-v${new_channel_version}|" Makefile
     fi
     
     # Update CERT_MANAGER_VERSION (if changing)
     if [[ "$cert_manager_changing" == "true" ]]; then
         log_info "Updating CERT_MANAGER_VERSION: v$OLD_CERT_MANAGER_VERSION -> v$NEW_CERT_MANAGER_VERSION"
-        sed -i "s/^CERT_MANAGER_VERSION ?= \"v$OLD_CERT_MANAGER_VERSION\"/CERT_MANAGER_VERSION ?= \"v$NEW_CERT_MANAGER_VERSION\"/" Makefile
+        sed -i "s|^CERT_MANAGER_VERSION ?= v${OLD_CERT_MANAGER_VERSION}|CERT_MANAGER_VERSION ?= v${NEW_CERT_MANAGER_VERSION}|" Makefile
     fi
     
     # Update ISTIO_CSR_VERSION (if changing)
     if [[ "$istio_csr_changing" == "true" ]]; then
         log_info "Updating ISTIO_CSR_VERSION: v$OLD_ISTIO_CSR_VERSION -> v$NEW_ISTIO_CSR_VERSION"
-        sed -i "s/^ISTIO_CSR_VERSION ?= \"v$OLD_ISTIO_CSR_VERSION\"/ISTIO_CSR_VERSION ?= \"v$NEW_ISTIO_CSR_VERSION\"/" Makefile
+        sed -i "s|^ISTIO_CSR_VERSION ?= v${OLD_ISTIO_CSR_VERSION}|ISTIO_CSR_VERSION ?= v${NEW_ISTIO_CSR_VERSION}|" Makefile
     fi
     
     # Run make update and make bundle
@@ -591,6 +621,11 @@ main() {
                 shift
                 ;;
             -s|--step)
+                if [[ -z "${2:-}" ]]; then
+                    log_error "Option -s|--step requires a step number (1-4)"
+                    usage
+                    exit 1
+                fi
                 SPECIFIC_STEP="$2"
                 shift 2
                 ;;
