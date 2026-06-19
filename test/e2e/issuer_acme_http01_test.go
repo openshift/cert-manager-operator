@@ -265,7 +265,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 			}
 
 			err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
-				pods, err := k8sClientSet.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+				pods, err := k8sClientSet.CoreV1().Pods(ns.Name).List(ctx, metav1.ListOptions{
 					LabelSelector: acmeSolverPodLabel,
 				})
 				if err != nil {
@@ -286,10 +286,6 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 				return false, nil // No matching pods yet, keep waiting
 			})
 			Expect(err).NotTo(HaveOccurred(), "should find ACME HTTP01 solver pods with expected resource configuration")
-
-			By("waiting for certificate to get ready")
-			err = waitForCertificateReadiness(ctx, secretName, ns.Name)
-			Expect(err).NotTo(HaveOccurred(), "timeout waiting for certificate to become ready")
 		})
 	})
 

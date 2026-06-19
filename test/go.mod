@@ -25,6 +25,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
 	github.com/vmware-archive/yaml-patch v0.0.11
+	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.251.0
 	k8s.io/api v0.35.1
 	k8s.io/apiextensions-apiserver v0.35.1
@@ -127,7 +128,6 @@ require (
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/text v0.33.0 // indirect

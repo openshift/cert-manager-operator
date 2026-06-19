@@ -132,6 +132,13 @@ func deleteTrustManager(ctx context.Context) {
 	}, lowTimeout, fastPollInterval).Should(BeTrue())
 }
 
+// deleteTrustManagerDefaultCAPackageConfigMap removes the operand ConfigMap created when
+// default CAPackage is Enabled. The operator does not delete it when the CR is removed
+// or policy is Disabled, so e2e tests must clean it up to avoid cross-suite pollution.
+func deleteTrustManagerDefaultCAPackageConfigMap(ctx context.Context) {
+	_ = k8sClientSet.CoreV1().ConfigMaps(trustManagerNamespace).Delete(ctx, defaultCAPackageConfigMapName, metav1.DeleteOptions{})
+}
+
 // ---------------------------------------------------------------------------
 // Bundle builder
 // ---------------------------------------------------------------------------
