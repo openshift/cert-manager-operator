@@ -261,9 +261,12 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		By("waiting for IstioCSR Ready=False with multiple-instance rejection message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, secondNS.Name, istioCSRResourceName, v1alpha1.Ready, metav1.ConditionFalse, "multiple instances of istiocsr exists", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 
-		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(secondNS.Name).Get(ctx, istioCSRResourceName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(obj.GetAnnotations()).To(HaveKey(istioCSRRejectAnnotation))
+		By("waiting for reject-multiple-instance annotation (written after status in a separate API update)")
+		Eventually(func(g Gomega) {
+			obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(secondNS.Name).Get(ctx, istioCSRResourceName, metav1.GetOptions{})
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(obj.GetAnnotations()).To(HaveKey(istioCSRRejectAnnotation))
+		}, lowTimeout, fastPollInterval).Should(Succeed())
 
 		Consistently(func() bool {
 			_, err := clientset.AppsV1().Deployments(secondNS.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
