@@ -288,7 +288,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
-    olm.skipRange: '>=1.18.0 <1.19.0'
+    olm.skipRange: '>=1.19.0 <1.20.0'
     operator.openshift.io/uninstall-message: The cert-manager Operator for Red Hat
       OpenShift will be removed from cert-manager-operator namespace. If your Operator
       configured any off-cluster resources, these will continue to run and require
@@ -309,7 +309,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: cert-manager-operator.v1.19.0
+  name: cert-manager-operator.v1.20.0
   namespace: cert-manager-operator
 spec:
   apiservicedefinitions: {}
@@ -397,7 +397,7 @@ spec:
       name: trustmanagers.operator.openshift.io
       version: v1alpha1
   description: |
-    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.19.4](https://github.com/cert-manager/cert-manager/tree/v1.19.4), which automates certificate management.
+    The cert-manager Operator for Red Hat OpenShift provides seamless support for [cert-manager v1.20.2](https://github.com/cert-manager/cert-manager/tree/v1.20.2), which automates certificate management.
     For more information, see the [cert-manager Operator for Red Hat OpenShift documentation](https://docs.openshift.com/container-platform/latest/security/cert_manager_operator/index.html).
   displayName: cert-manager Operator for Red Hat OpenShift
   icon:
@@ -515,8 +515,10 @@ spec:
           - certificates/finalizers
           - certificates/status
           - clusterissuers
+          - clusterissuers/finalizers
           - clusterissuers/status
           - issuers
+          - issuers/finalizers
           - issuers/status
           verbs:
           - create
@@ -604,6 +606,8 @@ spec:
           - gateways/finalizers
           - httproutes
           - httproutes/finalizers
+          - listenersets
+          - listenersets/finalizers
           verbs:
           - create
           - delete
@@ -787,25 +791,25 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.19.4
+                  value: quay.io/jetstack/cert-manager-webhook:v1.20.2
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.19.4
+                  value: quay.io/jetstack/cert-manager-cainjector:v1.20.2
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.19.4
+                  value: quay.io/jetstack/cert-manager-controller:v1.20.2
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.19.4
+                  value: quay.io/jetstack/cert-manager-acmesolver:v1.20.2
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
                   value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
                 - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
                   value: quay.io/jetstack/trust-manager:v0.20.3
                 - name: OPERAND_IMAGE_VERSION
-                  value: 1.19.4
+                  value: 1.20.2
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
                   value: 0.16.0
                 - name: TRUSTMANAGER_OPERAND_IMAGE_VERSION
                   value: 0.20.3
                 - name: OPERATOR_IMAGE_VERSION
-                  value: 1.19.0
+                  value: 1.20.0
                 - name: OPERATOR_LOG_LEVEL
                   value: "2"
                 - name: TRUSTED_CA_CONFIGMAP_NAME
@@ -908,17 +912,17 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.19.4
+  - image: quay.io/jetstack/cert-manager-webhook:v1.20.2
     name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.19.4
+  - image: quay.io/jetstack/cert-manager-cainjector:v1.20.2
     name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.19.4
+  - image: quay.io/jetstack/cert-manager-controller:v1.20.2
     name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.19.4
+  - image: quay.io/jetstack/cert-manager-acmesolver:v1.20.2
     name: cert-manager-acmesolver
   - image: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
     name: cert-manager-istiocsr
   - image: quay.io/jetstack/trust-manager:v0.20.3
     name: cert-manager-trust-manager
-  replaces: cert-manager-operator.v1.18.0
-  version: 1.19.0
+  replaces: cert-manager-operator.v1.19.0
+  version: 1.20.0

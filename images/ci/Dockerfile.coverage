@@ -1,7 +1,7 @@
 # Build the cert-manager-operator binary with coverage instrumentation.
 # This mirrors images/ci/Dockerfile but adds Go coverage flags so the binary
 # records which lines are executed during E2E tests.
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.21 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-4.23 AS builder
 
 ARG SRC_DIR=/go/src/github.com/openshift/cert-manager-operator
 ENV GO_BUILD_TAGS=strictfipsruntime,openssl
