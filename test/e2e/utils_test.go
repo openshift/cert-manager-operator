@@ -73,6 +73,14 @@ var (
 	slowPollInterval = 12 * time.Second
 	highTimeout      = 10 * time.Minute
 
+	// vaultSetupTimeout covers chained setup in setupVaultServer (TLS cert, Helm, pod init)
+	// and configureVaultPKI, which can exceed highTimeout on slow CI clusters.
+	vaultSetupTimeout = 30 * time.Minute
+
+	// vaultPodStartTimeout is the per-step wait for the Vault server pod after Helm install.
+	// Image pulls and PVC binding on CI often exceed the previous 3m default.
+	vaultPodStartTimeout = 10 * time.Minute
+
 	// fastPollInterval and lowTimeout are
 	// used together in poll(s) with fast reaction and
 	// smaller timeout window.
@@ -1726,6 +1734,36 @@ EOF`
 	return nil
 }
 
+// formatVaultPodsStatus returns a human-readable summary of Vault-labeled pods for CI logs.
+func formatVaultPodsStatus(pods []corev1.Pod) string {
+	if len(pods) == 0 {
+		return "no pods found with label app.kubernetes.io/name=vault"
+	}
+	var b strings.Builder
+	for _, pod := range pods {
+		fmt.Fprintf(&b, "pod=%s phase=%s", pod.Name, pod.Status.Phase)
+		for _, cs := range pod.Status.ContainerStatuses {
+			fmt.Fprintf(&b, " container=%s", cs.Name)
+			switch {
+			case cs.State.Running != nil:
+				b.WriteString(" state=running")
+			case cs.State.Waiting != nil:
+				fmt.Fprintf(&b, " state=waiting reason=%s message=%q", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+			case cs.State.Terminated != nil:
+				fmt.Fprintf(&b, " state=terminated reason=%s exitCode=%d message=%q",
+					cs.State.Terminated.Reason, cs.State.Terminated.ExitCode, cs.State.Terminated.Message)
+			}
+		}
+		for _, cond := range pod.Status.Conditions {
+			if cond.Status != corev1.ConditionTrue {
+				fmt.Fprintf(&b, " condition=%s:%s:%s", cond.Type, cond.Status, cond.Message)
+			}
+		}
+		b.WriteString("; ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
 // setupVaultServer deploys and initializes a Vault server using Helm.
 // This is more maintainable than custom StatefulSet logic.
 // It returns the pod name, root token, ClusterRoleBinding name, and any error encountered.
@@ -1875,9 +1913,10 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	}
 
 	// Wait for Vault pod to be running
-	log.Printf("Waiting for Vault pod to start...")
+	log.Printf("Waiting for Vault pod to start (timeout %s)...", vaultPodStartTimeout)
 	var vaultPodName string
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 3*time.Minute, true,
+	var lastPods []corev1.Pod
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, vaultPodStartTimeout, true,
 		func(context.Context) (bool, error) {
 			pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: vaultPodLabel,
@@ -1885,11 +1924,23 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 			if err != nil {
 				return false, nil
 			}
+			lastPods = pods.Items
 			if len(pods.Items) == 0 {
 				return false, nil
 			}
 			pod := pods.Items[0]
 			vaultPodName = pod.Name
+			if pod.Status.Phase == corev1.PodFailed {
+				return false, fmt.Errorf("vault pod failed: %s", formatVaultPodsStatus(pods.Items))
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.State.Waiting != nil {
+					switch cs.State.Waiting.Reason {
+					case "ErrImagePull", "ImagePullBackOff", "CrashLoopBackOff", "CreateContainerConfigError":
+						return false, fmt.Errorf("vault pod not starting: %s", formatVaultPodsStatus(pods.Items))
+					}
+				}
+			}
 			if pod.Status.Phase == corev1.PodRunning {
 				// Check if container is running (not ready, since Vault needs to be unsealed)
 				for _, cs := range pod.Status.ContainerStatuses {
@@ -1903,7 +1954,8 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 		},
 	)
 	if err != nil {
-		return "", "", "", fmt.Errorf("timeout waiting for Vault pod to start: %w", err)
+		status := formatVaultPodsStatus(lastPods)
+		return "", "", "", fmt.Errorf("timeout waiting for Vault pod to start after %s: %w; %s", vaultPodStartTimeout, err, status)
 	}
 
 	// Initialize and unseal Vault
