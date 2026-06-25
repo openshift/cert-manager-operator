@@ -4,6 +4,8 @@ package v1alpha1
 
 type CertManagerExpansion interface{}
 
+type HTTP01ProxyExpansion interface{}
+
 type IstioCSRExpansion interface{}
 
 type TrustManagerExpansion interface{}

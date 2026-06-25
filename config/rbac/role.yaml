@@ -86,6 +86,7 @@ rules:
 - apiGroups:
   - apps
   resources:
+  - daemonsets
   - deployments
   - replicasets
   verbs:
@@ -159,6 +160,8 @@ rules:
   - config.openshift.io
   resources:
   - apiservers
+  - clusterversions
+  - ingresses
   verbs:
   - get
   - list
@@ -237,6 +240,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/finalizers
+  - http01proxies/finalizers
   - istiocsrs/finalizers
   - trustmanagers/finalizers
   verbs:
@@ -245,6 +249,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/status
+  - http01proxies/status
   - istiocsrs/status
   - trustmanagers/status
   verbs:
@@ -254,6 +259,7 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
+  - http01proxies
   - istiocsrs
   - trustmanagers
   verbs:
@@ -290,6 +296,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
 - apiGroups:
   - trust.cert-manager.io
   resources:

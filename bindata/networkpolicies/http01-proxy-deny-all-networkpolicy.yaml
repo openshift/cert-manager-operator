@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-http01-proxy-deny-all
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-http01-proxy
+  policyTypes:
+    - Ingress
+    - Egress

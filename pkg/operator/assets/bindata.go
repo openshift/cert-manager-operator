@@ -43,6 +43,11 @@
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml
+// bindata/http01-proxy/cert-manager-http01-proxy-clusterrole.yaml
+// bindata/http01-proxy/cert-manager-http01-proxy-clusterrolebinding.yaml
+// bindata/http01-proxy/cert-manager-http01-proxy-daemonset.yaml
+// bindata/http01-proxy/cert-manager-http01-proxy-scc-rolebinding.yaml
+// bindata/http01-proxy/cert-manager-http01-proxy-serviceaccount.yaml
 // bindata/istio-csr/cert-manager-istio-csr-clusterrole.yaml
 // bindata/istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml
 // bindata/istio-csr/cert-manager-istio-csr-deployment.yaml
@@ -59,6 +64,8 @@
 // bindata/networkpolicies/cert-manager-allow-ingress-to-metrics-networkpolicy.yaml
 // bindata/networkpolicies/cert-manager-allow-ingress-to-webhook-networkpolicy.yaml
 // bindata/networkpolicies/cert-manager-deny-all-networkpolicy.yaml
+// bindata/networkpolicies/http01-proxy-allow-egress-networkpolicy.yaml
+// bindata/networkpolicies/http01-proxy-deny-all-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml
@@ -2290,6 +2297,211 @@ func certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfiguratio
 	return a, nil
 }
 
+var _http01ProxyCertManagerHttp01ProxyClusterroleYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-http01-proxy
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+rules:
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - clusterversions
+      - infrastructures
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+`)
+
+func http01ProxyCertManagerHttp01ProxyClusterroleYamlBytes() ([]byte, error) {
+	return _http01ProxyCertManagerHttp01ProxyClusterroleYaml, nil
+}
+
+func http01ProxyCertManagerHttp01ProxyClusterroleYaml() (*asset, error) {
+	bytes, err := http01ProxyCertManagerHttp01ProxyClusterroleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01-proxy/cert-manager-http01-proxy-clusterrole.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _http01ProxyCertManagerHttp01ProxyClusterrolebindingYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-http01-proxy
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-manager-http01-proxy
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-http01-proxy
+    namespace: cert-manager-operator
+`)
+
+func http01ProxyCertManagerHttp01ProxyClusterrolebindingYamlBytes() ([]byte, error) {
+	return _http01ProxyCertManagerHttp01ProxyClusterrolebindingYaml, nil
+}
+
+func http01ProxyCertManagerHttp01ProxyClusterrolebindingYaml() (*asset, error) {
+	bytes, err := http01ProxyCertManagerHttp01ProxyClusterrolebindingYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01-proxy/cert-manager-http01-proxy-clusterrolebinding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _http01ProxyCertManagerHttp01ProxyDaemonsetYaml = []byte(`apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cert-manager-http01-proxy
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  selector:
+    matchLabels:
+      app: cert-manager-http01-proxy
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: cert-manager-http01-proxy
+        app.kubernetes.io/name: cert-manager-http01-proxy
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      serviceAccountName: cert-manager-http01-proxy
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: http01-proxy
+          image: ${RELATED_IMAGE_CERT_MANAGER_HTTP01PROXY}
+          ports:
+            - name: proxy
+              containerPort: 8888
+              hostPort: 8888
+              protocol: TCP
+          env:
+            - name: PROXY_PORT
+              value: "8888"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - NET_ADMIN
+              drop:
+                - ALL
+            runAsNonRoot: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      priorityClassName: system-cluster-critical
+`)
+
+func http01ProxyCertManagerHttp01ProxyDaemonsetYamlBytes() ([]byte, error) {
+	return _http01ProxyCertManagerHttp01ProxyDaemonsetYaml, nil
+}
+
+func http01ProxyCertManagerHttp01ProxyDaemonsetYaml() (*asset, error) {
+	bytes, err := http01ProxyCertManagerHttp01ProxyDaemonsetYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01-proxy/cert-manager-http01-proxy-daemonset.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _http01ProxyCertManagerHttp01ProxySccRolebindingYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-http01-proxy-scc
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-http01-proxy
+    namespace: cert-manager-operator
+`)
+
+func http01ProxyCertManagerHttp01ProxySccRolebindingYamlBytes() ([]byte, error) {
+	return _http01ProxyCertManagerHttp01ProxySccRolebindingYaml, nil
+}
+
+func http01ProxyCertManagerHttp01ProxySccRolebindingYaml() (*asset, error) {
+	bytes, err := http01ProxyCertManagerHttp01ProxySccRolebindingYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01-proxy/cert-manager-http01-proxy-scc-rolebinding.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _http01ProxyCertManagerHttp01ProxyServiceaccountYaml = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-http01-proxy
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+`)
+
+func http01ProxyCertManagerHttp01ProxyServiceaccountYamlBytes() ([]byte, error) {
+	return _http01ProxyCertManagerHttp01ProxyServiceaccountYaml, nil
+}
+
+func http01ProxyCertManagerHttp01ProxyServiceaccountYaml() (*asset, error) {
+	bytes, err := http01ProxyCertManagerHttp01ProxyServiceaccountYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01-proxy/cert-manager-http01-proxy-serviceaccount.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _istioCsrCertManagerIstioCsrClusterroleYaml = []byte(`kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -2957,6 +3169,79 @@ func networkpoliciesCertManagerDenyAllNetworkpolicyYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "networkpolicies/cert-manager-deny-all-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-http01-proxy-allow-egress
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-http01-proxy
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+`)
+
+func networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYaml, nil
+}
+
+func networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/http01-proxy-allow-egress-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesHttp01ProxyDenyAllNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-http01-proxy-deny-all
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-http01-proxy
+  policyTypes:
+    - Ingress
+    - Egress
+`)
+
+func networkpoliciesHttp01ProxyDenyAllNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesHttp01ProxyDenyAllNetworkpolicyYaml, nil
+}
+
+func networkpoliciesHttp01ProxyDenyAllNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesHttp01ProxyDenyAllNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/http01-proxy-deny-all-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -3767,6 +4052,11 @@ var _bindata = map[string]func() (*asset, error){
 	"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml":               certManagerDeploymentWebhookCertManagerWebhookSubjectaccessreviewsCrbYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml":                                    certManagerDeploymentWebhookCertManagerWebhookSvcYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml":         certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml,
+	"http01-proxy/cert-manager-http01-proxy-clusterrole.yaml":                                          http01ProxyCertManagerHttp01ProxyClusterroleYaml,
+	"http01-proxy/cert-manager-http01-proxy-clusterrolebinding.yaml":                                   http01ProxyCertManagerHttp01ProxyClusterrolebindingYaml,
+	"http01-proxy/cert-manager-http01-proxy-daemonset.yaml":                                            http01ProxyCertManagerHttp01ProxyDaemonsetYaml,
+	"http01-proxy/cert-manager-http01-proxy-scc-rolebinding.yaml":                                      http01ProxyCertManagerHttp01ProxySccRolebindingYaml,
+	"http01-proxy/cert-manager-http01-proxy-serviceaccount.yaml":                                       http01ProxyCertManagerHttp01ProxyServiceaccountYaml,
 	"istio-csr/cert-manager-istio-csr-clusterrole.yaml":                                                istioCsrCertManagerIstioCsrClusterroleYaml,
 	"istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml":                                         istioCsrCertManagerIstioCsrClusterrolebindingYaml,
 	"istio-csr/cert-manager-istio-csr-deployment.yaml":                                                 istioCsrCertManagerIstioCsrDeploymentYaml,
@@ -3783,6 +4073,8 @@ var _bindata = map[string]func() (*asset, error){
 	"networkpolicies/cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":                         networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml,
 	"networkpolicies/cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":                         networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml,
 	"networkpolicies/cert-manager-deny-all-networkpolicy.yaml":                                         networkpoliciesCertManagerDenyAllNetworkpolicyYaml,
+	"networkpolicies/http01-proxy-allow-egress-networkpolicy.yaml":                                     networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYaml,
+	"networkpolicies/http01-proxy-deny-all-networkpolicy.yaml":                                         networkpoliciesHttp01ProxyDenyAllNetworkpolicyYaml,
 	"networkpolicies/istio-csr-allow-egress-to-api-server-networkpolicy.yaml":                          networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml,
 	"networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":                               networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml,
 	"networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":                            networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml,
@@ -3898,6 +4190,13 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"cert-manager-webhook-validatingwebhookconfiguration.yaml": {certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml, map[string]*bintree{}},
 		}},
 	}},
+	"http01-proxy": {nil, map[string]*bintree{
+		"cert-manager-http01-proxy-clusterrole.yaml":        {http01ProxyCertManagerHttp01ProxyClusterroleYaml, map[string]*bintree{}},
+		"cert-manager-http01-proxy-clusterrolebinding.yaml": {http01ProxyCertManagerHttp01ProxyClusterrolebindingYaml, map[string]*bintree{}},
+		"cert-manager-http01-proxy-daemonset.yaml":          {http01ProxyCertManagerHttp01ProxyDaemonsetYaml, map[string]*bintree{}},
+		"cert-manager-http01-proxy-scc-rolebinding.yaml":    {http01ProxyCertManagerHttp01ProxySccRolebindingYaml, map[string]*bintree{}},
+		"cert-manager-http01-proxy-serviceaccount.yaml":     {http01ProxyCertManagerHttp01ProxyServiceaccountYaml, map[string]*bintree{}},
+	}},
 	"istio-csr": {nil, map[string]*bintree{
 		"cert-manager-istio-csr-clusterrole.yaml":        {istioCsrCertManagerIstioCsrClusterroleYaml, map[string]*bintree{}},
 		"cert-manager-istio-csr-clusterrolebinding.yaml": {istioCsrCertManagerIstioCsrClusterrolebindingYaml, map[string]*bintree{}},
@@ -3917,6 +4216,8 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
 		"cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml, map[string]*bintree{}},
 		"cert-manager-deny-all-networkpolicy.yaml":                   {networkpoliciesCertManagerDenyAllNetworkpolicyYaml, map[string]*bintree{}},
+		"http01-proxy-allow-egress-networkpolicy.yaml":               {networkpoliciesHttp01ProxyAllowEgressNetworkpolicyYaml, map[string]*bintree{}},
+		"http01-proxy-deny-all-networkpolicy.yaml":                   {networkpoliciesHttp01ProxyDenyAllNetworkpolicyYaml, map[string]*bintree{}},
 		"istio-csr-allow-egress-to-api-server-networkpolicy.yaml":    {networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
 		"istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":         {networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml, map[string]*bintree{}},
 		"istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":      {networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
