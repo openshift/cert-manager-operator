@@ -1,0 +1,48 @@
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_golang_1.25 AS builder
+
+ARG SOURCE_DIR="/go/src/github.com/openshift/cert-manager-operator"
+ARG COMMIT_SHA
+WORKDIR $SOURCE_DIR
+
+COPY . $SOURCE_DIR
+COPY LICENSE /licenses/
+
+ENV GO_BUILD_TAGS=strictfipsruntime,openssl
+ENV GOEXPERIMENT=strictfipsruntime
+ENV CGO_ENABLED=1
+ENV GOFLAGS=""
+ENV GOBUILD_BUILD_FLAGS='-w -s -X github.com/openshift/cert-manager-operator/pkg/version.COMMIT=${COMMIT_SHA}'
+
+RUN go build -o "$SOURCE_DIR/cert-manager-operator" -ldflags "${GOBUILD_BUILD_FLAGS}" -tags "${GO_BUILD_TAGS}" main.go
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
+
+ARG RELEASE_VERSION
+ARG COMMIT_SHA
+ARG SOURCE_URL
+ARG SOURCE_DIR="/go/src/github.com/openshift/cert-manager-operator"
+
+COPY --from=builder $SOURCE_DIR/cert-manager-operator /usr/bin/
+COPY --from=builder /licenses /licenses
+
+USER 65534:65534
+
+LABEL com.redhat.component="cert-manager-operator-container" \
+      cpe="cpe:/a:redhat:cert_manager:1.19::el9" \
+      name="cert-manager/cert-manager-operator-rhel9" \
+      version="${RELEASE_VERSION}" \
+      summary="cert-manager-operator" \
+      maintainer="Red Hat, Inc." \
+      description="cert-manager-operator-container" \
+      vendor="Red Hat, Inc." \
+      release="${RELEASE_VERSION}" \
+      io.openshift.expose-services="" \
+      io.openshift.build.commit.id="${COMMIT_SHA}" \
+      io.openshift.build.source-location="${SOURCE_URL}" \
+      io.openshift.build.commit.url="${SOURCE_URL}/commit/${COMMIT_SHA}" \
+      io.openshift.maintainer.product="OpenShift Container Platform" \
+      io.openshift.tags="data,images,operator,cert-manager" \
+      io.k8s.display-name="openshift-cert-manager-operator" \
+      io.k8s.description="cert-manager-operator-container"
+
+ENTRYPOINT ["/usr/bin/cert-manager-operator"]
