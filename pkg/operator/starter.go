@@ -18,6 +18,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/certmanager"
 	"github.com/openshift/cert-manager-operator/pkg/features"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
@@ -144,12 +145,14 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	}
 	istioCSREnabled := features.IsIstioCSRFeatureGateEnabled()
 	trustManagerEnabled := featureStatus.IsTrustManagerFeatureGateEnabled()
+	http01ProxyEnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureHTTP01Proxy)
 
-	if istioCSREnabled || trustManagerEnabled {
+	if istioCSREnabled || trustManagerEnabled || http01ProxyEnabled {
 		// Create unified manager for all enabled operand controllers
 		manager, err := NewControllerManager(ControllerConfig{
 			EnableIstioCSR:     istioCSREnabled,
 			EnableTrustManager: trustManagerEnabled,
+			EnableHTTP01Proxy:  http01ProxyEnabled,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create unified controller manager: %w", err)

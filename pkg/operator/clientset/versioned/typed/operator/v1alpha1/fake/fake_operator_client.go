@@ -16,6 +16,10 @@ func (c *FakeOperatorV1alpha1) CertManagers() v1alpha1.CertManagerInterface {
 	return newFakeCertManagers(c)
 }
 
+func (c *FakeOperatorV1alpha1) HTTP01Proxies(namespace string) v1alpha1.HTTP01ProxyInterface {
+	return newFakeHTTP01Proxies(c, namespace)
+}
+
 func (c *FakeOperatorV1alpha1) IstioCSRs(namespace string) v1alpha1.IstioCSRInterface {
 	return newFakeIstioCSRs(c, namespace)
 }

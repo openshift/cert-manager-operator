@@ -86,12 +86,16 @@ spec:
               value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
             - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
               value: quay.io/jetstack/trust-manager:v0.20.3
+            - name: RELATED_IMAGE_CERT_MANAGER_HTTP01PROXY
+              value: quay.io/bapalm/cert-mgr-http01-proxy:latest
             - name: OPERAND_IMAGE_VERSION
               value: 1.20.3
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION
               value: 0.16.0
             - name: TRUSTMANAGER_OPERAND_IMAGE_VERSION
               value: 0.20.3
+            - name: HTTP01PROXY_OPERAND_IMAGE_VERSION
+              value: 0.1.0
             - name: OPERATOR_IMAGE_VERSION
               value: 1.20.0
             - name: OPERATOR_LOG_LEVEL

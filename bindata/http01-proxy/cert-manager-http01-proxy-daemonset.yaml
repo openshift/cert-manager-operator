@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cert-manager-http01-proxy
+  namespace: cert-manager-operator
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  selector:
+    matchLabels:
+      app: cert-manager-http01-proxy
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: cert-manager-http01-proxy
+        app.kubernetes.io/name: cert-manager-http01-proxy
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      serviceAccountName: cert-manager-http01-proxy
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: http01-proxy
+          image: ${RELATED_IMAGE_CERT_MANAGER_HTTP01PROXY}
+          ports:
+            - name: proxy
+              containerPort: 8888
+              hostPort: 8888
+              protocol: TCP
+          env:
+            - name: PROXY_PORT
+              value: "8888"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - NET_ADMIN
+              drop:
+                - ALL
+            runAsNonRoot: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      priorityClassName: system-cluster-critical

@@ -329,10 +329,12 @@ local-run: build ## Run the operator locally against the cluster configured in ~
 	RELATED_IMAGE_CERT_MANAGER_ACMESOLVER=quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION) \
 	RELATED_IMAGE_CERT_MANAGER_ISTIOCSR=quay.io/jetstack/cert-manager-istio-csr:$(ISTIO_CSR_VERSION) \
 	RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER=quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION) \
+	RELATED_IMAGE_CERT_MANAGER_HTTP01PROXY=quay.io/bapalm/cert-mgr-http01-proxy:latest \
 	OPERATOR_NAME=cert-manager-operator \
 	OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
 	ISTIOCSR_OPERAND_IMAGE_VERSION=$(ISTIO_CSR_VERSION) \
 	TRUSTMANAGER_OPERAND_IMAGE_VERSION=$(TRUST_MANAGER_VERSION) \
+	HTTP01PROXY_OPERAND_IMAGE_VERSION=0.1.0 \
 	OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
 	./cert-manager-operator start \
 		--config=./hack/local-run-config.yaml \

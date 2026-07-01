@@ -6,6 +6,14 @@ package v1alpha1
 // CertManagerLister.
 type CertManagerListerExpansion interface{}
 
+// HTTP01ProxyListerExpansion allows custom methods to be added to
+// HTTP01ProxyLister.
+type HTTP01ProxyListerExpansion interface{}
+
+// HTTP01ProxyNamespaceListerExpansion allows custom methods to be added to
+// HTTP01ProxyNamespaceLister.
+type HTTP01ProxyNamespaceListerExpansion interface{}
+
 // IstioCSRListerExpansion allows custom methods to be added to
 // IstioCSRLister.
 type IstioCSRListerExpansion interface{}
