@@ -6,9 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -19,26 +17,10 @@ import (
 
 func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations)
-	resourceName := desired.GetName()
-	r.log.V(4).Info("reconciling validatingwebhookconfiguration resource", "name", resourceName)
-
 	existing := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if validatingwebhookconfiguration %q exists", resourceName)
-	}
-	if exists && !webhookConfigModified(desired, existing) {
-		r.log.V(4).Info("validatingwebhookconfiguration resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("validatingwebhookconfiguration resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply validatingwebhookconfiguration %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "validatingwebhookconfiguration resource %s applied", resourceName)
-	return nil
+	return r.reconcileResourceWithSSA(trustManager, desired, existing, "validatingwebhookconfiguration", func() bool {
+		return webhookConfigModified(desired, existing)
+	})
 }
 
 func getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations map[string]string) *admissionregistrationv1.ValidatingWebhookConfiguration {

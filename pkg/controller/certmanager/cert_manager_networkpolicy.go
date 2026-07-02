@@ -78,8 +78,8 @@ func NewCertManagerNetworkPolicyStaticResourcesController(operatorClient v1helpe
 // USER-DEFINED CONTROLLER - for user-configured network policies from API
 // ============================================================================
 
-// CertManagerNetworkPolicyUserDefinedController manages user-defined NetworkPolicy resources.
-type CertManagerNetworkPolicyUserDefinedController struct {
+// NetworkPolicyUserDefinedController manages user-defined NetworkPolicy resources.
+type NetworkPolicyUserDefinedController struct {
 	operatorClient               v1helpers.OperatorClient
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory
 	kubeClient                   kubernetes.Interface
@@ -88,14 +88,14 @@ type CertManagerNetworkPolicyUserDefinedController struct {
 	resourceCache                resourceapply.ResourceCache
 }
 
-func NewCertManagerNetworkPolicyUserDefinedController(
+func NewNetworkPolicyUserDefinedController(
 	operatorClient v1helpers.OperatorClient,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	eventRecorder events.Recorder,
 ) factory.Controller {
-	c := &CertManagerNetworkPolicyUserDefinedController{
+	c := &NetworkPolicyUserDefinedController{
 		operatorClient:               operatorClient,
 		certManagerOperatorInformers: certManagerOperatorInformers,
 		kubeClient:                   kubeClient,
@@ -112,7 +112,7 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 		WithInformersQueueKeyFunc(
 			// Watch NetworkPolicy resources in cert-manager namespace
 			// Always queue reconciliation for the singleton "cluster" CertManager CR
-			func(obj runtime.Object) string {
+			func(_ runtime.Object) string {
 				return "cluster"
 			},
 			kubeInformersForNamespaces.InformersFor(certManagerNamespace).Networking().V1().NetworkPolicies().Informer(),
@@ -121,7 +121,7 @@ func NewCertManagerNetworkPolicyUserDefinedController(
 		ToController(certManagerNetworkPolicyUserDefinedControllerName, c.eventRecorder)
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+func (c *NetworkPolicyUserDefinedController) sync(ctx context.Context, _ factory.SyncContext) error {
 	// Get the current CertManager configuration
 	certManager, err := c.certManagerOperatorInformers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
 	if err != nil {
@@ -156,10 +156,11 @@ func (c *CertManagerNetworkPolicyUserDefinedController) sync(ctx context.Context
 	return nil
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) validateNetworkPolicyConfig(certManager *v1alpha1.CertManager) error {
+func (c *NetworkPolicyUserDefinedController) validateNetworkPolicyConfig(certManager *v1alpha1.CertManager) error {
 	// Validate each user-defined network policy
 	for i, policy := range certManager.Spec.NetworkPolicies {
 		if policy.Name == "" {
+			//nolint:err113 // validation error with index for debugging
 			return fmt.Errorf("network policy at index %d: name cannot be empty", i)
 		}
 		// Note: Empty egress rules are allowed and create a deny-all egress policy
@@ -170,16 +171,17 @@ func (c *CertManagerNetworkPolicyUserDefinedController) validateNetworkPolicyCon
 	return nil
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) validateComponentName(componentName v1alpha1.ComponentName) error {
+func (c *NetworkPolicyUserDefinedController) validateComponentName(componentName v1alpha1.ComponentName) error {
 	switch componentName {
 	case v1alpha1.CoreController, v1alpha1.CAInjector, v1alpha1.Webhook:
 		return nil
 	default:
+		//nolint:err113 // validation error with component name for debugging
 		return fmt.Errorf("unsupported component name: %s", componentName)
 	}
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) reconcileUserNetworkPolicies(ctx context.Context, certManager *v1alpha1.CertManager) error {
+func (c *NetworkPolicyUserDefinedController) reconcileUserNetworkPolicies(ctx context.Context, certManager *v1alpha1.CertManager) error {
 	// Apply each user-defined network policy
 	for _, userPolicy := range certManager.Spec.NetworkPolicies {
 		policy := c.createUserNetworkPolicy(userPolicy)
@@ -191,7 +193,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) reconcileUserNetworkPoli
 	return nil
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) createUserNetworkPolicy(userPolicy v1alpha1.NetworkPolicy) *networkingv1.NetworkPolicy {
+func (c *NetworkPolicyUserDefinedController) createUserNetworkPolicy(userPolicy v1alpha1.NetworkPolicy) *networkingv1.NetworkPolicy {
 	podSelector := c.getPodSelectorForComponent(userPolicy.ComponentName)
 
 	return &networkingv1.NetworkPolicy{
@@ -212,7 +214,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) createUserNetworkPolicy(
 	}
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) getPodSelectorForComponent(component v1alpha1.ComponentName) metav1.LabelSelector {
+func (c *NetworkPolicyUserDefinedController) getPodSelectorForComponent(component v1alpha1.ComponentName) metav1.LabelSelector {
 	switch component {
 	case v1alpha1.CoreController:
 		return metav1.LabelSelector{
@@ -241,7 +243,7 @@ func (c *CertManagerNetworkPolicyUserDefinedController) getPodSelectorForCompone
 	}
 }
 
-func (c *CertManagerNetworkPolicyUserDefinedController) createOrUpdateNetworkPolicy(ctx context.Context, policy *networkingv1.NetworkPolicy) error {
+func (c *NetworkPolicyUserDefinedController) createOrUpdateNetworkPolicy(ctx context.Context, policy *networkingv1.NetworkPolicy) error {
 	_, _, err := resourceapply.ApplyNetworkPolicy(
 		ctx,
 		c.kubeClient.NetworkingV1(),

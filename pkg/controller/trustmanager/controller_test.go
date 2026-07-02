@@ -27,16 +27,16 @@ func TestReconcile(t *testing.T) {
 	}{
 		{
 			name: "resource not found returns no error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) error {
 					return apierrors.NewNotFound(v1alpha1.Resource("trustmanager"), trustManagerObjectName)
 				})
 			},
 		},
 		{
 			name: "failed to fetch resource propagates error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch obj.(type) {
 					case *v1alpha1.TrustManager:
 						return apierrors.NewBadRequest("test error")
@@ -48,8 +48,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "resource marked for deletion without finalizer",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -62,8 +62,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "remove finalizer fails on deletion",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -73,7 +73,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, _ client.Object, _ ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -81,8 +81,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "adding finalizer fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -90,7 +90,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, _ client.Object, _ ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -98,8 +98,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "status update failure",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -109,7 +109,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+				m.StatusUpdateCalls(func(_ context.Context, _ client.Object, _ ...client.SubResourceUpdateOption) error {
 					return apierrors.NewBadRequest("test error")
 				})
 			},
@@ -151,8 +151,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 			getTrustManager: func() *v1alpha1.TrustManager {
 				return testTrustManager().Build()
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						testTrustManager().Build().DeepCopyInto(o)
@@ -161,7 +161,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				})
 				// Namespace exists; all other resources return not-found so they
 				// are created via SSA Patch (which succeeds by default).
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
 						return true, nil
@@ -192,8 +192,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				tm.Spec.TrustManagerConfig = v1alpha1.TrustManagerConfig{}
 				return tm
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -221,8 +221,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 			getTrustManager: func() *v1alpha1.TrustManager {
 				return testTrustManager().Build()
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						testTrustManager().Build().DeepCopyInto(o)
@@ -231,7 +231,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				})
 				// Namespace Exists succeeds (passes validateTrustNamespace), but
 				// ServiceAccount Exists returns a FromClientError
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
 						return true, nil
@@ -258,8 +258,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 			getTrustManager: func() *v1alpha1.TrustManager {
 				return testTrustManager().Build()
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						testTrustManager().Build().DeepCopyInto(o)
@@ -267,7 +267,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					return nil
 				})
 				// Namespace does not exist - validateTrustNamespace will fail
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
 						return false, nil
@@ -300,8 +300,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				tm.Spec.TrustManagerConfig.TrustNamespace = "custom-trust-ns"
 				return tm
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.TrustManager:
 						tm := testTrustManager().Build()
@@ -311,7 +311,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					return nil
 				})
 				// Custom namespace exists; so SSA Patch will create or update all resources successfully.
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
 						return true, nil

@@ -1,3 +1,4 @@
+//nolint:revive // common is an established package name in this codebase
 package common
 
 import (

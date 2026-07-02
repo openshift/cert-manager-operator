@@ -35,8 +35,8 @@ func TestReconcile(t *testing.T) {
 	}{
 		{
 			name: "reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -53,7 +53,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -64,7 +64,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
@@ -90,8 +90,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation failed",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -139,7 +139,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						// fail the operation where controller is trying to add processed annotation.
@@ -149,7 +149,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -160,7 +160,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
@@ -186,8 +186,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation failed with irrecoverable error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, ns types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -235,7 +235,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *appsv1.Deployment:
 						return false, nil
@@ -245,7 +245,7 @@ func TestReconcile(t *testing.T) {
 					return true, nil
 				})
 				// fail the operation where controller is trying to create deployment resource.
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						return apierrors.NewUnauthorized("test error")
@@ -274,8 +274,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation istiocsr resource does not exist",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return apierrors.NewNotFound(v1alpha1.Resource("istiocsr"), "default")
@@ -287,8 +287,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation failed to fetch istiocsr resource",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return apierrors.NewBadRequest("test error")
@@ -301,8 +301,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation istiocsr marked for deletion",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -316,8 +316,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation updating istiocsr status subresource failed",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -328,7 +328,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -337,7 +337,7 @@ func TestReconcile(t *testing.T) {
 					return true, nil
 				})
 				m.CreateReturns(nil)
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+				m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return apierrors.NewBadRequest("test error")
@@ -362,8 +362,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation remove finalizer from istiocsr fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -373,7 +373,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return errTestClient
@@ -386,8 +386,8 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "reconciliation adding finalizer to istiocsr fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -395,7 +395,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return errTestClient
@@ -458,8 +458,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 			getIstioCSR: func() *v1alpha1.IstioCSR {
 				return testIstioCSR()
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -473,7 +473,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -484,7 +484,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
@@ -519,8 +519,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				}
 				return istiocsr
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -534,7 +534,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *appsv1.Deployment:
 						deployment := testDeployment()
@@ -545,7 +545,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
@@ -580,7 +580,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 				}
 				return istiocsr
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {},
+			preReq: func(_ *Reconciler, _ *fakes.FakeCtrlClient) {},
 			expectedStatusCondition: []metav1.Condition{
 				{
 					Type:    v1alpha1.Ready,
@@ -598,8 +598,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 			getIstioCSR: func() *v1alpha1.IstioCSR {
 				return testIstioCSR()
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, list client.ObjectList, option ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 					switch list.(type) {
 					case *v1alpha1.IstioCSRList:
 						return errTestClient
@@ -617,8 +617,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				istiocsr.SetCreationTimestamp(metav1.NewTime(time.Now().Add(time.Second * 2)))
 				return istiocsr
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, list client.ObjectList, option ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 					switch l := list.(type) {
 					case *v1alpha1.IstioCSRList:
 						istiocsr1 := testIstioCSR()
@@ -658,8 +658,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				istiocsr.SetCreationTimestamp(metav1.NewTime(time.Now().Add(time.Second * 2)))
 				return istiocsr
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, list client.ObjectList, option ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 					switch l := list.(type) {
 					case *v1alpha1.IstioCSRList:
 						istiocsr1 := testIstioCSR()
@@ -676,7 +676,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 
 						l.Items = []v1alpha1.IstioCSR{*istiocsr1, *istiocsr2, *istiocsr3}
 					}
-					m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+					m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 						switch obj.(type) {
 						case *v1alpha1.IstioCSR:
 							return errTestClient
@@ -707,8 +707,8 @@ func TestProcessReconcileRequest(t *testing.T) {
 				istiocsr.SetCreationTimestamp(metav1.NewTime(time.Now().Add(time.Second * 2)))
 				return istiocsr
 			},
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ListCalls(func(ctx context.Context, list client.ObjectList, option ...client.ListOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ListCalls(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 					switch l := list.(type) {
 					case *v1alpha1.IstioCSRList:
 						istiocsr1 := testIstioCSR()
@@ -725,7 +725,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 
 						l.Items = []v1alpha1.IstioCSR{*istiocsr1, *istiocsr2, *istiocsr3}
 					}
-					m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
+					m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 						switch obj.(type) {
 						case *v1alpha1.IstioCSR:
 							return errTestClient

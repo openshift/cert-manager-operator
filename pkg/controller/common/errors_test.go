@@ -1,3 +1,4 @@
+//nolint:err113 // test file uses dynamic errors for simplicity
 package common
 
 import (

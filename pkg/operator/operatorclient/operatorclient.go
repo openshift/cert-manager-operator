@@ -32,12 +32,13 @@ type OperatorClient struct {
 
 var _ v1helpers.OperatorClient = &OperatorClient{}
 
-func (c OperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorSpecApplyConfiguration) (err error) {
+func (c OperatorClient) ApplyOperatorSpec(_ context.Context, _ string, _ *applyoperatorv1.OperatorSpecApplyConfiguration) (err error) {
 	return nil
 }
 
 func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, desiredConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
 	if desiredConfiguration == nil {
+		//nolint:err113 // validation error message
 		return fmt.Errorf("applyConfiguration must have a value")
 	}
 
@@ -117,7 +118,7 @@ func (c OperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager st
 	return nil
 }
 
-func (c OperatorClient) PatchOperatorStatus(ctx context.Context, jsonPatch *jsonpatch.PatchSet) (err error) {
+func (c OperatorClient) PatchOperatorStatus(_ context.Context, _ *jsonpatch.PatchSet) (err error) {
 	return nil
 }
 

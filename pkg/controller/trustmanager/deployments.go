@@ -99,6 +99,7 @@ func validateDeploymentManifest(deployment *appsv1.Deployment) error {
 		}
 	}
 	if !hasContainer {
+		//nolint:err113 // validation error with container name for debugging
 		return fmt.Errorf("deployment manifest missing required container %q", trustManagerContainerName)
 	}
 
@@ -110,6 +111,7 @@ func validateDeploymentManifest(deployment *appsv1.Deployment) error {
 		}
 	}
 	if !hasVolume {
+		//nolint:err113 // validation error with volume name for debugging
 		return fmt.Errorf("deployment manifest missing required secret volume %q", tlsVolumeName)
 	}
 
@@ -212,6 +214,7 @@ func updateDefaultCAPackageVolume(deployment *appsv1.Deployment, config v1alpha1
 func updateImage(deployment *appsv1.Deployment) error {
 	image := os.Getenv(trustManagerImageNameEnvVarName)
 	if image == "" {
+		//nolint:err113 // environment variable name included for debugging
 		return fmt.Errorf("%s environment variable with trust-manager image not set", trustManagerImageNameEnvVarName)
 	}
 	for i, container := range deployment.Spec.Template.Spec.Containers {

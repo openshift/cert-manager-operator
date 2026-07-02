@@ -121,8 +121,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply when not found",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -131,8 +131,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "skip apply when existing matches desired",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
 					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
 					return true, nil
@@ -143,8 +143,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has label drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
 					vwc.Labels["app.kubernetes.io/instance"] = "modified-value"
 					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
@@ -157,11 +157,11 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		{
 			name:      "apply when existing has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 				labels := getResourceLabels(tm)
 				annotations := getResourceAnnotations(tm)
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					vwc := getValidatingWebhookConfigObject(labels, annotations)
 					vwc.Annotations["user-annotation"] = "tampered"
 					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
@@ -173,8 +173,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has service reference drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
 					vwc.Webhooks[0].ClientConfig.Service.Name = "wrong-service"
 					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
@@ -186,8 +186,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has failure policy drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
 					vwc.Webhooks[0].FailurePolicy = ptr.To(admissionregistrationv1.Ignore)
 					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
@@ -199,8 +199,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -210,11 +210,11 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		},
 		{
 			name: "patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					return errTestClient
 				})
 			},

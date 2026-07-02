@@ -334,8 +334,8 @@ func TestRBACReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply of all RBAC resources",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -344,9 +344,9 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "skip apply when all RBAC resources match desired",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -376,9 +376,9 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when cluster role has label drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -410,12 +410,12 @@ func TestRBACReconciliation(t *testing.T) {
 		{
 			name:      "apply when cluster role binding has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 				labels := getResourceLabels(tm)
 				annotations := getResourceAnnotations(tm)
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -446,9 +446,9 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when role has rules drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -481,8 +481,8 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates on first resource",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -492,11 +492,11 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "clusterrole patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					if _, ok := obj.(*rbacv1.ClusterRole); ok {
 						return errTestClient
 					}
@@ -509,11 +509,11 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "clusterrolebinding patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
 						return errTestClient
 					}
@@ -526,11 +526,11 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "role patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					if _, ok := obj.(*rbacv1.Role); ok {
 						return errTestClient
 					}
@@ -543,11 +543,11 @@ func TestRBACReconciliation(t *testing.T) {
 		},
 		{
 			name: "rolebinding patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					if _, ok := obj.(*rbacv1.RoleBinding); ok {
 						return errTestClient
 					}
@@ -669,9 +669,9 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 		{
 			name:      "apply when secretTargets policy changes from Disabled to Custom",
 			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"bundle-secret"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient, tm *v1alpha1.TrustManager) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient, _ *v1alpha1.TrustManager) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -703,10 +703,10 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 		{
 			name:      "skip apply when secretTargets rules already match",
 			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"bundle-secret"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient, tm *v1alpha1.TrustManager) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient, tm *v1alpha1.TrustManager) {
 				secretTargets := tm.Spec.TrustManagerConfig.SecretTargets
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:
@@ -737,13 +737,13 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 		{
 			name:      "apply when authorizedSecrets list changes",
 			tmBuilder: testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"new-secret"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient, tm *v1alpha1.TrustManager) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient, _ *v1alpha1.TrustManager) {
 				oldSecretTargets := v1alpha1.SecretTargetsConfig{
 					Policy:            v1alpha1.SecretTargetsPolicyCustom,
 					AuthorizedSecrets: []string{"old-secret"},
 				}
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					switch existsCall {
 					case 1:

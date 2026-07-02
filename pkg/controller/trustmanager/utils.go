@@ -74,6 +74,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, trustManager *v1alpha1.Tr
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if !controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.AddFinalizer(trustManager, finalizer) {
+			//nolint:err113 // finalizer and namespacedName included for debugging
 			return fmt.Errorf("failed to add finalizer %q on trustmanager.openshift.operator.io %q", finalizer, namespacedName)
 		}
 
@@ -97,6 +98,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1
 	namespacedName := client.ObjectKeyFromObject(trustManager)
 	if controllerutil.ContainsFinalizer(trustManager, finalizer) {
 		if !controllerutil.RemoveFinalizer(trustManager, finalizer) {
+			//nolint:err113 // finalizer and namespacedName included for debugging
 			return fmt.Errorf("failed to remove finalizer %q from trustmanager.openshift.operator.io %q", finalizer, namespacedName)
 		}
 
@@ -111,6 +113,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1
 
 func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
 	if reflect.ValueOf(trustManager.Spec.TrustManagerConfig).IsZero() {
+		//nolint:err113 // user-facing validation error message
 		return fmt.Errorf("spec.trustManagerConfig config cannot be empty")
 	}
 
@@ -229,4 +232,48 @@ func (r *Reconciler) namespaceExists(namespace string) (bool, error) {
 	ns := &corev1.Namespace{}
 	key := client.ObjectKey{Name: namespace}
 	return r.Exists(r.ctx, key, ns)
+}
+
+// reconcileResourceWithSSA is a generic helper for reconciling Kubernetes resources using Server-Side Apply.
+// It checks if the resource exists and has been modified, then applies changes if needed.
+// The modifiedCheck function should compare desired vs existing and return true if different.
+func (r *Reconciler) reconcileResourceWithSSA(
+	trustManager *v1alpha1.TrustManager,
+	desired, existing client.Object,
+	resourceKind string,
+	modifiedCheck func() bool,
+) error {
+	var resourceName string
+	if desired.GetNamespace() != "" {
+		resourceName = fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+	} else {
+		resourceName = desired.GetName()
+	}
+
+	r.log.V(4).Info("reconciling "+resourceKind+" resource", "name", resourceName)
+
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	if err != nil {
+		return common.FromClientError(err, "failed to check if %s %q exists", resourceKind, resourceName)
+	}
+	if exists && !modifiedCheck() {
+		r.log.V(4).Info(resourceKind+" resource exists and is in desired state", "name", resourceName)
+		return nil
+	}
+
+	if !exists {
+		r.log.V(2).Info("creating "+resourceKind+" resource", "name", resourceName)
+	} else {
+		r.log.V(2).Info("updating "+resourceKind+" resource", "name", resourceName)
+	}
+	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+		return common.FromClientError(err, "failed to apply %s %q", resourceKind, resourceName)
+	}
+
+	if !exists {
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s created", resourceKind, resourceName)
+	} else {
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s updated", resourceKind, resourceName)
+	}
+	return nil
 }

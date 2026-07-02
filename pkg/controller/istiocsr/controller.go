@@ -67,7 +67,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapFunc := func(_ context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 
 		objLabels := obj.GetLabels()
@@ -90,6 +90,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
+					//nolint:err113 // error used for logging with dynamic context
 					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
 					return false
 				}

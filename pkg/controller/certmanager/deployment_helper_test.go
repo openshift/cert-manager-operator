@@ -28,7 +28,7 @@ import (
 // CertManagerInformer. It registers a watch reactor so creates after List are not missed (see
 // client-go fake limitations). events receives each CertManager on add and delete; buffer size 1
 // matches the tests that wait for a single add then a single delete per case.
-func setupSyncedFakeCertManagerInformer(t *testing.T, ctx context.Context) (
+func setupSyncedFakeCertManagerInformer(ctx context.Context, t *testing.T) (
 	fakeClient *fake.Clientset,
 	informer certmanagerinformerv1alpha1.CertManagerInformer,
 	events <-chan *v1alpha1.CertManager,
@@ -80,7 +80,7 @@ func setupSyncedFakeCertManagerInformer(t *testing.T, ctx context.Context) (
 
 // withFakeCertManagerForTest creates obj in the fake API, waits for the informer add event, and
 // registers t.Cleanup to delete obj and wait for the delete event.
-func withFakeCertManagerForTest(t *testing.T, ctx context.Context, fakeClient *fake.Clientset, events <-chan *v1alpha1.CertManager, obj *v1alpha1.CertManager) {
+func withFakeCertManagerForTest(ctx context.Context, t *testing.T, fakeClient *fake.Clientset, events <-chan *v1alpha1.CertManager, obj *v1alpha1.CertManager) {
 	t.Helper()
 	_, err := fakeClient.OperatorV1alpha1().CertManagers().Create(ctx, obj, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -418,11 +418,11 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(ctx, t)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+			withFakeCertManagerForTest(ctx, t, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideResources, err := getOverrideResourcesFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
@@ -865,11 +865,11 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(ctx, t)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+			withFakeCertManagerForTest(ctx, t, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideScheduling, err := getOverrideSchedulingFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)
@@ -992,11 +992,11 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(ctx, t)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+			withFakeCertManagerForTest(ctx, t, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideReplicas, err := getOverrideReplicasFor(certManagerInformers, tc.deploymentName)
 			assert.NoError(t, err)

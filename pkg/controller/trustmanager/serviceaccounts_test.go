@@ -81,8 +81,8 @@ func TestServiceAccountReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply when not found",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -92,7 +92,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 		{
 			name: "skip apply when existing matches desired",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					sa := r.getServiceAccountObject(testResourceLabels(), testResourceAnnotations())
 					sa.DeepCopyInto(obj.(*corev1.ServiceAccount))
 					return true, nil
@@ -104,7 +104,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 		{
 			name: "apply when existing has label drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					sa := r.getServiceAccountObject(testResourceLabels(), testResourceAnnotations())
 					sa.Labels["app.kubernetes.io/instance"] = "modified-value"
 					sa.DeepCopyInto(obj.(*corev1.ServiceAccount))
@@ -118,7 +118,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 			name:      "apply when existing has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 					sa := r.getServiceAccountObject(getResourceLabels(tm), getResourceAnnotations(tm))
 					sa.Annotations["user-annotation"] = "tampered"
@@ -132,7 +132,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 		{
 			name: "apply when automountServiceAccountToken is modified",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					sa := r.getServiceAccountObject(testResourceLabels(), testResourceAnnotations())
 					sa.AutomountServiceAccountToken = ptr.To(false)
 					sa.DeepCopyInto(obj.(*corev1.ServiceAccount))
@@ -144,8 +144,8 @@ func TestServiceAccountReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -155,11 +155,11 @@ func TestServiceAccountReconciliation(t *testing.T) {
 		},
 		{
 			name: "patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					return errTestClient
 				})
 			},

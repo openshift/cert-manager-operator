@@ -77,6 +77,7 @@ func (r *Reconciler) validateTrustNamespace(namespace string) error {
 		return fmt.Errorf("failed to check if namespace %q exists: %w", namespace, err)
 	}
 	if !exists {
+		//nolint:err113 // user-facing validation error with namespace name
 		return fmt.Errorf("trust namespace %q does not exist, create the namespace before creating TrustManager CR", namespace)
 	}
 	return nil

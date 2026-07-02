@@ -15,7 +15,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
 )
 
-type CertManagerControllerSet struct {
+type ControllerSet struct {
 	certManagerControllerStaticResourcesController    factory.Controller
 	certManagerControllerDeploymentController         factory.Controller
 	certManagerWebhookStaticResourcesController       factory.Controller
@@ -26,7 +26,7 @@ type CertManagerControllerSet struct {
 	certManagerNetworkPolicyUserDefinedController     factory.Controller
 }
 
-func NewCertManagerControllerSet(
+func NewControllerSet(
 	kubeClient kubernetes.Interface,
 	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
@@ -39,8 +39,8 @@ func NewCertManagerControllerSet(
 	versionRecorder status.VersionGetter,
 	trustedCAConfigmapName,
 	cloudCredentialsSecretName string,
-) *CertManagerControllerSet {
-	return &CertManagerControllerSet{
+) *ControllerSet {
+	return &ControllerSet{
 		certManagerControllerStaticResourcesController:    NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerControllerDeploymentController:         NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerWebhookStaticResourcesController:       NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
@@ -48,11 +48,11 @@ func NewCertManagerControllerSet(
 		certManagerCAInjectorStaticResourcesController:    NewCertManagerCAInjectorStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerCAInjectorDeploymentController:         NewCertManagerCAInjectorDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerNetworkPolicyStaticResourcesController: NewCertManagerNetworkPolicyStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, certManagerOperatorInformers, eventRecorder),
-		certManagerNetworkPolicyUserDefinedController:     NewCertManagerNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForNamespaces, eventRecorder),
+		certManagerNetworkPolicyUserDefinedController:     NewNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForNamespaces, eventRecorder),
 	}
 }
 
-func (c *CertManagerControllerSet) ToArray() []factory.Controller {
+func (c *ControllerSet) ToArray() []factory.Controller {
 	return []factory.Controller{
 		c.certManagerControllerStaticResourcesController,
 		c.certManagerControllerDeploymentController,

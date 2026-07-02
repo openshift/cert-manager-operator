@@ -1,3 +1,4 @@
+//nolint:err113 // test file uses dynamic errors for validation messages
 package istiocsr
 
 import (
@@ -36,8 +37,8 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 	}{
 		{
 			name: "istiocsr reconciliation with user labels successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -48,7 +49,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					}
 					return nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
 						if !reflect.DeepEqual(o.GetLabels(), labels) {
@@ -68,8 +69,8 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		},
 		{
 			name: "istiocsr reconciliation fails with serviceaccount creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
 						return errTestClient
@@ -81,8 +82,8 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		},
 		{
 			name: "istiocsr reconciliation fails with role creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
@@ -97,8 +98,8 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 		},
 		{
 			name: "istiocsr reconciliation fails with certificate creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch o := obj.(type) {
 					case *certmanagerv1.Certificate:
 						return errTestClient

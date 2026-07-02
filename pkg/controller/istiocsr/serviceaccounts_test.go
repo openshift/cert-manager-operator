@@ -31,8 +31,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 	}{
 		{
 			name: "serviceaccount reconciliation successful",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.ServiceAccount:
 						serviceaccount := testServiceAccount()
@@ -44,8 +44,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		},
 		{
 			name: "serviceaccount reconciliation fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
 						return false, errTestClient
@@ -57,8 +57,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		},
 		{
 			name: "serviceaccount reconciliation fails while updating status",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.StatusUpdateCalls(func(ctx context.Context, obj client.Object, option ...client.SubResourceUpdateOption) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
 					switch obj.(type) {
 					case *v1alpha1.IstioCSR:
 						return errTestClient
@@ -71,8 +71,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		{
 			name:                "serviceaccount already exists with istioCSRCreateRecon true records ResourceAlreadyExists event",
 			istioCSRCreateRecon: true,
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.ServiceAccount:
 						serviceaccount := testServiceAccount()
@@ -95,8 +95,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		},
 		{
 			name: "serviceaccount exists but modified is updated and reconciled",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.ServiceAccount:
 						serviceaccount := testServiceAccount()
@@ -126,8 +126,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		},
 		{
 			name: "serviceaccount reconciliation fails while updating modified serviceaccount",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.ServiceAccount:
 						serviceaccount := testServiceAccount()
@@ -136,7 +136,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
 						return errTestClient
@@ -148,8 +148,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 		},
 		{
 			name: "serviceaccount created when it does not exist",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
 						return false, nil

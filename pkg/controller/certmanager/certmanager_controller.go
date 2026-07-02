@@ -30,8 +30,8 @@ import (
 // TODO: This is just a placeholder controller to contain all the required rbac
 // in a single place. Needs to be deleted later.
 
-// CertManagerReconciler reconciles a CertManager object.
-type CertManagerReconciler struct {
+// Reconciler reconciles a CertManager object.
+type Reconciler struct {
 	client.Client
 
 	Scheme *runtime.Scheme
@@ -74,7 +74,7 @@ type CertManagerReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *CertManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -83,7 +83,7 @@ func (r *CertManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *CertManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&operatoropenshiftiov1alpha1.CertManager{}).
 		Complete(r)

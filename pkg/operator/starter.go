@@ -98,7 +98,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return fmt.Errorf("failed to discover Infrastructure presence: %w", err)
 	}
 
-	certManagerControllerSet := certmanager.NewCertManagerControllerSet(
+	certManagerControllerSet := certmanager.NewControllerSet(
 		kubeClient,
 		kubeInformersForNamespaces,
 		kubeInformersForNamespaces.InformersFor(operatorclient.TargetNamespace),
