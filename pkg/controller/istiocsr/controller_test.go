@@ -505,6 +505,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Status: metav1.ConditionFalse,
 					Reason: v1alpha1.ReasonReady,
 				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
+				},
 			},
 			expectedAnnotations: map[string]string{
 				controllerProcessedAnnotation: "true",
@@ -566,6 +571,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Status: metav1.ConditionFalse,
 					Reason: v1alpha1.ReasonReady,
 				},
+				{
+					Type:   v1alpha1.Progressing,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
+				},
 			},
 			expectedAnnotations: map[string]string{
 				controllerProcessedAnnotation: "true",
@@ -585,7 +595,13 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:    v1alpha1.Ready,
 					Status:  metav1.ConditionFalse,
-					Reason:  v1alpha1.ReasonFailed,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
+					Message: "multiple instances of istiocsr exists, istiocsr-test-ns/istiocsr-test-resource will not be processed",
+				},
+				{
+					Type:    v1alpha1.Progressing,
+					Status:  metav1.ConditionFalse,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
 					Message: "multiple instances of istiocsr exists, istiocsr-test-ns/istiocsr-test-resource will not be processed",
 				},
 			},
@@ -642,7 +658,13 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:    v1alpha1.Ready,
 					Status:  metav1.ConditionFalse,
-					Reason:  v1alpha1.ReasonFailed,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
+					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
+				},
+				{
+					Type:    v1alpha1.Progressing,
+					Status:  metav1.ConditionFalse,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
 					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
 				},
 			},
@@ -690,7 +712,13 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:    v1alpha1.Ready,
 					Status:  metav1.ConditionFalse,
-					Reason:  v1alpha1.ReasonFailed,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
+					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
+				},
+				{
+					Type:    v1alpha1.Progressing,
+					Status:  metav1.ConditionFalse,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
 					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
 				},
 			},
@@ -739,7 +767,13 @@ func TestProcessReconcileRequest(t *testing.T) {
 				{
 					Type:    v1alpha1.Ready,
 					Status:  metav1.ConditionFalse,
-					Reason:  v1alpha1.ReasonFailed,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
+					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
+				},
+				{
+					Type:    v1alpha1.Progressing,
+					Status:  metav1.ConditionFalse,
+					Reason:  v1alpha1.ReasonMultipleInstancesFound,
 					Message: "multiple instances of istiocsr exists, istiocsr3/istiocsr-test-resource will not be processed",
 				},
 			},
