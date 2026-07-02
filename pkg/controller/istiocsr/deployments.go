@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -35,7 +36,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	}
 
 	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
+	klog.V(4).InfoS("reconciling deployment resource", "name", deploymentName)
 	fetched := &appsv1.Deployment{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -47,13 +48,13 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
 		}
 		if hasObjectChanged(desired, fetched) {
-			r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
+			klog.V(1).InfoS("deployment has been modified, updating to desired state", "name", deploymentName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s deployment resource", deploymentName)
 			}
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
 		} else {
-			r.log.V(4).Info("deployment resource already exists and is in expected state", "name", deploymentName)
+			klog.V(4).InfoS("deployment resource already exists and is in expected state", "name", deploymentName)
 		}
 	}
 
@@ -575,13 +576,13 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 	}
 
 	if exist && hasObjectChanged(desired, fetched) {
-		r.log.V(1).Info("ca configmap need update", "name", configmapKey)
+		klog.V(1).InfoS("ca configmap need update", "name", configmapKey)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 			return fmt.Errorf("failed to update %s configmap resource: %w", configmapKey, err)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "configmap resource %s reconciled back to desired state", configmapKey)
 	} else {
-		r.log.V(4).Info("configmap resource already exists and is in expected state", "name", configmapKey)
+		klog.V(4).InfoS("configmap resource already exists and is in expected state", "name", configmapKey)
 	}
 
 	if !exist {

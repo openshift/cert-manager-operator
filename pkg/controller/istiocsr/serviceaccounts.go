@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -15,7 +16,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 	desired := r.getServiceAccountObject(istiocsr, resourceLabels)
 
 	serviceAccountName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling serviceaccount resource", "name", serviceAccountName)
+	klog.V(4).InfoS("reconciling serviceaccount resource", "name", serviceAccountName)
 	fetched := &corev1.ServiceAccount{}
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
@@ -27,13 +28,13 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s serviceaccount resource already exists, maybe from previous installation", serviceAccountName)
 		}
 		if hasObjectChanged(desired, fetched) {
-			r.log.V(1).Info("serviceaccount has been modified, updating to desired state", "name", serviceAccountName)
+			klog.V(1).InfoS("serviceaccount has been modified, updating to desired state", "name", serviceAccountName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s serviceaccount resource", serviceAccountName)
 			}
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "serviceaccount resource %s reconciled back to desired state", serviceAccountName)
 		} else {
-			r.log.V(4).Info("serviceaccount resource already exists and is in expected state", "name", serviceAccountName)
+			klog.V(4).InfoS("serviceaccount resource already exists and is in expected state", "name", serviceAccountName)
 		}
 	}
 
