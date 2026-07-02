@@ -233,7 +233,7 @@ func TestIssuerReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if issuer",
+			wantErr:         "failed to check if Issuer",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -247,7 +247,7 @@ func TestIssuerReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply issuer",
+			wantErr:         "failed to apply Issuer",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
@@ -376,7 +376,7 @@ func TestCertificateReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if certificate",
+			wantErr:         "failed to check if Certificate",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -390,7 +390,7 @@ func TestCertificateReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply certificate",
+			wantErr:         "failed to apply Certificate",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
