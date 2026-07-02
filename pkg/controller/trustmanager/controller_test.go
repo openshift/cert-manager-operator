@@ -345,7 +345,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			r.CtrlClient = mock
 
 			tm := tt.getTrustManager()
-			_, err := r.processReconcileRequest(tm, types.NamespacedName{Name: tm.GetName()})
+			_, err := r.processReconcileRequest(context.Background(), tm, types.NamespacedName{Name: tm.GetName()})
 			assertError(t, err, tt.wantErr)
 
 			for _, want := range tt.wantConditions {
