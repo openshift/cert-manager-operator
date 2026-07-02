@@ -18,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -113,25 +114,40 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return []reconcile.Request{}
 	}
 
-	// predicate function to ignore events for objects not managed by controller.
-	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
-	})
+	isManagedResource := func(obj client.Object) bool {
+		return obj.GetLabels() != nil && obj.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+	}
 
-	// predicate function to filter events for objects which controller is interested in, but
-	// not managed or created by controller.
-	controllerWatchResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
+	isWatchedResource := func(obj client.Object) bool {
+		return obj.GetLabels() != nil && obj.GetLabels()[IstiocsrResourceWatchLabelName] != ""
+	}
 
-	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetLabels() == nil {
-			return false
-		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
-			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
+	isManagedOrWatchedResource := func(obj client.Object) bool {
+		return isManagedResource(obj) || isWatchedResource(obj)
+	}
+
+	// All label-based predicates check both old and new objects on updates so
+	// that events where the filtering label is removed still trigger reconciliation.
+	controllerManagedResources := predicate.Funcs{
+		CreateFunc:  func(e event.CreateEvent) bool { return isManagedResource(e.Object) },
+		UpdateFunc:  func(e event.UpdateEvent) bool { return isManagedResource(e.ObjectOld) || isManagedResource(e.ObjectNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return isManagedResource(e.Object) },
+		GenericFunc: func(e event.GenericEvent) bool { return isManagedResource(e.Object) },
+	}
+
+	controllerWatchResources := predicate.Funcs{
+		CreateFunc:  func(e event.CreateEvent) bool { return isWatchedResource(e.Object) },
+		UpdateFunc:  func(e event.UpdateEvent) bool { return isWatchedResource(e.ObjectOld) || isWatchedResource(e.ObjectNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return isWatchedResource(e.Object) },
+		GenericFunc: func(e event.GenericEvent) bool { return isWatchedResource(e.Object) },
+	}
+
+	controllerConfigMapPredicates := predicate.Funcs{
+		CreateFunc:  func(e event.CreateEvent) bool { return isManagedOrWatchedResource(e.Object) },
+		UpdateFunc:  func(e event.UpdateEvent) bool { return isManagedOrWatchedResource(e.ObjectOld) || isManagedOrWatchedResource(e.ObjectNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return isManagedOrWatchedResource(e.Object) },
+		GenericFunc: func(e event.GenericEvent) bool { return isManagedOrWatchedResource(e.Object) },
+	}
 
 	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
 	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
