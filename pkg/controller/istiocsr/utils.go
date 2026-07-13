@@ -493,7 +493,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
 	if containsProcessingRejectedAnnotation(istiocsr) {
-		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
+		r.log.V(4).Info("istiocsr resource contains processing rejected annotation", "namespace", istiocsr.Namespace, "name", istiocsr.Name)
 		// ensure status is updated.
 		var updateErr error
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {

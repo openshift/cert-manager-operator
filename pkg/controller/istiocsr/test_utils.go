@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"maps"
-	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,8 +16,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-
-	"github.com/go-logr/logr/testr"
+	"k8s.io/klog/v2"
 
 	cmacme "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -42,11 +40,11 @@ var (
 
 type CertificateTweak func(*x509.Certificate)
 
-func testReconciler(t *testing.T) *Reconciler {
+func testReconciler() *Reconciler {
 	return &Reconciler{
 		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
-		log:           testr.New(t),
+		log:           klog.NewKlogr().WithName(ControllerName),
 		scheme:        testutil.Scheme,
 	}
 }
