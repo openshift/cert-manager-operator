@@ -15,7 +15,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-// caPackage represents the JSON format expected by trust-manager
+// caPackage represents the JSON format expected by trust-manager.
 type caPackage struct {
 	Name    string `json:"name"`
 	Bundle  string `json:"bundle"`
@@ -86,6 +86,7 @@ func (r *Reconciler) readTrustedCABundle() (string, string, error) {
 
 	caBundle, ok := injectionCM.Data[common.TrustedCABundleKey]
 	if !ok || caBundle == "" {
+		//nolint:err113 // validation error with ConfigMap name and key for debugging
 		return "", "", common.FromClientError(
 			fmt.Errorf("CA bundle ConfigMap %q does not contain key %q", common.TrustedCABundleConfigMapName, common.TrustedCABundleKey),
 			"missing key %q in ConfigMap %q", common.TrustedCABundleKey, common.TrustedCABundleConfigMapName,

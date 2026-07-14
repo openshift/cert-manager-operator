@@ -108,6 +108,7 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 func (r *Reconciler) updateImage(deployment *appsv1.Deployment) error {
 	image := os.Getenv(istiocsrImageNameEnvVarName)
 	if image == "" {
+		//nolint:err113 // environment variable name included for debugging
 		return fmt.Errorf("%s environment variable with istiocsr image not set", istiocsrImageNameEnvVarName)
 	}
 	for i, container := range deployment.Spec.Template.Spec.Containers {
@@ -335,6 +336,7 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 
 	// Validate that the specified key exists in the ConfigMap
 	if _, exists := sourceConfigMap.Data[caCertConfig.Key]; !exists {
+		//nolint:err113 // validation error with ConfigMap key and namespace details for debugging
 		return common.NewIrrecoverableError(fmt.Errorf("key %q not found in ConfigMap %s/%s", caCertConfig.Key, sourceConfigMapKey.Namespace, sourceConfigMapKey.Name), "invalid CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
 	}
 
@@ -378,12 +380,14 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 	case clusterIssuerKind:
 		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
 		if !ok {
+			//nolint:err113 // type conversion error for error wrapping
 			return common.FromClientError(fmt.Errorf("failed to convert to ClusterIssuer"), "failed to fetch issuer")
 		}
 		issuerConfig = clusterIssuer.Spec.IssuerConfig
 	case issuerKind:
 		issuer, ok := obj.(*certmanagerv1.Issuer)
 		if !ok {
+			//nolint:err113 // type conversion error for error wrapping
 			return common.FromClientError(fmt.Errorf("failed to convert to Issuer"), "failed to fetch issuer")
 		}
 		issuerConfig = issuer.Spec.IssuerConfig
@@ -528,6 +532,7 @@ func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.I
 
 func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
 	if issuerConfig.CA.SecretName == "" {
+		//nolint:err113 // issuer name included for debugging
 		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
 
@@ -550,6 +555,7 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 // createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data.
 func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
 	if certData == "" {
+		//nolint:err113 // validation error message
 		return fmt.Errorf("failed to find CA certificate")
 	}
 
@@ -596,16 +602,19 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 
 func (r *Reconciler) validatePEMData(pemData string) error {
 	if pemData == "" {
+		//nolint:err113 // validation error message
 		return fmt.Errorf("PEM data is empty")
 	}
 
 	// Parse the first certificate from PEM data
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
+		//nolint:err113 // validation error message
 		return fmt.Errorf("no valid PEM data found")
 	}
 
 	if block.Type != "CERTIFICATE" {
+		//nolint:err113 // validation error with PEM block type for debugging
 		return fmt.Errorf("PEM block is not a certificate, found: %s", block.Type)
 	}
 
@@ -615,15 +624,18 @@ func (r *Reconciler) validatePEMData(pemData string) error {
 	}
 
 	if !cert.BasicConstraintsValid {
+		//nolint:err113 // certificate validation error message
 		return fmt.Errorf("certificate does not have valid Basic Constraints extension")
 	}
 
 	if !cert.IsCA {
+		//nolint:err113 // certificate validation error message
 		return fmt.Errorf("certificate is not a CA certificate")
 	}
 
 	// Check Key Usage for certificate signing
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		//nolint:err113 // certificate validation error message
 		return fmt.Errorf("certificate does not have Certificate Sign key usage")
 	}
 

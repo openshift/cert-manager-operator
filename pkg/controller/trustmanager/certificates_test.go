@@ -178,8 +178,8 @@ func TestIssuerReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply when not found",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -188,8 +188,8 @@ func TestIssuerReconciliation(t *testing.T) {
 		},
 		{
 			name: "skip apply when existing matches desired",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					issuer := getIssuerObject(testResourceLabels(), testResourceAnnotations())
 					issuer.DeepCopyInto(obj.(*certmanagerv1.Issuer))
 					return true, nil
@@ -200,8 +200,8 @@ func TestIssuerReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has label drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					issuer := getIssuerObject(testResourceLabels(), testResourceAnnotations())
 					issuer.Labels["app.kubernetes.io/instance"] = "modified-value"
 					issuer.DeepCopyInto(obj.(*certmanagerv1.Issuer))
@@ -214,8 +214,8 @@ func TestIssuerReconciliation(t *testing.T) {
 		{
 			name:      "apply when existing has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 					issuer := getIssuerObject(getResourceLabels(tm), getResourceAnnotations(tm))
 					issuer.Annotations["user-annotation"] = "tampered"
@@ -228,8 +228,8 @@ func TestIssuerReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -239,11 +239,11 @@ func TestIssuerReconciliation(t *testing.T) {
 		},
 		{
 			name: "patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					return errTestClient
 				})
 			},
@@ -291,8 +291,8 @@ func TestCertificateReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply when not found",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -301,8 +301,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "skip apply when existing matches desired",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
@@ -313,8 +313,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has label drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
 					cert.Labels["app.kubernetes.io/instance"] = "modified-value"
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
@@ -327,8 +327,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		{
 			name:      "apply when existing has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 					cert := getCertificateObject(getResourceLabels(tm), getResourceAnnotations(tm))
 					cert.Annotations["user-annotation"] = "tampered"
@@ -341,8 +341,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has secret name drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
 					cert.Spec.SecretName = "wrong-secret"
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
@@ -354,8 +354,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has issuer ref drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
 					cert.Spec.IssuerRef = certmanagermetav1.ObjectReference{
 						Name:  "wrong-issuer",
@@ -371,8 +371,8 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -382,11 +382,11 @@ func TestCertificateReconciliation(t *testing.T) {
 		},
 		{
 			name: "patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					return errTestClient
 				})
 			},

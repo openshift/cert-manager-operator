@@ -648,7 +648,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(ctx, t)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -661,7 +661,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				return
 			}
 
-			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+			withFakeCertManagerForTest(ctx, t, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			hook := withContainerArgsValidateHook(certManagerInformers, tc.deploymentName)
 			hookErr := hook(nil, &appsv1.Deployment{})

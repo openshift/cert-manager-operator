@@ -78,14 +78,14 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			mock := &fakes.FakeCtrlClient{}
 			tm := tt.trustManager()
 
-			mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			mock.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
 				switch o := obj.(type) {
 				case *v1alpha1.TrustManager:
 					tm.DeepCopyInto(o)
 				}
 				return nil
 			})
-			mock.StatusUpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+			mock.StatusUpdateCalls(func(_ context.Context, _ client.Object, _ ...client.SubResourceUpdateOption) error {
 				return nil
 			})
 			r.CtrlClient = mock

@@ -47,6 +47,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 
 	policy, ok := obj.(*networkingv1.NetworkPolicy)
 	if !ok {
+		//nolint:err113 // type assertion error with actual type for debugging
 		return nil, fmt.Errorf("decoded object is not a NetworkPolicy, got %T", obj)
 	}
 

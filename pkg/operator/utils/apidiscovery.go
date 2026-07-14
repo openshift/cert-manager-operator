@@ -1,6 +1,8 @@
 // Package utils provides small shared helpers for the cert-manager operator,
 // including optional API discovery (whether a GroupVersionResource is served)
 // and shared informer wiring that runs only when that API exists.
+//
+//nolint:revive // utils is an established package name in this codebase
 package utils
 
 import (

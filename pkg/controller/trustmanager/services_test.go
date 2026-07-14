@@ -91,8 +91,8 @@ func TestServiceReconciliation(t *testing.T) {
 	}{
 		{
 			name: "successful apply of both services",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 			},
@@ -101,9 +101,9 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "skip apply when both services match desired",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					var svc *corev1.Service
 					if existsCall == 1 {
@@ -120,9 +120,9 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has label drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					if existsCall == 1 {
 						svc := getWebhookServiceObject(testResourceLabels(), testResourceAnnotations())
@@ -141,12 +141,12 @@ func TestServiceReconciliation(t *testing.T) {
 		{
 			name:      "apply when existing has annotation drift",
 			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 				labels := getResourceLabels(tm)
 				annotations := getResourceAnnotations(tm)
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					if existsCall == 1 {
 						svc := getWebhookServiceObject(labels, annotations)
@@ -164,9 +164,9 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has port drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					if existsCall == 1 {
 						svc := getWebhookServiceObject(testResourceLabels(), testResourceAnnotations())
@@ -184,9 +184,9 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "apply when existing has selector drift",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
 				existsCall := 0
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
 					existsCall++
 					if existsCall == 1 {
 						svc := getWebhookServiceObject(testResourceLabels(), testResourceAnnotations())
@@ -204,8 +204,8 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "exists error propagates on first service",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, errTestClient
 				})
 			},
@@ -215,11 +215,11 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "webhook service patch error propagates",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					return errTestClient
 				})
 			},
@@ -229,12 +229,12 @@ func TestServiceReconciliation(t *testing.T) {
 		},
 		{
 			name: "metrics service patch error propagates on second call",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, _ client.Object) (bool, error) {
 					return false, nil
 				})
 				callCount := 0
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.PatchCalls(func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 					callCount++
 					if callCount == 2 {
 						return errTestClient

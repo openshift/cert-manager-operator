@@ -1,3 +1,4 @@
+//nolint:revive // common is an established package name in this codebase
 package common
 
 import (
@@ -129,7 +130,6 @@ func TestNewClient(t *testing.T) {
 	got, err := NewClient(mgr)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	var _ CtrlClient = got
 	impl, ok := got.(*ctrlClientImpl)
 	require.True(t, ok, "NewClient must return *ctrlClientImpl")
 	assert.True(t, impl.Client == cl, "wrapped client must be the exact manager client instance")

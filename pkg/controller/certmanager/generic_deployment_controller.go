@@ -19,14 +19,14 @@ import (
 )
 
 func newGenericDeploymentController(
-	controllerName, targetVersion, deploymentFile string,
+	controllerName, _ /* targetVersion */, deploymentFile string,
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	infraInformers utils.OptionalInformer[configinformers.SharedInformerFactory],
 	kubeClient kubernetes.Interface,
 	kubeInformersForTargetNamespace informers.SharedInformerFactory,
 	eventsRecorder events.Recorder,
-	versionRecorder status.VersionGetter,
+	_ /* versionRecorder */ status.VersionGetter,
 	trustedCAConfigmapName string,
 	cloudCredentialsSecretName string,
 ) factory.Controller {

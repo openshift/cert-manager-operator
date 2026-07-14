@@ -79,7 +79,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// mapFunc unconditionally enqueues the singleton TrustManager CR.
 	// Filtering is handled by predicates attached to each Watch.
-	mapFunc := func(ctx context.Context, obj client.Object) []reconcile.Request {
+	mapFunc := func(_ context.Context, obj client.Object) []reconcile.Request {
 		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: trustManagerObjectName}}}
 	}
@@ -210,6 +210,8 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 }
 
 // cleanUp handles deletion of trustmanager.openshift.operator.io gracefully.
+//
+//nolint:unparam // error will be used when cleanup logic is implemented (see TODO below)
 func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) {
 	// TODO: For GA, handle cleaning up of resources created for installing trust-manager operand.
 	// As per Non-Goals in the enhancement, removing the TrustManager CR will not remove the

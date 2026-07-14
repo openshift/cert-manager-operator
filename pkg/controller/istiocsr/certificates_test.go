@@ -22,8 +22,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 	}{
 		{
 			name: "reconciliation of certificate fails while checking if exists",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -31,7 +31,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
 						return false, errTestClient
@@ -43,8 +43,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate fails while restoring to expected state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -52,7 +52,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *certmanagerv1.Certificate:
 						cert := testCertificate()
@@ -61,7 +61,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateWithRetryCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
 						return errTestClient
@@ -73,8 +73,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate which already exists in expected state",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -82,7 +82,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *certmanagerv1.Certificate:
 						cert := testCertificate()
@@ -94,8 +94,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate creation fails",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -103,14 +103,14 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return nil
 				})
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+				m.ExistsCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
 						return false, nil
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.CreateCalls(func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 					switch obj.(type) {
 					case *certmanagerv1.Certificate:
 						return errTestClient
@@ -122,8 +122,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when revisions are configured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -136,8 +136,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when certificate duration not configured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -150,8 +150,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when certificate RenewBefore not configured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -164,8 +164,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when certificate PrivateKeyAlgorithm not configured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -178,8 +178,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when certificate PrivateKeySize not configured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()
@@ -192,8 +192,8 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 		},
 		{
 			name: "reconciliation of certificate when certificate PrivateKeySize and PrivateKeyAlgorithm is misconfigured",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			preReq: func(_ *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
 					switch o := obj.(type) {
 					case *v1alpha1.IstioCSR:
 						istiocsr := testIstioCSR()

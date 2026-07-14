@@ -113,6 +113,7 @@ func getOverrideArgsFor(certmanagerinformer certmanagerinformer.CertManagerInfor
 			return certmanager.Spec.CAInjectorConfig.OverrideArgs, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return nil, nil
@@ -140,6 +141,7 @@ func getOverrideEnvFor(certmanagerinformer certmanagerinformer.CertManagerInform
 			return certmanager.Spec.CAInjectorConfig.OverrideEnv, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return nil, nil
@@ -167,6 +169,7 @@ func getOverridePodLabelsFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideLabels, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return nil, nil
@@ -194,6 +197,7 @@ func getOverrideReplicasFor(certmanagerinformer certmanagerinformer.CertManagerI
 			return certmanager.Spec.CAInjectorConfig.OverrideReplicas, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return nil, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return nil, nil
@@ -221,6 +225,7 @@ func getOverrideResourcesFor(certmanagerinformer certmanagerinformer.CertManager
 			return certmanager.Spec.CAInjectorConfig.OverrideResources, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return v1alpha1.CertManagerResourceRequirements{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return v1alpha1.CertManagerResourceRequirements{}, nil
@@ -248,6 +253,7 @@ func getOverrideSchedulingFor(certmanagerinformer certmanagerinformer.CertManage
 			return certmanager.Spec.CAInjectorConfig.OverrideScheduling, nil
 		}
 	default:
+		//nolint:err113 // validation error with deployment name for debugging
 		return v1alpha1.CertManagerScheduling{}, fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 	}
 	return v1alpha1.CertManagerScheduling{}, nil

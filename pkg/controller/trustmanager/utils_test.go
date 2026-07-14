@@ -322,7 +322,7 @@ func TestDecodeServiceAccountObjBytes(t *testing.T) {
 		},
 		{
 			name: "invalid bytes panics",
-			getBytes: func(t *testing.T) []byte {
+			getBytes: func(_ *testing.T) []byte {
 				return []byte("not valid yaml or json")
 			},
 			wantPanic: true,

@@ -1,3 +1,4 @@
+//nolint:err113 // test file uses dynamic errors to match production error messages
 package certmanager
 
 import (

@@ -28,6 +28,8 @@ import (
 var (
 	scheme = runtime.NewScheme()
 	codecs = serializer.NewCodecFactory(scheme)
+
+	errMultipleIstioCSRInstances = errors.New("multiple instances of istiocsr exists")
 )
 
 func init() {
@@ -76,6 +78,7 @@ func (r *Reconciler) addFinalizer(ctx context.Context, istiocsr *v1alpha1.IstioC
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if !controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.AddFinalizer(istiocsr, finalizer) {
+			//nolint:err113 // namespacedName included for debugging
 			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers added", namespacedName)
 		}
 
@@ -99,6 +102,7 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, istiocsr *v1alpha1.Ist
 	namespacedName := client.ObjectKeyFromObject(istiocsr)
 	if controllerutil.ContainsFinalizer(istiocsr, finalizer) {
 		if !controllerutil.RemoveFinalizer(istiocsr, finalizer) {
+			//nolint:err113 // namespacedName included for debugging
 			return fmt.Errorf("failed to create %q istiocsr.openshift.operator.io object with finalizers removed", namespacedName)
 		}
 
@@ -464,15 +468,19 @@ func networkPolicySpecModified(desired, fetched *networkingv1.NetworkPolicy) boo
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig).IsZero() {
+		//nolint:err113 // user-facing validation error message
 		return fmt.Errorf("spec.istioCSRConfig config cannot be empty")
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.IstiodTLSConfig).IsZero() {
+		//nolint:err113 // user-facing validation error message
 		return fmt.Errorf("spec.istioCSRConfig.istiodTLSConfig config cannot be empty")
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Istio).IsZero() {
+		//nolint:err113 // user-facing validation error message
 		return fmt.Errorf("spec.istioCSRConfig.istio config cannot be empty")
 	}
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.CertManager).IsZero() {
+		//nolint:err113 // user-facing validation error message
 		return fmt.Errorf("spec.istioCSRConfig.certManager config cannot be empty")
 	}
 	return nil
@@ -489,8 +497,16 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	return prependErr
 }
 
+func multipleIstioCSRInstanceStatusMessage(ns, name string) string {
+	return fmt.Sprintf("%s, %s/%s will not be processed", errMultipleIstioCSRInstances.Error(), ns, name)
+}
+
+func multipleIstioCSRInstanceStatusError(ns, name string) error {
+	return fmt.Errorf("%w, %s/%s will not be processed", errMultipleIstioCSRInstances, ns, name)
+}
+
 func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioCSR) error {
-	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
+	statusMessage := multipleIstioCSRInstanceStatusMessage(istiocsr.GetNamespace(), istiocsr.GetName())
 
 	if containsProcessingRejectedAnnotation(istiocsr) {
 		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
@@ -499,7 +515,7 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
-		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
+		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{multipleIstioCSRInstanceStatusError(istiocsr.GetNamespace(), istiocsr.GetName()), updateErr}))
 	}
 
 	istiocsrList := &v1alpha1.IstioCSRList{}
@@ -545,5 +561,5 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 		return utilerrors.NewAggregate([]error{condUpdateErr, annUpdateErr})
 	}
 
-	return common.NewMultipleInstanceError(errors.New(statusMessage))
+	return common.NewMultipleInstanceError(multipleIstioCSRInstanceStatusError(istiocsr.GetNamespace(), istiocsr.GetName()))
 }
