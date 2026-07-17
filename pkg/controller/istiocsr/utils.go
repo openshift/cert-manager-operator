@@ -23,11 +23,13 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
 var (
-	scheme = runtime.NewScheme()
-	codecs = serializer.NewCodecFactory(scheme)
+	scheme                 = runtime.NewScheme()
+	codecs                 = serializer.NewCodecFactory(scheme)
+	cachedServiceAccountName string
 )
 
 func init() {
@@ -46,6 +48,8 @@ func init() {
 	if err := certmanagerv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
+
+	cachedServiceAccountName = common.DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAccountAssetName)).GetName()
 }
 
 // updateStatus is for updating the status subresource of istiocsr.openshift.operator.io.
@@ -132,102 +136,6 @@ func updateResourceLabelsWithIstioMapperLabels(obj client.Object, istiocsrNamesp
 	maps.Copy(l, labels)
 	l[istiocsrNamespaceMappingLabelName] = istiocsrNamespace
 	obj.SetLabels(l)
-}
-
-func decodeDeploymentObjBytes(objBytes []byte) *appsv1.Deployment {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(appsv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	deployment, ok := obj.(*appsv1.Deployment)
-	if !ok {
-		panic("failed to convert to *appsv1.Deployment")
-	}
-	return deployment
-}
-
-func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	clusterRole, ok := obj.(*rbacv1.ClusterRole)
-	if !ok {
-		panic("failed to convert to *rbacv1.ClusterRole")
-	}
-	return clusterRole
-}
-
-func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBinding {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	clusterRoleBinding, ok := obj.(*rbacv1.ClusterRoleBinding)
-	if !ok {
-		panic("failed to convert to *rbacv1.ClusterRoleBinding")
-	}
-	return clusterRoleBinding
-}
-
-func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	role, ok := obj.(*rbacv1.Role)
-	if !ok {
-		panic("failed to convert to *rbacv1.Role")
-	}
-	return role
-}
-
-func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	roleBinding, ok := obj.(*rbacv1.RoleBinding)
-	if !ok {
-		panic("failed to convert to *rbacv1.RoleBinding")
-	}
-	return roleBinding
-}
-
-func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	service, ok := obj.(*corev1.Service)
-	if !ok {
-		panic("failed to convert to *corev1.Service")
-	}
-	return service
-}
-
-func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	serviceAccount, ok := obj.(*corev1.ServiceAccount)
-	if !ok {
-		panic("failed to convert to *corev1.ServiceAccount")
-	}
-	return serviceAccount
-}
-
-func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
-	obj, err := runtime.Decode(codecs.UniversalDecoder(certmanagerv1.SchemeGroupVersion), objBytes)
-	if err != nil {
-		panic(err)
-	}
-	certificate, ok := obj.(*certmanagerv1.Certificate)
-	if !ok {
-		panic("failed to convert to *certmanagerv1.Certificate")
-	}
-	return certificate
 }
 
 func hasObjectChanged(desired, fetched client.Object) bool {
