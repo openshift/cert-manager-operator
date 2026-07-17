@@ -8,8 +8,50 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func testCodecFactory() serializer.CodecFactory {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
+	return serializer.NewCodecFactory(scheme)
+}
+
+func TestDecodeObjBytes_Success(t *testing.T) {
+	codecs := testCodecFactory()
+	saYAML := []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-sa
+  namespace: test-ns`)
+
+	sa := DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, saYAML)
+	require.Equal(t, "test-sa", sa.GetName())
+	require.Equal(t, "test-ns", sa.GetNamespace())
+}
+
+func TestDecodeObjBytes_PanicsOnInvalidBytes(t *testing.T) {
+	codecs := testCodecFactory()
+	assert.Panics(t, func() {
+		DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, []byte("not valid {{{"))
+	})
+}
+
+func TestDecodeObjBytes_PanicsOnTypeMismatch(t *testing.T) {
+	codecs := testCodecFactory()
+	cmYAML := []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-cm`)
+
+	assert.Panics(t, func() {
+		DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, cmYAML)
+	})
+}
 
 // TestUpdateNamespace provides table-driven tests for UpdateNamespace(obj, newNamespace).
 func TestUpdateNamespace(t *testing.T) {
