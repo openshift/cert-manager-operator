@@ -13,6 +13,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	consoleclient "github.com/openshift/client-go/console/clientset/versioned"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/status"
@@ -98,6 +99,20 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		return fmt.Errorf("failed to discover Infrastructure presence: %w", err)
 	}
 
+	consoleDiscoverer := utils.NewResourceDiscoverer(certmanager.ConsoleYAMLSampleGVR, configClient.Discovery())
+	consoleAvailable, err := consoleDiscoverer.Discover()
+	if err != nil {
+		return fmt.Errorf("failed to discover Console CRD presence: %w", err)
+	}
+
+	var consoleClient consoleclient.Interface
+	if consoleAvailable {
+		consoleClient, err = consoleclient.NewForConfig(cc.KubeConfig)
+		if err != nil {
+			return err
+		}
+	}
+
 	certManagerControllerSet := certmanager.NewCertManagerControllerSet(
 		kubeClient,
 		kubeInformersForNamespaces,
@@ -106,6 +121,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 		operatorClient,
 		certManagerInformers,
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
+		consoleClient,
 		cc.EventRecorder,
 		status.VersionForOperandFromEnv(),
 		versionRecorder,

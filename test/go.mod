@@ -22,6 +22,7 @@ require (
 	github.com/openshift/api v0.0.0-20260513085653-694421e64aee
 	github.com/openshift/cert-manager-operator v0.0.0-00010101000000-000000000000
 	github.com/openshift/client-go v0.0.0-20260330134249-7e1499aaacd7
+	github.com/openshift/library-go v0.0.0-20260512161954-889c2cd3e381
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.18.0
 	github.com/vmware-archive/yaml-patch v0.0.11
@@ -102,13 +103,14 @@ require (
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/openshift/library-go v0.0.0-20260512161954-889c2cd3e381 // indirect
+	github.com/operator-framework/operator-lib v0.19.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -147,11 +149,13 @@ require (
 	k8s.io/component-helpers v0.35.2 // indirect
 	k8s.io/controller-manager v0.35.2 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
+	k8s.io/kube-aggregator v0.35.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	k8s.io/kubelet v0.35.2 // indirect
 	k8s.io/kubernetes v1.35.2 // indirect
 	sigs.k8s.io/gateway-api v1.5.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
+	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )

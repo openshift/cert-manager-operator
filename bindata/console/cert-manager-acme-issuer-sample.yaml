@@ -1,16 +1,13 @@
 apiVersion: console.openshift.io/v1
 kind: ConsoleYAMLSample
 metadata:
-  annotations:
-    capability.openshift.io/name: Console
   name: cert-manager-acme-issuer-sample
 spec:
-  description: An example ACME Issuer for Let's Encrypt production certificates with
-    HTTP-01 challenge
   targetResource:
     apiVersion: cert-manager.io/v1
     kind: Issuer
   title: Example ACME Issuer (Let's Encrypt)
+  description: An example ACME Issuer for Let's Encrypt production certificates with HTTP-01 challenge
   yaml: |-
     apiVersion: cert-manager.io/v1
     kind: Issuer

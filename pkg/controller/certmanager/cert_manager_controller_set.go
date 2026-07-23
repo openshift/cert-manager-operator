@@ -5,6 +5,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	consoleclient "github.com/openshift/client-go/console/clientset/versioned"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -24,6 +25,7 @@ type CertManagerControllerSet struct {
 	certManagerCAInjectorDeploymentController         factory.Controller
 	certManagerNetworkPolicyStaticResourcesController factory.Controller
 	certManagerNetworkPolicyUserDefinedController     factory.Controller
+	consoleResourcesController                        factory.Controller
 }
 
 func NewCertManagerControllerSet(
@@ -34,13 +36,14 @@ func NewCertManagerControllerSet(
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
 	kubeClientContainer *resourceapply.ClientHolder,
+	consoleClient consoleclient.Interface,
 	eventRecorder events.Recorder,
 	targetVersion string,
 	versionRecorder status.VersionGetter,
 	trustedCAConfigmapName,
 	cloudCredentialsSecretName string,
 ) *CertManagerControllerSet {
-	return &CertManagerControllerSet{
+	set := &CertManagerControllerSet{
 		certManagerControllerStaticResourcesController:    NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerControllerDeploymentController:         NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerWebhookStaticResourcesController:       NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
@@ -50,10 +53,14 @@ func NewCertManagerControllerSet(
 		certManagerNetworkPolicyStaticResourcesController: NewCertManagerNetworkPolicyStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, certManagerOperatorInformers, eventRecorder),
 		certManagerNetworkPolicyUserDefinedController:     NewCertManagerNetworkPolicyUserDefinedController(operatorClient, certManagerOperatorInformers, kubeClient, kubeInformersForNamespaces, eventRecorder),
 	}
+	if consoleClient != nil {
+		set.consoleResourcesController = NewConsoleResourcesController(operatorClient, consoleClient, eventRecorder)
+	}
+	return set
 }
 
 func (c *CertManagerControllerSet) ToArray() []factory.Controller {
-	return []factory.Controller{
+	controllers := []factory.Controller{
 		c.certManagerControllerStaticResourcesController,
 		c.certManagerControllerDeploymentController,
 		c.certManagerWebhookStaticResourcesController,
@@ -63,4 +70,8 @@ func (c *CertManagerControllerSet) ToArray() []factory.Controller {
 		c.certManagerNetworkPolicyStaticResourcesController,
 		c.certManagerNetworkPolicyUserDefinedController,
 	}
+	if c.consoleResourcesController != nil {
+		controllers = append(controllers, c.consoleResourcesController)
+	}
+	return controllers
 }
