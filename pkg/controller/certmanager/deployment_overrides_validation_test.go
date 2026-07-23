@@ -16,12 +16,267 @@ import (
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
+func TestWithContainerEnvValidateHook(t *testing.T) {
+	tests := []struct {
+		name            string
+		certManagerObj  v1alpha1.CertManager
+		deploymentName  string
+		wantErrMsg      string
+		omitCertManager bool
+	}{
+		{
+			name:            "lister returns error when certmanager cluster is absent",
+			deploymentName:  certmanagerControllerDeployment,
+			omitCertManager: true,
+		},
+		{
+			name: "controller accepts supported env var HTTP_PROXY",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "HTTP_PROXY", Value: "http://proxy:8080"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller accepts all supported env vars",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "HTTP_PROXY", Value: "http://proxy:8080"},
+							{Name: "HTTPS_PROXY", Value: "https://proxy:8443"},
+							{Name: "NO_PROXY", Value: "localhost"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller rejects unsupported env var with supported list",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "UNKNOWN_VAR", Value: "foo"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     "unsupported env var",
+		},
+		{
+			name: "webhook rejects any env var (empty supported list)",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "HTTP_PROXY", Value: "http://proxy:8080"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerWebhookDeployment,
+			wantErrMsg:     "unsupported env var",
+		},
+		{
+			name: "cainjector rejects any env var (empty supported list)",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "HTTP_PROXY", Value: "http://proxy:8080"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerCAinjectorDeployment,
+			wantErrMsg:     "unsupported env var",
+		},
+		{
+			name: "nil controller config skips validation",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "unsupported deployment name returns error",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: "unknown-deployment",
+			wantErrMsg:     `unsupported deployment name "unknown-deployment" provided`,
+		},
+	}
+
+	ctx := t.Context()
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.omitCertManager {
+				hook := withContainerEnvValidateHook(certManagerInformers, tc.deploymentName)
+				hookErr := hook(nil, &appsv1.Deployment{})
+				require.Error(t, hookErr)
+				assert.Contains(t, hookErr.Error(), `failed to get certmanager "cluster"`)
+				return
+			}
+
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+
+			hook := withContainerEnvValidateHook(certManagerInformers, tc.deploymentName)
+			hookErr := hook(nil, &appsv1.Deployment{})
+
+			if tc.wantErrMsg != "" {
+				require.Error(t, hookErr)
+				assert.Contains(t, hookErr.Error(), tc.wantErrMsg)
+			} else {
+				require.NoError(t, hookErr)
+			}
+		})
+	}
+}
+
+func TestWithPodLabelsValidateHook(t *testing.T) {
+	tests := []struct {
+		name            string
+		certManagerObj  v1alpha1.CertManager
+		deploymentName  string
+		wantErrMsg      string
+		omitCertManager bool
+	}{
+		{
+			name:            "lister returns error when certmanager cluster is absent",
+			deploymentName:  certmanagerControllerDeployment,
+			omitCertManager: true,
+		},
+		{
+			name: "controller accepts supported label",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"azure.workload.identity/use": "true",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "controller rejects unsupported label with supported list",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"unknown-label": "value",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			wantErrMsg:     "unsupported label",
+		},
+		{
+			name: "webhook rejects any label (empty supported list)",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"some-label": "value",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerWebhookDeployment,
+			wantErrMsg:     "unsupported label",
+		},
+		{
+			name: "cainjector rejects any label (empty supported list)",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"some-label": "value",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerCAinjectorDeployment,
+			wantErrMsg:     "unsupported label",
+		},
+		{
+			name: "nil controller config skips validation",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: certmanagerControllerDeployment,
+		},
+		{
+			name: "unsupported deployment name returns error",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: "unknown-deployment",
+			wantErrMsg:     `unsupported deployment name "unknown-deployment" provided`,
+		},
+	}
+
+	ctx := t.Context()
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.omitCertManager {
+				hook := withPodLabelsValidateHook(certManagerInformers, tc.deploymentName)
+				hookErr := hook(nil, &appsv1.Deployment{})
+				require.Error(t, hookErr)
+				assert.Contains(t, hookErr.Error(), `failed to get certmanager "cluster"`)
+				return
+			}
+
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+
+			hook := withPodLabelsValidateHook(certManagerInformers, tc.deploymentName)
+			hookErr := hook(nil, &appsv1.Deployment{})
+
+			if tc.wantErrMsg != "" {
+				require.Error(t, hookErr)
+				assert.Contains(t, hookErr.Error(), tc.wantErrMsg)
+			} else {
+				require.NoError(t, hookErr)
+			}
+		})
+	}
+}
+
 func TestValidateResources(t *testing.T) {
 	tests := []struct {
 		name                   string
 		resources              v1alpha1.CertManagerResourceRequirements
 		resourceNamesSupported []string
 		errorExpected          bool
+		wantErrContains        string
 	}{
 		{
 			name: "validate cpu resource name in resources limits",
@@ -101,7 +356,7 @@ func TestValidateResources(t *testing.T) {
 			errorExpected:          false,
 		},
 		{
-			name: "unsupported resource name in resources limits and requests should return error",
+			name: "unsupported resource name in resources limits and requests should return error with supported list",
 			resources: v1alpha1.CertManagerResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("10Gi"),
@@ -112,6 +367,7 @@ func TestValidateResources(t *testing.T) {
 			},
 			resourceNamesSupported: []string{string(corev1.ResourceCPU), string(corev1.ResourceMemory)},
 			errorExpected:          true,
+			wantErrContains:        "supported resources are: cpu, memory",
 		},
 	}
 
@@ -120,6 +376,9 @@ func TestValidateResources(t *testing.T) {
 			err := validateResources(tc.resources, tc.resourceNamesSupported)
 			if tc.errorExpected {
 				assert.Error(t, err)
+				if tc.wantErrContains != "" {
+					assert.Contains(t, err.Error(), tc.wantErrContains)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
@@ -309,7 +568,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerControllerDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--totally-unknown-flag"="value"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--totally-unknown-flag"="value"; supported args are: --acme-http01-solver-nameservers, --acme-http01-solver-resource-limits-cpu, --acme-http01-solver-resource-limits-memory, --acme-http01-solver-resource-request-cpu, --acme-http01-solver-resource-request-memory, --dns01-recursive-nameservers, --dns01-recursive-nameservers-only, --v, -V, --metrics-listen-address, --issuer-ambient-credentials, --enable-certificate-owner-ref, --certificate-request-minimum-backoff-duration, --concurrent-workers, --kube-api-qps, --kube-api-burst, --max-concurrent-challenges`,
 		},
 		{
 			name: "controller accepts performance tuning flags",
@@ -546,7 +805,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerWebhookDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--metrics-listen-address"="0.0.0.0:9402"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--metrics-listen-address"="0.0.0.0:9402"; supported args are: --v, -V`,
 		},
 		{
 			name: "webhook rejects certificate-request-minimum-backoff-duration",
@@ -559,7 +818,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerWebhookDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--certificate-request-minimum-backoff-duration"="1m"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--certificate-request-minimum-backoff-duration"="1m"; supported args are: --v, -V`,
 		},
 		{
 			name: "nil webhook config skips validation",
@@ -607,7 +866,7 @@ func TestWithContainerArgsValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerCAinjectorDeployment,
-			wantErrMsg:     `validation failed due to unsupported arg "--dns01-recursive-nameservers"="8.8.8.8:53"`,
+			wantErrMsg:     `validation failed due to unsupported arg "--dns01-recursive-nameservers"="8.8.8.8:53"; supported args are: --v, -V`,
 		},
 		{
 			name: "nil cainjector config skips validation",
