@@ -6,6 +6,7 @@ package e2e
 import (
 	"strings"
 	"testing"
+	"time"
 
 	opv1 "github.com/openshift/api/operator/v1"
 	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -102,6 +103,20 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 			errorContains: "context deadline exceeded",
 		},
 		{
+			name: "Any mode succeeds when matching condition appears after non-matching one",
+			expectedConditions: map[string]opv1.ConditionStatus{
+				"Degraded": opv1.ConditionTrue,
+			},
+			initialObjects: []runtime.Object{
+				newCertManagerObjectWithConditions(
+					opv1.OperatorCondition{Type: controllerPrefix + "-static-resources-Degraded", Status: opv1.ConditionFalse},
+					opv1.OperatorCondition{Type: controllerPrefix + "Degraded", Status: opv1.ConditionTrue},
+				),
+			},
+			matchAny:    true,
+			expectError: false,
+		},
+		{
 			name: "A missing condition for Progressing",
 			expectedConditions: map[string]opv1.ConditionStatus{
 				"Available":   opv1.ConditionTrue,
@@ -131,7 +146,7 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 				{controllerPrefix, tt.matchAny},
 			}, tt.expectedConditions)
 
-			err := verifyOperatorStatusCondition(fakeClient.OperatorV1alpha1(), matchers)
+			err := verifyOperatorStatusConditionWithTimeout(fakeClient.OperatorV1alpha1(), matchers, 10*time.Second)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected an error, but got nil")
