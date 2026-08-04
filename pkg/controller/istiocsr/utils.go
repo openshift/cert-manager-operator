@@ -482,7 +482,7 @@ func (r *Reconciler) updateCondition(istiocsr *v1alpha1.IstioCSR, prependErr err
 	if err := r.updateStatus(r.ctx, istiocsr); err != nil {
 		errUpdate := fmt.Errorf("failed to update %s/%s status: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 		if prependErr != nil {
-			return utilerrors.NewAggregate([]error{err, errUpdate})
+			return utilerrors.NewAggregate([]error{prependErr, errUpdate})
 		}
 		return errUpdate
 	}
