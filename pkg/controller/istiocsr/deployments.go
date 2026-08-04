@@ -496,6 +496,8 @@ func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, erro
 		object = &certmanagerv1.ClusterIssuer{}
 	case issuerKind:
 		object = &certmanagerv1.Issuer{}
+	default:
+		return nil, fmt.Errorf("unsupported issuer kind %q: must be %q or %q", issuerRefKind, clusterIssuerKind, issuerKind)
 	}
 
 	if err := r.Get(r.ctx, key, object); err != nil {
