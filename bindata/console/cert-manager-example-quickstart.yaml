@@ -2,11 +2,6 @@ apiVersion: console.openshift.io/v1
 kind: ConsoleQuickStart
 metadata:
   name: cert-manager-example
-  annotations:
-    capability.openshift.io/name: Console
-    include.release.openshift.io/ibm-cloud-managed: "true"
-    include.release.openshift.io/self-managed-high-availability: "true"
-    include.release.openshift.io/single-node-developer: "true"
 spec:
   displayName: cert-manager Operator for Red Hat OpenShift Example
   tags:

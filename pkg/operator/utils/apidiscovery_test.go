@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 
@@ -60,6 +61,69 @@ func (f *alwaysErrorFakeDiscovery) ServerResourcesForGroupVersion(groupVersion s
 
 func createErroneousFakeDiscoveryClient() discovery.DiscoveryInterface {
 	return &alwaysErrorFakeDiscovery{}
+}
+
+func TestDiscoverConsoleCapability(t *testing.T) {
+	gvr := schema.GroupVersionResource{
+		Group:    "console.openshift.io",
+		Version:  "v1",
+		Resource: "consoleyamlsamples",
+	}
+
+	tests := []struct {
+		name      string
+		resources []*metav1.APIResourceList
+		want      bool
+	}{
+		{
+			name: "console resources present",
+			resources: []*metav1.APIResourceList{
+				{
+					GroupVersion: "console.openshift.io/v1",
+					APIResources: []metav1.APIResource{
+						{Name: "consoleyamlsamples"},
+						{Name: "consolequickstarts"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:      "console resources absent",
+			resources: nil,
+			want:      false,
+		},
+		{
+			name: "different group present but not console",
+			resources: []*metav1.APIResourceList{
+				{
+					GroupVersion: operatorv1alpha1.SchemeGroupVersion.String(),
+					APIResources: []metav1.APIResource{
+						{Name: "certmanagers"},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := fake.NewClientset()
+			fakeClient.Resources = tt.resources
+
+			discoverer := NewResourceDiscoverer(gvr, fakeClient.Discovery())
+			got, err := discoverer.Discover()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	t.Run("discovery error propagates", func(t *testing.T) {
+		discoverer := NewResourceDiscoverer(gvr, createErroneousFakeDiscoveryClient())
+		_, err := discoverer.Discover()
+		require.Error(t, err)
+	})
 }
 
 // TestOptionalInformer covers NewResourceDiscoverer, Discover, and

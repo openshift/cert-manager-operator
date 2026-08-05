@@ -1363,6 +1363,14 @@ github.com/openshift/client-go/config/informers/externalversions/internalinterfa
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/listers/config/v1alpha1
 github.com/openshift/client-go/config/listers/config/v1alpha2
+github.com/openshift/client-go/console/applyconfigurations
+github.com/openshift/client-go/console/applyconfigurations/console/v1
+github.com/openshift/client-go/console/applyconfigurations/internal
+github.com/openshift/client-go/console/clientset/versioned
+github.com/openshift/client-go/console/clientset/versioned/fake
+github.com/openshift/client-go/console/clientset/versioned/scheme
+github.com/openshift/client-go/console/clientset/versioned/typed/console/v1
+github.com/openshift/client-go/console/clientset/versioned/typed/console/v1/fake
 github.com/openshift/client-go/operator/applyconfigurations/internal
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1
 github.com/openshift/client-go/operator/clientset/versioned/scheme

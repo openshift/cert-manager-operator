@@ -179,6 +179,15 @@ rules:
   - update
   - watch
 - apiGroups:
+  - console.openshift.io
+  resources:
+  - consolequickstarts
+  - consoleyamlsamples
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases

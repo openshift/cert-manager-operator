@@ -43,6 +43,10 @@
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml
+// bindata/console/cert-manager-acme-issuer-sample.yaml
+// bindata/console/cert-manager-certificate-sample.yaml
+// bindata/console/cert-manager-example-quickstart.yaml
+// bindata/console/cert-manager-issuer-sample.yaml
 // bindata/istio-csr/cert-manager-istio-csr-clusterrole.yaml
 // bindata/istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml
 // bindata/istio-csr/cert-manager-istio-csr-deployment.yaml
@@ -2295,6 +2299,338 @@ func certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfiguratio
 	return a, nil
 }
 
+var _consoleCertManagerAcmeIssuerSampleYaml = []byte(`apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-acme-issuer-sample
+spec:
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+  title: Example ACME Issuer (Let's Encrypt)
+  description: An example ACME Issuer for Let's Encrypt production certificates with HTTP-01 challenge
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: letsencrypt-prod
+      namespace: default
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: letsencrypt-prod-account-key
+        solvers:
+        - http01:
+            ingress:
+              ingressClassName: openshift-default
+`)
+
+func consoleCertManagerAcmeIssuerSampleYamlBytes() ([]byte, error) {
+	return _consoleCertManagerAcmeIssuerSampleYaml, nil
+}
+
+func consoleCertManagerAcmeIssuerSampleYaml() (*asset, error) {
+	bytes, err := consoleCertManagerAcmeIssuerSampleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "console/cert-manager-acme-issuer-sample.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _consoleCertManagerCertificateSampleYaml = []byte(`apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-certificate-sample
+spec:
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+  title: Example Certificate
+  description: A simple Certificate example
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: example-cert
+      namespace: default
+    spec:
+      secretName: example-tls
+      commonName: example.com
+      dnsNames:
+        - example.com
+      issuerRef:
+        name: selfsigned-issuer
+        kind: Issuer
+
+`)
+
+func consoleCertManagerCertificateSampleYamlBytes() ([]byte, error) {
+	return _consoleCertManagerCertificateSampleYaml, nil
+}
+
+func consoleCertManagerCertificateSampleYaml() (*asset, error) {
+	bytes, err := consoleCertManagerCertificateSampleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "console/cert-manager-certificate-sample.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _consoleCertManagerExampleQuickstartYaml = []byte(`apiVersion: console.openshift.io/v1
+kind: ConsoleQuickStart
+metadata:
+  name: cert-manager-example
+spec:
+  displayName: cert-manager Operator for Red Hat OpenShift Example
+  tags:
+    - example
+    - operator
+    - certificates
+  durationMinutes: 10
+  prerequisites:
+    - You completed the "Install the cert-manager Operator for Red Hat OpenShift" quick start.
+    - You have a namespace in which to deploy the example CRs.
+  description: |-
+    Create and issue TLS certificates using the cert-manager Operator for Red Hat OpenShift
+  introduction: |-
+    # cert-manager Operator for Red Hat OpenShift
+
+    The cert-manager Operator for Red Hat OpenShift enables you to create and sign TLS certificates from an external PKI for your workloads
+    running on an OpenShift cluster.
+
+    ### Expected Learning
+
+    With this Quick Start, you will learn about the following CRDs provided by the cert-manager operator:
+    1. **Issuer** - defines a certificate authority that can sign certificates
+    2. **Certificate** - defines the desired certificate and its properties
+
+    This Quick Start will walk you through creating your first certificate:
+    - Create a self-signed Issuer (for testing)
+    - Create a Certificate signed by that Issuer
+    - View the generated certificate in a Kubernetes Secret
+    - Learn how to use it in your applications
+
+    **Note**: For production, you would use Let's Encrypt (ACME), HashiCorp Vault, or your organization's CA instead of self-signed certificates.
+  tasks:
+    - title: Navigate to installed cert-manager operator
+      description: |-
+        ### To navigate to the installed operator:
+        1. Go to the **Installed Operators** from the [Ecosystem]{{highlight qs-nav-ecosystem}} section of the navigation.
+        2. In the **Search by name** field, type ` + "`" + `cert-manager` + "`" + `.
+        3. Look for **cert-manager Operator for Red Hat OpenShift**. If you had completed the prerequisite Quick Start, the tile should appear.
+        4. Click on the installed operator
+
+        You will be brought to the **Operator Details** page and be presented with **Provided APIs**
+      review:
+        instructions: |-
+          #### Verify you see a list of **Provided APIs**:
+          The list should include ` + "`" + `Issuer` + "`" + `, ` + "`" + `ClusterIssuer` + "`" + `, and ` + "`" + `Certificate` + "`" + `
+        failedTaskHelp: This task isn't verified yet. Try the task again.
+      summary:
+        success: You are in the right place, and ready to start the rest of the Quick Start
+        failed: Try the steps again.
+    - title: Select a project
+      description: |-
+        ### Create or select a project to work in
+        1. Find the **Project** dropdown menu at the top of the screen.
+        2. Select or create the project in which you want to work in.
+
+        **Note**: For this example, we'll create an ` + "`" + `Issuer` + "`" + ` which is namespace-scoped. If you want to issue certificates
+        across multiple namespaces, you can create a ` + "`" + `ClusterIssuer` + "`" + ` instead.
+      review:
+        instructions: |-
+          #### Verify the name in the **Project** dropdown menu is the expected project
+        failedTaskHelp: Try the task again.
+      summary:
+        success: You are in the right place.
+        failed: Try the steps again.
+    - title: Create a self-signed Issuer
+      description: |-
+        ### To create a self-signed Issuer
+
+        An Issuer represents a certificate authority that can sign certificates. We'll create a self-signed Issuer
+        for this example. This is useful for testing and development.
+
+        1. Find the ` + "`" + `Issuer` + "`" + ` Custom Resource in the list of **Provided APIs** or in the top side-scrolling menu bar.
+           - From the list of **Provided APIs**, click the **Create instance** link.
+           - From the **top side-scrolling menu bar**, click **Issuer** and then click **Create Issuer**.
+
+        2. Switch to **YAML view** in the editor.
+
+        3. On the right sidebar, look for the **Samples** section and select **"Example Self-Signed Issuer"**.
+
+        4. Click **Try it** to populate the editor with the sample YAML.
+
+        5. Click the **Create** button to create the Issuer.
+      review:
+        instructions: |-
+          #### Verify the Issuer was successfully created:
+          1. You should see the Issuer listed with the name ` + "`" + `selfsigned-issuer` + "`" + `
+          2. Check that the **Ready** condition shows **True** in the Conditions section
+        failedTaskHelp: This task isn't verified yet. Try the task again.
+      summary:
+        success: You just created a self-signed Issuer! Now we can create certificates.
+        failed: Try the steps again.
+    - title: Create a Certificate
+      description: |-
+        ### To create a Certificate
+
+        Now we'll create a certificate that will be signed by our Issuer.
+
+        1. Find the ` + "`" + `Certificate` + "`" + ` Custom Resource in the list of **Provided APIs** or in the top side-scrolling menu bar.
+           - From the list of **Provided APIs**, click the **Create instance** link.
+           - From the **top side-scrolling menu bar**, click **Certificate** and then click **Create Certificate**.
+
+        2. Switch to **YAML view** in the editor.
+
+        3. On the right sidebar, look for the **Samples** section and select **"Example Certificate"**.
+
+        4. Click **Try it** to populate the editor with the sample YAML.
+
+        5. Click the **Create** button to create the Certificate.
+      review:
+        instructions: |-
+          #### Verify the Certificate was successfully created:
+          1. You should see the Certificate listed with the name ` + "`" + `example-cert` + "`" + `.
+          2. Check that the **Ready** condition shows **True**.
+          3. Navigate to the [Workloads]{{highlight qs-nav-workloads}} section and click **Secrets**
+          4. You should see a new Secret named ` + "`" + `example-tls` + "`" + `.
+        failedTaskHelp: This task isn't verified yet. Try the task again.
+      summary:
+        success: You just created your first certificate! cert-manager has issued it and stored it in a Secret.
+        failed: Try the steps again.
+    - title: View the certificate
+      description: |-
+        ### To inspect the certificate
+
+        Let's look at the Secret that contains the certificate.
+
+        1. Make sure you're in the [Workloads]{{highlight qs-nav-workloads}} section, click **Secrets**.
+        2. Click on the **example-tls** Secret.
+        3. You should see the certificate data with keys:
+           - ` + "`" + `tls.crt` + "`" + ` - The certificate.
+           - ` + "`" + `tls.key` + "`" + ` - The private key.
+           - ` + "`" + `ca.crt` + "`" + ` - The CA certificate.
+      review:
+        instructions: |-
+          #### Verify you can see the certificate data:
+          Is the Secret ` + "`" + `example-tls` + "`" + ` present with ` + "`" + `tls.crt` + "`" + ` and ` + "`" + `tls.key` + "`" + `?
+        failedTaskHelp: This task isn't verified yet. Try the task again.
+      summary:
+        success: Great! Your certificate is ready to use.
+        failed: Try the steps again.
+    - title: Use the certificate
+      description: |-
+        ### How to use certificates
+
+        Now you can use this certificate in your applications. Here's a simple example for an OpenShift Route:
+
+        ` + "`" + `` + "`" + `` + "`" + `yaml
+        apiVersion: route.openshift.io/v1
+        kind: Route
+        metadata:
+          name: my-app
+        spec:
+          to:
+            kind: Service
+            name: my-service
+          tls:
+            termination: edge
+            externalCertificate:
+              name: example-tls
+        ` + "`" + `` + "`" + `` + "`" + `
+
+        Or in an Ingress:
+
+        ` + "`" + `` + "`" + `` + "`" + `yaml
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: my-app
+        spec:
+          tls:
+          - secretName: example-tls
+          rules:
+          - host: example.com
+        ` + "`" + `` + "`" + `` + "`" + `
+
+        **Note**: cert-manager will automatically renew certificates before they expire!
+      review:
+        instructions: |-
+          #### Do you understand how to use certificates?
+          Certificates can be referenced in Routes and Ingress resources.
+        failedTaskHelp: Review the examples above.
+      summary:
+        success: You now know how to create and use certificates!
+        failed: Review the examples again.
+  conclusion: |-
+    Great job! You've successfully created your first Issuer and Certificate.
+
+    ### Next Steps:
+
+    - For production, use Let's Encrypt (ACME Issuer) instead of self-signed certificates
+    - Explore ClusterIssuer for cluster-wide certificate management
+    - Check out the [cert-manager documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/security_and_compliance/cert-manager-operator-for-red-hat-openshift) to learn more
+`)
+
+func consoleCertManagerExampleQuickstartYamlBytes() ([]byte, error) {
+	return _consoleCertManagerExampleQuickstartYaml, nil
+}
+
+func consoleCertManagerExampleQuickstartYaml() (*asset, error) {
+	bytes, err := consoleCertManagerExampleQuickstartYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "console/cert-manager-example-quickstart.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _consoleCertManagerIssuerSampleYaml = []byte(`apiVersion: console.openshift.io/v1
+kind: ConsoleYAMLSample
+metadata:
+  name: cert-manager-issuer-sample
+spec:
+  targetResource:
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+  title: Example Self-Signed Issuer
+  description: A simple self-signed Issuer for development and testing
+  yaml: |-
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: selfsigned-issuer
+      namespace: default
+    spec:
+      selfSigned: {}
+
+`)
+
+func consoleCertManagerIssuerSampleYamlBytes() ([]byte, error) {
+	return _consoleCertManagerIssuerSampleYaml, nil
+}
+
+func consoleCertManagerIssuerSampleYaml() (*asset, error) {
+	bytes, err := consoleCertManagerIssuerSampleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "console/cert-manager-issuer-sample.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _istioCsrCertManagerIstioCsrClusterroleYaml = []byte(`kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -3772,6 +4108,10 @@ var _bindata = map[string]func() (*asset, error){
 	"cert-manager-deployment/webhook/cert-manager-webhook-subjectaccessreviews-crb.yaml":               certManagerDeploymentWebhookCertManagerWebhookSubjectaccessreviewsCrbYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-svc.yaml":                                    certManagerDeploymentWebhookCertManagerWebhookSvcYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-validatingwebhookconfiguration.yaml":         certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml,
+	"console/cert-manager-acme-issuer-sample.yaml":                                                     consoleCertManagerAcmeIssuerSampleYaml,
+	"console/cert-manager-certificate-sample.yaml":                                                     consoleCertManagerCertificateSampleYaml,
+	"console/cert-manager-example-quickstart.yaml":                                                     consoleCertManagerExampleQuickstartYaml,
+	"console/cert-manager-issuer-sample.yaml":                                                          consoleCertManagerIssuerSampleYaml,
 	"istio-csr/cert-manager-istio-csr-clusterrole.yaml":                                                istioCsrCertManagerIstioCsrClusterroleYaml,
 	"istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml":                                         istioCsrCertManagerIstioCsrClusterrolebindingYaml,
 	"istio-csr/cert-manager-istio-csr-deployment.yaml":                                                 istioCsrCertManagerIstioCsrDeploymentYaml,
@@ -3902,6 +4242,12 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"cert-manager-webhook-svc.yaml":                            {certManagerDeploymentWebhookCertManagerWebhookSvcYaml, map[string]*bintree{}},
 			"cert-manager-webhook-validatingwebhookconfiguration.yaml": {certManagerDeploymentWebhookCertManagerWebhookValidatingwebhookconfigurationYaml, map[string]*bintree{}},
 		}},
+	}},
+	"console": {nil, map[string]*bintree{
+		"cert-manager-acme-issuer-sample.yaml": {consoleCertManagerAcmeIssuerSampleYaml, map[string]*bintree{}},
+		"cert-manager-certificate-sample.yaml": {consoleCertManagerCertificateSampleYaml, map[string]*bintree{}},
+		"cert-manager-example-quickstart.yaml": {consoleCertManagerExampleQuickstartYaml, map[string]*bintree{}},
+		"cert-manager-issuer-sample.yaml":      {consoleCertManagerIssuerSampleYaml, map[string]*bintree{}},
 	}},
 	"istio-csr": {nil, map[string]*bintree{
 		"cert-manager-istio-csr-clusterrole.yaml":        {istioCsrCertManagerIstioCsrClusterroleYaml, map[string]*bintree{}},
