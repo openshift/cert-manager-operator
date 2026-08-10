@@ -16,6 +16,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
 	"github.com/openshift/library-go/pkg/apiserver/jsonpatch"
+	"github.com/openshift/library-go/pkg/operator/management"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -140,7 +141,7 @@ func (c OperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv
 		return nil, nil, "", err
 	}
 
-	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
+	return operatorSpecForReconcile(&instance.Spec.OperatorSpec), &instance.Status.OperatorStatus, instance.ResourceVersion, nil
 }
 
 func (c OperatorClient) GetOperatorStateWithQuorum(ctx context.Context) (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
@@ -149,7 +150,18 @@ func (c OperatorClient) GetOperatorStateWithQuorum(ctx context.Context) (*operat
 		return nil, nil, "", err
 	}
 
-	return &instance.Spec.OperatorSpec, &instance.Status.OperatorStatus, instance.ResourceVersion, nil
+	return operatorSpecForReconcile(&instance.Spec.OperatorSpec), &instance.Status.OperatorStatus, instance.ResourceVersion, nil
+}
+
+// operatorSpecForReconcile returns a copy of spec with unknown managementState treated as Managed.
+// GitOps tools such as Argo CD often create CertManager without managementState; library-go static
+// resource controllers already proceed in that case, but deployment controllers require Managed.
+func operatorSpecForReconcile(spec *operatorv1.OperatorSpec) *operatorv1.OperatorSpec {
+	reconcileSpec := spec.DeepCopy()
+	if management.IsOperatorUnknownState(reconcileSpec.ManagementState) {
+		reconcileSpec.ManagementState = operatorv1.Managed
+	}
+	return reconcileSpec
 }
 
 func GetUnsupportedConfigOverrides(operatorSpec *operatorv1.OperatorSpec) (*v1alpha1.UnsupportedConfigOverrides, error) {
