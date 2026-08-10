@@ -3,7 +3,7 @@ module github.com/openshift/cert-manager-operator
 go 1.24.4
 
 require (
-	github.com/cert-manager/cert-manager v1.18.4
+	github.com/cert-manager/cert-manager v1.18.6
 	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/go-logr/logr v1.4.2
 	github.com/golangci/golangci-lint v1.50.1
@@ -295,7 +295,7 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.18.4
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.18.6
 
 replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
 
