@@ -679,7 +679,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if deployment",
+			wantErr:         "failed to check if Deployment",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -694,7 +694,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply deployment",
+			wantErr:         "failed to apply Deployment",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},

@@ -510,7 +510,7 @@ func TestRBACReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if clusterrole",
+			wantErr:         "failed to check if ClusterRole",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -527,7 +527,7 @@ func TestRBACReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply clusterrole",
+			wantErr:         "failed to apply ClusterRole",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
@@ -544,7 +544,7 @@ func TestRBACReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply clusterrolebinding",
+			wantErr:         "failed to apply ClusterRoleBinding",
 			wantExistsCount: 2,
 			wantPatchCount:  2,
 		},
@@ -561,7 +561,7 @@ func TestRBACReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply role",
+			wantErr:         "failed to apply Role",
 			wantExistsCount: 3,
 			wantPatchCount:  3,
 		},
@@ -578,7 +578,7 @@ func TestRBACReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply rolebinding",
+			wantErr:         "failed to apply RoleBinding",
 			wantExistsCount: 4,
 			wantPatchCount:  4,
 		},

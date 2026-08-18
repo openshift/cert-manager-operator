@@ -204,7 +204,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if validatingwebhookconfiguration",
+			wantErr:         "failed to check if ValidatingWebhookConfiguration",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -218,7 +218,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply validatingwebhookconfiguration",
+			wantErr:         "failed to apply ValidatingWebhookConfiguration",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
