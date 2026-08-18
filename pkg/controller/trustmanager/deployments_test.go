@@ -702,7 +702,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), tt.caBundleHash)
+			err := r.createOrApplyDeployment(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), tt.caBundleHash)
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {

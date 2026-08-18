@@ -1,7 +1,6 @@
 package istiocsr
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -44,7 +43,6 @@ type CertificateTweak func(*x509.Certificate)
 
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
-		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
 		log:           testr.New(t),
 		scheme:        testutil.Scheme,

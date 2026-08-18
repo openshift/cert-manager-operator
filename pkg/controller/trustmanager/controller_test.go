@@ -345,7 +345,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			r.CtrlClient = mock
 
 			tm := tt.getTrustManager()
-			_, err := r.processReconcileRequest(tm, types.NamespacedName{Name: tm.GetName()})
+			_, err := r.processReconcileRequest(context.Background(), tm, types.NamespacedName{Name: tm.GetName()})
 			assertError(t, err, tt.wantErr)
 
 			for _, want := range tt.wantConditions {
@@ -391,7 +391,7 @@ func TestCleanUp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Reconciler{eventRecorder: record.NewFakeRecorder(10)}
-			requeue, err := r.cleanUp(tt.trustManager)
+			requeue, err := r.cleanUp(context.Background(), tt.trustManager)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("cleanUp() error = %v, wantErr %v", err, tt.wantErr)
 			}
