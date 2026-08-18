@@ -25,6 +25,13 @@ const (
 	//   - Failed
 	//   - Ready: operand successfully deployed and ready
 	Ready string = "Ready"
+
+	// Progressing indicates whether the operator is actively reconciling
+	// toward the desired state.
+	//   Status:
+	//   - True: reconciliation is in progress
+	//   - False: reconciliation is idle (succeeded or permanently failed)
+	Progressing string = "Progressing"
 )
 
 const (
@@ -33,6 +40,14 @@ const (
 	ReasonReady string = "Ready"
 
 	ReasonInProgress string = "Progressing"
+
+	ReasonReconciling string = "Reconciling"
+
+	ReasonWaitingForDependencies string = "WaitingForDependencies"
+
+	ReasonValidationFailed string = "ValidationFailed"
+
+	ReasonMultipleInstancesFound string = "MultipleInstancesFound"
 )
 
 func (c *ConditionalStatus) GetCondition(t string) *metav1.Condition {
