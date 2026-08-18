@@ -48,13 +48,31 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					}
 					return nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				// SSA-migrated resources (Service, ServiceAccount, Certificate, Role, RoleBinding) use Patch
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch o := obj.(type) {
-					case *appsv1.Deployment, *corev1.Service, *corev1.ServiceAccount:
+					case *corev1.Service, *corev1.ServiceAccount:
 						if !reflect.DeepEqual(o.GetLabels(), labels) {
 							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), labels)
 						}
-					case *certmanagerv1.Certificate, *rbacv1.Role, *rbacv1.RoleBinding, *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
+					case *certmanagerv1.Certificate, *rbacv1.Role, *rbacv1.RoleBinding:
+						l := make(map[string]string)
+						maps.Copy(l, labels)
+						l[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
+						if !reflect.DeepEqual(o.GetLabels(), l) {
+							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), l)
+						}
+					}
+					return nil
+				})
+				// Non-SSA resources (Deployment, ClusterRole, ClusterRoleBinding) still use Create
+				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						if !reflect.DeepEqual(o.GetLabels(), labels) {
+							return fmt.Errorf("labels mismatch in %v resource; got: %v, want: %v", o, o.GetLabels(), labels)
+						}
+					case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
 						l := make(map[string]string)
 						maps.Copy(l, labels)
 						l[istiocsrNamespaceMappingLabelName] = testIstioCSRNamespace
@@ -67,9 +85,9 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 			},
 		},
 		{
-			name: "istiocsr reconciliation fails with serviceaccount creation error",
+			name: "istiocsr reconciliation fails with serviceaccount apply error",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *corev1.ServiceAccount:
 						return errTestClient
@@ -77,31 +95,20 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource: test client error`,
+			wantErr: `failed to apply ServiceAccount "istiocsr-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
-			name: "istiocsr reconciliation fails with role creation error",
+			name: "istiocsr reconciliation fails with role apply error",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
-					switch o := obj.(type) {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					switch obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
-					case *rbacv1.ClusterRoleBinding:
-						roleBinding := testClusterRoleBinding()
-						roleBinding.DeepCopyInto(o)
 					}
 					return nil
 				})
-			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
-		},
-		{
-			name: "istiocsr reconciliation fails with certificate creation error",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
 					switch o := obj.(type) {
-					case *certmanagerv1.Certificate:
-						return errTestClient
 					case *rbacv1.ClusterRoleBinding:
 						roleBinding := testClusterRoleBinding()
 						roleBinding.DeepCopyInto(o)
@@ -109,7 +116,28 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/istiod certificate resource: test client error`,
+			wantErr: `failed to apply Role "istio-test-ns/cert-manager-istio-csr": test client error`,
+		},
+		{
+			name: "istiocsr reconciliation fails with certificate apply error",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					switch obj.(type) {
+					case *certmanagerv1.Certificate:
+						return errTestClient
+					}
+					return nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRoleBinding:
+						roleBinding := testClusterRoleBinding()
+						roleBinding.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			wantErr: `failed to apply Certificate "istio-test-ns/istiod": test client error`,
 		},
 	}
 
