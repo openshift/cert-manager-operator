@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,13 +16,13 @@ import (
 // trust-manager webhook container when apiserver tlsAdherence requires it.
 // When the APIServer resource is missing (non-OpenShift) or adherence does not
 // require enforcement, this is a no-op.
-func (r *Reconciler) applyClusterTLSProfile(deployment *appsv1.Deployment) error {
+func (r *Reconciler) applyClusterTLSProfile(ctx context.Context, deployment *appsv1.Deployment) error {
 	if r.CtrlClient == nil {
 		return nil
 	}
 
 	effective, err := tlsprofile.ResolveHonoredTLSProfile(
-		r.ctx,
+		ctx,
 		tlsprofile.NewClientReaderAPIServerFetch(r.CtrlClient),
 		"trust-manager",
 		tlsprofile.FetchErrorPropagateExceptNotFound,

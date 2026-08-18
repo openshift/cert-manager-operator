@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 	"maps"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+func (r *Reconciler) createOrApplyNetworkPolicies(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	r.log.V(4).Info("reconciling istio-csr network policies", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 
 	// Apply static network policy assets for istio-csr
@@ -23,7 +24,7 @@ func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, r
 		if err != nil {
 			return fmt.Errorf("failed to get network policy from asset %s: %w", assetPath, err)
 		}
-		if err := r.createOrUpdateNetworkPolicy(obj, istioCSRCreateRecon); err != nil {
+		if err := r.createOrUpdateNetworkPolicy(ctx, obj, istioCSRCreateRecon); err != nil {
 			return fmt.Errorf("failed to create/update network policy from %s: %w", assetPath, err)
 		}
 	}
@@ -62,7 +63,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, istiocsr *v1alp
 	return policy, nil
 }
 
-func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPolicy, istioCSRCreateRecon bool) error {
+func (r *Reconciler) createOrUpdateNetworkPolicy(ctx context.Context, policy *networkingv1.NetworkPolicy, istioCSRCreateRecon bool) error {
 	desired := policy.DeepCopy()
 	policyName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling network policy resource", "name", policyName)
@@ -72,7 +73,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 		Name:      desired.GetName(),
 		Namespace: desired.GetNamespace(),
 	}
-	exist, err := r.Exists(r.ctx, key, fetched)
+	exist, err := r.Exists(ctx, key, fetched)
 	if err != nil {
 		return common.FromClientError(err, "failed to check %s network policy resource already exists", policyName)
 	}
@@ -83,7 +84,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 		}
 		if hasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
-			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+			if err := r.UpdateWithRetry(ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s network policy resource", policyName)
 			}
 			r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s reconciled back to desired state", policyName)
@@ -93,7 +94,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 	}
 
 	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
+		if err := r.Create(ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s network policy resource", policyName)
 		}
 		r.eventRecorder.Eventf(policy, corev1.EventTypeNormal, "Reconciled", "network policy resource %s created", policyName)

@@ -279,7 +279,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyIssuer(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyIssuer(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
@@ -467,7 +467,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyCertificate(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyCertificate(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
