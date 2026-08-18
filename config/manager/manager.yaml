@@ -102,6 +102,24 @@ spec:
           image: controller:latest
           imagePullPolicy: IfNotPresent
           name: cert-manager-operator
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
