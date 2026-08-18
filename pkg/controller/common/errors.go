@@ -23,9 +23,10 @@ const (
 
 // ReconcileError represents an error that occurred during reconciliation.
 type ReconcileError struct {
-	Reason  ErrorReason `json:"reason,omitempty"`
-	Message string      `json:"message,omitempty"`
-	Err     error       `json:"error,omitempty"`
+	Reason          ErrorReason `json:"reason,omitempty"`
+	ConditionReason string      `json:"conditionReason,omitempty"`
+	Message         string      `json:"message,omitempty"`
+	Err             error       `json:"error,omitempty"`
 }
 
 var _ error = &ReconcileError{}
@@ -117,6 +118,16 @@ func IsMultipleInstanceError(err error) bool {
 	return false
 }
 
+// WithConditionReason sets the condition reason that will appear in status
+// conditions when this error is processed by HandleReconcileResult.
+func (e *ReconcileError) WithConditionReason(reason string) *ReconcileError {
+	if e == nil {
+		return nil
+	}
+	e.ConditionReason = reason
+	return e
+}
+
 // Error implements the error interface.
 func (e *ReconcileError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Message, e.Err)
@@ -125,4 +136,14 @@ func (e *ReconcileError) Error() string {
 // Unwrap returns the underlying error for error chain traversal.
 func (e *ReconcileError) Unwrap() error {
 	return e.Err
+}
+
+// GetConditionReason extracts the ConditionReason from a ReconcileError in the
+// error chain. Returns empty string if not set or not a ReconcileError.
+func GetConditionReason(err error) string {
+	rerr := &ReconcileError{}
+	if errors.As(err, &rerr) {
+		return rerr.ConditionReason
+	}
+	return ""
 }
