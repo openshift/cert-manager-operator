@@ -262,7 +262,7 @@ func TestServiceReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyServices(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyServices(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
