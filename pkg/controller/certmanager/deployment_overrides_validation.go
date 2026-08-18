@@ -3,14 +3,12 @@ package certmanager
 import (
 	"fmt"
 	"strconv"
-	"unsafe"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/apis/core"
 	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/utils/strings/slices"
 
@@ -363,10 +361,7 @@ func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertM
 func validateScheduling(scheduling v1alpha1.CertManagerScheduling, fldPath *field.Path) error {
 	errs := metav1validation.ValidateLabels(scheduling.NodeSelector, fldPath.Child("nodeSelector"))
 
-	// Convert corev1.Tolerations to core.Tolerations.
-	tolerations := *(*[]core.Toleration)(unsafe.Pointer(&scheduling.Tolerations))
-
-	errs = append(errs, corevalidation.ValidateTolerations(tolerations, fldPath.Child("tolerations"), corevalidation.PodValidationOptions{})...)
+	errs = append(errs, corevalidation.ValidateTolerations(common.ToCoreTolerations(scheduling.Tolerations), fldPath.Child("tolerations"), corevalidation.PodValidationOptions{})...)
 
 	return errs.ToAggregate()
 }

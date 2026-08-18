@@ -3,14 +3,13 @@ package certmanager
 import (
 	"fmt"
 	"sort"
-	"unsafe"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/util/tolerations"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	certmanagerinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions/operator/v1alpha1"
 )
 
@@ -75,15 +74,11 @@ func mergePodScheduling(sourceScheduling v1alpha1.CertManagerScheduling, overrid
 	// Merge the source and override NodeSelector.
 	mergedNodeSelector := labels.Merge(sourceScheduling.NodeSelector, overrideScheduling.NodeSelector)
 
-	// Convert corev1.Tolerations to core.Tolerations.
-	sourceTolerations := *(*[]core.Toleration)(unsafe.Pointer(&sourceScheduling.Tolerations))
-	overridingTolerations := *(*[]core.Toleration)(unsafe.Pointer(&overrideScheduling.Tolerations))
-
-	// Merge the source and override Tolerations.
-	mergedCoreTolerations := tolerations.MergeTolerations(sourceTolerations, overridingTolerations)
-
-	// Convert core.Tolerations to corev1.Tolerations.
-	mergedCorev1Tolerations := *(*[]corev1.Toleration)(unsafe.Pointer(&mergedCoreTolerations))
+	mergedCoreTolerations := tolerations.MergeTolerations(
+		common.ToCoreTolerations(sourceScheduling.Tolerations),
+		common.ToCoreTolerations(overrideScheduling.Tolerations),
+	)
+	mergedCorev1Tolerations := common.ToV1Tolerations(mergedCoreTolerations)
 
 	return v1alpha1.CertManagerScheduling{
 		NodeSelector: mergedNodeSelector,
