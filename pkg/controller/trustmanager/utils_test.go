@@ -354,3 +354,64 @@ func TestDecodeServiceAccountObjBytes(t *testing.T) {
 		})
 	}
 }
+
+func TestManagedAnnotationsModified(t *testing.T) {
+	tests := []struct {
+		name               string
+		desiredAnnotations map[string]string
+		currentAnnotations map[string]string
+		wantModified       bool
+	}{
+		{
+			name:               "identical annotations not modified",
+			desiredAnnotations: map[string]string{"key": "value"},
+			currentAnnotations: map[string]string{"key": "value"},
+			wantModified:       false,
+		},
+		{
+			name:               "missing managed annotation is modified",
+			desiredAnnotations: map[string]string{"managed": "value"},
+			currentAnnotations: map[string]string{"other": "value"},
+			wantModified:       true,
+		},
+		{
+			name:               "changed managed annotation is modified",
+			desiredAnnotations: map[string]string{"key": "desired"},
+			currentAnnotations: map[string]string{"key": "tampered"},
+			wantModified:       true,
+		},
+		{
+			name:               "extra annotation on existing is allowed",
+			desiredAnnotations: map[string]string{"managed": "value"},
+			currentAnnotations: map[string]string{"managed": "value", "extra": "ok"},
+			wantModified:       false,
+		},
+		{
+			name:               "nil desired annotations not modified",
+			desiredAnnotations: nil,
+			currentAnnotations: map[string]string{"any": "value"},
+			wantModified:       false,
+		},
+		{
+			name:               "nil existing annotations with desired is modified",
+			desiredAnnotations: map[string]string{"key": "value"},
+			currentAnnotations: nil,
+			wantModified:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := testTrustManager().Build()
+			desired.SetAnnotations(tt.desiredAnnotations)
+
+			existing := testTrustManager().Build()
+			existing.SetAnnotations(tt.currentAnnotations)
+
+			got := managedAnnotationsModified(desired, existing)
+			if got != tt.wantModified {
+				t.Errorf("expected modified=%v, got %v", tt.wantModified, got)
+			}
+		})
+	}
+}
