@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -8,9 +9,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 func TestGetTrustNamespace(t *testing.T) {
@@ -353,4 +356,83 @@ func TestDecodeServiceAccountObjBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddFinalizerAlreadyPresent(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+	tm.Finalizers = []string{finalizer}
+
+	assertError(t, r.addFinalizer(context.Background(), tm), "")
+
+	if got := mock.UpdateWithRetryCallCount(); got != 0 {
+		t.Errorf("expected 0 UpdateWithRetry calls, got %d", got)
+	}
+	if got := mock.GetCallCount(); got != 0 {
+		t.Errorf("expected 0 Get calls, got %d", got)
+	}
+}
+
+func TestAddFinalizerGetAfterUpdateFails(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		return errTestClient
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+
+	assertError(t, r.addFinalizer(context.Background(), tm), "failed to fetch trustmanager.openshift.operator.io")
+}
+
+func TestRemoveFinalizerNotPresent(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+
+	assertError(t, r.removeFinalizer(context.Background(), tm, finalizer), "")
+
+	if got := mock.UpdateWithRetryCallCount(); got != 0 {
+		t.Errorf("expected 0 UpdateWithRetry calls, got %d", got)
+	}
+}
+
+func TestUpdateStatusGetFailure(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		return errTestClient
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+
+	assertError(t, r.updateStatus(context.Background(), tm), "failed to fetch trustmanager.openshift.operator.io")
+}
+
+func TestUpdateStatusStatusUpdateFailure(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	fixture := testTrustManager().Build()
+	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		switch o := obj.(type) {
+		case *v1alpha1.TrustManager:
+			fixture.DeepCopyInto(o)
+		}
+		return nil
+	})
+	mock.StatusUpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+		return errTestClient
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+
+	assertError(t, r.updateStatus(context.Background(), tm), "failed to update trustmanager.openshift.operator.io")
 }

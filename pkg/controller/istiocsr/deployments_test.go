@@ -1082,7 +1082,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			if !tt.skipEnvVar {
 				t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", image)
 			}
-			err := r.createOrApplyDeployments(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyDeployments(context.Background(), istiocsr, controllerDefaultResourceLabels, false)
 			if tt.wantErrSubstring {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Errorf("createOrApplyDeployments() err: %v, want substring: %q", err, tt.wantErr)
