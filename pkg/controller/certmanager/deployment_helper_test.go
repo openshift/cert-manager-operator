@@ -425,7 +425,7 @@ func TestGetOverrideResourcesFor(t *testing.T) {
 			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideResources, err := getOverrideResourcesFor(certManagerInformers, tc.deploymentName)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.Equal(t, tc.expectedOverrideResources, actualOverrideResources)
 		})
 	}
@@ -872,8 +872,296 @@ func TestGetOverrideSchedulingFor(t *testing.T) {
 			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideScheduling, err := getOverrideSchedulingFor(certManagerInformers, tc.deploymentName)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.Equal(t, tc.expectedOverrideScheduling, actualOverrideScheduling)
+		})
+	}
+}
+
+func TestGetOverrideArgsFor(t *testing.T) {
+	tests := []struct {
+		name           string
+		certManagerObj v1alpha1.CertManager
+		deploymentName string
+		expectedArgs   []string
+		expectError    bool
+		errContains    string
+	}{
+		{
+			name: "get override args for controller",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--v=4", "--feature-gates=ExperimentalGatewayAPISupport=true"},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedArgs:   []string{"--v=4", "--feature-gates=ExperimentalGatewayAPISupport=true"},
+		},
+		{
+			name: "get override args for webhook",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--secure-port=10251"},
+					},
+				},
+			},
+			deploymentName: certmanagerWebhookDeployment,
+			expectedArgs:   []string{"--secure-port=10251"},
+		},
+		{
+			name: "get override args for cainjector",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideArgs: []string{"--leader-elect=false"},
+					},
+				},
+			},
+			deploymentName: certmanagerCAinjectorDeployment,
+			expectedArgs:   []string{"--leader-elect=false"},
+		},
+		{
+			name: "nil config returns nil args for controller",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedArgs:   nil,
+		},
+		{
+			name: "unsupported deployment name returns error",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: "unknown-deployment",
+			expectError:    true,
+			errContains:    "unsupported deployment name",
+		},
+	}
+
+	ctx := t.Context()
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+
+			actualArgs, err := getOverrideArgsFor(certManagerInformers, tc.deploymentName)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedArgs, actualArgs)
+			}
+		})
+	}
+}
+
+func TestGetOverrideEnvFor(t *testing.T) {
+	tests := []struct {
+		name           string
+		certManagerObj v1alpha1.CertManager
+		deploymentName string
+		expectedEnv    []corev1.EnvVar
+		expectError    bool
+		errContains    string
+	}{
+		{
+			name: "get override env for controller",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "HTTP_PROXY", Value: "http://proxy:3128"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://proxy:3128"},
+			},
+		},
+		{
+			name: "get override env for webhook",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "MY_VAR", Value: "my-value"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerWebhookDeployment,
+			expectedEnv: []corev1.EnvVar{
+				{Name: "MY_VAR", Value: "my-value"},
+			},
+		},
+		{
+			name: "get override env for cainjector",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideEnv: []corev1.EnvVar{
+							{Name: "NO_PROXY", Value: "localhost"},
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerCAinjectorDeployment,
+			expectedEnv: []corev1.EnvVar{
+				{Name: "NO_PROXY", Value: "localhost"},
+			},
+		},
+		{
+			name: "nil config returns nil env",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedEnv:    nil,
+		},
+		{
+			name: "unsupported deployment name returns error",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: "unknown-deployment",
+			expectError:    true,
+			errContains:    "unsupported deployment name",
+		},
+	}
+
+	ctx := t.Context()
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+
+			actualEnv, err := getOverrideEnvFor(certManagerInformers, tc.deploymentName)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedEnv, actualEnv)
+			}
+		})
+	}
+}
+
+func TestGetOverridePodLabelsFor(t *testing.T) {
+	tests := []struct {
+		name           string
+		certManagerObj v1alpha1.CertManager
+		deploymentName string
+		expectedLabels map[string]string
+		expectError    bool
+		errContains    string
+	}{
+		{
+			name: "get override labels for controller",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					ControllerConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"custom-label": "custom-value",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedLabels: map[string]string{
+				"custom-label": "custom-value",
+			},
+		},
+		{
+			name: "get override labels for webhook",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					WebhookConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"env": "production",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerWebhookDeployment,
+			expectedLabels: map[string]string{
+				"env": "production",
+			},
+		},
+		{
+			name: "get override labels for cainjector",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: v1alpha1.CertManagerSpec{
+					CAInjectorConfig: &v1alpha1.DeploymentConfig{
+						OverrideLabels: map[string]string{
+							"team": "security",
+						},
+					},
+				},
+			},
+			deploymentName: certmanagerCAinjectorDeployment,
+			expectedLabels: map[string]string{
+				"team": "security",
+			},
+		},
+		{
+			name: "nil config returns nil labels",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: certmanagerControllerDeployment,
+			expectedLabels: nil,
+		},
+		{
+			name: "unsupported deployment name returns error",
+			certManagerObj: v1alpha1.CertManager{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       v1alpha1.CertManagerSpec{},
+			},
+			deploymentName: "unknown-deployment",
+			expectError:    true,
+			errContains:    "unsupported deployment name",
+		},
+	}
+
+	ctx := t.Context()
+	fakeClient, certManagerInformers, certManagerChan := setupSyncedFakeCertManagerInformer(t, ctx)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
+
+			actualLabels, err := getOverridePodLabelsFor(certManagerInformers, tc.deploymentName)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedLabels, actualLabels)
+			}
 		})
 	}
 }
@@ -999,7 +1287,7 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 			withFakeCertManagerForTest(t, ctx, fakeClient, certManagerChan, &tc.certManagerObj)
 
 			actualOverrideReplicas, err := getOverrideReplicasFor(certManagerInformers, tc.deploymentName)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if tc.expectedOverrideReplicas == nil {
 				assert.Nil(t, actualOverrideReplicas)
 			} else {

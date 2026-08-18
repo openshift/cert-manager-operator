@@ -77,6 +77,20 @@ func TestEffectiveSpec_custom(t *testing.T) {
 	}
 }
 
+func TestEffectiveSpec_customWithNilCustomReturnsError(t *testing.T) {
+	profile := &configv1.TLSSecurityProfile{
+		Type:   configv1.TLSProfileCustomType,
+		Custom: nil,
+	}
+	_, err := EffectiveSpec(profile)
+	if err == nil {
+		t.Fatal("expected error for custom type with nil custom settings")
+	}
+	if !strings.Contains(err.Error(), "missing custom settings") {
+		t.Fatalf("expected error about missing custom settings, got: %v", err)
+	}
+}
+
 func TestCertManagerWebhookTLSArgs_nilSpecReturnsEmpty(t *testing.T) {
 	args := CertManagerWebhookTLSArgs(nil)
 	if len(args) != 0 {
