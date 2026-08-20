@@ -95,7 +95,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		if isTLSAdherenceUnsupported(err) {
 			Skip(fmt.Sprintf("apiserver tlsAdherence field not available on this cluster: %v", err))
 		}
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to probe tlsAdherence field availability on apiserver/cluster")
 	})
 
 	AfterAll(func() {
@@ -104,7 +104,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			return restoreClusterAPIServerTLSConfig(ctx, original)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
 
-		By("clearing any unsupportedConfigOverrides left by scenario 8")
+		By("clearing unsupportedConfigOverrides left by any test scenarios")
 		Eventually(func() error {
 			return setWebhookUnsupportedArgs(ctx, nil)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -143,7 +143,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileModernProfile)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Modern profile")
 
 		By("verifying all operands receive VersionTLS13 args")
 		for _, dep := range tlsProfileTestDeployments {
@@ -172,7 +172,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileIntermediateProfile)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Intermediate profile")
 
 		By("verifying all operands receive VersionTLS12 args with ciphers")
 		for _, dep := range tlsProfileTestDeployments {
@@ -198,7 +198,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileOldProfile)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Old profile")
 
 		By("verifying all operands receive VersionTLS10 args with extended cipher list")
 		for _, dep := range tlsProfileTestDeployments {
@@ -218,7 +218,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileCustomProfile)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Custom profile")
 
 		By("verifying all operands receive custom TLS args with IANA-converted cipher names")
 		// verifyOperandTLSArgsMatchClusterProfile compares the full --tls-cipher-suites=... arg,
@@ -318,7 +318,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			configapiv1.TLSAdherencePolicyStrictAllComponents)).
 			To(Succeed())
 		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
-			[]string{"--tls-min-version=VersionTLS12", "--tls-cipher-suites="}, true)).
+			[]string{"--tls-min-version=VersionTLS12", "--tls-cipher-suites="}, true, highTimeout)).
 			To(Succeed(), "webhook must have TLS 1.2 + cipher args before profile switch")
 
 		By("patching apiserver: Modern + StrictAllComponents (cipher args must disappear)")
@@ -338,7 +338,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying all operands match the Modern profile")
 		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileModernProfile)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Modern profile in S9")
 		for _, dep := range tlsProfileTestDeployments {
 			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
 				To(Succeed(), "deployment %s", dep)
@@ -728,8 +728,10 @@ func deleteOperatorControllerPods(ctx context.Context) error {
 	}, metav1.ListOptions{LabelSelector: selector.String()})
 }
 
-// setWebhookUnsupportedArgs sets (or clears) spec.unsupportedConfigOverrides.webhook.args
-// on the certmanager/cluster CR. Passing nil clears the overrides.
+// setWebhookUnsupportedArgs sets spec.unsupportedConfigOverrides.webhook.args on the
+// certmanager/cluster CR. Passing nil clears the entire UnsupportedConfigOverrides field
+// (not just the webhook section), which is intentional for AfterAll cleanup to ensure a
+// clean slate regardless of which scenario last wrote overrides.
 func setWebhookUnsupportedArgs(ctx context.Context, args []string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().
