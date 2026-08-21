@@ -286,7 +286,12 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, t, true, func(context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) ||
+				apierrors.IsTimeout(err) ||
+				apierrors.IsServerTimeout(err) ||
+				apierrors.IsServiceUnavailable(err) ||
+				apierrors.IsTooManyRequests(err) {
+				// Transient API-server errors — keep polling until timeout.
 				return false, nil
 			}
 			return false, err
