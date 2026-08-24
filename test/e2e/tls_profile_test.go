@@ -317,31 +317,26 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Expect(updateClusterAPIServerTLSConfig(ctx, tlsProfileIntermediateProfile,
 			configapiv1.TLSAdherencePolicyStrictAllComponents)).
 			To(Succeed())
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
-			[]string{"--tls-min-version=VersionTLS12", "--tls-cipher-suites="}, true, highTimeout)).
-			To(Succeed(), "webhook must have TLS 1.2 + cipher args before profile switch")
+
+		expectedIntermediate, err := tlsprofile.EffectiveSpec(tlsProfileIntermediateProfile)
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Intermediate profile in S9")
+		// verifyOperandTLSArgsMatchClusterProfile waits for the full --tls-cipher-suites=<IANA list>
+		// argument. verifyDeploymentArgs cannot be used with a "--tls-cipher-suites=" prefix here
+		// because it requires exact set membership.
+		Expect(verifyOperandTLSArgsMatchClusterProfile(certmanagerWebhookDeployment, expectedIntermediate)).
+			To(Succeed(), "webhook must match Intermediate profile before switch")
 
 		By("patching apiserver: Modern + StrictAllComponents (cipher args must disappear)")
 		Expect(updateClusterAPIServerTLSConfig(ctx, tlsProfileModernProfile,
 			configapiv1.TLSAdherencePolicyStrictAllComponents)).
 			To(Succeed())
 
-		By("verifying webhook updated to VersionTLS13")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
-			[]string{"--tls-min-version=VersionTLS13"}, true)).
-			To(Succeed(), "webhook must update to VersionTLS13 after profile switch")
-
-		By("verifying cipher suite args are absent after switch to TLS 1.3")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
-			tlsprofile.CertManagerCipherSuiteArgKeys, false)).
-			To(Succeed(), "cipher suite args must be removed after switching to Modern/TLS 1.3")
-
-		By("verifying all operands match the Modern profile")
-		expectedSpec, err := tlsprofile.EffectiveSpec(tlsProfileModernProfile)
+		By("verifying all operands match Modern and cipher suite args are gone")
+		expectedModern, err := tlsprofile.EffectiveSpec(tlsProfileModernProfile)
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Modern profile in S9")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
-				To(Succeed(), "deployment %s", dep)
+			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedModern)).
+				To(Succeed(), "deployment %s must match Modern profile after switch", dep)
 		}
 	})
 
