@@ -18,6 +18,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/internal/astutil"
 )
 
 const Doc = `find structs that would use less memory if their fields were sorted
@@ -65,7 +66,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:      run,
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	nodeFilter := []ast.Node{
 		(*ast.StructType)(nil),
@@ -102,6 +103,11 @@ func fieldalignment(pass *analysis.Pass, node *ast.StructType, typ *types.Struct
 		// Already optimal order.
 		return
 	}
+
+	// Analyzers borrow syntax tree; they do not own them and must modify them.
+	// This Clone operation is a quick fix to the data race introduced
+	// in CL 278872 by the clearing of the Comment and Doc fields below.
+	node = astutil.CloneNode(node)
 
 	// Flatten the ast node since it could have multiple field names per list item while
 	// *types.Struct only have one item per field.
@@ -168,7 +174,7 @@ func optimalOrder(str *types.Struct, sizes *gcSizes) (*types.Struct, []int) {
 	}
 
 	elems := make([]elem, nf)
-	for i := 0; i < nf; i++ {
+	for i := range nf {
 		field := str.Field(i)
 		ft := field.Type()
 		elems[i] = elem{
@@ -312,7 +318,7 @@ func (s *gcSizes) Sizeof(T types.Type) int64 {
 
 		var o int64
 		max := int64(1)
-		for i := 0; i < nf; i++ {
+		for i := range nf {
 			ft := t.Field(i).Type()
 			a, sz := s.Alignof(ft), s.Sizeof(ft)
 			if a > max {
@@ -366,7 +372,7 @@ func (s *gcSizes) ptrdata(T types.Type) int64 {
 		}
 
 		var o, p int64
-		for i := 0; i < nf; i++ {
+		for i := range nf {
 			ft := t.Field(i).Type()
 			a, sz := s.Alignof(ft), s.Sizeof(ft)
 			fp := s.ptrdata(ft)
