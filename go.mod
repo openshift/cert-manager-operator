@@ -298,12 +298,12 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 )
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.4
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.5-0.20260924124801-70e2228def37
 
 replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
 
-replace golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.2
+replace golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.4
 
 replace google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.75.1-sec.1
 
-replace golang.org/x/crypto => github.com/openshift-sustaining/crypto v0.48.0-sec.1
+replace golang.org/x/crypto => github.com/openshift-sustaining/crypto v0.48.0-sec.3
