@@ -79,8 +79,8 @@ github.com/butuzov/ireturn/types
 # github.com/cenkalti/backoff/v4 v4.3.0
 ## explicit; go 1.18
 github.com/cenkalti/backoff/v4
-# github.com/cert-manager/cert-manager v1.17.4 => github.com/openshift/jetstack-cert-manager v1.17.4
-## explicit; go 1.23.10
+# github.com/cert-manager/cert-manager v1.17.4 => github.com/openshift/jetstack-cert-manager v1.17.5-0.20260824055811-a9537101948b
+## explicit; go 1.24.0
 github.com/cert-manager/cert-manager/pkg/apis/acme
 github.com/cert-manager/cert-manager/pkg/apis/acme/v1
 github.com/cert-manager/cert-manager/pkg/apis/certmanager
@@ -2527,7 +2527,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
 sigs.k8s.io/yaml/goyaml.v3
-# github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.4
+# github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.5-0.20260824055811-a9537101948b
 # sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
 # golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.2
 # google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.75.1-sec.1

@@ -298,7 +298,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 )
 
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.4
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.17.5-0.20260824055811-a9537101948b
 
 replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc
 

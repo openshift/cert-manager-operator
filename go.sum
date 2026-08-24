@@ -1538,8 +1538,8 @@ github.com/openshift/build-machinery-go v0.0.0-20250102153059-e85a1a7ecb5c h1:6X
 github.com/openshift/build-machinery-go v0.0.0-20250102153059-e85a1a7ecb5c/go.mod h1:8jcm8UPtg2mCAsxfqKil1xrmRMI3a+XU2TZ9fF8A7TE=
 github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7 h1:4iliLcvr1P9EUMZgIaSNEKNQQzBn+L6PSequlFOuB6Q=
 github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7/go.mod h1:2tcufBE4Cu6RNgDCxcUJepa530kGo5GFVfR9BSnndhI=
-github.com/openshift/jetstack-cert-manager v1.17.4 h1:pg8AIwiTFyjD52dK9BBHSYsOOwqTmpjBLW7Dc+53+H0=
-github.com/openshift/jetstack-cert-manager v1.17.4/go.mod h1:zXVCSnEOu6vNDQOPpXrLO8a0iDnKd8uksgXe5s73p+w=
+github.com/openshift/jetstack-cert-manager v1.17.5-0.20260824055811-a9537101948b h1:u4lJgdI9YScu5XbEEkJSDfZnr3SXDnRjFE3TeM21pCs=
+github.com/openshift/jetstack-cert-manager v1.17.5-0.20260824055811-a9537101948b/go.mod h1:IV88E5b64B19NLkxR5AWZvjfusZvUNgjlE4qXo7HiM0=
 github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc h1:kZVhTvUPWGX+K5hA1LPjxXqQH+mwW3ZthsNKzw6tEgk=
 github.com/openshift/kubernetes-sigs-controller-tools v0.12.1-0.20250220141355-6d2c85031fbc/go.mod h1:80xsUppuf2iNgiThH2bzDIN5204p5E93z+YtNnAJlHA=
 github.com/openshift/library-go v0.0.0-20250528093938-cc54847714a7 h1:D14xzFXms52CfPJGKC43NfGHNP5XrybHH3C6YtyGyV8=
