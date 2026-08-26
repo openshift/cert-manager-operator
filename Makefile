@@ -60,6 +60,7 @@ endif
 CERT_MANAGER_VERSION ?= v1.20.2
 ISTIO_CSR_VERSION ?= v0.16.0
 TRUST_MANAGER_VERSION ?= v0.20.3
+APPROVER_POLICY_VERSION ?= v0.27.0
 
 # --- Test Versions ---
 
@@ -488,6 +489,7 @@ update-manifests: $(HELM) $(JSONNET) $(YQ) ## Update cert-manager and istio-csr 
 	hack/update-cert-manager-manifests.sh $(CERT_MANAGER_VERSION)
 	hack/update-istio-csr-manifests.sh $(ISTIO_CSR_VERSION)
 	hack/update-trust-manager-manifests.sh $(TRUST_MANAGER_VERSION)
+	hack/update-approver-policy-manifests.sh $(APPROVER_POLICY_VERSION)
 
 .PHONY: update-vendor
 update-vendor: ## Update vendor directory for all modules in the workspace.
