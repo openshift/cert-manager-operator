@@ -104,6 +104,11 @@ type CertManagerSpec struct {
 	// +listMapKey=componentName
 	// +optional
 	NetworkPolicies []NetworkPolicy `json:"networkPolicies,omitempty"`
+
+	// CiMonitorE2eMarker is a test-only field for /opsx-ci-monitor Phase 2 E2E.
+	// Intentionally committed without running make generate (stale zz_generated.deepcopy.go).
+	// +optional
+	CiMonitorE2eMarker string `json:"ciMonitorE2eMarker,omitempty"`
 }
 
 // DeploymentConfig defines the schema for
