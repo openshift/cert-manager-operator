@@ -1,0 +1,31 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: TrustManager
+metadata:
+  name: cluster
+spec:
+  trustManagerConfig:
+    logLevel: {{if .LogLevel}}{{.LogLevel}}{{else}}1{{end}}
+    logFormat: "{{if .LogFormat}}{{.LogFormat}}{{else}}text{{end}}"
+{{- if .TrustNamespace}}
+    trustNamespace: "{{.TrustNamespace}}"
+{{- end}}
+{{- if .FilterExpiredCertificates}}
+    filterExpiredCertificates: "{{.FilterExpiredCertificates}}"
+{{- end}}
+{{- if .SecretTargetsPolicy}}
+    secretTargets:
+      policy: "{{.SecretTargetsPolicy}}"
+{{- if .AuthorizedSecrets}}
+      authorizedSecrets:
+{{- range .AuthorizedSecrets}}
+        - "{{.}}"
+{{- end}}
+{{- end}}
+{{- end}}
+{{- if .DefaultCAPackagePolicy}}
+    defaultCAPackage:
+      policy: "{{.DefaultCAPackagePolicy}}"
+{{- end}}
+  controllerConfig:
+    labels:
+      test-label: "e2e-test"
