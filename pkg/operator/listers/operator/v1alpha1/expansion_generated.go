@@ -13,3 +13,7 @@ type IstioCSRListerExpansion interface{}
 // IstioCSRNamespaceListerExpansion allows custom methods to be added to
 // IstioCSRNamespaceLister.
 type IstioCSRNamespaceListerExpansion interface{}
+
+// TrustManagerListerExpansion allows custom methods to be added to
+// TrustManagerLister.
+type TrustManagerListerExpansion interface{}
