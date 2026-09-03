@@ -84,7 +84,7 @@ oc get pods -n cert-manager -w
 
 7. Patch the subscription object on the cluster to inject the secret name in the operator deployment.
 ```sh
-oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"aws-creds"}]}}}'
+oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_REF","value":"aws-creds"}]}}}'
 ```
 
 ## GCP
@@ -127,5 +127,5 @@ ls manifests/*-credentials.yaml | xargs -I{} oc apply -f {}
 
 5. Patch the subscription object on the cluster to inject the secret name in the operator deployment.
 ```sh
-oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_SECRET_NAME","value":"gcp-credentials"}]}}}'
+oc -n cert-manager-operator patch subscription <subscription-name> --type='merge' -p '{"spec":{"config":{"env":[{"name":"CLOUD_CREDENTIALS_REF","value":"gcp-credentials"}]}}}'
 ```

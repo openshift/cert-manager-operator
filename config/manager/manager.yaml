@@ -61,7 +61,7 @@ spec:
             - start
             - '--v=$(OPERATOR_LOG_LEVEL)'
             - '--trusted-ca-configmap=$(TRUSTED_CA_CONFIGMAP_NAME)'
-            - '--cloud-credentials-secret=$(CLOUD_CREDENTIALS_SECRET_NAME)'
+            - '--cloud-credentials-secret=$(CLOUD_CREDENTIALS_REF)'
             - '--unsupported-addon-features=$(UNSUPPORTED_ADDON_FEATURES)'
           env:
             - name: WATCH_NAMESPACE
@@ -97,7 +97,7 @@ spec:
             - name: OPERATOR_LOG_LEVEL
               value: '2'
             - name: TRUSTED_CA_CONFIGMAP_NAME
-            - name: CLOUD_CREDENTIALS_SECRET_NAME
+            - name: CLOUD_CREDENTIALS_REF
             - name: UNSUPPORTED_ADDON_FEATURES
           image: controller:latest
           imagePullPolicy: IfNotPresent

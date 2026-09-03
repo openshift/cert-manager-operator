@@ -92,7 +92,7 @@ if effective.MinTLSVersion == configv1.VersionTLS13 {
   (`../../docs/cloud_credentials.md`, `credentials_request.go` despite its filename). Do not add
   CredentialsRequest-creation logic here — that belongs to `ccoctl`/cloud-credential-operator flows
   documented for cluster admins.
-- `--cloud-credentials-secret` / `CLOUD_CREDENTIALS_SECRET_NAME` only mounts into the **CertManager
+- `--cloud-credentials-secret` / `CLOUD_CREDENTIALS_REF` only mounts into the **CertManager
   controller** deployment (`deploymentName != certmanagerControllerDeployment` short-circuits to a
   no-op) — don't expect webhook/cainjector to receive this mount.
 - Platform type is read from `Infrastructure/cluster` and only `AWSPlatformType` / `GCPPlatformType`

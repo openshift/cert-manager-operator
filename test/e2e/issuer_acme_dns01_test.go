@@ -291,14 +291,14 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 		By("setting cloud credential secret name in subscription object")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"CLOUD_CREDENTIALS_SECRET_NAME": "aws-creds",
+			"CLOUD_CREDENTIALS_REF": "aws-creds",
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with env vars")
 
 		DeferCleanup(func(cleanupCtx context.Context) {
-			By("removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+			By("removing 'CLOUD_CREDENTIALS_REF' from subscription")
 			if err := patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
-				"CLOUD_CREDENTIALS_SECRET_NAME": "",
+				"CLOUD_CREDENTIALS_REF": "",
 			}); err != nil {
 				fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
 				return
@@ -361,14 +361,14 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 		By("setting cloud credential secret name in subscription object")
 		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"CLOUD_CREDENTIALS_SECRET_NAME": "gcp-credentials",
+			"CLOUD_CREDENTIALS_REF": "gcp-credentials",
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with env vars")
 
 		DeferCleanup(func(cleanupCtx context.Context) {
-			By("removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+			By("removing 'CLOUD_CREDENTIALS_REF' from subscription")
 			if err := patchSubscriptionWithEnvVars(cleanupCtx, loader, map[string]string{
-				"CLOUD_CREDENTIALS_SECRET_NAME": "",
+				"CLOUD_CREDENTIALS_REF": "",
 			}); err != nil {
 				fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
 				return
@@ -487,7 +487,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 	// setupCCOAzureCredentials creates a CredentialsRequest for Azure with fine-grained
 	// DNS Zone Contributor permissions and returns the CCO-provisioned credentials.
 	// Note: Unlike setupAmbientAWSCredentials/setupAmbientGCPCredentials, this does NOT patch
-	// the subscription with 'CLOUD_CREDENTIALS_SECRET_NAME' because the operator does not yet
+	// the subscription with 'CLOUD_CREDENTIALS_REF' because the operator does not yet
 	// support mounting Azure credentials into the cert-manager pod. Once Azure support is added to
 	// 'withCloudCredentials' in credentials_request.go, it can be adapted to follow the AWS/GCP pattern.
 	setupCCOAzureCredentials := func(ctx context.Context) (clientID, clientSecret, tenantID []byte) {
@@ -984,16 +984,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 				}
 			})
 
-			By("patching subscription to inject 'CLOUD_CREDENTIALS_SECRET_NAME' env var")
+			By("patching subscription to inject 'CLOUD_CREDENTIALS_REF' env var")
 			err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-				"CLOUD_CREDENTIALS_SECRET_NAME": secretName,
+				"CLOUD_CREDENTIALS_REF": secretName,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with 'CLOUD_CREDENTIALS_SECRET_NAME'")
+			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with 'CLOUD_CREDENTIALS_REF'")
 
 			DeferCleanup(func(ctx context.Context) {
-				By("Removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+				By("Removing 'CLOUD_CREDENTIALS_REF' from subscription")
 				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-					"CLOUD_CREDENTIALS_SECRET_NAME": "",
+					"CLOUD_CREDENTIALS_REF": "",
 				}); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
 					return
@@ -1248,16 +1248,16 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 				}
 			}, "cert-manager", secretName)
 
-			By("patching subscription to inject 'CLOUD_CREDENTIALS_SECRET_NAME' env var")
+			By("patching subscription to inject 'CLOUD_CREDENTIALS_REF' env var")
 			err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-				"CLOUD_CREDENTIALS_SECRET_NAME": secretName,
+				"CLOUD_CREDENTIALS_REF": secretName,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with CLOUD_CREDENTIALS_SECRET_NAME")
+			Expect(err).NotTo(HaveOccurred(), "failed to patch subscription with CLOUD_CREDENTIALS_REF")
 
 			DeferCleanup(func(ctx context.Context) {
-				By("Removing 'CLOUD_CREDENTIALS_SECRET_NAME' from subscription")
+				By("Removing 'CLOUD_CREDENTIALS_REF' from subscription")
 				if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-					"CLOUD_CREDENTIALS_SECRET_NAME": "",
+					"CLOUD_CREDENTIALS_REF": "",
 				}); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove env var from subscription during cleanup: %v\n", err)
 					return
