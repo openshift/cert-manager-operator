@@ -276,7 +276,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: Security
     console.openshift.io/disable-operand-delete: "true"
-    containerImage: openshift.io/cert-manager-operator:latest
+    containerImage: registry.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:a1f49ceaf14cbf12fcad5c7ce19cb8bec9222ee52533642092bfb60ce6f59f63
     createdAt: 2023-03-03T00:00:00
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -788,17 +788,17 @@ spec:
                 - name: OPERATOR_NAME
                   value: cert-manager-operator
                 - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-                  value: quay.io/jetstack/cert-manager-webhook:v1.19.6
+                  value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:3afda61dcc3c22373e234bccd55ac2d09dd7db86e0c90b761ed967969b47541e
                 - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-                  value: quay.io/jetstack/cert-manager-cainjector:v1.19.6
+                  value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:3afda61dcc3c22373e234bccd55ac2d09dd7db86e0c90b761ed967969b47541e
                 - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-                  value: quay.io/jetstack/cert-manager-controller:v1.19.6
+                  value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:3afda61dcc3c22373e234bccd55ac2d09dd7db86e0c90b761ed967969b47541e
                 - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-                  value: quay.io/jetstack/cert-manager-acmesolver:v1.19.6
+                  value: registry.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:309dcc51ac5c0c8651f5a14d389b16d9ea217c33fe2b15cb5bf7966f2928ff53
                 - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
-                  value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
+                  value: registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:eb340b679c1b792b57cbd28b6ca049fc7df21fa8780bf96e746ca43fe3d4589a
                 - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
-                  value: quay.io/jetstack/trust-manager:v0.20.3
+                  value: registry.redhat.io/cert-manager/cert-manager-trust-manager-rhel9@sha256:d0834b140e53cb2b96d30f227b0c7dcab3463eeab80049df608582c45c792a82
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.19.6
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
@@ -812,7 +812,7 @@ spec:
                 - name: TRUSTED_CA_CONFIGMAP_NAME
                 - name: CLOUD_CREDENTIALS_SECRET_NAME
                 - name: UNSUPPORTED_ADDON_FEATURES
-                image: openshift.io/cert-manager-operator:latest
+                image: registry.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:a1f49ceaf14cbf12fcad5c7ce19cb8bec9222ee52533642092bfb60ce6f59f63
                 imagePullPolicy: IfNotPresent
                 name: cert-manager-operator
                 ports:
@@ -909,17 +909,13 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-  - image: quay.io/jetstack/cert-manager-webhook:v1.19.6
-    name: cert-manager-webhook
-  - image: quay.io/jetstack/cert-manager-cainjector:v1.19.6
-    name: cert-manager-ca-injector
-  - image: quay.io/jetstack/cert-manager-controller:v1.19.6
-    name: cert-manager-controller
-  - image: quay.io/jetstack/cert-manager-acmesolver:v1.19.6
+  - image: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:3afda61dcc3c22373e234bccd55ac2d09dd7db86e0c90b761ed967969b47541e
+    name: ""
+  - image: registry.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:309dcc51ac5c0c8651f5a14d389b16d9ea217c33fe2b15cb5bf7966f2928ff53
     name: cert-manager-acmesolver
-  - image: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
+  - image: registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:eb340b679c1b792b57cbd28b6ca049fc7df21fa8780bf96e746ca43fe3d4589a
     name: cert-manager-istiocsr
-  - image: quay.io/jetstack/trust-manager:v0.20.3
+  - image: registry.redhat.io/cert-manager/cert-manager-trust-manager-rhel9@sha256:d0834b140e53cb2b96d30f227b0c7dcab3463eeab80049df608582c45c792a82
     name: cert-manager-trust-manager
   replaces: cert-manager-operator.v1.19.1
   version: 1.19.2
