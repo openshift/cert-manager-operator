@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"regexp"
+	"time"
 
 	"context"
 	"encoding/json"
@@ -53,7 +54,9 @@ func (m *ConditionMatcher) Matches(conditions []opv1.OperatorCondition) bool {
 		}
 
 		if m.MatchesType(&cond) && !m.MatchesStatus(&cond) {
-			return false
+			if !m.Any {
+				return false
+			}
 		}
 	}
 
@@ -94,9 +97,13 @@ func GenerateConditionMatchers(tuples []PrefixAndMatchTypeTuple, expectedConditi
 // match with the expected conditions. It returns an error if a timeout (few mins) occurs or an error was
 // encountered which polls the status.
 func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher) error {
+	return verifyOperatorStatusConditionWithTimeout(client, conditionMatchers, lowTimeout)
+}
+
+func verifyOperatorStatusConditionWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher, timeout time.Duration) error {
 	var lastFetchedConditions []opv1.OperatorCondition
 
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(context.Context) (bool, error) {
 		operator, err := client.CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
