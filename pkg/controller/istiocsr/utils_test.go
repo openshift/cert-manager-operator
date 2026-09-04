@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,9 +11,13 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
 // baseDeployment returns a minimal deployment for spec comparison tests.
@@ -525,6 +530,83 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 			got := networkPolicySpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
 				t.Errorf("networkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
+			}
+		})
+	}
+}
+
+func TestUpdateCondition(t *testing.T) {
+	tests := []struct {
+		name       string
+		prependErr error
+		statusErr  bool
+		wantErr    bool
+		wantMsg    string
+	}{
+		{
+			name:       "status update succeeds with nil prependErr",
+			prependErr: nil,
+			wantErr:    false,
+		},
+		{
+			name:       "status update succeeds with prependErr",
+			prependErr: fmt.Errorf("original reconcile error"),
+			wantErr:    true,
+			wantMsg:    "original reconcile error",
+		},
+		{
+			name:      "status update fails with nil prependErr",
+			statusErr: true,
+			wantErr:   true,
+			wantMsg:   "failed to update",
+		},
+		{
+			name:       "status update fails with prependErr preserves both errors",
+			prependErr: fmt.Errorf("original reconcile error"),
+			statusErr:  true,
+			wantErr:    true,
+			wantMsg:    "original reconcile error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := &fakes.FakeCtrlClient{}
+
+			if tt.statusErr {
+				fakeClient.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
+					return fmt.Errorf("simulated get error")
+				})
+			} else {
+				fakeClient.GetCalls(func(_ context.Context, _ types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *v1alpha1.IstioCSR:
+						testIstioCSR().DeepCopyInto(o)
+					}
+					return nil
+				})
+				fakeClient.StatusUpdateReturns(nil)
+			}
+
+			r := testReconciler(t)
+			r.CtrlClient = fakeClient
+
+			istiocsr := testIstioCSR()
+			err := r.updateCondition(istiocsr, tt.prependErr)
+
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantMsg != "" && !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.wantMsg)
+			}
+			if tt.name == "status update fails with prependErr preserves both errors" {
+				if !strings.Contains(err.Error(), "failed to update") {
+					t.Errorf("error %q should also contain status update failure", err.Error())
+				}
 			}
 		})
 	}
