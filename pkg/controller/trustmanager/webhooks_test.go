@@ -198,6 +198,41 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
+			name: "apply when existing has rules drift",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
+					vwc.Webhooks[0].Rules = []admissionregistrationv1.RuleWithOperations{
+						{
+							Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+							Rule: admissionregistrationv1.Rule{
+								APIGroups:   []string{"tampered.io"},
+								APIVersions: []string{"v1"},
+								Resources:   []string{"fakes"},
+							},
+						},
+					}
+					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "apply when existing has admission review versions drift",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
+					vwc.Webhooks[0].AdmissionReviewVersions = []string{"v1beta1"}
+					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
 			name: "exists error propagates",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
