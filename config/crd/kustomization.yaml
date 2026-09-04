@@ -11,6 +11,7 @@ resources:
 - bases/orders.acme.cert-manager.io-crd.yaml
 - bases/operator.openshift.io_istiocsrs.yaml
 - bases/operator.openshift.io_trustmanagers.yaml
+- bases/operator.openshift.io_http01proxies.yaml
 - bases/customresourcedefinition_bundles.trust.cert-manager.io.yml
 #+kubebuilder:scaffold:crdkustomizeresource
 

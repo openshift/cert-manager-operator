@@ -1,0 +1,7 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: HTTP01Proxy
+metadata:
+  name: default
+  namespace: cert-manager-operator
+spec:
+  mode: DefaultDeployment
