@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -28,8 +29,8 @@ const (
 
 var errInvalidIssuerRefConfig = fmt.Errorf("invalid issuerRef config")
 
-func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	desired, err := r.getDeploymentObject(istiocsr, resourceLabels)
+func (r *Reconciler) createOrApplyDeployments(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+	desired, err := r.getDeploymentObject(ctx, istiocsr, resourceLabels)
 	if err != nil {
 		return fmt.Errorf("failed to generate deployment resource for creation in %s: %w", istiocsr.GetNamespace(), err)
 	}
@@ -37,7 +38,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
 	fetched := &appsv1.Deployment{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
+	exist, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return common.FromClientError(err, "failed to check %s deployment resource already exists", deploymentName)
 	}
@@ -48,7 +49,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		}
 		if hasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
-			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+			if err := r.UpdateWithRetry(ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s deployment resource", deploymentName)
 			}
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s reconciled back to desired state", deploymentName)
@@ -58,20 +59,20 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 	}
 
 	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
+		if err := r.Create(ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s deployment resource", deploymentName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "deployment resource %s created", deploymentName)
 	}
 
-	if err := r.updateImageInStatus(istiocsr, desired); err != nil {
+	if err := r.updateImageInStatus(ctx, istiocsr, desired); err != nil {
 		return common.FromClientError(err, "failed to update %s/%s istiocsr status with image info", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
 	return nil
 }
 
-func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) (*appsv1.Deployment, error) {
-	if err := r.assertIssuerRefExists(istiocsr); err != nil {
+func (r *Reconciler) getDeploymentObject(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) (*appsv1.Deployment, error) {
+	if err := r.assertIssuerRefExists(ctx, istiocsr); err != nil {
 		return nil, fmt.Errorf("failed to verify issuer in %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 	}
 
@@ -98,7 +99,7 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 	if err := r.updateImage(deployment); err != nil {
 		return nil, common.NewIrrecoverableError(err, "failed to update image %s/%s", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
-	if err := r.updateVolumes(deployment, istiocsr, resourceLabels); err != nil {
+	if err := r.updateVolumes(ctx, deployment, istiocsr, resourceLabels); err != nil {
 		return nil, fmt.Errorf("failed to update volume %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 	}
 
@@ -118,7 +119,7 @@ func (r *Reconciler) updateImage(deployment *appsv1.Deployment) error {
 	return nil
 }
 
-func (r *Reconciler) updateImageInStatus(istiocsr *v1alpha1.IstioCSR, deployment *appsv1.Deployment) error {
+func (r *Reconciler) updateImageInStatus(ctx context.Context, istiocsr *v1alpha1.IstioCSR, deployment *appsv1.Deployment) error {
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == istiocsrContainerName {
 			if istiocsr.Status.IstioCSRImage == container.Image {
@@ -127,7 +128,7 @@ func (r *Reconciler) updateImageInStatus(istiocsr *v1alpha1.IstioCSR, deployment
 			istiocsr.Status.IstioCSRImage = container.Image
 		}
 	}
-	return r.updateStatus(r.ctx, istiocsr)
+	return r.updateStatus(ctx, istiocsr)
 }
 
 func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[string]string) {
@@ -233,7 +234,7 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 	return nil
 }
 
-func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
+func (r *Reconciler) assertIssuerRefExists(ctx context.Context, istiocsr *v1alpha1.IstioCSR) error {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	if issuerRefKind != clusterIssuerKind && issuerRefKind != issuerKind {
 		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be any of `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerRefKind)
@@ -244,7 +245,7 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
 	}
 
-	obj, err := r.getIssuer(istiocsr)
+	obj, err := r.getIssuer(ctx, istiocsr)
 	if err != nil {
 		return common.FromClientError(err, "failed to fetch issuer")
 	}
@@ -268,17 +269,17 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 	}
 
-	if err := r.updateWatchLabel(obj, istiocsr); err != nil {
+	if err := r.updateWatchLabel(ctx, obj, istiocsr); err != nil {
 		return common.FromClientError(err, "failed to update watch label on cert-manager issuer %s", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
 
 	return nil
 }
 
-func (r *Reconciler) updateVolumes(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+func (r *Reconciler) updateVolumes(ctx context.Context, deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	// Use user-configured CA certificate if provided
 	if istiocsr.Spec.IstioCSRConfig.CertManager.IstioCACertificate != nil {
-		if err := r.handleUserProvidedCA(deployment, istiocsr, resourceLabels); err != nil {
+		if err := r.handleUserProvidedCA(ctx, deployment, istiocsr, resourceLabels); err != nil {
 			return common.FromError(err, "failed to validate and mount CA certificate ConfigMap")
 		}
 		return nil
@@ -286,7 +287,7 @@ func (r *Reconciler) updateVolumes(deployment *appsv1.Deployment, istiocsr *v1al
 
 	// Fall back to issuer-based CA certificate if CA certificate is not configured
 	// Handle issuer-based CA configuration
-	if err := r.handleIssuerBasedCA(deployment, istiocsr, resourceLabels); err != nil {
+	if err := r.handleIssuerBasedCA(ctx, deployment, istiocsr, resourceLabels); err != nil {
 		return err
 	}
 
@@ -306,7 +307,7 @@ func (r *Reconciler) updateVolumes(deployment *appsv1.Deployment, istiocsr *v1al
 // is not nil before calling this function to avoid a panic.
 //
 // Returns an error if any validation fails or if ConfigMap operations fail.
-func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+func (r *Reconciler) handleUserProvidedCA(ctx context.Context, deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	caCertConfig := istiocsr.Spec.IstioCSRConfig.CertManager.IstioCACertificate
 
 	// Determine the namespace - use specified namespace or default to IstioCSR namespace
@@ -322,14 +323,14 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 	}
 
 	sourceConfigMap := &corev1.ConfigMap{}
-	if err := r.Get(r.ctx, sourceConfigMapKey, sourceConfigMap); err != nil {
+	if err := r.Get(ctx, sourceConfigMapKey, sourceConfigMap); err != nil {
 		return common.NewIrrecoverableError(err, "failed to fetch CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
 	}
 
 	// Add watch label to the source ConfigMap to trigger reconciliation on changes.
 	// This is done before validation so that if validation fails now, fixing the ConfigMap
 	// will trigger reconciliation.
-	if err := r.updateWatchLabel(sourceConfigMap, istiocsr); err != nil {
+	if err := r.updateWatchLabel(ctx, sourceConfigMap, istiocsr); err != nil {
 		return common.FromClientError(err, "failed to update watch label on CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
 	}
 
@@ -352,7 +353,7 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 	// ConfigMap triggers reconciliation when modified, allowing the operator to re-validate and update
 	// its managed copy. Additionally, if a user directly modifies the operator-managed copy, it will be
 	// reconciled back to the desired state derived from the validated source ConfigMap.
-	if err := r.createOrUpdateCAConfigMap(istiocsr, pemData, resourceLabels); err != nil {
+	if err := r.createOrUpdateCAConfigMap(ctx, istiocsr, pemData, resourceLabels); err != nil {
 		return common.FromClientError(err, "failed to create CA certificate ConfigMap copy")
 	}
 
@@ -363,12 +364,12 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 }
 
 // handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
-func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+func (r *Reconciler) handleIssuerBasedCA(ctx context.Context, deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	var (
 		issuerConfig certmanagerv1.IssuerConfig
 	)
 
-	obj, err := r.getIssuer(istiocsr)
+	obj, err := r.getIssuer(ctx, istiocsr)
 	if err != nil {
 		return common.FromClientError(err, "failed to fetch issuer")
 	}
@@ -392,14 +393,14 @@ func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr
 	shouldUpdateVolume := false
 
 	if issuerConfig.CA != nil && issuerConfig.CA.SecretName != "" {
-		if err := r.createCAConfigMapFromIssuerSecret(istiocsr, issuerConfig, resourceLabels); err != nil {
+		if err := r.createCAConfigMapFromIssuerSecret(ctx, istiocsr, issuerConfig, resourceLabels); err != nil {
 			return common.FromClientError(err, "failed to create CA ConfigMap")
 		}
 		shouldUpdateVolume = true
 	}
 
 	if issuerConfig.CA == nil {
-		if err := r.createCAConfigMapFromIstiodCertificate(istiocsr, resourceLabels); err != nil {
+		if err := r.createCAConfigMapFromIstiodCertificate(ctx, istiocsr, resourceLabels); err != nil {
 			return common.FromClientError(err, "failed to create CA ConfigMap")
 		}
 		shouldUpdateVolume = true
@@ -483,7 +484,7 @@ func updateVolumeWithIssuerCA(deployment *appsv1.Deployment) {
 	}
 }
 
-func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, error) {
+func (r *Reconciler) getIssuer(ctx context.Context, istiocsr *v1alpha1.IstioCSR) (client.Object, error) {
 	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
 	key := client.ObjectKey{
 		Name:      istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,
@@ -498,13 +499,13 @@ func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, erro
 		object = &certmanagerv1.Issuer{}
 	}
 
-	if err := r.Get(r.ctx, key, object); err != nil {
+	if err := r.Get(ctx, key, object); err != nil {
 		return nil, fmt.Errorf("failed to fetch %q issuer: %w", key, err)
 	}
 	return object, nil
 }
 
-func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
+func (r *Reconciler) createCAConfigMapFromIstiodCertificate(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	istiodCertificate, err := r.getCertificateObject(istiocsr, resourceLabels)
 	if err != nil {
 		return common.FromClientError(err, "failed to fetch istiod certificate")
@@ -515,18 +516,18 @@ func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.I
 		Namespace: istiodCertificate.GetNamespace(),
 	}
 	secret := &corev1.Secret{}
-	if err := r.Get(r.ctx, secretKey, secret); err != nil {
+	if err := r.Get(ctx, secretKey, secret); err != nil {
 		return fmt.Errorf("failed to fetch secret in issuer: %w", err)
 	}
-	if err := r.updateWatchLabel(secret, istiocsr); err != nil {
+	if err := r.updateWatchLabel(ctx, secret, istiocsr); err != nil {
 		return err
 	}
 
 	certData := string(secret.Data[IstiocsrCAKeyName])
-	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
+	return r.createOrUpdateCAConfigMap(ctx, istiocsr, certData, resourceLabels)
 }
 
-func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
+func (r *Reconciler) createCAConfigMapFromIssuerSecret(ctx context.Context, istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
 	if issuerConfig.CA.SecretName == "" {
 		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
@@ -536,19 +537,19 @@ func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioC
 		Namespace: istiocsr.Spec.IstioCSRConfig.Istio.Namespace,
 	}
 	secret := &corev1.Secret{}
-	if err := r.Get(r.ctx, secretKey, secret); err != nil {
+	if err := r.Get(ctx, secretKey, secret); err != nil {
 		return fmt.Errorf("failed to fetch secret in issuer: %w", err)
 	}
-	if err := r.updateWatchLabel(secret, istiocsr); err != nil {
+	if err := r.updateWatchLabel(ctx, secret, istiocsr); err != nil {
 		return err
 	}
 
 	certData := string(secret.Data[IstiocsrCAKeyName])
-	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
+	return r.createOrUpdateCAConfigMap(ctx, istiocsr, certData, resourceLabels)
 }
 
 // createOrUpdateCAConfigMap creates or updates the CA ConfigMap with the provided certificate data.
-func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
+func (r *Reconciler) createOrUpdateCAConfigMap(ctx context.Context, istiocsr *v1alpha1.IstioCSR, certData string, resourceLabels map[string]string) error {
 	if certData == "" {
 		return fmt.Errorf("failed to find CA certificate")
 	}
@@ -558,7 +559,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 		Namespace: istiocsr.GetNamespace(),
 	}
 	fetched := &corev1.ConfigMap{}
-	exist, err := r.Exists(r.ctx, configmapKey, fetched)
+	exist, err := r.Exists(ctx, configmapKey, fetched)
 	if err != nil {
 		return fmt.Errorf("failed to check if CA configmap exists: %w", err)
 	}
@@ -576,7 +577,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 
 	if exist && hasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("ca configmap need update", "name", configmapKey)
-		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+		if err := r.UpdateWithRetry(ctx, desired); err != nil {
 			return fmt.Errorf("failed to update %s configmap resource: %w", configmapKey, err)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "configmap resource %s reconciled back to desired state", configmapKey)
@@ -585,7 +586,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 	}
 
 	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
+		if err := r.Create(ctx, desired); err != nil {
 			return fmt.Errorf("failed to create %s configmap resource: %w", configmapKey, err)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "configmap resource %s created", configmapKey)
@@ -631,7 +632,7 @@ func (r *Reconciler) validatePEMData(pemData string) error {
 }
 
 // updateWatchLabel adds a watch label to any Kubernetes object that supports labels.
-func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
+func (r *Reconciler) updateWatchLabel(ctx context.Context, obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
 	labels := obj.GetLabels()
 	if labels == nil {
 		labels = make(map[string]string)
@@ -639,7 +640,7 @@ func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	labels[IstiocsrResourceWatchLabelName] = fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
 	obj.SetLabels(labels)
 
-	if err := r.UpdateWithRetry(r.ctx, obj); err != nil {
+	if err := r.UpdateWithRetry(ctx, obj); err != nil {
 		return fmt.Errorf("failed to update %s resource with watch label: %w", obj.GetName(), err)
 	}
 	return nil

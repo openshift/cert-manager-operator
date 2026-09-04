@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 	"maps"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
+func (r *Reconciler) reconcileIstioCSRDeployment(ctx context.Context, istiocsr *v1alpha1.IstioCSR, istioCSRCreateRecon bool) error {
 	if err := validateIstioCSRConfig(istiocsr); err != nil {
 		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
@@ -21,38 +22,38 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 	}
 	maps.Copy(resourceLabels, controllerDefaultResourceLabels)
 
-	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyNetworkPolicies(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile network policy resources")
 		return err
 	}
 
-	if err := r.createOrApplyServices(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyServices(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile service resource")
 		return err
 	}
 
-	if err := r.createOrApplyServiceAccounts(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyServiceAccounts(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile serviceaccount resource")
 		return err
 	}
 
-	if err := r.createOrApplyRBACResource(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyRBACResource(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile rbac resources")
 		return err
 	}
 
-	if err := r.createOrApplyCertificates(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyCertificates(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile certificate resource")
 		return err
 	}
 
-	if err := r.createOrApplyDeployments(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyDeployments(ctx, istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
 		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
 	}
 
 	if addProcessedAnnotation(istiocsr) {
-		if err := r.UpdateWithRetry(r.ctx, istiocsr); err != nil {
+		if err := r.UpdateWithRetry(ctx, istiocsr); err != nil {
 			return fmt.Errorf("failed to update processed annotation to %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 		}
 	}

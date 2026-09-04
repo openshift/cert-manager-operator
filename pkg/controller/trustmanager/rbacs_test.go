@@ -574,7 +574,7 @@ func TestRBACReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyRBACResources(tm, getResourceLabels(tm), getResourceAnnotations(tm), defaultTrustNamespace)
+			err := r.createOrApplyRBACResources(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), defaultTrustNamespace)
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
@@ -783,7 +783,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 			}
 			r.CtrlClient = mock
 
-			err := r.createOrApplyRBACResources(tm, getResourceLabels(tm), getResourceAnnotations(tm), defaultTrustNamespace)
+			err := r.createOrApplyRBACResources(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), defaultTrustNamespace)
 			assertError(t, err, "")
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {

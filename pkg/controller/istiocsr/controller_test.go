@@ -759,7 +759,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 			}
 			r.CtrlClient = mock
 			istiocsr := tt.getIstioCSR()
-			_, err := r.processReconcileRequest(istiocsr,
+			_, err := r.processReconcileRequest(context.Background(), istiocsr,
 				types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()})
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("processReconcileRequest() err: %v, wantErr: %v", err, tt.wantErr)

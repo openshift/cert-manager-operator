@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"reflect"
@@ -17,13 +18,13 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 )
 
-func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling validatingwebhookconfiguration resource", "name", resourceName)
 
 	existing := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if validatingwebhookconfiguration %q exists", resourceName)
 	}
@@ -33,7 +34,7 @@ func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v
 	}
 
 	r.log.V(2).Info("validatingwebhookconfiguration resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply validatingwebhookconfiguration %q", resourceName)
 	}
 

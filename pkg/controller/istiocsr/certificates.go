@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 	"maps"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+func (r *Reconciler) createOrApplyCertificates(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired, err := r.getCertificateObject(istiocsr, resourceLabels)
 	if err != nil {
 		return fmt.Errorf("failed to generate certificate resource for creation in %s: %w", istiocsr.GetNamespace(), err)
@@ -25,7 +26,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	certificateName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling certificate resource", "name", certificateName)
 	fetched := &certmanagerv1.Certificate{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
+	exist, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), fetched)
 	if err != nil {
 		return common.FromClientError(err, "failed to check %s certificate resource already exists", certificateName)
 	}
@@ -36,7 +37,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 		}
 		if hasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("certificate has been modified, updating to desired state", "name", certificateName)
-			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+			if err := r.UpdateWithRetry(ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s certificate resource", certificateName)
 			}
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s reconciled back to desired state", certificateName)
@@ -46,7 +47,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 	}
 
 	if !exist {
-		if err := r.Create(r.ctx, desired); err != nil {
+		if err := r.Create(ctx, desired); err != nil {
 			return common.FromClientError(err, "failed to create %s certificate resource", certificateName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "certificate resource %s created", certificateName)

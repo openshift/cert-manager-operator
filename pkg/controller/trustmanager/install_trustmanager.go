@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager) error {
+func (r *Reconciler) reconcileTrustManagerDeployment(ctx context.Context, trustManager *v1alpha1.TrustManager) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
 		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName())
 	}
@@ -17,52 +18,52 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 	resourceAnnotations := getResourceAnnotations(trustManager)
 
 	trustNamespace := getTrustNamespace(trustManager)
-	if err := r.validateTrustNamespace(trustNamespace); err != nil {
+	if err := r.validateTrustNamespace(ctx, trustNamespace); err != nil {
 		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)
 	}
 
-	caBundleHash, err := r.createOrApplyDefaultCAPackageConfigMap(trustManager, resourceLabels, resourceAnnotations)
+	caBundleHash, err := r.createOrApplyDefaultCAPackageConfigMap(ctx, trustManager, resourceLabels, resourceAnnotations)
 	if err != nil {
 		r.log.Error(err, "failed to reconcile default CA package ConfigMap")
 		return err
 	}
 
-	if err := r.createOrApplyServiceAccounts(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyServiceAccounts(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile serviceaccount resource")
 		return err
 	}
 
-	if err := r.createOrApplyRBACResources(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+	if err := r.createOrApplyRBACResources(ctx, trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
 		r.log.Error(err, "failed to reconcile RBAC resources")
 		return err
 	}
 
-	if err := r.createOrApplyServices(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyServices(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile service resources")
 		return err
 	}
 
-	if err := r.createOrApplyIssuer(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyIssuer(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile issuer resource")
 		return err
 	}
 
-	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyCertificate(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile certificate resource")
 		return err
 	}
 
-	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
+	if err := r.createOrApplyDeployment(ctx, trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
 		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
 	}
 
-	if err := r.createOrApplyValidatingWebhookConfiguration(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyValidatingWebhookConfiguration(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile validatingwebhookconfiguration resource")
 		return err
 	}
 
-	if err := r.updateStatusObservedState(trustManager); err != nil {
+	if err := r.updateStatusObservedState(ctx, trustManager); err != nil {
 		return common.FromClientError(err, "failed to update status observed state")
 	}
 
@@ -71,8 +72,8 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 }
 
 // validateTrustNamespace validates that the trust namespace exists.
-func (r *Reconciler) validateTrustNamespace(namespace string) error {
-	exists, err := r.namespaceExists(namespace)
+func (r *Reconciler) validateTrustNamespace(ctx context.Context, namespace string) error {
+	exists, err := r.namespaceExists(ctx, namespace)
 	if err != nil {
 		return fmt.Errorf("failed to check if namespace %q exists: %w", namespace, err)
 	}
@@ -84,7 +85,7 @@ func (r *Reconciler) validateTrustNamespace(namespace string) error {
 
 // updateStatusObservedState populates and persists the TrustManager status with the observed state.
 // Returns nil if no changes were needed, otherwise returns an error if the update fails.
-func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManager) error {
+func (r *Reconciler) updateStatusObservedState(ctx context.Context, trustManager *v1alpha1.TrustManager) error {
 	changed := false
 
 	if image := os.Getenv(trustManagerImageNameEnvVarName); trustManager.Status.TrustManagerImage != image {
@@ -116,5 +117,5 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		return nil
 	}
 
-	return r.updateStatus(r.ctx, trustManager)
+	return r.updateStatus(ctx, trustManager)
 }

@@ -223,7 +223,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 			}, istiocsr); err != nil {
 				t.Errorf("test error: %v", err)
 			}
-			err := r.createOrApplyCertificates(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyCertificates(context.Background(), istiocsr, controllerDefaultResourceLabels, false)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyCertificates() err: %v, wantErr: %v", err, tt.wantErr)
 			}
