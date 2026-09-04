@@ -10,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -23,26 +22,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 		return err
 	}
 
-	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
-
-	existing := &appsv1.Deployment{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
-	}
-	if exists && !deploymentModified(desired, existing) {
-		r.log.V(4).Info("deployment resource exists and is in desired state", "name", deploymentName)
-		return nil
-	}
-
-	r.log.V(2).Info("deployment resource has been modified, updating to desired state", "name", deploymentName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply deployment %q", deploymentName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "deployment resource %s applied", deploymentName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &appsv1.Deployment{}, fieldOwner, deploymentModified)
 }
 
 func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {

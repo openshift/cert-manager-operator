@@ -149,7 +149,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if serviceaccount",
+			wantErr:         "failed to check if ServiceAccount",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -163,7 +163,7 @@ func TestServiceAccountReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply serviceaccount",
+			wantErr:         "failed to apply ServiceAccount",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},

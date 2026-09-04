@@ -1,13 +1,10 @@
 package trustmanager
 
 import (
-	"fmt"
 	"reflect"
 	"slices"
 
-	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -52,26 +49,7 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 
 func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterRoleObject(trustManager.Spec.TrustManagerConfig.SecretTargets, resourceLabels, resourceAnnotations)
-	resourceName := desired.GetName()
-	r.log.V(4).Info("reconciling clusterrole resource", "name", resourceName)
-
-	existing := &rbacv1.ClusterRole{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
-	}
-	if exists && !clusterRoleModified(desired, existing) {
-		r.log.V(4).Info("clusterrole resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("clusterrole resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply clusterrole %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.ClusterRole{}, fieldOwner, clusterRoleModified)
 }
 
 func getClusterRoleObject(secretTargets v1alpha1.SecretTargetsConfig, resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
@@ -83,9 +61,6 @@ func getClusterRoleObject(secretTargets v1alpha1.SecretTargetsConfig, resourceLa
 	return clusterRole
 }
 
-// appendSecretTargetRules adds cluster-wide secret read and scoped write rules
-// to the ClusterRole when the secretTargets policy is Custom. The authorizedSecrets
-// list is sorted to ensure deterministic rule ordering for comparison.
 func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1alpha1.SecretTargetsConfig) {
 	if !secretTargetsEnabled(secretTargets) {
 		return
@@ -112,26 +87,7 @@ func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1al
 
 func (r *Reconciler) createOrApplyClusterRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterRoleBindingObject(resourceLabels, resourceAnnotations)
-	resourceName := desired.GetName()
-	r.log.V(4).Info("reconciling clusterrolebinding resource", "name", resourceName)
-
-	existing := &rbacv1.ClusterRoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
-	}
-	if exists && !clusterRoleBindingModified(desired, existing) {
-		r.log.V(4).Info("clusterrolebinding resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("clusterrolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply clusterrolebinding %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.ClusterRoleBinding{}, fieldOwner, clusterRoleBindingModified)
 }
 
 func getClusterRoleBindingObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRoleBinding {
@@ -144,30 +100,11 @@ func getClusterRoleBindingObject(resourceLabels, resourceAnnotations map[string]
 	return clusterRoleBinding
 }
 
-// Role for trust namespace (secrets access)
+// Role for trust namespace
 
 func (r *Reconciler) createOrApplyTrustNamespaceRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	desired := getTrustNamespaceRoleObject(resourceLabels, resourceAnnotations, trustNamespace)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling role resource for trust namespace", "name", resourceName)
-
-	existing := &rbacv1.Role{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if role %q exists", resourceName)
-	}
-	if exists && !roleModified(desired, existing) {
-		r.log.V(4).Info("role resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("role resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply role %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "role resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.Role{}, fieldOwner, roleModified)
 }
 
 func getTrustNamespaceRoleObject(resourceLabels, resourceAnnotations map[string]string, trustNamespace string) *rbacv1.Role {
@@ -179,30 +116,11 @@ func getTrustNamespaceRoleObject(resourceLabels, resourceAnnotations map[string]
 	return role
 }
 
-// RoleBinding for trust namespace (secrets access)
+// RoleBinding for trust namespace
 
 func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	desired := getTrustNamespaceRoleBindingObject(resourceLabels, resourceAnnotations, trustNamespace)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling rolebinding resource for trust namespace", "name", resourceName)
-
-	existing := &rbacv1.RoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if rolebinding %q exists", resourceName)
-	}
-	if exists && !roleBindingModified(desired, existing) {
-		r.log.V(4).Info("rolebinding resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("rolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply rolebinding %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "rolebinding resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.RoleBinding{}, fieldOwner, roleBindingModified)
 }
 
 func getTrustNamespaceRoleBindingObject(resourceLabels, resourceAnnotations map[string]string, trustNamespace string) *rbacv1.RoleBinding {
@@ -216,30 +134,11 @@ func getTrustNamespaceRoleBindingObject(resourceLabels, resourceAnnotations map[
 	return roleBinding
 }
 
-// Leader election Role (in operand namespace)
+// Leader election Role
 
 func (r *Reconciler) createOrApplyLeaderElectionRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getLeaderElectionRoleObject(resourceLabels, resourceAnnotations)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling leader election role resource", "name", resourceName)
-
-	existing := &rbacv1.Role{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if leader election role %q exists", resourceName)
-	}
-	if exists && !roleModified(desired, existing) {
-		r.log.V(4).Info("leader election role resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("leader election role resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply leader election role %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "leader election role resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.Role{}, fieldOwner, roleModified)
 }
 
 func getLeaderElectionRoleObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.Role {
@@ -251,30 +150,11 @@ func getLeaderElectionRoleObject(resourceLabels, resourceAnnotations map[string]
 	return role
 }
 
-// Leader election RoleBinding (in operand namespace)
+// Leader election RoleBinding
 
 func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations)
-	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
-	r.log.V(4).Info("reconciling leader election rolebinding resource", "name", resourceName)
-
-	existing := &rbacv1.RoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if leader election rolebinding %q exists", resourceName)
-	}
-	if exists && !roleBindingModified(desired, existing) {
-		r.log.V(4).Info("leader election rolebinding resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("leader election rolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply leader election rolebinding %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "leader election rolebinding resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &rbacv1.RoleBinding{}, fieldOwner, roleBindingModified)
 }
 
 func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.RoleBinding {
@@ -288,7 +168,6 @@ func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[
 	return roleBinding
 }
 
-// updateBindingSubjects sets the ServiceAccount name and namespace on RBAC binding subjects.
 func updateBindingSubjects(subjects []rbacv1.Subject, serviceAccountName, namespace string) {
 	for i := range subjects {
 		if subjects[i].Kind == roleBindingSubjectKind {
@@ -298,26 +177,22 @@ func updateBindingSubjects(subjects []rbacv1.Subject, serviceAccountName, namesp
 	}
 }
 
-// clusterRoleModified compares only the fields we manage via SSA.
 func clusterRoleModified(desired, existing *rbacv1.ClusterRole) bool {
 	return managedMetadataModified(desired, existing) ||
 		!reflect.DeepEqual(desired.Rules, existing.Rules)
 }
 
-// clusterRoleBindingModified compares only the fields we manage via SSA.
 func clusterRoleBindingModified(desired, existing *rbacv1.ClusterRoleBinding) bool {
 	return managedMetadataModified(desired, existing) ||
 		!reflect.DeepEqual(desired.RoleRef, existing.RoleRef) ||
 		!reflect.DeepEqual(desired.Subjects, existing.Subjects)
 }
 
-// roleModified compares only the fields we manage via SSA.
 func roleModified(desired, existing *rbacv1.Role) bool {
 	return managedMetadataModified(desired, existing) ||
 		!reflect.DeepEqual(desired.Rules, existing.Rules)
 }
 
-// roleBindingModified compares only the fields we manage via SSA.
 func roleBindingModified(desired, existing *rbacv1.RoleBinding) bool {
 	return managedMetadataModified(desired, existing) ||
 		!reflect.DeepEqual(desired.RoleRef, existing.RoleRef) ||

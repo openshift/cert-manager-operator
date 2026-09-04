@@ -67,7 +67,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr role resource already exists: test client error`,
+			wantErr: `failed to check if Role "istio-test-ns/cert-manager-istio-csr" exists: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation fails while checking if exists",
@@ -80,7 +80,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr rolebinding resource already exists: test client error`,
+			wantErr: `failed to check if RoleBinding "istio-test-ns/cert-manager-istio-csr" exists: test client error`,
 		},
 		{
 			name: "role-leases reconciliation fails while checking if exists",
@@ -95,7 +95,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases role resource already exists: test client error`,
+			wantErr: `failed to check if Role "istio-test-ns/cert-manager-istio-csr-leases" exists: test client error`,
 		},
 		{
 			name: "rolebindings-leases reconciliation fails while checking if exists",
@@ -110,7 +110,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding resource already exists: test client error`,
+			wantErr: `failed to check if RoleBinding "istio-test-ns/cert-manager-istio-csr-leases" exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing existing resources",
@@ -453,7 +453,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			wantErr: `failed to create  clusterrole resource: test client error`,
 		},
 		{
-			name: "role reconciliation updating to desired state fails",
+			name: "role reconciliation applying to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
@@ -464,7 +464,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
@@ -472,7 +472,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr role resource: test client error`,
+			wantErr: `failed to apply Role "istio-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
 			name: "role reconciliation creation fails",
@@ -484,7 +484,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						return errTestClient
@@ -492,10 +492,10 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr role resource: test client error`,
+			wantErr: `failed to apply Role "istio-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
-			name: "role-leases reconciliation updating to desired state fails",
+			name: "role-leases reconciliation applying to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
@@ -508,7 +508,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -518,7 +518,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to apply Role "istio-test-ns/cert-manager-istio-csr-leases": test client error`,
 		},
 		{
 			name: "role-leases reconciliation creation fails",
@@ -532,7 +532,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.Role:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -542,10 +542,10 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to apply Role "istio-test-ns/cert-manager-istio-csr-leases": test client error`,
 		},
 		{
-			name: "rolebindings reconciliation updating to desired state fails",
+			name: "rolebindings reconciliation applying to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
@@ -556,7 +556,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						return errTestClient
@@ -564,7 +564,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
+			wantErr: `failed to apply RoleBinding "istio-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
 			name: "rolebindings reconciliation creation fails",
@@ -576,7 +576,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						return errTestClient
@@ -584,10 +584,10 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr rolebinding resource: test client error`,
+			wantErr: `failed to apply RoleBinding "istio-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
-			name: "rolebinding-leases reconciliation updating to desired state fails",
+			name: "rolebinding-leases reconciliation applying to desired state fails",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, object client.Object) (bool, error) {
 					switch o := object.(type) {
@@ -600,7 +600,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -610,7 +610,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to apply RoleBinding "istio-test-ns/cert-manager-istio-csr-leases": test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation creation fails",
@@ -624,7 +624,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 					switch obj.(type) {
 					case *rbacv1.RoleBinding:
 						if strings.HasSuffix(obj.GetName(), "-leases") {
@@ -634,7 +634,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to apply RoleBinding "istio-test-ns/cert-manager-istio-csr-leases": test client error`,
 		},
 		{
 			name: "clusterrole reconciliation recreates with stable name from status when deleted",

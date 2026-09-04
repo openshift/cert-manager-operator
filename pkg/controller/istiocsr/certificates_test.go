@@ -39,7 +39,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/istiod certificate resource already exists: test client error`,
+			wantErr: `failed to check if Certificate "istio-test-ns/istiod" exists: test client error`,
 		},
 		{
 			name: "reconciliation of certificate fails while restoring to expected state",
@@ -61,15 +61,9 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-					switch obj.(type) {
-					case *certmanagerv1.Certificate:
-						return errTestClient
-					}
-					return nil
-				})
+				m.PatchReturns(errTestClient)
 			},
-			wantErr: `failed to update istio-test-ns/istiod certificate resource: test client error`,
+			wantErr: `failed to apply Certificate "istio-test-ns/istiod": test client error`,
 		},
 		{
 			name: "reconciliation of certificate which already exists in expected state",
@@ -110,15 +104,9 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-					switch obj.(type) {
-					case *certmanagerv1.Certificate:
-						return errTestClient
-					}
-					return nil
-				})
+				m.PatchReturns(errTestClient)
 			},
-			wantErr: `failed to create istio-test-ns/istiod certificate resource: test client error`,
+			wantErr: `failed to apply Certificate "istio-test-ns/istiod": test client error`,
 		},
 		{
 			name: "reconciliation of certificate when revisions are configured",
@@ -223,7 +211,7 @@ func TestCreateOrApplyCertificates(t *testing.T) {
 			}, istiocsr); err != nil {
 				t.Errorf("test error: %v", err)
 			}
-			err := r.createOrApplyCertificates(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyCertificates(istiocsr, controllerDefaultResourceLabels)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyCertificates() err: %v, wantErr: %v", err, tt.wantErr)
 			}

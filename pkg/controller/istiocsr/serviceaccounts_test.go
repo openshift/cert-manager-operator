@@ -2,13 +2,10 @@ package istiocsr
 
 import (
 	"context"
-	"strings"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -22,12 +19,10 @@ const (
 
 func TestCreateOrApplyServiceAccounts(t *testing.T) {
 	tests := []struct {
-		name                string
-		preReq              func(*Reconciler, *fakes.FakeCtrlClient)
-		istioCSRCreateRecon bool
-		wantErr             string
-		assertEvents        func(t *testing.T, r *Reconciler)
-		assertCalls         func(t *testing.T, mock *fakes.FakeCtrlClient)
+		name         string
+		preReq       func(*Reconciler, *fakes.FakeCtrlClient)
+		wantErr      string
+		assertCalls  func(t *testing.T, mock *fakes.FakeCtrlClient)
 	}{
 		{
 			name: "serviceaccount reconciliation successful",
@@ -53,7 +48,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource already exists: test client error`,
+			wantErr: `failed to check if ServiceAccount "istiocsr-test-ns/cert-manager-istio-csr" exists: test client error`,
 		},
 		{
 			name: "serviceaccount reconciliation fails while updating status",
@@ -66,35 +61,10 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
+			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with cert-manager-istio-csr serviceaccount resource name: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
-			name:                "serviceaccount already exists with istioCSRCreateRecon true records ResourceAlreadyExists event",
-			istioCSRCreateRecon: true,
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *corev1.ServiceAccount:
-						serviceaccount := testServiceAccount()
-						serviceaccount.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-			},
-			assertEvents: func(t *testing.T, r *Reconciler) {
-				rec := r.eventRecorder.(*record.FakeRecorder)
-				select {
-				case evt := <-rec.Events:
-					if !strings.Contains(evt, "ResourceAlreadyExists") || !strings.Contains(evt, "serviceaccount resource already exists") {
-						t.Errorf("createOrApplyServiceAccounts() event: %q, want ResourceAlreadyExists and serviceaccount already exists", evt)
-					}
-				case <-time.After(time.Second):
-					t.Error("expected ResourceAlreadyExists event but none received")
-				}
-			},
-		},
-		{
-			name: "serviceaccount exists but modified is updated and reconciled",
+			name: "serviceaccount exists but modified is applied and reconciled",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
@@ -105,27 +75,15 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryReturns(nil)
-			},
-			assertEvents: func(t *testing.T, r *Reconciler) {
-				rec := r.eventRecorder.(*record.FakeRecorder)
-				select {
-				case evt := <-rec.Events:
-					if !strings.Contains(evt, "Reconciled") || !strings.Contains(evt, "reconciled back to desired state") {
-						t.Errorf("createOrApplyServiceAccounts() event: %q, want Reconciled and reconciled back to desired state", evt)
-					}
-				case <-time.After(time.Second):
-					t.Error("expected Reconciled event but none received")
-				}
 			},
 			assertCalls: func(t *testing.T, mock *fakes.FakeCtrlClient) {
-				if mock.UpdateWithRetryCallCount() != 1 {
-					t.Errorf("createOrApplyServiceAccounts() UpdateWithRetry call count: %d, want 1", mock.UpdateWithRetryCallCount())
+				if mock.PatchCallCount() != 1 {
+					t.Errorf("createOrApplyServiceAccounts() Patch call count: %d, want 1", mock.PatchCallCount())
 				}
 			},
 		},
 		{
-			name: "serviceaccount reconciliation fails while updating modified serviceaccount",
+			name: "serviceaccount reconciliation fails while applying modified serviceaccount",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
@@ -136,15 +94,9 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 					}
 					return true, nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
-					switch obj.(type) {
-					case *corev1.ServiceAccount:
-						return errTestClient
-					}
-					return nil
-				})
+				m.PatchReturns(errTestClient)
 			},
-			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr serviceaccount resource: test client error`,
+			wantErr: `failed to apply ServiceAccount "istiocsr-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
 			name: "serviceaccount created when it does not exist",
@@ -158,8 +110,8 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				})
 			},
 			assertCalls: func(t *testing.T, mock *fakes.FakeCtrlClient) {
-				if mock.CreateCallCount() != 1 {
-					t.Errorf("createOrApplyServiceAccounts() Create call count: %d, want 1", mock.CreateCallCount())
+				if mock.PatchCallCount() != 1 {
+					t.Errorf("createOrApplyServiceAccounts() Patch call count: %d, want 1", mock.PatchCallCount())
 				}
 			},
 		},
@@ -174,7 +126,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 			}
 			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
-			err := r.createOrApplyServiceAccounts(istiocsr, controllerDefaultResourceLabels, tt.istioCSRCreateRecon)
+			err := r.createOrApplyServiceAccounts(istiocsr, controllerDefaultResourceLabels)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyServiceAccounts() err: %v, wantErr: %v", err, tt.wantErr)
 			}
@@ -182,9 +134,6 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 				if istiocsr.Status.ServiceAccount != serviceAccountName {
 					t.Errorf("createOrApplyServiceAccounts() got: %v, want: %s", istiocsr.Status.ServiceAccount, serviceAccountName)
 				}
-			}
-			if tt.assertEvents != nil {
-				tt.assertEvents(t, r)
 			}
 			if tt.assertCalls != nil {
 				tt.assertCalls(t, mock)
