@@ -1,5 +1,16 @@
 // Code generated for package assets by go-bindata DO NOT EDIT. (@generated)
 // sources:
+// bindata/approver-policy/resources/clusterrole_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/clusterrolebinding_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/deployment_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/role_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/rolebinding_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/secret_cert-manager-approver-policy-tls.yml
+// bindata/approver-policy/resources/service_cert-manager-approver-policy-metrics.yml
+// bindata/approver-policy/resources/service_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/serviceaccount_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/servicemonitor_cert-manager-approver-policy.yml
+// bindata/approver-policy/resources/validatingwebhookconfiguration_cert-manager-approver-policy.yml
 // bindata/cert-manager-deployment/cainjector/cert-manager-cainjector-cr.yaml
 // bindata/cert-manager-deployment/cainjector/cert-manager-cainjector-crb.yaml
 // bindata/cert-manager-deployment/cainjector/cert-manager-cainjector-deployment.yaml
@@ -131,6 +142,497 @@ func (fi bindataFileInfo) IsDir() bool {
 // Sys return file is sys mode
 func (fi bindataFileInfo) Sys() interface{} {
 	return nil
+}
+
+var _approverPolicyResourcesClusterrole_certManagerApproverPolicyYml = []byte(`---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-approver-policy
+rules:
+  - apiGroups: ["policy.cert-manager.io"]
+    resources: ["certificaterequestpolicies"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["policy.cert-manager.io"]
+    resources: ["certificaterequestpolicies/status"]
+    verbs: ["patch"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificaterequests"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificaterequests/status"]
+    verbs: ["patch"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["signers"]
+    verbs: ["approve"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "clusterroles", "rolebindings", "clusterrolebindings"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["", "events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list", "watch"]
+`)
+
+func approverPolicyResourcesClusterrole_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesClusterrole_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesClusterrole_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesClusterrole_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/clusterrole_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYml = []byte(`---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-approver-policy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cert-manager-approver-policy
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-approver-policy
+    namespace: cert-manager
+`)
+
+func approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/clusterrolebinding_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesDeployment_certManagerApproverPolicyYml = []byte(`---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-approver-policy
+  template:
+    metadata:
+      labels:
+        app: cert-manager-approver-policy
+        app.kubernetes.io/name: cert-manager-approver-policy
+        app.kubernetes.io/instance: cert-manager-approver-policy
+        app.kubernetes.io/version: "v0.27.0"
+        app.kubernetes.io/managed-by: cert-manager-operator
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: cert-manager-approver-policy
+      containers:
+        - name: cert-manager-approver-policy
+          image: "quay.io/jetstack/cert-manager-approver-policy:v0.27.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: webhook
+              containerPort: 10250
+            - name: metrics
+              containerPort: 9402
+            - name: healthcheck
+              containerPort: 6060
+          readinessProbe:
+            httpGet:
+              port: 6060
+              path: "/readyz"
+            initialDelaySeconds: 3
+            periodSeconds: 7
+          args:
+            - --log-format=text
+            - --log-level=1
+            - --metrics-bind-address=:9402
+            - --readiness-probe-bind-address=:6060
+            - --webhook-host=0.0.0.0
+            - --webhook-port=10250
+            - --webhook-service-name=cert-manager-approver-policy
+            - --webhook-ca-secret-namespace=cert-manager
+            - --webhook-ca-secret-name=cert-manager-approver-policy-tls
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
+`)
+
+func approverPolicyResourcesDeployment_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesDeployment_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesDeployment_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesDeployment_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/deployment_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesRole_certManagerApproverPolicyYml = []byte(`---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "update"]
+    resourceNames: ["policy.cert-manager.io"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update"]
+    resourceNames: ['cert-manager-approver-policy-tls']
+`)
+
+func approverPolicyResourcesRole_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesRole_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesRole_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesRole_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/role_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesRolebinding_certManagerApproverPolicyYml = []byte(`---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-approver-policy
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-approver-policy
+    namespace: cert-manager
+`)
+
+func approverPolicyResourcesRolebinding_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesRolebinding_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesRolebinding_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesRolebinding_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/rolebinding_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesSecret_certManagerApproverPolicyTlsYml = []byte(`---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cert-manager-approver-policy-tls
+  namespace: "cert-manager"
+  annotations:
+    cert-manager.io/allow-direct-injection: "true"
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+`)
+
+func approverPolicyResourcesSecret_certManagerApproverPolicyTlsYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesSecret_certManagerApproverPolicyTlsYml, nil
+}
+
+func approverPolicyResourcesSecret_certManagerApproverPolicyTlsYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesSecret_certManagerApproverPolicyTlsYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/secret_cert-manager-approver-policy-tls.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesService_certManagerApproverPolicyMetricsYml = []byte(`---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-approver-policy-metrics
+  namespace: "cert-manager"
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9402
+      targetPort: 9402
+      protocol: TCP
+      name: metrics
+  selector:
+    app: cert-manager-approver-policy
+`)
+
+func approverPolicyResourcesService_certManagerApproverPolicyMetricsYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesService_certManagerApproverPolicyMetricsYml, nil
+}
+
+func approverPolicyResourcesService_certManagerApproverPolicyMetricsYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesService_certManagerApproverPolicyMetricsYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/service_cert-manager-approver-policy-metrics.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesService_certManagerApproverPolicyYml = []byte(`---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: 10250
+      protocol: TCP
+      name: webhook
+  selector:
+    app: cert-manager-approver-policy
+`)
+
+func approverPolicyResourcesService_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesService_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesService_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesService_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/service_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesServiceaccount_certManagerApproverPolicyYml = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+`)
+
+func approverPolicyResourcesServiceaccount_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesServiceaccount_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesServiceaccount_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesServiceaccount_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/serviceaccount_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesServicemonitor_certManagerApproverPolicyYml = []byte(`---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    prometheus: default
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  jobLabel: cert-manager-approver-policy
+  selector:
+    matchLabels:
+      app: cert-manager-approver-policy
+  namespaceSelector:
+    matchNames:
+      - cert-manager
+  endpoints:
+    - port: metrics
+      path: "/metrics"
+      interval: 10s
+      scrapeTimeout: 5s
+`)
+
+func approverPolicyResourcesServicemonitor_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesServicemonitor_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesServicemonitor_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesServicemonitor_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/servicemonitor_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYml = []byte(`---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: cert-manager-approver-policy
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  annotations:
+    cert-manager.io/inject-ca-from-secret: "cert-manager/cert-manager-approver-policy-tls"
+webhooks:
+  - name: policy.cert-manager.io
+    rules:
+      - apiGroups:
+          - "policy.cert-manager.io"
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - certificaterequestpolicies
+    admissionReviewVersions: ["v1", "v1beta1"]
+    timeoutSeconds: 5
+    failurePolicy: Fail
+    sideEffects: None
+    clientConfig:
+      service:
+        name: cert-manager-approver-policy
+        namespace: "cert-manager"
+        path: /validate-policy-cert-manager-io-v1alpha1-certificaterequestpolicy
+`)
+
+func approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYmlBytes() ([]byte, error) {
+	return _approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYml, nil
+}
+
+func approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYml() (*asset, error) {
+	bytes, err := approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "approver-policy/resources/validatingwebhookconfiguration_cert-manager-approver-policy.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
 }
 
 var _certManagerDeploymentCainjectorCertManagerCainjectorCrYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
@@ -4065,6 +4567,17 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
+	"approver-policy/resources/clusterrole_cert-manager-approver-policy.yml":                           approverPolicyResourcesClusterrole_certManagerApproverPolicyYml,
+	"approver-policy/resources/clusterrolebinding_cert-manager-approver-policy.yml":                    approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYml,
+	"approver-policy/resources/deployment_cert-manager-approver-policy.yml":                            approverPolicyResourcesDeployment_certManagerApproverPolicyYml,
+	"approver-policy/resources/role_cert-manager-approver-policy.yml":                                  approverPolicyResourcesRole_certManagerApproverPolicyYml,
+	"approver-policy/resources/rolebinding_cert-manager-approver-policy.yml":                           approverPolicyResourcesRolebinding_certManagerApproverPolicyYml,
+	"approver-policy/resources/secret_cert-manager-approver-policy-tls.yml":                            approverPolicyResourcesSecret_certManagerApproverPolicyTlsYml,
+	"approver-policy/resources/service_cert-manager-approver-policy-metrics.yml":                       approverPolicyResourcesService_certManagerApproverPolicyMetricsYml,
+	"approver-policy/resources/service_cert-manager-approver-policy.yml":                               approverPolicyResourcesService_certManagerApproverPolicyYml,
+	"approver-policy/resources/serviceaccount_cert-manager-approver-policy.yml":                        approverPolicyResourcesServiceaccount_certManagerApproverPolicyYml,
+	"approver-policy/resources/servicemonitor_cert-manager-approver-policy.yml":                        approverPolicyResourcesServicemonitor_certManagerApproverPolicyYml,
+	"approver-policy/resources/validatingwebhookconfiguration_cert-manager-approver-policy.yml":        approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYml,
 	"cert-manager-deployment/cainjector/cert-manager-cainjector-cr.yaml":                               certManagerDeploymentCainjectorCertManagerCainjectorCrYaml,
 	"cert-manager-deployment/cainjector/cert-manager-cainjector-crb.yaml":                              certManagerDeploymentCainjectorCertManagerCainjectorCrbYaml,
 	"cert-manager-deployment/cainjector/cert-manager-cainjector-deployment.yaml":                       certManagerDeploymentCainjectorCertManagerCainjectorDeploymentYaml,
@@ -4190,6 +4703,21 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
+	"approver-policy": {nil, map[string]*bintree{
+		"resources": {nil, map[string]*bintree{
+			"clusterrole_cert-manager-approver-policy.yml":                    {approverPolicyResourcesClusterrole_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"clusterrolebinding_cert-manager-approver-policy.yml":             {approverPolicyResourcesClusterrolebinding_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"deployment_cert-manager-approver-policy.yml":                     {approverPolicyResourcesDeployment_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"role_cert-manager-approver-policy.yml":                           {approverPolicyResourcesRole_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"rolebinding_cert-manager-approver-policy.yml":                    {approverPolicyResourcesRolebinding_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"secret_cert-manager-approver-policy-tls.yml":                     {approverPolicyResourcesSecret_certManagerApproverPolicyTlsYml, map[string]*bintree{}},
+			"service_cert-manager-approver-policy-metrics.yml":                {approverPolicyResourcesService_certManagerApproverPolicyMetricsYml, map[string]*bintree{}},
+			"service_cert-manager-approver-policy.yml":                        {approverPolicyResourcesService_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"serviceaccount_cert-manager-approver-policy.yml":                 {approverPolicyResourcesServiceaccount_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"servicemonitor_cert-manager-approver-policy.yml":                 {approverPolicyResourcesServicemonitor_certManagerApproverPolicyYml, map[string]*bintree{}},
+			"validatingwebhookconfiguration_cert-manager-approver-policy.yml": {approverPolicyResourcesValidatingwebhookconfiguration_certManagerApproverPolicyYml, map[string]*bintree{}},
+		}},
+	}},
 	"cert-manager-deployment": {nil, map[string]*bintree{
 		"cainjector": {nil, map[string]*bintree{
 			"cert-manager-cainjector-cr.yaml":                  {certManagerDeploymentCainjectorCertManagerCainjectorCrYaml, map[string]*bintree{}},

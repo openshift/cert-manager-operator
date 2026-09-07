@@ -1,0 +1,24 @@
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "update"]
+    resourceNames: ["policy.cert-manager.io"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update"]
+    resourceNames: ['cert-manager-approver-policy-tls']

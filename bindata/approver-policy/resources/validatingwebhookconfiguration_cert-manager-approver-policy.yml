@@ -1,0 +1,35 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: cert-manager-approver-policy
+  labels:
+    app: cert-manager-approver-policy
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+  annotations:
+    cert-manager.io/inject-ca-from-secret: "cert-manager/cert-manager-approver-policy-tls"
+webhooks:
+  - name: policy.cert-manager.io
+    rules:
+      - apiGroups:
+          - "policy.cert-manager.io"
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - certificaterequestpolicies
+    admissionReviewVersions: ["v1", "v1beta1"]
+    timeoutSeconds: 5
+    failurePolicy: Fail
+    sideEffects: None
+    clientConfig:
+      service:
+        name: cert-manager-approver-policy
+        namespace: "cert-manager"
+        path: /validate-policy-cert-manager-io-v1alpha1-certificaterequestpolicy

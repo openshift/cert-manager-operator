@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-approver-policy
+  namespace: "cert-manager"
+  labels:
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/instance: cert-manager-approver-policy
+    app.kubernetes.io/version: "v0.27.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-approver-policy
+  template:
+    metadata:
+      labels:
+        app: cert-manager-approver-policy
+        app.kubernetes.io/name: cert-manager-approver-policy
+        app.kubernetes.io/instance: cert-manager-approver-policy
+        app.kubernetes.io/version: "v0.27.0"
+        app.kubernetes.io/managed-by: cert-manager-operator
+        app.kubernetes.io/part-of: cert-manager-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: cert-manager-approver-policy
+      containers:
+        - name: cert-manager-approver-policy
+          image: "quay.io/jetstack/cert-manager-approver-policy:v0.27.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: webhook
+              containerPort: 10250
+            - name: metrics
+              containerPort: 9402
+            - name: healthcheck
+              containerPort: 6060
+          readinessProbe:
+            httpGet:
+              port: 6060
+              path: "/readyz"
+            initialDelaySeconds: 3
+            periodSeconds: 7
+          args:
+            - --log-format=text
+            - --log-level=1
+            - --metrics-bind-address=:9402
+            - --readiness-probe-bind-address=:6060
+            - --webhook-host=0.0.0.0
+            - --webhook-port=10250
+            - --webhook-service-name=cert-manager-approver-policy
+            - --webhook-ca-secret-namespace=cert-manager
+            - --webhook-ca-secret-name=cert-manager-approver-policy-tls
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
