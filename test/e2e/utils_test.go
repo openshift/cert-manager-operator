@@ -853,13 +853,43 @@ func isDeploymentRolledOut(deployment *appsv1.Deployment) bool {
 		deployment.Status.Replicas == desired
 }
 
+// isRetriableAPIError reports whether err is a transient API or transport failure
+// that wait loops should retry. A kube-apiserver 504 Timeout (StatusReasonTimeout)
+// must be retried: wait.PollUntilContextTimeout treats a non-nil callback error as fatal.
+func isRetriableAPIError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsTimeout(err) ||
+		apierrors.IsServerTimeout(err) ||
+		apierrors.IsTooManyRequests(err) ||
+		apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsInternalError(err) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"connection reset",
+		"connection refused",
+		"http2: client connection lost",
+		"unexpected eof",
+		"tls: handshake timeout",
+		"i/o timeout",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // waitForDeploymentConditionAndRollout waits for a deployment to satisfy a custom condition
 // and for the rollout to complete. If condition is nil, only rollout completion is checked.
 func waitForDeploymentConditionAndRollout(ctx context.Context, namespace, deploymentName string, condition func(*appsv1.Deployment) bool, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
