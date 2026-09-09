@@ -21,9 +21,19 @@ var (
 	// For more details,
 	// https://github.com/openshift/enhancements/blob/master/enhancements/cert-manager/trust-manager-controller.md
 	FeatureTrustManager featuregate.Feature = "TrustManager"
+
+	// HTTP01Proxy enables the controller for http01proxies.operator.openshift.io resource,
+	// which extends cert-manager-operator to deploy and manage the HTTP01 challenge proxy.
+	// The proxy enables cert-manager to complete HTTP01 ACME challenges for the API endpoint
+	// on baremetal platforms where the API VIP is not exposed via OpenShift Ingress.
+	//
+	// For more details,
+	// https://github.com/openshift/enhancements/pull/1929
+	FeatureHTTP01Proxy featuregate.Feature = "HTTP01Proxy"
 )
 
 var OperatorFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	FeatureIstioCSR:     {Default: true, PreRelease: featuregate.GA},
 	FeatureTrustManager: {Default: false, PreRelease: "TechPreview"},
+	FeatureHTTP01Proxy:  {Default: false, PreRelease: featuregate.Alpha},
 }

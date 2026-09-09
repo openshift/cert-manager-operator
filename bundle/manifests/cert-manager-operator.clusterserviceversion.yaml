@@ -365,6 +365,9 @@ spec:
       kind: ClusterIssuer
       name: clusterissuers.cert-manager.io
       version: v1
+    - kind: HTTP01Proxy
+      name: http01proxies.operator.openshift.io
+      version: v1alpha1
     - description: |-
         An Issuer represents a certificate issuing authority which can be
         referenced as part of `issuerRef` fields.
@@ -626,6 +629,18 @@ spec:
           - update
           - watch
         - apiGroups:
+          - machineconfiguration.openshift.io
+          resources:
+          - machineconfigs
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - networking.k8s.io
           resources:
           - ingresses
@@ -655,6 +670,7 @@ spec:
           - operator.openshift.io
           resources:
           - certmanagers/finalizers
+          - http01proxies/finalizers
           - istiocsrs/finalizers
           - trustmanagers/finalizers
           verbs:
@@ -663,6 +679,7 @@ spec:
           - operator.openshift.io
           resources:
           - certmanagers/status
+          - http01proxies/status
           - istiocsrs/status
           - trustmanagers/status
           verbs:
@@ -672,6 +689,7 @@ spec:
         - apiGroups:
           - operator.openshift.io
           resources:
+          - http01proxies
           - istiocsrs
           - trustmanagers
           verbs:
@@ -811,12 +829,16 @@ spec:
                   value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
                 - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
                   value: quay.io/jetstack/trust-manager:v0.20.3
+                - name: RELATED_IMAGE_CERT_MANAGER_HTTP01PROXY
+                  value: quay.io/openshift/cert-manager-http01-proxy:v0.1.0
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.20.3
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
                   value: 0.16.0
                 - name: TRUSTMANAGER_OPERAND_IMAGE_VERSION
                   value: 0.20.3
+                - name: HTTP01PROXY_OPERAND_IMAGE_VERSION
+                  value: 0.1.0
                 - name: OPERATOR_IMAGE_VERSION
                   value: 1.20.0
                 - name: OPERATOR_LOG_LEVEL
@@ -933,5 +955,7 @@ spec:
     name: cert-manager-istiocsr
   - image: quay.io/jetstack/trust-manager:v0.20.3
     name: cert-manager-trust-manager
+  - image: quay.io/openshift/cert-manager-http01-proxy:v0.1.0
+    name: cert-manager-http01proxy
   replaces: cert-manager-operator.v1.19.0
   version: 1.20.0

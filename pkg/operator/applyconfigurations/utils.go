@@ -38,6 +38,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.DefaultCAPackageConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("DeploymentConfig"):
 		return &operatorv1alpha1.DeploymentConfigApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HTTP01Proxy"):
+		return &operatorv1alpha1.HTTP01ProxyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HTTP01ProxyCustomDeploymentSpec"):
+		return &operatorv1alpha1.HTTP01ProxyCustomDeploymentSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HTTP01ProxySpec"):
+		return &operatorv1alpha1.HTTP01ProxySpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("HTTP01ProxyStatus"):
+		return &operatorv1alpha1.HTTP01ProxyStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IstioConfig"):
 		return &operatorv1alpha1.IstioConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IstioCSR"):
