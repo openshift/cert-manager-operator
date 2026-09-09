@@ -493,10 +493,13 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 	statusMessage := fmt.Sprintf("multiple instances of istiocsr exists, %s/%s will not be processed", istiocsr.GetNamespace(), istiocsr.GetName())
 
 	if containsProcessingRejectedAnnotation(istiocsr) {
-		r.log.V(4).Info("%s/%s istiocsr resource contains processing rejected annotation", istiocsr.Namespace, istiocsr.Name)
+		r.log.V(4).Info("istiocsr resource contains processing rejected annotation", "namespace", istiocsr.Namespace, "name", istiocsr.Name)
 		// ensure status is updated.
 		var updateErr error
-		if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+		degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, "")
+		readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, statusMessage)
+		progressingChanged := istiocsr.Status.SetCondition(v1alpha1.Progressing, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, statusMessage)
+		if degradedChanged || readyChanged || progressingChanged {
 			updateErr = r.updateCondition(istiocsr, nil)
 		}
 		return common.NewMultipleInstanceError(utilerrors.NewAggregate([]error{errors.New(statusMessage), updateErr}))
@@ -533,7 +536,10 @@ func (r *Reconciler) disallowMultipleIstioCSRInstances(istiocsr *v1alpha1.IstioC
 
 	// This instance should be rejected as there's an older or equally old instance
 	var condUpdateErr, annUpdateErr error
-	if istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, statusMessage) {
+	degradedChanged := istiocsr.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, "")
+	readyChanged := istiocsr.Status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, statusMessage)
+	progressingChanged := istiocsr.Status.SetCondition(v1alpha1.Progressing, metav1.ConditionFalse, v1alpha1.ReasonMultipleInstancesFound, statusMessage)
+	if degradedChanged || readyChanged || progressingChanged {
 		condUpdateErr = r.updateCondition(istiocsr, nil)
 	}
 	if addProcessingRejectedAnnotation(istiocsr) {

@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -416,6 +417,164 @@ func TestDeploymentOverrides(t *testing.T) {
 			}
 			if tt.wantAffinity && dep.Spec.Template.Spec.Affinity == nil {
 				t.Error("expected affinity to be set")
+			}
+		})
+	}
+}
+
+func TestContainerPortsMatch(t *testing.T) {
+	tests := []struct {
+		name     string
+		desired  []corev1.ContainerPort
+		existing []corev1.ContainerPort
+		want     bool
+	}{
+		{
+			name:     "identical ports match",
+			desired:  []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}},
+			existing: []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}},
+			want:     true,
+		},
+		{
+			name:     "mismatched port counts do not match",
+			desired:  []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}},
+			existing: []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}, {Name: "metrics", ContainerPort: 9402}},
+			want:     false,
+		},
+		{
+			name:     "same count but unmatched port name",
+			desired:  []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}},
+			existing: []corev1.ContainerPort{{Name: "webhook", ContainerPort: 6443}},
+			want:     false,
+		},
+		{
+			name:     "same count but unmatched port number",
+			desired:  []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}},
+			existing: []corev1.ContainerPort{{Name: "https", ContainerPort: 8443}},
+			want:     false,
+		},
+		{
+			name:     "both empty match",
+			desired:  nil,
+			existing: nil,
+			want:     true,
+		},
+		{
+			name:     "different order still matches",
+			desired:  []corev1.ContainerPort{{Name: "https", ContainerPort: 6443}, {Name: "metrics", ContainerPort: 9402}},
+			existing: []corev1.ContainerPort{{Name: "metrics", ContainerPort: 9402}, {Name: "https", ContainerPort: 6443}},
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containerPortsMatch(tt.desired, tt.existing)
+			if got != tt.want {
+				t.Errorf("containerPortsMatch() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadinessProbeModified(t *testing.T) {
+	tests := []struct {
+		name     string
+		desired  *corev1.Probe
+		existing *corev1.Probe
+		want     bool
+	}{
+		{
+			name:     "both nil not modified",
+			desired:  nil,
+			existing: nil,
+			want:     false,
+		},
+		{
+			name:     "desired nil existing non-nil is modified",
+			desired:  nil,
+			existing: &corev1.Probe{},
+			want:     true,
+		},
+		{
+			name:     "desired non-nil existing nil is modified",
+			desired:  &corev1.Probe{},
+			existing: nil,
+			want:     true,
+		},
+		{
+			name: "HTTPGet path difference is modified",
+			desired: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz"},
+				},
+			},
+			existing: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/healthz"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "identical HTTPGet probes not modified",
+			desired: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz"},
+				},
+				InitialDelaySeconds: 3,
+				PeriodSeconds:       7,
+			},
+			existing: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz"},
+				},
+				InitialDelaySeconds: 3,
+				PeriodSeconds:       7,
+			},
+			want: false,
+		},
+		{
+			name: "desired has HTTPGet existing does not is modified",
+			desired: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz"},
+				},
+			},
+			existing: &corev1.Probe{},
+			want:     true,
+		},
+		{
+			name: "different PeriodSeconds is modified",
+			desired: &corev1.Probe{
+				PeriodSeconds: 10,
+			},
+			existing: &corev1.Probe{
+				PeriodSeconds: 5,
+			},
+			want: true,
+		},
+		{
+			name: "HTTPGet port difference is modified",
+			desired: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz", Port: intstr.FromInt32(6443)},
+				},
+			},
+			existing: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{Path: "/readyz", Port: intstr.FromInt32(8443)},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := readinessProbeModified(tt.desired, tt.existing)
+			if got != tt.want {
+				t.Errorf("readinessProbeModified() = %v, want %v", got, tt.want)
 			}
 		})
 	}
