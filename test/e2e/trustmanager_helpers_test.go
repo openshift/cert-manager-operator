@@ -14,8 +14,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -119,6 +119,13 @@ func waitForTrustManagerReady(ctx context.Context) v1alpha1.TrustManagerStatus {
 func createTrustManager(ctx context.Context, b *trustManagerCRBuilder) {
 	By("creating TrustManager CR")
 	_, err := trustManagerClient().Create(ctx, b.Build(), metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		// TrustManager is a cluster singleton named "cluster". Some CI jobs
+		// (for example tls-scanner deploy-operand) may already have created it.
+		By("TrustManager CR already exists; waiting for it to be ready")
+		waitForTrustManagerReady(ctx)
+		return
+	}
 	Expect(err).ShouldNot(HaveOccurred())
 	waitForTrustManagerReady(ctx)
 }

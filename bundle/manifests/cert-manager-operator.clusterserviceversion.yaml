@@ -284,7 +284,7 @@ metadata:
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "true"
-    features.operators.openshift.io/tls-profiles: "false"
+    features.operators.openshift.io/tls-profiles: "true"
     features.operators.openshift.io/token-auth-aws: "true"
     features.operators.openshift.io/token-auth-azure: "true"
     features.operators.openshift.io/token-auth-gcp: "true"
@@ -848,6 +848,9 @@ spec:
                 volumeMounts:
                 - mountPath: /tmp
                   name: tmp
+                - mountPath: /var/run/secrets/serving-cert
+                  name: serving-cert
+                  readOnly: true
               securityContext:
                 runAsNonRoot: true
                 seccompProfile:
@@ -857,6 +860,10 @@ spec:
               volumes:
               - emptyDir: {}
                 name: tmp
+              - name: serving-cert
+                secret:
+                  optional: true
+                  secretName: cert-manager-operator-serving-cert
       permissions:
       - rules:
         - apiGroups:

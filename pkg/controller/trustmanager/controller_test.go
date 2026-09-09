@@ -14,9 +14,13 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 func TestReconcile(t *testing.T) {
@@ -399,5 +403,47 @@ func TestCleanUp(t *testing.T) {
 				t.Errorf("cleanUp() requeue = %v, want %v", requeue, tt.wantRequeue)
 			}
 		})
+	}
+}
+
+func TestClusterAPIServerWatchPredicate(t *testing.T) {
+	p := clusterAPIServerWatchPredicate()
+	cluster := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType},
+		},
+	}
+	other := cluster.DeepCopy()
+	other.Name = "not-cluster"
+
+	if !p.Create(event.CreateEvent{Object: cluster}) {
+		t.Fatal("create of cluster APIServer should match")
+	}
+	if p.Create(event.CreateEvent{Object: other}) {
+		t.Fatal("create of non-cluster APIServer should not match")
+	}
+	if !p.Delete(event.DeleteEvent{Object: cluster}) {
+		t.Fatal("delete of cluster APIServer should match")
+	}
+
+	statusOnly := cluster.DeepCopy()
+	statusOnly.ResourceVersion = "2"
+	if p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: statusOnly}) {
+		t.Fatal("status-only update should not match")
+	}
+
+	adherenceChanged := cluster.DeepCopy()
+	adherenceChanged.Spec.TLSAdherence = configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly
+	if !p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: adherenceChanged}) {
+		t.Fatal("adherence change should match")
+	}
+
+	if p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: other}) {
+		t.Fatal("update of non-cluster APIServer should not match")
+	}
+	if p.Update(event.UpdateEvent{ObjectOld: &corev1.ConfigMap{}, ObjectNew: cluster}) {
+		t.Fatal("update with wrong old type should not match")
 	}
 }

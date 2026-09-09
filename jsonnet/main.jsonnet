@@ -141,8 +141,79 @@ local path(item) =
   // else, leave it at the top-level
   else 'bindata/cert-manager-deployment/' + item.metadata.name + '-' + suffix[item.kind] + '.yaml';
 
+// OpenShift extra: not in the default upstream install YAML. Metrics HTTPS is
+// enabled by the operator via --metrics-dynamic-serving-* against a shared
+// cert-manager-metrics-ca Secret. Re-emit these on every
+// hack/update-cert-manager-manifests.sh run so they are not lost when
+// bindata/cert-manager-deployment is regenerated.
+local metricsDynamicServingCASecretName = 'cert-manager-metrics-ca';
+local metricsDynamicServingName = 'cert-manager-metrics-dynamic-serving';
+
+local operandVersion(manifest) = [
+  item.metadata.labels['app.kubernetes.io/version']
+  for item in manifest
+  if std.type(item) == 'object'
+     && 'metadata' in item
+     && 'labels' in item.metadata
+     && 'app.kubernetes.io/version' in item.metadata.labels
+][0];
+
+local controllerLabels(version) = {
+  app: 'cert-manager',
+  'app.kubernetes.io/component': 'controller',
+  'app.kubernetes.io/instance': 'cert-manager',
+  'app.kubernetes.io/name': 'cert-manager',
+  'app.kubernetes.io/version': version,
+};
+
+local extraManifests(manifest) =
+  local version = operandVersion(manifest);
+  [
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'Role',
+      metadata: {
+        labels: controllerLabels(version),
+        name: metricsDynamicServingName,
+        namespace: sourceOperandNamespace,
+      },
+      rules: [
+        {
+          apiGroups: [''],
+          resourceNames: [metricsDynamicServingCASecretName],
+          resources: ['secrets'],
+          verbs: ['get', 'list', 'watch', 'update'],
+        },
+        {
+          apiGroups: [''],
+          resources: ['secrets'],
+          verbs: ['create'],
+        },
+      ],
+    },
+    {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'RoleBinding',
+      metadata: {
+        labels: controllerLabels(version),
+        name: metricsDynamicServingName,
+        namespace: sourceOperandNamespace,
+      },
+      roleRef: {
+        apiGroup: 'rbac.authorization.k8s.io',
+        kind: 'Role',
+        name: metricsDynamicServingName,
+      },
+      subjects: [
+        { kind: 'ServiceAccount', name: 'cert-manager', namespace: sourceOperandNamespace },
+        { kind: 'ServiceAccount', name: 'cert-manager-webhook', namespace: sourceOperandNamespace },
+        { kind: 'ServiceAccount', name: 'cert-manager-cainjector', namespace: sourceOperandNamespace },
+      ],
+    },
+  ];
+
 // top level function (aka 'main')
 function(manifest) {
   [std.strReplace(path(item), ':', '-')]: processManifests(cleanupHelmLabels(item))
-  for item in manifest
+  for item in (manifest + extraManifests(manifest))
 }

@@ -853,13 +853,43 @@ func isDeploymentRolledOut(deployment *appsv1.Deployment) bool {
 		deployment.Status.Replicas == desired
 }
 
+// isRetriableAPIError reports whether err is a transient API or transport failure
+// that wait loops should retry. A kube-apiserver 504 Timeout (StatusReasonTimeout)
+// must be retried: wait.PollUntilContextTimeout treats a non-nil callback error as fatal.
+func isRetriableAPIError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsTimeout(err) ||
+		apierrors.IsServerTimeout(err) ||
+		apierrors.IsTooManyRequests(err) ||
+		apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsInternalError(err) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"connection reset",
+		"connection refused",
+		"http2: client connection lost",
+		"unexpected eof",
+		"tls: handshake timeout",
+		"i/o timeout",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // waitForDeploymentConditionAndRollout waits for a deployment to satisfy a custom condition
 // and for the rollout to complete. If condition is nil, only rollout completion is checked.
 func waitForDeploymentConditionAndRollout(ctx context.Context, namespace, deploymentName string, condition func(*appsv1.Deployment) bool, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -1772,6 +1802,31 @@ func getClusterAPIServerTLSConfig(ctx context.Context) (*apiserverTLSConfig, err
 	return cfg, nil
 }
 
+// normalizeTLSSecurityProfile ensures the union member matching Type is non-nil.
+// The APIServer validation requires e.g. spec.tlsSecurityProfile.modern when type=Modern;
+// omitempty on empty structs otherwise drops the field and the update is rejected.
+func normalizeTLSSecurityProfile(profile *configapiv1.TLSSecurityProfile) *configapiv1.TLSSecurityProfile {
+	if profile == nil {
+		return nil
+	}
+	out := profile.DeepCopy()
+	switch out.Type {
+	case configapiv1.TLSProfileOldType:
+		if out.Old == nil {
+			out.Old = &configapiv1.OldTLSProfile{}
+		}
+	case configapiv1.TLSProfileIntermediateType:
+		if out.Intermediate == nil {
+			out.Intermediate = &configapiv1.IntermediateTLSProfile{}
+		}
+	case configapiv1.TLSProfileModernType:
+		if out.Modern == nil {
+			out.Modern = &configapiv1.ModernTLSProfile{}
+		}
+	}
+	return out
+}
+
 // updateClusterAPIServerTLSConfig patches apiserver.config.openshift.io/cluster TLS settings.
 func updateClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.TLSSecurityProfile, adherence configapiv1.TLSAdherencePolicy) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1782,7 +1837,7 @@ func updateClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.T
 
 		updated := apiServer.DeepCopy()
 		if profile != nil {
-			updated.Spec.TLSSecurityProfile = profile.DeepCopy()
+			updated.Spec.TLSSecurityProfile = normalizeTLSSecurityProfile(profile)
 		} else {
 			updated.Spec.TLSSecurityProfile = nil
 		}
@@ -1824,6 +1879,8 @@ func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileS
 		return tlsprofile.CertManagerWebhookTLSArgs(spec)
 	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
 		return tlsprofile.CertManagerOperandMetricsTLSArgs(spec)
+	case "trust-manager":
+		return tlsprofile.TrustManagerWebhookTLSArgs(spec)
 	default:
 		return nil
 	}
@@ -1857,12 +1914,104 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 			return false, fmt.Errorf("deployment %q has no containers", deploymentName)
 		}
 
+		cipherKeys := tlsprofile.CertManagerCipherSuiteArgKeys
+		if deploymentName == "trust-manager" {
+			cipherKeys = tlsprofile.TrustManagerCipherSuiteArgKeys
+		}
 		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
-			for _, key := range tlsprofile.CertManagerCipherSuiteArgKeys {
+			for _, key := range cipherKeys {
 				if strings.HasPrefix(arg, key+"=") {
 					return false, nil
 				}
 			}
+		}
+		return true, nil
+	})
+}
+
+// verifyOperandTLSArgsNotPresent succeeds when none of the given args are present on the
+// deployment's first container. Used for Legacy adherence negative checks.
+func verifyOperandTLSArgsNotPresent(deploymentName string, unexpected []string) error {
+	if len(unexpected) == 0 {
+		return fmt.Errorf("unexpected arg list is empty")
+	}
+
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("deployment %q has no containers", deploymentName)
+	}
+
+	args := sets.New(deployment.Spec.Template.Spec.Containers[0].Args...)
+	var present []string
+	for _, u := range unexpected {
+		if args.Has(u) {
+			present = append(present, u)
+		}
+	}
+	if len(present) > 0 {
+		return fmt.Errorf("deployment %q unexpectedly has TLS args %v", deploymentName, present)
+	}
+	return nil
+}
+
+// waitForOperandTLSArgsAbsent polls until unexpected TLS args are gone from the deployment
+// (e.g. after switching to Legacy adherence). Uses the same retry budget as other TLS helpers.
+func waitForOperandTLSArgsAbsent(deploymentName string, unexpected []string) error {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		err := verifyOperandTLSArgsNotPresent(deploymentName, unexpected)
+		if err == nil {
+			return true, nil
+		}
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		// Args still present or transient read issues — keep polling until timeout.
+		return false, nil
+	})
+}
+
+// verifyOperandMetricsHTTPS waits until cert-manager operand deployments expose
+// dynamic metrics serving flags and prometheus.io/scheme=https on the pod template.
+func verifyOperandMetricsHTTPS(deploymentName string) error {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("deployment %q has no containers", deploymentName)
+		}
+
+		args := sets.New(deployment.Spec.Template.Spec.Containers[0].Args...)
+		required := []string{
+			"--metrics-dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)",
+			"--metrics-dynamic-serving-ca-secret-name=cert-manager-metrics-ca",
+		}
+		for _, req := range required {
+			if !args.Has(req) {
+				return false, nil
+			}
+		}
+
+		hasDNSNames := false
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			if strings.HasPrefix(arg, "--metrics-dynamic-serving-dns-names=") {
+				hasDNSNames = true
+				break
+			}
+		}
+		if !hasDNSNames {
+			return false, nil
+		}
+
+		if deployment.Spec.Template.Annotations["prometheus.io/scheme"] != "https" {
+			return false, nil
 		}
 		return true, nil
 	})

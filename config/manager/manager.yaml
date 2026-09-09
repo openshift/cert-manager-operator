@@ -123,8 +123,15 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: serving-cert
+              mountPath: /var/run/secrets/serving-cert
+              readOnly: true
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: serving-cert
+          secret:
+            secretName: cert-manager-operator-serving-cert
+            optional: true

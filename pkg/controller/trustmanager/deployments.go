@@ -58,6 +58,9 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	updateResourceAnnotations(deployment, resourceAnnotations)
 	updatePodTemplateLabels(deployment, resourceLabels)
 	updateDeploymentArgs(deployment, trustManager)
+	if err := r.applyClusterTLSProfile(deployment); err != nil {
+		return nil, err
+	}
 
 	updateServiceAccountName(deployment)
 	updateTLSSecretVolume(deployment)
