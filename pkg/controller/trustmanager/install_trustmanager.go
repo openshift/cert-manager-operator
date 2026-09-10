@@ -112,6 +112,11 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		changed = true
 	}
 
+	if policy := trustManager.Spec.TrustManagerConfig.FilterNonCACerts; trustManager.Status.FilterNonCACertsPolicy != policy {
+		trustManager.Status.FilterNonCACertsPolicy = policy
+		changed = true
+	}
+
 	if !changed {
 		return nil
 	}
