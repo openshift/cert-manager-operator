@@ -89,6 +89,11 @@ func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.Filt
 	return b
 }
 
+func (b *trustManagerBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACertsPolicy) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.FilterNonCACerts = policy
+	return b
+}
+
 func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b
