@@ -36,6 +36,18 @@ func TestRoleObject(t *testing.T) {
 			},
 		},
 		{
+			name: "cluster-view cluster role has correct metadata and aggregate label",
+			tm:   testTrustManager(),
+			getRole: func(l, a map[string]string) client.Object {
+				return getClusterViewClusterRoleObject(l, a)
+			},
+			wantName: trustManagerClusterRoleClusterViewName,
+			wantLabels: map[string]string{
+				"app":                       trustManagerCommonName,
+				clusterReaderAggregateLabel: "true",
+			},
+		},
+		{
 			name: "trust namespace role has correct metadata",
 			tm:   testTrustManager(),
 			getRole: func(l, a map[string]string) client.Object {
@@ -339,8 +351,8 @@ func TestRBACReconciliation(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantExistsCount: 6,
-			wantPatchCount:  6,
+			wantExistsCount: 7,
+			wantPatchCount:  7,
 		},
 		{
 			name: "skip apply when all RBAC resources match desired",
@@ -367,11 +379,14 @@ func TestRBACReconciliation(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  0,
 		},
 		{
@@ -400,11 +415,14 @@ func TestRBACReconciliation(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  1,
 		},
 		{
@@ -437,11 +455,14 @@ func TestRBACReconciliation(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(labels, annotations)
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(labels, annotations)
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  1,
 		},
 		{
@@ -472,11 +493,14 @@ func TestRBACReconciliation(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  1,
 		},
 		{
@@ -693,11 +717,14 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  1,
 		},
 		{
@@ -727,11 +754,14 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  0,
 		},
 		{
@@ -764,11 +794,14 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					case 6:
 						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
 						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						viewCR := getClusterViewClusterRoleObject(testResourceLabels(), testResourceAnnotations())
+						viewCR.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 6,
+			wantExistsCount: 7,
 			wantPatchCount:  1,
 		},
 	}
