@@ -159,7 +159,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 	}{
 		{
 			name: "skips when policy is Disabled",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyDisabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Disabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 			},
 			wantExistsCount: 0,
@@ -175,7 +175,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "returns error when injection ConfigMap is not found",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					return errTestClient
@@ -185,7 +185,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "returns error when CA bundle key is missing",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -198,7 +198,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "returns error when CA bundle is empty",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -211,7 +211,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "creates ConfigMap and returns hash when bundle is available",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -229,7 +229,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "skips patch when existing ConfigMap matches desired",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -251,7 +251,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "patches when existing ConfigMap data differs",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -271,7 +271,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "propagates Exists error",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
@@ -288,7 +288,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		},
 		{
 			name: "propagates Patch error",
-			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					cm := obj.(*corev1.ConfigMap)
