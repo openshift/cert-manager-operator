@@ -59,7 +59,7 @@ endif
 # Versions of the cert-manager components managed by this operator
 CERT_MANAGER_VERSION ?= v1.20.3
 ISTIO_CSR_VERSION ?= v0.16.0
-TRUST_MANAGER_VERSION ?= v0.20.3
+TRUST_MANAGER_VERSION ?= v0.24.0
 
 # --- Test Versions ---
 
