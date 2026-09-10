@@ -78,6 +78,7 @@
 // bindata/networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-deny-all-networkpolicy.yaml
 // bindata/trust-manager/resources/certificate_trust-manager.yml
+// bindata/trust-manager/resources/clusterrole_trust-manager-cluster-view.yml
 // bindata/trust-manager/resources/clusterrole_trust-manager.yml
 // bindata/trust-manager/resources/clusterrolebinding_trust-manager.yml
 // bindata/trust-manager/resources/deployment_trust-manager.yml
@@ -3901,7 +3902,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
@@ -3909,6 +3910,8 @@ spec:
   dnsNames:
     - "trust-manager.cert-manager.svc"
   secretName: trust-manager-tls
+  privateKey:
+    rotationPolicy: Always
   revisionHistoryLimit: 1
   issuerRef:
     name: trust-manager
@@ -3931,6 +3934,41 @@ func trustManagerResourcesCertificate_trustManagerYml() (*asset, error) {
 	return a, nil
 }
 
+var _trustManagerResourcesClusterrole_trustManagerClusterViewYml = []byte(`---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-trust-manager
+    app.kubernetes.io/instance: cert-manager-trust-manager
+    app.kubernetes.io/version: "v0.24.0"
+    app.kubernetes.io/managed-by: cert-manager-operator
+    rbac.authorization.k8s.io/aggregate-to-cluster-reader: "true"
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: trust-manager-cluster-view
+rules:
+  - apiGroups:
+      - "trust.cert-manager.io"
+    resources:
+      - "bundles"
+    verbs: ["get", "list", "watch"]
+`)
+
+func trustManagerResourcesClusterrole_trustManagerClusterViewYmlBytes() ([]byte, error) {
+	return _trustManagerResourcesClusterrole_trustManagerClusterViewYml, nil
+}
+
+func trustManagerResourcesClusterrole_trustManagerClusterViewYml() (*asset, error) {
+	bytes, err := trustManagerResourcesClusterrole_trustManagerClusterViewYmlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "trust-manager/resources/clusterrole_trust-manager-cluster-view.yml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _trustManagerResourcesClusterrole_trustManagerYml = []byte(`---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3938,7 +3976,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
   name: trust-manager
@@ -3970,6 +4008,7 @@ rules:
     verbs: ["get", "list", "create", "patch", "watch", "delete"]
   - apiGroups:
       - ""
+      - "events.k8s.io"
     resources:
       - "events"
     verbs: ["create", "patch"]
@@ -3997,7 +4036,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
   name: trust-manager
@@ -4035,7 +4074,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
@@ -4050,7 +4089,7 @@ spec:
         app: cert-manager-trust-manager
         app.kubernetes.io/name: cert-manager-trust-manager
         app.kubernetes.io/instance: cert-manager-trust-manager
-        app.kubernetes.io/version: "v0.20.3"
+        app.kubernetes.io/version: "v0.24.0"
         app.kubernetes.io/managed-by: cert-manager-operator
         app.kubernetes.io/part-of: cert-manager-operator
     spec:
@@ -4058,7 +4097,7 @@ spec:
       automountServiceAccountToken: true
       containers:
         - name: trust-manager
-          image: "quay.io/jetstack/trust-manager:v0.20.3"
+          image: "quay.io/jetstack/trust-manager:v0.24.0"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6443
@@ -4088,9 +4127,6 @@ spec:
             - mountPath: /tls
               name: tls
               readOnly: true
-            - mountPath: /packages
-              name: packages
-              readOnly: true
           resources: {}
           securityContext:
             allowPrivilegeEscalation: false
@@ -4104,9 +4140,6 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
-        - name: packages
-          emptyDir:
-            sizeLimit: 50M
         - name: tls
           secret:
             defaultMode: 420
@@ -4137,7 +4170,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
@@ -4168,7 +4201,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 rules:
@@ -4206,7 +4239,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 rules:
@@ -4246,7 +4279,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 roleRef:
@@ -4283,7 +4316,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 roleRef:
@@ -4319,9 +4352,10 @@ metadata:
   namespace: cert-manager
   labels:
     app: cert-manager-trust-manager
+    app.kubernetes.io/component: metrics
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
@@ -4360,7 +4394,7 @@ metadata:
     app: cert-manager-trust-manager
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
@@ -4398,7 +4432,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 `)
@@ -4427,7 +4461,7 @@ metadata:
     app: cert-manager-trust-manager
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
   annotations:
@@ -4600,6 +4634,7 @@ var _bindata = map[string]func() (*asset, error){
 	"networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":                            networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml,
 	"networkpolicies/istio-csr-deny-all-networkpolicy.yaml":                                            networkpoliciesIstioCsrDenyAllNetworkpolicyYaml,
 	"trust-manager/resources/certificate_trust-manager.yml":                                            trustManagerResourcesCertificate_trustManagerYml,
+	"trust-manager/resources/clusterrole_trust-manager-cluster-view.yml":                               trustManagerResourcesClusterrole_trustManagerClusterViewYml,
 	"trust-manager/resources/clusterrole_trust-manager.yml":                                            trustManagerResourcesClusterrole_trustManagerYml,
 	"trust-manager/resources/clusterrolebinding_trust-manager.yml":                                     trustManagerResourcesClusterrolebinding_trustManagerYml,
 	"trust-manager/resources/deployment_trust-manager.yml":                                             trustManagerResourcesDeployment_trustManagerYml,
@@ -4757,6 +4792,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 	"trust-manager": {nil, map[string]*bintree{
 		"resources": {nil, map[string]*bintree{
 			"certificate_trust-manager.yml":                    {trustManagerResourcesCertificate_trustManagerYml, map[string]*bintree{}},
+			"clusterrole_trust-manager-cluster-view.yml":       {trustManagerResourcesClusterrole_trustManagerClusterViewYml, map[string]*bintree{}},
 			"clusterrole_trust-manager.yml":                    {trustManagerResourcesClusterrole_trustManagerYml, map[string]*bintree{}},
 			"clusterrolebinding_trust-manager.yml":             {trustManagerResourcesClusterrolebinding_trustManagerYml, map[string]*bintree{}},
 			"deployment_trust-manager.yml":                     {trustManagerResourcesDeployment_trustManagerYml, map[string]*bintree{}},
