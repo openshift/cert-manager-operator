@@ -616,6 +616,31 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
+		It("should add filter-non-ca-certs arg when filterNonCACerts is Enabled", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled))
+
+			By("verifying deployment args contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--filter-non-ca-certs=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have filter-non-ca-certs arg when filterNonCACerts is Disabled", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			By("verifying deployment args do not contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-non-ca-certs=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
 	})
 
 	// -------------------------------------------------------------------------
@@ -1278,6 +1303,18 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(tm.Status.FilterExpiredCertificatesPolicy).Should(Equal(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should report filterNonCACerts policy in status", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled))
+
+			By("verifying status reports Enabled policy")
+			Eventually(func(g Gomega) {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(tm.Status.FilterNonCACertsPolicy).Should(Equal(v1alpha1.FilterNonCACertsPolicyEnabled))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})

@@ -147,6 +147,10 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--filter-expired-certificates=true")
 	}
 
+	if config.FilterNonCACerts == v1alpha1.FilterNonCACertsPolicyEnabled {
+		args = append(args, "--filter-non-ca-certs=true")
+	}
+
 	if defaultCAPackageEnabled(config.DefaultCAPackage) {
 		args = append(args, fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation))
 	}

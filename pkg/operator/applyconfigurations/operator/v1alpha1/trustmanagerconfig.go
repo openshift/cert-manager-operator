@@ -31,6 +31,12 @@ type TrustManagerConfigApplyConfiguration struct {
 	// When set to "Enabled", expired certificates are removed from bundles.
 	// When set to "Disabled", expired certificates are included (default behavior).
 	FilterExpiredCertificates *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
+	// filterNonCACerts controls whether trust-manager filters out
+	// non-CA certificates from trust bundles before distributing them.
+	// When set to "Enabled", only certificates with the X.509 basicConstraints
+	// CA bit set are included in bundles.
+	// When set to "Disabled", non-CA certificates are included (default behavior).
+	FilterNonCACerts *operatorv1alpha1.FilterNonCACertsPolicy `json:"filterNonCACerts,omitempty"`
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
 	DefaultCAPackage *DefaultCAPackageConfigApplyConfiguration `json:"defaultCAPackage,omitempty"`
@@ -91,6 +97,14 @@ func (b *TrustManagerConfigApplyConfiguration) WithSecretTargets(value *SecretTa
 // If called multiple times, the FilterExpiredCertificates field is set to the value of the last call.
 func (b *TrustManagerConfigApplyConfiguration) WithFilterExpiredCertificates(value operatorv1alpha1.FilterExpiredCertificatesPolicy) *TrustManagerConfigApplyConfiguration {
 	b.FilterExpiredCertificates = &value
+	return b
+}
+
+// WithFilterNonCACerts sets the FilterNonCACerts field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FilterNonCACerts field is set to the value of the last call.
+func (b *TrustManagerConfigApplyConfiguration) WithFilterNonCACerts(value operatorv1alpha1.FilterNonCACertsPolicy) *TrustManagerConfigApplyConfiguration {
+	b.FilterNonCACerts = &value
 	return b
 }
 

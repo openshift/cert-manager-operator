@@ -148,6 +148,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			notExpectedArgs: []string{
 				"--secret-targets-enabled=true",
 				"--filter-expired-certificates=true",
+				"--filter-non-ca-certs=true",
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
 		},
@@ -157,12 +158,14 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				WithLogLevel(5).
 				WithLogFormat("json").
 				WithTrustNamespace("custom-ns").
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled),
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled).
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled),
 			expectedArgs: []string{
 				"--log-level=5",
 				"--log-format=json",
 				"--trust-namespace=custom-ns",
 				"--filter-expired-certificates=true",
+				"--filter-non-ca-certs=true",
 			},
 			notExpectedArgs: []string{
 				"--log-level=1",
@@ -208,6 +211,20 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			name: "excludes default-package-location when defaultCAPackage is Disabled",
 			notExpectedArgs: []string{
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
+			},
+		},
+		{
+			name:      "includes filter-non-ca-certs when filterNonCACerts is Enabled",
+			tmBuilder: testTrustManager().WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled),
+			expectedArgs: []string{
+				"--filter-non-ca-certs=true",
+			},
+		},
+		{
+			name:      "excludes filter-non-ca-certs when filterNonCACerts is Disabled",
+			tmBuilder: testTrustManager().WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyDisabled),
+			notExpectedArgs: []string{
+				"--filter-non-ca-certs=true",
 			},
 		},
 	}

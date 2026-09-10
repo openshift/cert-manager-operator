@@ -22,6 +22,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should not allow creating TrustManager with invalid name
     resourceName: invalid-name
@@ -52,6 +53,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should not allow logLevel below minimum
     resourceName: cluster
@@ -93,6 +95,7 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should not allow invalid logFormat
     resourceName: cluster
@@ -124,6 +127,7 @@ tests:
           logFormat: text
           trustNamespace: custom-namespace
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   # ==========================================
   # FilterExpiredCertificates Tests
@@ -136,6 +140,7 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -145,6 +150,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
 
   - name: Should not allow invalid filterExpiredCertificates value
     resourceName: cluster
@@ -154,7 +160,40 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Invalid
+          filterNonCACerts: Disabled
     expectedError: "filterExpiredCertificates"
+
+  # ==========================================
+  # FilterNonCACerts Tests
+  # ==========================================
+  - name: Should create with filterNonCACerts Enabled
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Enabled
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+
+  - name: Should not allow invalid filterNonCACerts value
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Invalid
+    expectedError: "filterNonCACerts"
 
   # ==========================================
   # DefaultCAPackage Tests
@@ -177,6 +216,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           defaultCAPackage:
             policy: Enabled
 
@@ -215,6 +255,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -282,6 +323,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           resources:
             requests:
               cpu: 100m
@@ -315,6 +357,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -345,6 +388,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           tolerations:
             - key: node-role.kubernetes.io/master
               operator: Exists
@@ -368,6 +412,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           nodeSelector:
             kubernetes.io/os: linux
 
@@ -393,6 +438,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
         controllerConfig:
           labels:
             app.kubernetes.io/managed-by: cert-manager-operator
@@ -416,6 +462,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
         controllerConfig:
           annotations:
             custom-annotation: custom-value
@@ -463,6 +510,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should allow updating logFormat
     resourceName: cluster
@@ -487,6 +535,7 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should allow updating filterExpiredCertificates
     resourceName: cluster
@@ -496,12 +545,14 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
     updated: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -511,6 +562,32 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
+
+  - name: Should allow updating filterNonCACerts
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Disabled
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Enabled
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster
@@ -537,6 +614,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           defaultCAPackage:
             policy: Enabled
 
@@ -567,6 +645,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -602,6 +681,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -635,6 +715,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           secretTargets:
             policy: Disabled
 
@@ -710,6 +791,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
           secretTargets:
             policy: Custom
             authorizedSecrets:

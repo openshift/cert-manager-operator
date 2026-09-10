@@ -24,6 +24,8 @@ type TrustManagerStatusApplyConfiguration struct {
 	DefaultCAPackagePolicy *operatorv1alpha1.DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
 	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
 	FilterExpiredCertificatesPolicy *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
+	// filterNonCACertsPolicy indicates the current policy for filtering non-CA certificates.
+	FilterNonCACertsPolicy *operatorv1alpha1.FilterNonCACertsPolicy `json:"filterNonCACertsPolicy,omitempty"`
 }
 
 // TrustManagerStatusApplyConfiguration constructs a declarative configuration of the TrustManagerStatus type for use with
@@ -82,5 +84,13 @@ func (b *TrustManagerStatusApplyConfiguration) WithDefaultCAPackagePolicy(value 
 // If called multiple times, the FilterExpiredCertificatesPolicy field is set to the value of the last call.
 func (b *TrustManagerStatusApplyConfiguration) WithFilterExpiredCertificatesPolicy(value operatorv1alpha1.FilterExpiredCertificatesPolicy) *TrustManagerStatusApplyConfiguration {
 	b.FilterExpiredCertificatesPolicy = &value
+	return b
+}
+
+// WithFilterNonCACertsPolicy sets the FilterNonCACertsPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FilterNonCACertsPolicy field is set to the value of the last call.
+func (b *TrustManagerStatusApplyConfiguration) WithFilterNonCACertsPolicy(value operatorv1alpha1.FilterNonCACertsPolicy) *TrustManagerStatusApplyConfiguration {
+	b.FilterNonCACertsPolicy = &value
 	return b
 }
