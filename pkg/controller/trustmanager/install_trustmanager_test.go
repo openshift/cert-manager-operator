@@ -21,6 +21,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 		SecretTargetsPolicy:             "",
 		DefaultCAPackagePolicy:          "",
 		FilterExpiredCertificatesPolicy: "",
+		FilterNonCACertsPolicy:          "",
 	}
 
 	tests := []struct {
@@ -45,6 +46,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 					WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"allowed-secret"}).
 					WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).
 					WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled).
+					WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled).
 					Build()
 			},
 			wantStatusUpdate: 1,
@@ -54,6 +56,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				SecretTargetsPolicy:             v1alpha1.SecretTargetsPolicyCustom,
 				DefaultCAPackagePolicy:          v1alpha1.DefaultCAPackagePolicyEnabled,
 				FilterExpiredCertificatesPolicy: v1alpha1.FilterExpiredCertificatesPolicyEnabled,
+				FilterNonCACertsPolicy:          v1alpha1.FilterNonCACertsPolicyEnabled,
 			},
 		},
 		{
@@ -65,6 +68,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				tm.Status.SecretTargetsPolicy = tm.Spec.TrustManagerConfig.SecretTargets.Policy
 				tm.Status.DefaultCAPackagePolicy = tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy
 				tm.Status.FilterExpiredCertificatesPolicy = tm.Spec.TrustManagerConfig.FilterExpiredCertificates
+				tm.Status.FilterNonCACertsPolicy = tm.Spec.TrustManagerConfig.FilterNonCACerts
 				return tm
 			},
 			wantStatusUpdate: 0,
