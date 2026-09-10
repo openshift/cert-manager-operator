@@ -92,31 +92,6 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		changed = true
 	}
 
-	if ns := getTrustNamespace(trustManager); trustManager.Status.TrustNamespace != ns {
-		trustManager.Status.TrustNamespace = ns
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.SecretTargets.Policy; trustManager.Status.SecretTargetsPolicy != policy {
-		trustManager.Status.SecretTargetsPolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.DefaultCAPackage.Policy; trustManager.Status.DefaultCAPackagePolicy != policy {
-		trustManager.Status.DefaultCAPackagePolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.FilterExpiredCertificates; trustManager.Status.FilterExpiredCertificatesPolicy != policy {
-		trustManager.Status.FilterExpiredCertificatesPolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.FilterNonCACerts; trustManager.Status.FilterNonCACertsPolicy != policy {
-		trustManager.Status.FilterNonCACertsPolicy = policy
-		changed = true
-	}
-
 	if !changed {
 		return nil
 	}

@@ -1302,41 +1302,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              defaultCAPackagePolicy:
-                description: defaultCAPackagePolicy indicates the current default
-                  CA package policy.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              filterExpiredCertificatesPolicy:
-                description: filterExpiredCertificatesPolicy indicates the current
-                  policy for filtering expired certificates.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              filterNonCACertsPolicy:
-                description: filterNonCACertsPolicy indicates the current policy for
-                  filtering non-CA certificates.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              secretTargetsPolicy:
-                description: secretTargetsPolicy indicates the current secret targets
-                  policy.
-                enum:
-                - Disabled
-                - Custom
-                type: string
               trustManagerImage:
                 description: trustManagerImage is the container image (name:tag) used
                   for trust-manager.
-                type: string
-              trustNamespace:
-                description: trustNamespace is the namespace where trust-manager looks
-                  for trust sources.
                 type: string
             type: object
         required:
