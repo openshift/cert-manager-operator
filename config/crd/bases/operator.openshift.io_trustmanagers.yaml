@@ -1038,6 +1038,18 @@ spec:
                     - Enabled
                     - Disabled
                     type: string
+                  filterNonCACerts:
+                    default: Disabled
+                    description: |-
+                      filterNonCACerts controls whether trust-manager filters out
+                      non-CA certificates from trust bundles before distributing them.
+                      When set to "Enabled", only certificates with the X.509 basicConstraints
+                      CA bit set are included in bundles.
+                      When set to "Disabled", non-CA certificates are included (default behavior).
+                    enum:
+                    - Enabled
+                    - Disabled
+                    type: string
                   logFormat:
                     default: text
                     description: |-
@@ -1300,6 +1312,13 @@ spec:
               filterExpiredCertificatesPolicy:
                 description: filterExpiredCertificatesPolicy indicates the current
                   policy for filtering expired certificates.
+                enum:
+                - Enabled
+                - Disabled
+                type: string
+              filterNonCACertsPolicy:
+                description: filterNonCACertsPolicy indicates the current policy for
+                  filtering non-CA certificates.
                 enum:
                 - Enabled
                 - Disabled

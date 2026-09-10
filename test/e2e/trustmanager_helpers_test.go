@@ -97,6 +97,11 @@ func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.Fi
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACertsPolicy) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.FilterNonCACerts = policy
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }

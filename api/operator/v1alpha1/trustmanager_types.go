@@ -118,6 +118,17 @@ type TrustManagerConfig struct {
 	// +optional
 	FilterExpiredCertificates FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
 
+	// filterNonCACerts controls whether trust-manager filters out
+	// non-CA certificates from trust bundles before distributing them.
+	// When set to "Enabled", only certificates with the X.509 basicConstraints
+	// CA bit set are included in bundles.
+	// When set to "Disabled", non-CA certificates are included (default behavior).
+	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
+	// +kubebuilder:validation:Optional
+	// +optional
+	FilterNonCACerts FilterNonCACertsPolicy `json:"filterNonCACerts,omitempty"`
+
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
 	// +kubebuilder:validation:Optional
@@ -225,6 +236,16 @@ const (
 	FilterExpiredCertificatesPolicyDisabled FilterExpiredCertificatesPolicy = "Disabled"
 )
 
+// FilterNonCACertsPolicy defines the policy for filtering non-CA certificates.
+type FilterNonCACertsPolicy string
+
+const (
+	// FilterNonCACertsPolicyEnabled filters out non-CA certificates from bundles.
+	FilterNonCACertsPolicyEnabled FilterNonCACertsPolicy = "Enabled"
+	// FilterNonCACertsPolicyDisabled includes non-CA certificates in bundles.
+	FilterNonCACertsPolicyDisabled FilterNonCACertsPolicy = "Disabled"
+)
+
 // SecretTargetsPolicy defines the policy for writing trust bundles to Secrets.
 type SecretTargetsPolicy string
 
@@ -268,4 +289,8 @@ type TrustManagerStatus struct {
 	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	FilterExpiredCertificatesPolicy FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
+
+	// filterNonCACertsPolicy indicates the current policy for filtering non-CA certificates.
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
+	FilterNonCACertsPolicy FilterNonCACertsPolicy `json:"filterNonCACertsPolicy,omitempty"`
 }
