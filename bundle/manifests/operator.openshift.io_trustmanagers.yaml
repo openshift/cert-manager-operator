@@ -1038,6 +1038,18 @@ spec:
                     - Enabled
                     - Disabled
                     type: string
+                  filterNonCACerts:
+                    default: Disabled
+                    description: |-
+                      filterNonCACerts controls whether trust-manager filters out
+                      non-CA certificates from trust bundles before distributing them.
+                      When set to "Enabled", only certificates with the X.509 basicConstraints
+                      CA bit set are included in bundles.
+                      When set to "Disabled", non-CA certificates are included (default behavior).
+                    enum:
+                    - Enabled
+                    - Disabled
+                    type: string
                   logFormat:
                     default: text
                     description: |-
@@ -1290,34 +1302,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              defaultCAPackagePolicy:
-                description: defaultCAPackagePolicy indicates the current default
-                  CA package policy.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              filterExpiredCertificatesPolicy:
-                description: filterExpiredCertificatesPolicy indicates the current
-                  policy for filtering expired certificates.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              secretTargetsPolicy:
-                description: secretTargetsPolicy indicates the current secret targets
-                  policy.
-                enum:
-                - Disabled
-                - Custom
-                type: string
               trustManagerImage:
                 description: trustManagerImage is the container image (name:tag) used
                   for trust-manager.
-                type: string
-              trustNamespace:
-                description: trustNamespace is the namespace where trust-manager looks
-                  for trust sources.
                 type: string
             type: object
         required:

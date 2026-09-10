@@ -118,6 +118,17 @@ type TrustManagerConfig struct {
 	// +optional
 	FilterExpiredCertificates FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
 
+	// filterNonCACerts controls whether trust-manager filters out
+	// non-CA certificates from trust bundles before distributing them.
+	// When set to "Enabled", only certificates with the X.509 basicConstraints
+	// CA bit set are included in bundles.
+	// When set to "Disabled", non-CA certificates are included (default behavior).
+	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
+	// +kubebuilder:validation:Optional
+	// +optional
+	FilterNonCACerts FilterNonCACertsPolicy `json:"filterNonCACerts,omitempty"`
+
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
 	// +kubebuilder:validation:Optional
@@ -215,15 +226,13 @@ type TrustManagerControllerConfig struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// FilterExpiredCertificatesPolicy defines the policy for filtering expired certificates.
+// FilterExpiredCertificatesPolicy controls whether expired certificates are filtered from bundles.
+// Allowed values are Enabled and Disabled.
 type FilterExpiredCertificatesPolicy string
 
-const (
-	// FilterExpiredCertificatesPolicyEnabled filters out expired certificates from bundles.
-	FilterExpiredCertificatesPolicyEnabled FilterExpiredCertificatesPolicy = "Enabled"
-	// FilterExpiredCertificatesPolicyDisabled includes expired certificates in bundles.
-	FilterExpiredCertificatesPolicyDisabled FilterExpiredCertificatesPolicy = "Disabled"
-)
+// FilterNonCACertsPolicy controls whether non-CA certificates are filtered from bundles.
+// Allowed values are Enabled and Disabled.
+type FilterNonCACertsPolicy string
 
 // SecretTargetsPolicy defines the policy for writing trust bundles to Secrets.
 type SecretTargetsPolicy string
@@ -236,15 +245,9 @@ const (
 	SecretTargetsPolicyCustom SecretTargetsPolicy = "Custom"
 )
 
-// DefaultCAPackagePolicy defines the policy for the default CA package feature.
+// DefaultCAPackagePolicy controls whether the default CA package feature is enabled.
+// Allowed values are Enabled and Disabled.
 type DefaultCAPackagePolicy string
-
-const (
-	// DefaultCAPackagePolicyEnabled enables the default CA package feature.
-	DefaultCAPackagePolicyEnabled DefaultCAPackagePolicy = "Enabled"
-	// DefaultCAPackagePolicyDisabled disables the default CA package feature.
-	DefaultCAPackagePolicyDisabled DefaultCAPackagePolicy = "Disabled"
-)
 
 // TrustManagerStatus defines the observed state of TrustManager.
 type TrustManagerStatus struct {
@@ -253,19 +256,4 @@ type TrustManagerStatus struct {
 
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage string `json:"trustManagerImage,omitempty"`
-
-	// trustNamespace is the namespace where trust-manager looks for trust sources.
-	TrustNamespace string `json:"trustNamespace,omitempty"`
-
-	// secretTargetsPolicy indicates the current secret targets policy.
-	// +kubebuilder:validation:Enum:=Disabled;Custom
-	SecretTargetsPolicy SecretTargetsPolicy `json:"secretTargetsPolicy,omitempty"`
-
-	// defaultCAPackagePolicy indicates the current default CA package policy.
-	// +kubebuilder:validation:Enum:=Enabled;Disabled
-	DefaultCAPackagePolicy DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
-
-	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
-	// +kubebuilder:validation:Enum:=Enabled;Disabled
-	FilterExpiredCertificatesPolicy FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
 }
