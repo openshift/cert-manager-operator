@@ -560,7 +560,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	// ===== Group 3: DefaultCAPackage enabled =====
 	Context("with DefaultCAPackage enabled", Ordered, func() {
 		BeforeAll(func() {
-			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
 
 			By("waiting for default CA package ConfigMap to be created")
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
@@ -871,7 +871,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 		BeforeAll(func() {
 			createTrustManager(ctx, newTrustManagerCR().
 				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{bundleCombined}).
-				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
 
 			By("waiting for default CA package ConfigMap to be created")
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
@@ -1017,7 +1017,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 		BeforeAll(func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
 
 			sourceCMName = "filter-src-cm-" + randomStr(5)
 			filterBundleName = "bundle-filter-expired-" + randomStr(5)
@@ -1059,7 +1059,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicyDisabled
+				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Disabled)
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -1088,7 +1088,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 		BeforeAll(func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicyEnabled))
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)))
 
 			sourceCMName = "filter-nca-src-cm-" + randomStr(5)
 			filterBundleName = "bundle-filter-non-ca-" + randomStr(5)
@@ -1130,7 +1130,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.FilterNonCACerts = v1alpha1.FilterNonCACertsPolicyDisabled
+				tm.Spec.TrustManagerConfig.FilterNonCACerts = v1alpha1.FilterNonCACertsPolicy(v1alpha1.Disabled)
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
