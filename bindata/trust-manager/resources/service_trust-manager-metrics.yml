@@ -6,9 +6,10 @@ metadata:
   namespace: cert-manager
   labels:
     app: cert-manager-trust-manager
+    app.kubernetes.io/component: metrics
     app.kubernetes.io/name: cert-manager-trust-manager
     app.kubernetes.io/instance: cert-manager-trust-manager
-    app.kubernetes.io/version: "v0.20.3"
+    app.kubernetes.io/version: "v0.24.0"
     app.kubernetes.io/managed-by: cert-manager-operator
     app.kubernetes.io/part-of: cert-manager-operator
 spec:
