@@ -143,11 +143,11 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--secret-targets-enabled=true")
 	}
 
-	if config.FilterExpiredCertificates == v1alpha1.FilterExpiredCertificatesPolicyEnabled {
+	if config.FilterExpiredCertificates == v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled) {
 		args = append(args, "--filter-expired-certificates=true")
 	}
 
-	if config.FilterNonCACerts == v1alpha1.FilterNonCACertsPolicyEnabled {
+	if config.FilterNonCACerts == v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled) {
 		args = append(args, "--filter-non-ca-certs=true")
 	}
 
