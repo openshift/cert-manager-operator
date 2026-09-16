@@ -154,6 +154,12 @@ func TestCertificateSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("sets secret template for direct CA injection", func(t *testing.T) {
+		if cert.Spec.SecretTemplate == nil || cert.Spec.SecretTemplate.Annotations["cert-manager.io/allow-direct-injection"] != "true" {
+			t.Errorf("expected secretTemplate annotation cert-manager.io/allow-direct-injection=true, got %+v", cert.Spec.SecretTemplate)
+		}
+	})
+
 	t.Run("sets correct issuer reference", func(t *testing.T) {
 		if cert.Spec.IssuerRef.Name != trustManagerIssuerName {
 			t.Errorf("expected issuerRef.name %q, got %q", trustManagerIssuerName, cert.Spec.IssuerRef.Name)

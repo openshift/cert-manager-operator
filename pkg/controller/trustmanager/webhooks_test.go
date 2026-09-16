@@ -14,16 +14,17 @@ import (
 )
 
 func TestValidatingWebhookConfigObject(t *testing.T) {
-	expectedCAAnnotation := fmt.Sprintf("%s/%s", operandNamespace, trustManagerCertificateName)
+	expectedCAAnnotation := fmt.Sprintf("%s/%s", operandNamespace, trustManagerTLSSecretName)
 
 	tests := []struct {
-		name            string
-		tm              *trustManagerBuilder
-		wantName        string
-		wantLabels      map[string]string
-		wantAnnotations map[string]string
-		wantServiceName string
-		wantServiceNS   string
+		name                   string
+		tm                     *trustManagerBuilder
+		wantName               string
+		wantLabels             map[string]string
+		wantAnnotations        map[string]string
+		wantMissingAnnotations []string
+		wantServiceName        string
+		wantServiceNS          string
 	}{
 		{
 			name:     "sets correct name and labels",
@@ -37,19 +38,21 @@ func TestValidatingWebhookConfigObject(t *testing.T) {
 			name: "sets CA injection annotation",
 			tm:   testTrustManager(),
 			wantAnnotations: map[string]string{
-				"cert-manager.io/inject-ca-from": expectedCAAnnotation,
+				"cert-manager.io/inject-ca-from-secret": expectedCAAnnotation,
 			},
 		},
 		{
 			name: "CA injection annotation not overrideable by user",
 			tm: testTrustManager().WithAnnotations(map[string]string{
-				"cert-manager.io/inject-ca-from": "should-be-overridden",
-				"user-annotation":                "preserved",
+				"cert-manager.io/inject-ca-from-secret": "should-be-overridden",
+				"cert-manager.io/inject-ca-from":        "legacy-should-be-dropped",
+				"user-annotation":                       "preserved",
 			}),
 			wantAnnotations: map[string]string{
-				"cert-manager.io/inject-ca-from": expectedCAAnnotation,
-				"user-annotation":                "preserved",
+				"cert-manager.io/inject-ca-from-secret": expectedCAAnnotation,
+				"user-annotation":                       "preserved",
 			},
+			wantMissingAnnotations: []string{"cert-manager.io/inject-ca-from"},
 		},
 		{
 			name: "default labels take precedence over user labels",
@@ -90,6 +93,11 @@ func TestValidatingWebhookConfigObject(t *testing.T) {
 			for key, val := range tt.wantAnnotations {
 				if vwc.Annotations[key] != val {
 					t.Errorf("expected annotation %s=%q, got %q", key, val, vwc.Annotations[key])
+				}
+			}
+			for _, key := range tt.wantMissingAnnotations {
+				if _, ok := vwc.Annotations[key]; ok {
+					t.Errorf("expected annotation %q to be absent, got %q", key, vwc.Annotations[key])
 				}
 			}
 			if tt.wantServiceName != "" {
