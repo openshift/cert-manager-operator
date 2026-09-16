@@ -94,6 +94,11 @@ func (b *trustManagerBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACe
 	return b
 }
 
+func (b *trustManagerBuilder) WithTargetNamespaces(namespaces ...string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.TargetNamespaces = namespaces
+	return b
+}
+
 func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b

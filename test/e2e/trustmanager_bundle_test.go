@@ -47,6 +47,10 @@
 // Group 7 — FilterNonCACerts enabled:
 //   - ConfigMap source with CA + leaf certs → only CA cert in ConfigMap target
 //   - Transition to Disabled → same Bundle re-syncs with both certs in target
+//
+// Group 8 — TargetNamespaces set:
+//   - Bundle ConfigMap target is written only in listed namespaces
+//   - Bundle ConfigMap is absent from a denied namespace and the suite testNS
 package e2e
 
 import (
@@ -1147,6 +1151,51 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, highTimeout, fastPollInterval).Should(Succeed())
 
 			verifyBundleSynced(ctx, filterBundleName)
+		})
+	})
+
+	// ===== Group 8: TargetNamespaces =====
+	Context("with TargetNamespaces set", Ordered, func() {
+		var (
+			allowedNS *corev1.Namespace
+			deniedNS  *corev1.Namespace
+		)
+
+		BeforeAll(func() {
+			By("creating allowed and denied target namespaces")
+			allowedNS = createNamespaceWithCleanup(ctx, "tm-target-allow-", nil)
+			deniedNS = createNamespaceWithCleanup(ctx, "tm-target-deny-", nil)
+
+			createTrustManager(ctx, newTrustManagerCR().WithTargetNamespaces(allowedNS.Name))
+		})
+		AfterAll(func() { deleteTrustManager(ctx) })
+
+		It("should sync Bundle ConfigMap only into listed target namespaces", func() {
+			bundleName := "bundle-target-ns-" + randomStr(5)
+			bundle := newBundle(bundleName).
+				WithInLineSource(testCertPEM1).
+				WithConfigMapTarget(bundleTargetKey).
+				Build()
+
+			createBundleWithCleanup(ctx, bundle)
+
+			By("verifying ConfigMap exists in the listed target namespace")
+			err := waitForConfigMapTarget(ctx, bundleClient, bundleName, allowedNS.Name, bundleTargetKey, testCertPEM1, highTimeout)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verifying ConfigMap does not exist in a namespace outside the list")
+			Consistently(func(g Gomega) {
+				_, err := k8sClientSet.CoreV1().ConfigMaps(deniedNS.Name).Get(ctx, bundleName, metav1.GetOptions{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"ConfigMap %s should not exist in denied namespace %s", bundleName, deniedNS.Name)
+			}, "30s", fastPollInterval).Should(Succeed())
+
+			By("verifying ConfigMap does not exist in the suite test namespace")
+			Consistently(func(g Gomega) {
+				_, err := k8sClientSet.CoreV1().ConfigMaps(testNS.Name).Get(ctx, bundleName, metav1.GetOptions{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"ConfigMap %s should not exist in suite test namespace %s", bundleName, testNS.Name)
+			}, "30s", fastPollInterval).Should(Succeed())
 		})
 	})
 })
