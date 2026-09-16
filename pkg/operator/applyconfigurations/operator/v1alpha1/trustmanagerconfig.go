@@ -24,6 +24,15 @@ type TrustManagerConfigApplyConfiguration struct {
 	// This field is immutable once set.
 	// This field can have a maximum of 63 characters.
 	TrustNamespace *string `json:"trustNamespace,omitempty"`
+	// targetNamespaces limits where trust-manager writes Bundle targets
+	// (ConfigMaps, and Secrets when secretTargets is enabled).
+	// When empty or omitted, trust-manager writes targets in all namespaces
+	// (default behavior).
+	// When set, Bundle targets are written only in the listed namespaces.
+	// Trust sources are still read from trustNamespace.
+	// Removing a namespace from this list does not delete existing target
+	// ConfigMaps or Secrets in that namespace.
+	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 	// secretTargets configures whether trust-manager can write trust bundles to Secrets.
 	SecretTargets *SecretTargetsConfigApplyConfiguration `json:"secretTargets,omitempty"`
 	// filterExpiredCertificates controls whether trust-manager filters out
@@ -81,6 +90,16 @@ func (b *TrustManagerConfigApplyConfiguration) WithLogFormat(value string) *Trus
 // If called multiple times, the TrustNamespace field is set to the value of the last call.
 func (b *TrustManagerConfigApplyConfiguration) WithTrustNamespace(value string) *TrustManagerConfigApplyConfiguration {
 	b.TrustNamespace = &value
+	return b
+}
+
+// WithTargetNamespaces adds the given value to the TargetNamespaces field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the TargetNamespaces field.
+func (b *TrustManagerConfigApplyConfiguration) WithTargetNamespaces(values ...string) *TrustManagerConfigApplyConfiguration {
+	for i := range values {
+		b.TargetNamespaces = append(b.TargetNamespaces, values[i])
+	}
 	return b
 }
 
