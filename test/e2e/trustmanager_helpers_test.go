@@ -102,6 +102,11 @@ func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCA
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithTargetNamespaces(namespaces ...string) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.TargetNamespaces = namespaces
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }
@@ -150,6 +155,10 @@ func cleanupTrustManagerOperandLeavings(ctx context.Context) {
 	}, lowTimeout, fastPollInterval).Should(BeTrue())
 
 	deleteTrustManagerDefaultCAPackageConfigMap(ctx)
+
+	By("cleaning up leftover target namespace Role and RoleBinding in the trust namespace")
+	_ = k8sClientSet.RbacV1().Roles(trustManagerNamespace).Delete(ctx, "trust-manager-target", metav1.DeleteOptions{})
+	_ = k8sClientSet.RbacV1().RoleBindings(trustManagerNamespace).Delete(ctx, "trust-manager-target", metav1.DeleteOptions{})
 }
 
 // deleteTrustManagerDefaultCAPackageConfigMap removes the operand ConfigMap created when

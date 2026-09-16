@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -28,7 +29,7 @@ func TestRoleObject(t *testing.T) {
 			name: "cluster role has correct metadata",
 			tm:   testTrustManager(),
 			getRole: func(l, a map[string]string) client.Object {
-				return getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, l, a)
+				return getClusterRoleObject(v1alpha1.TrustManagerConfig{}, l, a)
 			},
 			wantName: trustManagerClusterRoleName,
 			wantLabels: map[string]string{
@@ -63,7 +64,7 @@ func TestRoleObject(t *testing.T) {
 			name: "cluster role default labels take precedence over user labels",
 			tm:   testTrustManager().WithLabels(map[string]string{"app": "should-be-overridden"}),
 			getRole: func(l, a map[string]string) client.Object {
-				return getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, l, a)
+				return getClusterRoleObject(v1alpha1.TrustManagerConfig{}, l, a)
 			},
 			wantLabels: map[string]string{
 				"app": trustManagerCommonName,
@@ -75,7 +76,7 @@ func TestRoleObject(t *testing.T) {
 				WithLabels(map[string]string{"user-label": "test-value"}).
 				WithAnnotations(map[string]string{"user-annotation": "test-value"}),
 			getRole: func(l, a map[string]string) client.Object {
-				return getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, l, a)
+				return getClusterRoleObject(v1alpha1.TrustManagerConfig{}, l, a)
 			},
 			wantLabels:      map[string]string{"user-label": "test-value"},
 			wantAnnotations: map[string]string{"user-annotation": "test-value"},
@@ -121,6 +122,18 @@ func TestRoleObject(t *testing.T) {
 			},
 			wantLabels:      map[string]string{"user-label": "test-value"},
 			wantAnnotations: map[string]string{"user-annotation": "test-value"},
+		},
+		{
+			name: "target namespace role has correct metadata",
+			tm:   testTrustManager().WithTargetNamespaces("app-ns"),
+			getRole: func(l, a map[string]string) client.Object {
+				return getTargetNamespaceRoleObject("app-ns", v1alpha1.SecretTargetsConfig{}, l, a)
+			},
+			wantName:      trustManagerTargetRoleName,
+			wantNamespace: "app-ns",
+			wantLabels: map[string]string{
+				"app": trustManagerCommonName,
+			},
 		},
 	}
 
@@ -273,6 +286,22 @@ func TestRoleBindingObject(t *testing.T) {
 			wantLabels:      map[string]string{"user-label": "test-value"},
 			wantAnnotations: map[string]string{"user-annotation": "test-value"},
 		},
+		{
+			name: "target namespace role binding has correct metadata and subjects",
+			tm:   testTrustManager().WithTargetNamespaces("app-ns"),
+			getBinding: func(l, a map[string]string) client.Object {
+				return getTargetNamespaceRoleBindingObject("app-ns", l, a)
+			},
+			wantName:        trustManagerTargetRoleBindingName,
+			wantNamespace:   "app-ns",
+			wantRoleRefName: trustManagerTargetRoleName,
+			wantRoleRefKind: "Role",
+			wantSubjectName: trustManagerServiceAccountName,
+			wantSubjectNS:   operandNamespace,
+			wantLabels: map[string]string{
+				"app": trustManagerCommonName,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -350,7 +379,7 @@ func TestRBACReconciliation(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
@@ -382,7 +411,7 @@ func TestRBACReconciliation(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 						cr.Labels["app.kubernetes.io/instance"] = "modified-value"
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
@@ -419,7 +448,7 @@ func TestRBACReconciliation(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, labels, annotations)
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{}, labels, annotations)
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(labels, annotations)
@@ -452,7 +481,7 @@ func TestRBACReconciliation(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
@@ -626,7 +655,7 @@ func TestClusterRoleSecretTargetRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tm := tt.tm.Build()
-			cr := getClusterRoleObject(tm.Spec.TrustManagerConfig.SecretTargets, testResourceLabels(), testResourceAnnotations())
+			cr := getClusterRoleObject(tm.Spec.TrustManagerConfig, testResourceLabels(), testResourceAnnotations())
 
 			hasSecretRead := false
 			hasSecretWrite := false
@@ -676,7 +705,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					switch existsCall {
 					case 1:
 						// Existing ClusterRole has no secret rules (was Disabled)
-						cr := getClusterRoleObject(v1alpha1.SecretTargetsConfig{}, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
@@ -710,7 +739,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(secretTargets, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{SecretTargets: secretTargets}, testResourceLabels(), testResourceAnnotations())
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
@@ -747,7 +776,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 					existsCall++
 					switch existsCall {
 					case 1:
-						cr := getClusterRoleObject(oldSecretTargets, testResourceLabels(), testResourceAnnotations())
+						cr := getClusterRoleObject(v1alpha1.TrustManagerConfig{SecretTargets: oldSecretTargets}, testResourceLabels(), testResourceAnnotations())
 						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
 					case 2:
 						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
@@ -816,4 +845,285 @@ func assertSubjects(t *testing.T, subjects []rbacv1.Subject, expectedName, expec
 	if !found {
 		t.Error("expected to find a ServiceAccount subject")
 	}
+}
+
+func TestClusterRoleTargetNamespacesRules(t *testing.T) {
+	tests := []struct {
+		name               string
+		tm                 *trustManagerBuilder
+		wantConfigMapWrite bool
+		wantEvents         bool
+		wantSecretRead     bool
+		wantSecretWrite    bool
+	}{
+		{
+			name:               "cluster-wide ConfigMap write and events when targetNamespaces is unset",
+			tm:                 testTrustManager(),
+			wantConfigMapWrite: true,
+			wantEvents:         true,
+		},
+		{
+			name: "drops cluster-wide ConfigMap write and events when targetNamespaces is set",
+			tm:   testTrustManager().WithTargetNamespaces("app-ns"),
+		},
+		{
+			name:               "secret rules stay on ClusterRole when targetNamespaces is unset and secretTargets is Custom",
+			tm:                 testTrustManager().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"bundle-secret"}),
+			wantConfigMapWrite: true,
+			wantEvents:         true,
+			wantSecretRead:     true,
+			wantSecretWrite:    true,
+		},
+		{
+			name: "secret rules move off ClusterRole when targetNamespaces is set and secretTargets is Custom",
+			tm: testTrustManager().
+				WithTargetNamespaces("app-ns").
+				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"bundle-secret"}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := tt.tm.Build()
+			cr := getClusterRoleObject(tm.Spec.TrustManagerConfig, testResourceLabels(), testResourceAnnotations())
+
+			if got := hasResourceVerb(cr.Rules, "configmaps", "create"); got != tt.wantConfigMapWrite {
+				t.Errorf("expected configmap write=%v, got %v", tt.wantConfigMapWrite, got)
+			}
+			if got := hasResourceVerb(cr.Rules, "events", "create"); got != tt.wantEvents {
+				t.Errorf("expected events write=%v, got %v", tt.wantEvents, got)
+			}
+			if got := hasResourceVerb(cr.Rules, "secrets", "get"); got != tt.wantSecretRead {
+				t.Errorf("expected secret read=%v, got %v", tt.wantSecretRead, got)
+			}
+			if got := hasResourceVerb(cr.Rules, "secrets", "create"); got != tt.wantSecretWrite {
+				t.Errorf("expected secret write=%v, got %v", tt.wantSecretWrite, got)
+			}
+		})
+	}
+}
+
+func TestTargetNamespaceRoleRules(t *testing.T) {
+	t.Run("includes ConfigMap write and events", func(t *testing.T) {
+		role := getTargetNamespaceRoleObject("app-ns", v1alpha1.SecretTargetsConfig{}, testResourceLabels(), testResourceAnnotations())
+		if !hasResourceVerb(role.Rules, "configmaps", "create") {
+			t.Error("expected configmap write on target namespace Role")
+		}
+		if !hasResourceVerb(role.Rules, "events", "create") {
+			t.Error("expected events write on target namespace Role")
+		}
+		if hasResourceVerb(role.Rules, "secrets", "create") {
+			t.Error("expected no secret write on target namespace Role when secretTargets is Disabled")
+		}
+	})
+
+	t.Run("includes secret rules when secretTargets is Custom", func(t *testing.T) {
+		secretTargets := v1alpha1.SecretTargetsConfig{
+			Policy:            v1alpha1.SecretTargetsPolicyCustom,
+			AuthorizedSecrets: []string{"bundle-secret"},
+		}
+		role := getTargetNamespaceRoleObject("app-ns", secretTargets, testResourceLabels(), testResourceAnnotations())
+		if !hasResourceVerb(role.Rules, "secrets", "get") {
+			t.Error("expected secret read on target namespace Role")
+		}
+		if !hasResourceVerb(role.Rules, "secrets", "create") {
+			t.Error("expected secret write on target namespace Role")
+		}
+	})
+}
+
+func TestTargetRBACNamespaces(t *testing.T) {
+	tests := []struct {
+		name           string
+		tm             *trustManagerBuilder
+		trustNamespace string
+		want           []string
+	}{
+		{
+			name:           "empty when targetNamespaces is unset",
+			tm:             testTrustManager(),
+			trustNamespace: defaultTrustNamespace,
+		},
+		{
+			name:           "includes listed namespaces and trust namespace, sorted unique",
+			tm:             testTrustManager().WithTargetNamespaces("zeta-ns", "app-ns"),
+			trustNamespace: defaultTrustNamespace,
+			want:           []string{"app-ns", defaultTrustNamespace, "zeta-ns"},
+		},
+		{
+			name:           "does not duplicate trust namespace when it is already listed",
+			tm:             testTrustManager().WithTargetNamespaces(defaultTrustNamespace, "app-ns"),
+			trustNamespace: defaultTrustNamespace,
+			want:           []string{"app-ns", defaultTrustNamespace},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := targetRBACNamespaces(tt.tm.Build(), tt.trustNamespace)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
+	targetNS := "app-ns"
+	// Sorted: app-ns, cert-manager
+	targetNamespaces := []string{targetNS, defaultTrustNamespace}
+
+	tests := []struct {
+		name            string
+		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
+		wantErr         string
+		wantExistsCount int
+		wantPatchCount  int
+		wantDeleteCount int
+	}{
+		{
+			name: "successful apply of cluster RBAC plus per-namespace target Roles",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					return false, nil
+				})
+			},
+			wantExistsCount: 10,
+			wantPatchCount:  10,
+		},
+		{
+			name: "skip apply when all RBAC resources including target Roles match desired",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				tm := testTrustManager().WithTargetNamespaces(targetNS).Build()
+				config := tm.Spec.TrustManagerConfig
+				existsCall := 0
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					existsCall++
+					switch existsCall {
+					case 1:
+						cr := getClusterRoleObject(config, testResourceLabels(), testResourceAnnotations())
+						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
+					case 2:
+						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
+						crb.DeepCopyInto(obj.(*rbacv1.ClusterRoleBinding))
+					case 3:
+						role := getTrustNamespaceRoleObject(testResourceLabels(), testResourceAnnotations(), defaultTrustNamespace)
+						role.DeepCopyInto(obj.(*rbacv1.Role))
+					case 4:
+						rb := getTrustNamespaceRoleBindingObject(testResourceLabels(), testResourceAnnotations(), defaultTrustNamespace)
+						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 5:
+						role := getLeaderElectionRoleObject(testResourceLabels(), testResourceAnnotations())
+						role.DeepCopyInto(obj.(*rbacv1.Role))
+					case 6:
+						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
+						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 7:
+						role := getTargetNamespaceRoleObject(targetNamespaces[0], config.SecretTargets, testResourceLabels(), testResourceAnnotations())
+						role.DeepCopyInto(obj.(*rbacv1.Role))
+					case 8:
+						rb := getTargetNamespaceRoleBindingObject(targetNamespaces[0], testResourceLabels(), testResourceAnnotations())
+						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					case 9:
+						role := getTargetNamespaceRoleObject(targetNamespaces[1], config.SecretTargets, testResourceLabels(), testResourceAnnotations())
+						role.DeepCopyInto(obj.(*rbacv1.Role))
+					case 10:
+						rb := getTargetNamespaceRoleBindingObject(targetNamespaces[1], testResourceLabels(), testResourceAnnotations())
+						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					}
+					return true, nil
+				})
+			},
+			wantExistsCount: 10,
+			wantPatchCount:  0,
+		},
+		{
+			name: "deletes leftover target Role and RoleBinding outside the desired set",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					return false, nil
+				})
+				m.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+					switch l := list.(type) {
+					case *rbacv1.RoleList:
+						l.Items = []rbacv1.Role{
+							{
+								ObjectMeta: metav1.ObjectMeta{Name: trustManagerTargetRoleName, Namespace: "stale-ns"},
+							},
+							{
+								ObjectMeta: metav1.ObjectMeta{Name: trustManagerRoleName, Namespace: defaultTrustNamespace},
+							},
+							{
+								ObjectMeta: metav1.ObjectMeta{Name: trustManagerTargetRoleName, Namespace: targetNS},
+							},
+						}
+					case *rbacv1.RoleBindingList:
+						l.Items = []rbacv1.RoleBinding{
+							{
+								ObjectMeta: metav1.ObjectMeta{Name: trustManagerTargetRoleBindingName, Namespace: "stale-ns"},
+							},
+							{
+								ObjectMeta: metav1.ObjectMeta{Name: trustManagerRoleBindingName, Namespace: defaultTrustNamespace},
+							},
+						}
+					}
+					return nil
+				})
+			},
+			wantExistsCount: 10,
+			wantPatchCount:  10,
+			wantDeleteCount: 2,
+		},
+		{
+			name: "target namespace role patch error propagates",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					return false, nil
+				})
+				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					if role, ok := obj.(*rbacv1.Role); ok && role.Name == trustManagerTargetRoleName {
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			wantErr:         "failed to apply target namespace role",
+			wantExistsCount: 7,
+			wantPatchCount:  7,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := testReconciler(t)
+			mock := &fakes.FakeCtrlClient{}
+			if tt.preReq != nil {
+				tt.preReq(r, mock)
+			}
+			r.CtrlClient = mock
+
+			tm := testTrustManager().WithTargetNamespaces(targetNS).Build()
+			err := r.createOrApplyRBACResources(tm, getResourceLabels(tm), getResourceAnnotations(tm), defaultTrustNamespace)
+			assertError(t, err, tt.wantErr)
+
+			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
+				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
+			}
+			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
+				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			}
+			if got := mock.DeleteCallCount(); got != tt.wantDeleteCount {
+				t.Errorf("expected %d Delete calls, got %d", tt.wantDeleteCount, got)
+			}
+		})
+	}
+}
+
+func hasResourceVerb(rules []rbacv1.PolicyRule, resource, verb string) bool {
+	for _, rule := range rules {
+		if slices.Contains(rule.Resources, resource) && slices.Contains(rule.Verbs, verb) {
+			return true
+		}
+	}
+	return false
 }

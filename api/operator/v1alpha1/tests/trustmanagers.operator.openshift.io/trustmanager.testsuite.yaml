@@ -196,6 +196,139 @@ tests:
     expectedError: "filterNonCACerts"
 
   # ==========================================
+  # TargetNamespaces Tests
+  # ==========================================
+  - name: Should create with targetNamespaces
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+            - other-ns
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          targetNamespaces:
+            - app-ns
+            - other-ns
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+
+  - name: Should not allow invalid targetNamespaces value
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - Invalid_NS
+    expectedError: "targetNamespaces"
+
+  - name: Should not allow empty targetNamespaces item
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - ""
+    expectedError: "targetNamespaces"
+
+  - name: Should not allow duplicate targetNamespaces items
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+            - app-ns
+    expectedError: "targetNamespaces"
+
+  - name: Should not allow targetNamespaces item longer than 63 characters
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    expectedError: "targetNamespaces"
+
+  - name: Should not allow more than 50 targetNamespaces items
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - ns-00
+            - ns-01
+            - ns-02
+            - ns-03
+            - ns-04
+            - ns-05
+            - ns-06
+            - ns-07
+            - ns-08
+            - ns-09
+            - ns-10
+            - ns-11
+            - ns-12
+            - ns-13
+            - ns-14
+            - ns-15
+            - ns-16
+            - ns-17
+            - ns-18
+            - ns-19
+            - ns-20
+            - ns-21
+            - ns-22
+            - ns-23
+            - ns-24
+            - ns-25
+            - ns-26
+            - ns-27
+            - ns-28
+            - ns-29
+            - ns-30
+            - ns-31
+            - ns-32
+            - ns-33
+            - ns-34
+            - ns-35
+            - ns-36
+            - ns-37
+            - ns-38
+            - ns-39
+            - ns-40
+            - ns-41
+            - ns-42
+            - ns-43
+            - ns-44
+            - ns-45
+            - ns-46
+            - ns-47
+            - ns-48
+            - ns-49
+            - ns-50
+    expectedError: "targetNamespaces"
+
+  # ==========================================
   # DefaultCAPackage Tests
   # ==========================================
   - name: Should create with defaultCAPackage policy Enabled
@@ -588,6 +721,89 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+
+  - name: Should allow updating targetNamespaces
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+            - other-ns
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          targetNamespaces:
+            - app-ns
+            - other-ns
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+
+  - name: Should allow clearing targetNamespaces to restore cluster-wide
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig: {}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+
+  - name: Should allow clearing targetNamespaces with an empty list
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces:
+            - app-ns
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          targetNamespaces: []
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          targetNamespaces: []
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster

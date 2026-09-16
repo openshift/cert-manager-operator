@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -130,10 +131,11 @@ func TestDeploymentSpec(t *testing.T) {
 
 func TestDeploymentContainerArgs(t *testing.T) {
 	tests := []struct {
-		name            string
-		tmBuilder       *trustManagerBuilder
-		expectedArgs    []string
-		notExpectedArgs []string
+		name                   string
+		tmBuilder              *trustManagerBuilder
+		expectedArgs           []string
+		notExpectedArgs        []string
+		notExpectedArgPrefixes []string
 	}{
 		{
 			name: "default values",
@@ -151,6 +153,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--filter-non-ca-certs=true",
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
+			notExpectedArgPrefixes: []string{"--target-namespaces="},
 		},
 		{
 			name: "custom values",
@@ -227,6 +230,20 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--filter-non-ca-certs=true",
 			},
 		},
+		{
+			name:      "includes sorted target-namespaces when set",
+			tmBuilder: testTrustManager().WithTargetNamespaces("zeta-ns", "alpha-ns"),
+			expectedArgs: []string{
+				"--target-namespaces=alpha-ns,zeta-ns",
+			},
+		},
+		{
+			name:      "excludes target-namespaces when unset",
+			tmBuilder: testTrustManager(),
+			notExpectedArgPrefixes: []string{
+				"--target-namespaces=",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -254,6 +271,13 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			for _, notExpected := range tt.notExpectedArgs {
 				if slices.Contains(args, notExpected) {
 					t.Errorf("unexpected arg %q found in %v", notExpected, args)
+				}
+			}
+			for _, prefix := range tt.notExpectedArgPrefixes {
+				for _, arg := range args {
+					if strings.HasPrefix(arg, prefix) {
+						t.Errorf("unexpected arg prefix %q found in %v", prefix, args)
+					}
 				}
 			}
 		})
