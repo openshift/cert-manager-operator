@@ -1175,6 +1175,25 @@ spec:
                         Custom
                       rule: self.policy == 'Custom' || !has(self.authorizedSecrets)
                         || size(self.authorizedSecrets) == 0
+                  targetNamespaces:
+                    description: |-
+                      targetNamespaces limits where trust-manager writes Bundle targets
+                      (ConfigMaps, and Secrets when secretTargets is enabled).
+                      When empty or omitted, trust-manager writes targets in all namespaces
+                      (default behavior).
+                      When set, Bundle targets are written only in the listed namespaces.
+                      Trust sources are still read from trustNamespace.
+                      Removing a namespace from this list does not delete existing target
+                      ConfigMaps or Secrets in that namespace.
+                    items:
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    maxItems: 50
+                    minItems: 0
+                    type: array
+                    x-kubernetes-list-type: set
                   tolerations:
                     description: |-
                       tolerations allows the trust-manager pod to be scheduled on tainted nodes.

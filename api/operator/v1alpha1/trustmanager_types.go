@@ -103,6 +103,24 @@ type TrustManagerConfig struct {
 	// +optional
 	TrustNamespace string `json:"trustNamespace,omitempty"`
 
+	// targetNamespaces limits where trust-manager writes Bundle targets
+	// (ConfigMaps, and Secrets when secretTargets is enabled).
+	// When empty or omitted, trust-manager writes targets in all namespaces
+	// (default behavior).
+	// When set, Bundle targets are written only in the listed namespaces.
+	// Trust sources are still read from trustNamespace.
+	// Removing a namespace from this list does not delete existing target
+	// ConfigMaps or Secrets in that namespace.
+	// +listType=set
+	// +kubebuilder:validation:MinItems:=0
+	// +kubebuilder:validation:MaxItems:=50
+	// +kubebuilder:validation:items:MinLength:=1
+	// +kubebuilder:validation:items:MaxLength:=63
+	// +kubebuilder:validation:items:Pattern:=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+	// +kubebuilder:validation:Optional
+	// +optional
+	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
+
 	// secretTargets configures whether trust-manager can write trust bundles to Secrets.
 	// +kubebuilder:validation:Optional
 	// +optional
