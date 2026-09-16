@@ -63,12 +63,14 @@ func updateWebhookClientConfig(webhookConfig *admissionregistrationv1.Validating
 }
 
 // updateWebhookAnnotations merges user-provided annotations with the required
-// cert-manager CA injection annotation. The CA injection annotation references
-// the Certificate resource by namespace/name and is constructed dynamically.
+// cert-manager CA injection annotation. From trust-manager v0.25.0 the webhook
+// injects CA from the TLS Secret (inject-ca-from-secret) rather than the
+// Certificate resource. The annotation is constructed dynamically.
 func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingWebhookConfiguration, resourceAnnotations map[string]string) {
 	mergedAnnotations := make(map[string]string, len(resourceAnnotations)+1)
 	maps.Copy(mergedAnnotations, resourceAnnotations)
-	mergedAnnotations["cert-manager.io/inject-ca-from"] = fmt.Sprintf("%s/%s", operandNamespace, trustManagerCertificateName)
+	delete(mergedAnnotations, "cert-manager.io/inject-ca-from")
+	mergedAnnotations["cert-manager.io/inject-ca-from-secret"] = fmt.Sprintf("%s/%s", operandNamespace, trustManagerTLSSecretName)
 	webhookConfig.SetAnnotations(mergedAnnotations)
 }
 

@@ -113,7 +113,8 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		!slices.Equal(desired.Spec.DNSNames, existing.Spec.DNSNames) ||
 		desired.Spec.SecretName != existing.Spec.SecretName ||
 		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
-		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) {
+		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
+		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) {
 		return true
 	}
 	return false
