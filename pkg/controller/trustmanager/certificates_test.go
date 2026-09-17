@@ -160,6 +160,12 @@ func TestCertificateSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("sets private key rotation policy Always", func(t *testing.T) {
+		if cert.Spec.PrivateKey == nil || cert.Spec.PrivateKey.RotationPolicy != certmanagerv1.RotationPolicyAlways {
+			t.Errorf("expected privateKey.rotationPolicy Always, got %+v", cert.Spec.PrivateKey)
+		}
+	})
+
 	t.Run("sets correct issuer reference", func(t *testing.T) {
 		if cert.Spec.IssuerRef.Name != trustManagerIssuerName {
 			t.Errorf("expected issuerRef.name %q, got %q", trustManagerIssuerName, cert.Spec.IssuerRef.Name)
@@ -374,6 +380,51 @@ func TestCertificateReconciliation(t *testing.T) {
 			},
 			wantExistsCount: 1,
 			wantPatchCount:  1,
+		},
+		{
+			name: "apply when existing is missing privateKey",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.PrivateKey = nil
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "apply when existing has privateKey rotation policy drift",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{
+						RotationPolicy: certmanagerv1.RotationPolicyNever,
+					}
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "skip apply when existing privateKey has extra defaulted fields",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{
+						RotationPolicy: certmanagerv1.RotationPolicyAlways,
+						Algorithm:      certmanagerv1.RSAKeyAlgorithm,
+						Size:           2048,
+					}
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
 		},
 		{
 			name: "exists error propagates",
