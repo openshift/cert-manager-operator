@@ -3,11 +3,12 @@ package controllercmd
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/clock"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
+
+	"k8s.io/utils/clock"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apiserver/pkg/server/healthz"
