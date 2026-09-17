@@ -1,0 +1,12 @@
+apiVersion: policy.cert-manager.io/v1alpha1
+kind: CertificateRequestPolicy
+metadata:
+  name: example-policy
+spec:
+  allowed:
+    commonName:
+      value: "hello.world"
+      required: true
+  selector:
+    # Select all IssuerRef
+    issuerRef: {}
