@@ -62,6 +62,12 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	// Optional: CertificateRequestPolicy + RBAC when webhookTLS.approverPolicy.bootstrapResources is Enabled.
+	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile approver-policy resources")
+		return err
+	}
+
 	if err := r.createOrApplyValidatingWebhookConfiguration(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile validatingwebhookconfiguration resource")
 		return err
