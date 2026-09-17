@@ -25,15 +25,15 @@ import (
 	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/yaml"
 
-	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -54,8 +54,8 @@ const (
 	selfSignedCertDNSName  = "multi-operand.selfsigned.test.example"
 	bogusIssuerCertDNSName = "multi-operand.bogus-issuer.invalid.example"
 
-	multiOperandBundleName     = "multi-operand-ca-bundle-secret"
-	multiOperandBundleSourceCM = "multi-operand-bundle-source"
+	multiOperandBundleName      = "multi-operand-ca-bundle-secret"
+	multiOperandBundleSourceCM  = "multi-operand-bundle-source"
 	multiOperandBundleSourceKey = "ca-bundle.crt"
 	multiOperandBundleTargetKey = "ca-bundle.crt"
 )
@@ -254,8 +254,8 @@ func multiOperandTrustManagerCR() *trustManagerCRBuilder {
 	return newTrustManagerCR().
 		WithLabels(map[string]string{"env": "trustmanager-test"}).
 		WithAnnotations(map[string]string{"trustmanager.operator.openshift.io/cluster": "trustmanager-test"}).
-		WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)).
-		WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)).
+		WithDefaultCAPackage(v1alpha1.Enabled).
+		WithFilterExpiredCertificates(v1alpha1.Enabled).
 		WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"ca-bundle-secret", multiOperandBundleName}).
 		WithTrustNamespace(trustManagerNamespace)
 }
@@ -554,9 +554,9 @@ func assertTrustManagerCRConfigPropagation(ctx context.Context, clientset *kuber
 
 	tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy).To(Equal(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
+	Expect(tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy).To(Equal(v1alpha1.Enabled))
 	Expect(tm.Spec.TrustManagerConfig.SecretTargets.Policy).To(Equal(v1alpha1.SecretTargetsPolicyCustom))
-	Expect(tm.Spec.TrustManagerConfig.FilterExpiredCertificates).To(Equal(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
+	Expect(tm.Spec.TrustManagerConfig.FilterExpiredCertificates).To(Equal(v1alpha1.Enabled))
 }
 
 func runMultiOperandBundleSecretTargetTest(ctx context.Context, sourcePEM string) {

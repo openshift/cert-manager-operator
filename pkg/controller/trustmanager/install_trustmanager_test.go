@@ -38,9 +38,9 @@ func TestUpdateStatusObservedState(t *testing.T) {
 				return testTrustManager().
 					WithTrustNamespace("custom-trust-ns").
 					WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"allowed-secret"}).
-					WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)).
-					WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)).
-					WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)).
+					WithDefaultCAPackage(v1alpha1.Enabled).
+					WithFilterExpiredCertificates(v1alpha1.Enabled).
+					WithFilterNonCACerts(v1alpha1.Enabled).
 					Build()
 			},
 			wantStatusUpdate: 1,

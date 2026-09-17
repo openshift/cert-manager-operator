@@ -56,7 +56,7 @@ func getIssuerObject(resourceLabels, resourceAnnotations map[string]string) *cer
 
 // createOrApplyCertificate reconciles the Certificate used for trust-manager's webhook TLS.
 func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired := getCertificateObject(resourceLabels, resourceAnnotations)
+	desired := getCertificateObject(trustManager.Spec.TrustManagerConfig, resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling certificate resource", "name", resourceName)
 
@@ -79,7 +79,7 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 	return nil
 }
 
-func getCertificateObject(resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Certificate {
+func getCertificateObject(config v1alpha1.TrustManagerConfig, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Certificate {
 	certificate := common.DecodeObjBytes[*certmanagerv1.Certificate](codecs, certmanagerv1.SchemeGroupVersion, assets.MustAsset(certificateAssetName))
 	common.UpdateName(certificate, trustManagerCertificateName)
 	common.UpdateNamespace(certificate, operandNamespace)
@@ -96,6 +96,9 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 		Group: "cert-manager.io",
 	}
 	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
+	if config.WebhookTLS.CertificateDuration != nil {
+		certificate.Spec.Duration = config.WebhookTLS.CertificateDuration
+	}
 
 	return certificate
 }
@@ -134,6 +137,7 @@ func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
 // certificateModified compares only the fields we manage via SSA.
 // We compare individual spec fields rather than the full Spec because
 // cert-manager's webhook may default fields we don't set (e.g. Duration).
+// Duration is compared only when we explicitly set it on the desired object.
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if common.ManagedMetadataModified(desired, existing, fieldOwner) {
 		return true
@@ -145,6 +149,9 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
 		secretTemplateModified(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate, existing) ||
 		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
+		return true
+	}
+	if desired.Spec.Duration != nil && !ptr.Equal(desired.Spec.Duration, existing.Spec.Duration) {
 		return true
 	}
 	return false

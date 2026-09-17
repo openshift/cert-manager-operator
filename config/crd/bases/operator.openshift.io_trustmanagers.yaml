@@ -1234,6 +1234,43 @@ spec:
                     x-kubernetes-validations:
                     - message: trustNamespace is immutable once set
                       rule: oldSelf == '' || self == oldSelf
+                  webhookTLS:
+                    description: |-
+                      webhookTLS configures the cert-manager Certificate used for the
+                      trust-manager validating webhook serving certificate.
+                    properties:
+                      approverPolicy:
+                        description: |-
+                          approverPolicy configures a CertificateRequestPolicy so that
+                          cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
+                          Resources are created only when policy is Enabled. If Enabled while the
+                          CertificateRequestPolicy CRD is not installed, reconciliation fails until
+                          approver-policy is installed or policy is set to Disabled.
+                        properties:
+                          policy:
+                            default: Disabled
+                            description: |-
+                              policy controls whether a CertificateRequestPolicy and the RBAC that
+                              allows the cert-manager controller ServiceAccount to use it are created.
+                              "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
+                              auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
+                              and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
+                              ServiceAccount. Nothing is created unless this is set to Enabled.
+                              If Enabled while cert-manager-approver-policy is not installed, reconcile
+                              fails because the CertificateRequestPolicy CRD is missing.
+                              "Disabled" does not create these resources (default).
+                            enum:
+                            - Enabled
+                            - Disabled
+                            type: string
+                        type: object
+                      certificateDuration:
+                        description: |-
+                          certificateDuration is the requested validity period of the webhook TLS certificate.
+                          When unset, cert-manager's default certificate duration is used.
+                          Example: "8760h" for one year.
+                        type: string
+                    type: object
                 type: object
             required:
             - trustManagerConfig
