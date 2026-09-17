@@ -87,17 +87,17 @@ func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsP
 	return b
 }
 
-func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerCRBuilder {
+func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b
 }
 
-func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.FilterExpiredCertificatesPolicy) *trustManagerCRBuilder {
+func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.FilterExpiredCertificates = policy
 	return b
 }
 
-func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACertsPolicy) *trustManagerCRBuilder {
+func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.FilterNonCACerts = policy
 	return b
 }

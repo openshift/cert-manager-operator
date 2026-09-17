@@ -593,7 +593,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should add filter-expired-certificates arg when filterExpiredCertificates is Enabled", func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
+				WithFilterExpiredCertificates(v1alpha1.Enabled))
 
 			By("verifying deployment args contain --filter-expired-certificates=true")
 			Eventually(func(g Gomega) {
@@ -618,7 +618,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should add filter-non-ca-certs arg when filterNonCACerts is Enabled", func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)))
+				WithFilterNonCACerts(v1alpha1.Enabled))
 
 			By("verifying deployment args contain --filter-non-ca-certs=true")
 			Eventually(func(g Gomega) {
@@ -693,7 +693,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.Enabled
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -775,7 +775,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicy(v1alpha1.Disabled)
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.Disabled
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())

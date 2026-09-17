@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
@@ -109,7 +112,7 @@ func TestCertificateObject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tm := tt.tm.Build()
-			cert := getCertificateObject(getResourceLabels(tm), getResourceAnnotations(tm))
+			cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
 
 			if tt.wantName != "" && cert.Name != tt.wantName {
 				t.Errorf("expected name %q, got %q", tt.wantName, cert.Name)
@@ -133,7 +136,7 @@ func TestCertificateObject(t *testing.T) {
 
 func TestCertificateSpec(t *testing.T) {
 	tm := testTrustManager().Build()
-	cert := getCertificateObject(getResourceLabels(tm), getResourceAnnotations(tm))
+	cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
 	expectedDNSName := fmt.Sprintf("%s.%s.svc", trustManagerServiceName, operandNamespace)
 
 	t.Run("sets correct common name", func(t *testing.T) {
@@ -177,6 +180,20 @@ func TestCertificateSpec(t *testing.T) {
 			t.Errorf("expected issuerRef.group %q, got %q", "cert-manager.io", cert.Spec.IssuerRef.Group)
 		}
 	})
+
+	t.Run("omits duration when webhookTLS.certificateDuration is unset", func(t *testing.T) {
+		if cert.Spec.Duration != nil {
+			t.Errorf("expected duration to be unset, got %v", cert.Spec.Duration)
+		}
+	})
+}
+
+func TestCertificateDuration(t *testing.T) {
+	tm := testTrustManager().WithWebhookCertificateDuration(8760 * time.Hour).Build()
+	cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+	if cert.Spec.Duration == nil || cert.Spec.Duration.Duration != 8760*time.Hour {
+		t.Errorf("expected duration 8760h, got %+v", cert.Spec.Duration)
+	}
 }
 
 func TestIssuerReconciliation(t *testing.T) {
@@ -315,7 +332,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "skip apply when existing matches desired",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
 				})
@@ -327,7 +344,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "apply when existing has label drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Labels["app.kubernetes.io/instance"] = "modified-value"
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
@@ -342,7 +359,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
-					cert := getCertificateObject(getResourceLabels(tm), getResourceAnnotations(tm))
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
 					cert.Annotations["user-annotation"] = "tampered"
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
@@ -355,7 +372,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "apply when existing has secret name drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.SecretName = "wrong-secret"
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
@@ -368,7 +385,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "apply when existing has issuer ref drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.IssuerRef = certmanagermetav1.ObjectReference{
 						Name:  "wrong-issuer",
 						Kind:  "Issuer",
@@ -385,7 +402,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "apply when existing is missing privateKey",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.PrivateKey = nil
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
@@ -398,7 +415,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "apply when existing has privateKey rotation policy drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{
 						RotationPolicy: certmanagerv1.RotationPolicyNever,
 					}
@@ -413,12 +430,54 @@ func TestCertificateReconciliation(t *testing.T) {
 			name: "skip apply when existing privateKey has extra defaulted fields",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{
 						RotationPolicy: certmanagerv1.RotationPolicyAlways,
 						Algorithm:      certmanagerv1.RSAKeyAlgorithm,
 						Size:           2048,
 					}
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
+			name:      "apply when existing duration differs from configured duration",
+			tmBuilder: testTrustManager().WithWebhookCertificateDuration(8760 * time.Hour),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookCertificateDuration(8760 * time.Hour).Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.Spec.Duration = &metav1.Duration{Duration: time.Hour}
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:      "skip apply when existing duration matches configured duration",
+			tmBuilder: testTrustManager().WithWebhookCertificateDuration(8760 * time.Hour),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookCertificateDuration(8760 * time.Hour).Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
+			name: "skip apply when duration unset and existing has defaulted duration",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
+					cert.Spec.Duration = &metav1.Duration{Duration: 90 * 24 * time.Hour}
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
 				})
