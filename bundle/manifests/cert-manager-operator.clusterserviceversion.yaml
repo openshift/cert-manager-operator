@@ -254,6 +254,24 @@ metadata:
           }
         },
         {
+          "apiVersion": "policy.cert-manager.io/v1alpha1",
+          "kind": "CertificateRequestPolicy",
+          "metadata": {
+            "name": "example-policy"
+          },
+          "spec": {
+            "allowed": {
+              "commonName": {
+                "required": true,
+                "value": "hello.world"
+              }
+            },
+            "selector": {
+              "issuerRef": {}
+            }
+          }
+        },
+        {
           "apiVersion": "trust.cert-manager.io/v1alpha1",
           "kind": "Bundle",
           "metadata": {
@@ -320,6 +338,13 @@ spec:
       displayName: Bundle
       kind: Bundle
       name: bundles.trust.cert-manager.io
+      version: v1alpha1
+    - description: |-
+        A CertificateRequestPolicy describes a policy profile that approver-policy
+        uses to approve or deny applicable CertificateRequests.
+      displayName: CertificateRequestPolicy
+      kind: CertificateRequestPolicy
+      name: certificaterequestpolicies.policy.cert-manager.io
       version: v1alpha1
     - description: |-
         A CertificateRequest is used to request a signed certificate from one of the
