@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -84,17 +85,17 @@ func (b *trustManagerBuilder) WithTrustNamespace(ns string) *trustManagerBuilder
 	return b
 }
 
-func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.FilterExpiredCertificatesPolicy) *trustManagerBuilder {
+func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.FilterExpiredCertificates = policy
 	return b
 }
 
-func (b *trustManagerBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACertsPolicy) *trustManagerBuilder {
+func (b *trustManagerBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.FilterNonCACerts = policy
 	return b
 }
 
-func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerBuilder {
+func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b
 }
@@ -104,6 +105,16 @@ func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPol
 		Policy:            policy,
 		AuthorizedSecrets: authorizedSecrets,
 	}
+	return b
+}
+
+func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertificateDuration = &metav1.Duration{Duration: d}
+	return b
+}
+
+func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.Policy = policy
 	return b
 }
 

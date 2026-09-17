@@ -116,7 +116,7 @@ type TrustManagerConfig struct {
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
-	FilterExpiredCertificates FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
+	FilterExpiredCertificates Mode `json:"filterExpiredCertificates,omitempty"`
 
 	// filterNonCACerts controls whether trust-manager filters out
 	// non-CA certificates from trust bundles before distributing them.
@@ -127,7 +127,7 @@ type TrustManagerConfig struct {
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
-	FilterNonCACerts FilterNonCACertsPolicy `json:"filterNonCACerts,omitempty"`
+	FilterNonCACerts Mode `json:"filterNonCACerts,omitempty"`
 
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
@@ -164,6 +164,12 @@ type TrustManagerConfig struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// webhookTLS configures the cert-manager Certificate used for the
+	// trust-manager validating webhook serving certificate.
+	// +kubebuilder:validation:Optional
+	// +optional
+	WebhookTLS WebhookTLSConfig `json:"webhookTLS,omitempty"`
 }
 
 // SecretTargetsConfig configures whether and how trust-manager can write
@@ -193,6 +199,44 @@ type SecretTargetsConfig struct {
 	AuthorizedSecrets []string `json:"authorizedSecrets,omitempty"`
 }
 
+// WebhookTLSConfig configures the trust-manager webhook TLS certificate.
+type WebhookTLSConfig struct {
+	// certificateDuration is the requested validity period of the webhook TLS certificate.
+	// When unset, cert-manager's default certificate duration is used.
+	// Example: "8760h" for one year.
+	// +kubebuilder:validation:Optional
+	// +optional
+	CertificateDuration *metav1.Duration `json:"certificateDuration,omitempty"`
+
+	// approverPolicy configures a CertificateRequestPolicy so that
+	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
+	// Resources are created only when policy is Enabled. If Enabled while the
+	// CertificateRequestPolicy CRD is not installed, reconciliation fails until
+	// approver-policy is installed or policy is set to Disabled.
+	// +kubebuilder:validation:Optional
+	// +optional
+	ApproverPolicy ApproverPolicyConfig `json:"approverPolicy,omitempty"`
+}
+
+// ApproverPolicyConfig controls creation of a CertificateRequestPolicy for the
+// trust-manager webhook certificate.
+type ApproverPolicyConfig struct {
+	// policy controls whether a CertificateRequestPolicy and the RBAC that
+	// allows the cert-manager controller ServiceAccount to use it are created.
+	// "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
+	// auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
+	// and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
+	// ServiceAccount. Nothing is created unless this is set to Enabled.
+	// If Enabled while cert-manager-approver-policy is not installed, reconcile
+	// fails because the CertificateRequestPolicy CRD is missing.
+	// "Disabled" does not create these resources (default).
+	// +kubebuilder:default:="Disabled"
+	// +kubebuilder:validation:Enum:=Enabled;Disabled
+	// +kubebuilder:validation:Optional
+	// +optional
+	Policy Mode `json:"policy,omitempty"`
+}
+
 // DefaultCAPackageConfig configures the default CA package feature for trust-manager.
 type DefaultCAPackageConfig struct {
 	// policy controls whether the default CA package feature is enabled.
@@ -203,7 +247,7 @@ type DefaultCAPackageConfig struct {
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
-	Policy DefaultCAPackagePolicy `json:"policy,omitempty"`
+	Policy Mode `json:"policy,omitempty"`
 }
 
 // TrustManagerControllerConfig configures the operator's behavior for
@@ -226,14 +270,6 @@ type TrustManagerControllerConfig struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// FilterExpiredCertificatesPolicy controls whether expired certificates are filtered from bundles.
-// Allowed values are Enabled and Disabled.
-type FilterExpiredCertificatesPolicy string
-
-// FilterNonCACertsPolicy controls whether non-CA certificates are filtered from bundles.
-// Allowed values are Enabled and Disabled.
-type FilterNonCACertsPolicy string
-
 // SecretTargetsPolicy defines the policy for writing trust bundles to Secrets.
 type SecretTargetsPolicy string
 
@@ -244,10 +280,6 @@ const (
 	// and write access to only the secrets listed in authorizedSecrets.
 	SecretTargetsPolicyCustom SecretTargetsPolicy = "Custom"
 )
-
-// DefaultCAPackagePolicy controls whether the default CA package feature is enabled.
-// Allowed values are Enabled and Disabled.
-type DefaultCAPackagePolicy string
 
 // TrustManagerStatus defines the observed state of TrustManager.
 type TrustManagerStatus struct {
