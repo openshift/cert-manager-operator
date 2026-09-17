@@ -114,8 +114,19 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		desired.Spec.SecretName != existing.Spec.SecretName ||
 		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
 		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
-		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) {
+		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
+		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
 		return true
 	}
 	return false
+}
+
+// certificatePrivateKeyRotationPolicy returns the rotation policy we manage on
+// the webhook Certificate. Other PrivateKey fields (algorithm, encoding, size)
+// are omitted from the comparison because cert-manager may default them.
+func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyRotationPolicy {
+	if pk == nil {
+		return ""
+	}
+	return pk.RotationPolicy
 }

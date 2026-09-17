@@ -69,7 +69,6 @@ func updateWebhookClientConfig(webhookConfig *admissionregistrationv1.Validating
 func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingWebhookConfiguration, resourceAnnotations map[string]string) {
 	mergedAnnotations := make(map[string]string, len(resourceAnnotations)+1)
 	maps.Copy(mergedAnnotations, resourceAnnotations)
-	delete(mergedAnnotations, "cert-manager.io/inject-ca-from")
 	mergedAnnotations["cert-manager.io/inject-ca-from-secret"] = fmt.Sprintf("%s/%s", operandNamespace, trustManagerTLSSecretName)
 	webhookConfig.SetAnnotations(mergedAnnotations)
 }
