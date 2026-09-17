@@ -30,13 +30,13 @@ type TrustManagerConfigApplyConfiguration struct {
 	// expired certificates from trust bundles before distributing them.
 	// When set to "Enabled", expired certificates are removed from bundles.
 	// When set to "Disabled", expired certificates are included (default behavior).
-	FilterExpiredCertificates *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificates,omitempty"`
+	FilterExpiredCertificates *operatorv1alpha1.Mode `json:"filterExpiredCertificates,omitempty"`
 	// filterNonCACerts controls whether trust-manager filters out
 	// non-CA certificates from trust bundles before distributing them.
 	// When set to "Enabled", only certificates with the X.509 basicConstraints
 	// CA bit set are included in bundles.
 	// When set to "Disabled", non-CA certificates are included (default behavior).
-	FilterNonCACerts *operatorv1alpha1.FilterNonCACertsPolicy `json:"filterNonCACerts,omitempty"`
+	FilterNonCACerts *operatorv1alpha1.Mode `json:"filterNonCACerts,omitempty"`
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.
 	DefaultCAPackage *DefaultCAPackageConfigApplyConfiguration `json:"defaultCAPackage,omitempty"`
@@ -52,6 +52,9 @@ type TrustManagerConfigApplyConfiguration struct {
 	// nodeSelector restricts which nodes the trust-manager pod can be scheduled on.
 	// ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// webhookTLS configures the cert-manager Certificate used for the
+	// trust-manager validating webhook serving certificate.
+	WebhookTLS *WebhookTLSConfigApplyConfiguration `json:"webhookTLS,omitempty"`
 }
 
 // TrustManagerConfigApplyConfiguration constructs a declarative configuration of the TrustManagerConfig type for use with
@@ -95,7 +98,7 @@ func (b *TrustManagerConfigApplyConfiguration) WithSecretTargets(value *SecretTa
 // WithFilterExpiredCertificates sets the FilterExpiredCertificates field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the FilterExpiredCertificates field is set to the value of the last call.
-func (b *TrustManagerConfigApplyConfiguration) WithFilterExpiredCertificates(value operatorv1alpha1.FilterExpiredCertificatesPolicy) *TrustManagerConfigApplyConfiguration {
+func (b *TrustManagerConfigApplyConfiguration) WithFilterExpiredCertificates(value operatorv1alpha1.Mode) *TrustManagerConfigApplyConfiguration {
 	b.FilterExpiredCertificates = &value
 	return b
 }
@@ -103,7 +106,7 @@ func (b *TrustManagerConfigApplyConfiguration) WithFilterExpiredCertificates(val
 // WithFilterNonCACerts sets the FilterNonCACerts field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the FilterNonCACerts field is set to the value of the last call.
-func (b *TrustManagerConfigApplyConfiguration) WithFilterNonCACerts(value operatorv1alpha1.FilterNonCACertsPolicy) *TrustManagerConfigApplyConfiguration {
+func (b *TrustManagerConfigApplyConfiguration) WithFilterNonCACerts(value operatorv1alpha1.Mode) *TrustManagerConfigApplyConfiguration {
 	b.FilterNonCACerts = &value
 	return b
 }
@@ -153,5 +156,13 @@ func (b *TrustManagerConfigApplyConfiguration) WithNodeSelector(entries map[stri
 	for k, v := range entries {
 		b.NodeSelector[k] = v
 	}
+	return b
+}
+
+// WithWebhookTLS sets the WebhookTLS field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the WebhookTLS field is set to the value of the last call.
+func (b *TrustManagerConfigApplyConfiguration) WithWebhookTLS(value *WebhookTLSConfigApplyConfiguration) *TrustManagerConfigApplyConfiguration {
+	b.WebhookTLS = value
 	return b
 }
