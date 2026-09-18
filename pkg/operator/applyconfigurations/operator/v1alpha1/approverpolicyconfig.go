@@ -13,9 +13,14 @@ import (
 // trust-manager webhook certificate.
 type ApproverPolicyConfigApplyConfiguration struct {
 	// policy controls whether a CertificateRequestPolicy and the RBAC that
-	// allows cert-manager to use it are created.
-	// "Enabled" creates CertificateRequestPolicy trust-manager-policy.
-	// "Disabled" does not create it (default).
+	// allows the cert-manager controller ServiceAccount to use it are created.
+	// "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
+	// auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
+	// and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
+	// ServiceAccount. Nothing is created unless this is set to Enabled.
+	// If Enabled while cert-manager-approver-policy is not installed, reconcile
+	// fails because the CertificateRequestPolicy CRD is missing.
+	// "Disabled" does not create these resources (default).
 	Policy *operatorv1alpha1.Mode `json:"policy,omitempty"`
 }
 
