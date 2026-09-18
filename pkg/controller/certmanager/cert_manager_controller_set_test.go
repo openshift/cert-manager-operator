@@ -9,9 +9,9 @@ import (
 
 type stubController struct{}
 
-func (s *stubController) Run(ctx context.Context, workers int)                          {}
+func (s *stubController) Run(ctx context.Context, workers int)                            {}
 func (s *stubController) Sync(ctx context.Context, syncContext factory.SyncContext) error { return nil }
-func (s *stubController) Name() string                                                   { return "stub" }
+func (s *stubController) Name() string                                                    { return "stub" }
 
 func TestToArrayConsoleControllerInclusion(t *testing.T) {
 	stub := &stubController{}
