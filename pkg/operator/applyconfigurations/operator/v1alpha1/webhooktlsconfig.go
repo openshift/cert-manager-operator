@@ -17,7 +17,9 @@ type WebhookTLSConfigApplyConfiguration struct {
 	CertificateDuration *v1.Duration `json:"certificateDuration,omitempty"`
 	// approverPolicy configures a CertificateRequestPolicy so that
 	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Enable this when approver-policy is installed in the cluster.
+	// Resources are created only when policy is Enabled. If Enabled while the
+	// CertificateRequestPolicy CRD is not installed, reconciliation fails until
+	// approver-policy is installed or policy is set to Disabled.
 	ApproverPolicy *ApproverPolicyConfigApplyConfiguration `json:"approverPolicy,omitempty"`
 }
 
