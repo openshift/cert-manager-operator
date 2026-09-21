@@ -1103,6 +1103,7 @@ func TestUpdateArgList(t *testing.T) {
 	tests := []struct {
 		name            string
 		updateIstioCSR  func(*v1alpha1.IstioCSR)
+		clusterTLSArgs  []string
 		expectedArgs    map[string]string // key is arg name (without --), value is expected value
 		notExpectedArgs []string          // arg names (without --) that should NOT be present
 	}{
@@ -1152,6 +1153,28 @@ func TestUpdateArgList(t *testing.T) {
 				"configmap-namespace-selector": "cert-manager.io/test-ca-injection=enabled",
 			},
 		},
+		{
+			name:           "no cluster TLS args should not add serving-tls flags",
+			clusterTLSArgs: nil,
+			notExpectedArgs: []string{
+				"serving-tls-min-version",
+				"serving-tls-cipher-suites",
+				"serving-tls-curve-preferences",
+			},
+		},
+		{
+			name: "cluster TLS args are appended to container args",
+			clusterTLSArgs: []string{
+				"--serving-tls-min-version=VersionTLS12",
+				"--serving-tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				"--serving-tls-curve-preferences=X25519",
+			},
+			expectedArgs: map[string]string{
+				"serving-tls-min-version":       "VersionTLS12",
+				"serving-tls-cipher-suites":     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				"serving-tls-curve-preferences": "X25519",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1162,7 +1185,7 @@ func TestUpdateArgList(t *testing.T) {
 				tt.updateIstioCSR(istiocsr)
 			}
 
-			updateArgList(deployment, istiocsr)
+			updateArgList(deployment, istiocsr, tt.clusterTLSArgs)
 
 			// Find the istio-csr container and check its arguments
 			var containerArgs []string

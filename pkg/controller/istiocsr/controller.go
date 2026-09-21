@@ -26,6 +26,7 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
@@ -154,6 +155,16 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&certmanagerv1.ClusterIssuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		// RBAC to read apiserver.config.openshift.io is already granted cluster-wide via the
+		// marker on pkg/controller/certmanager/certmanager_controller.go; no separate RBAC
+		// marker is added here to avoid generating a duplicate ClusterRole rule.
+		Watches(
+			&configv1.APIServer{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllIstioCSRRequests),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				return object.GetName() == clusterAPIServerName
+			})),
+		).
 		Complete(r)
 }
 
