@@ -275,14 +275,23 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 }
 
 // verifyDeploymentArgs polls every $fastPollInterval to check if the deployment args list is updated to contain the
-// passed args. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while polling
-// the deployment args list.
-func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
-
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+// passed args. It returns an error if a timeout occurs or an error was encountered while polling the deployment
+// args list. The optional timeout parameter overrides the default lowTimeout; pass highTimeout for checks that
+// follow heavy cluster churn where reconciliation may take longer than usual.
+func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout ...time.Duration) error {
+	t := lowTimeout
+	if len(timeout) > 0 && timeout[0] > 0 {
+		t = timeout[0]
+	}
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, t, true, func(context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) ||
+				apierrors.IsTimeout(err) ||
+				apierrors.IsServerTimeout(err) ||
+				apierrors.IsServiceUnavailable(err) ||
+				apierrors.IsTooManyRequests(err) {
+				// Transient API-server errors — keep polling until timeout.
 				return false, nil
 			}
 			return false, err
