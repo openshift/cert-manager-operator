@@ -278,9 +278,17 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 // passed args. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while polling
 // the deployment args list.
 func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool) error {
+	return verifyDeploymentArgsInNamespace(k8sclient, operandNamespace, deploymentName, args, added)
+}
 
+// verifyDeploymentArgsInNamespace polls every $fastPollInterval to check if the deployment (in the given
+// namespace) args list is updated to contain the passed args. It returns an error if a timeout ($lowTimeout)
+// occurs or an error was encountered while polling the deployment args list. This is the namespace-aware
+// counterpart of verifyDeploymentArgs, needed for operands like cert-manager-istio-csr whose deployment lives
+// in a per-test namespace rather than the shared operandNamespace.
+func verifyDeploymentArgsInNamespace(k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool) error {
 	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -1862,6 +1870,44 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 				if strings.HasPrefix(arg, key+"=") {
 					return false, nil
 				}
+			}
+		}
+		return true, nil
+	})
+}
+
+// verifyIstioCSRServingTLSArgsMatchClusterProfile waits until the cert-manager-istio-csr deployment (in the
+// given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
+// same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
+func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
+	expected := tlsprofile.IstioCSRServingTLSArgs(spec)
+	if len(expected) == 0 {
+		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
+	}
+
+	if err := verifyDeploymentArgsInNamespace(k8sclient, namespace, istioCSRGRPCServiceName, expected, true); err != nil {
+		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
+	}
+
+	if spec.MinTLSVersion != configapiv1.VersionTLS13 {
+		return nil
+	}
+
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("deployment %q has no containers", istioCSRGRPCServiceName)
+		}
+
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			if strings.HasPrefix(arg, "--serving-tls-cipher-suites=") {
+				return false, nil
 			}
 		}
 		return true, nil
