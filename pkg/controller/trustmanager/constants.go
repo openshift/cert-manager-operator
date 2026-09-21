@@ -86,8 +86,9 @@ const (
 	trustManagerServiceName        = trustManagerCommonResourceName
 	trustManagerMetricsServiceName = trustManagerCommonResourceName + "-metrics"
 
-	trustManagerClusterRoleName        = trustManagerCommonResourceName
-	trustManagerClusterRoleBindingName = trustManagerCommonResourceName
+	trustManagerClusterRoleName            = trustManagerCommonResourceName
+	trustManagerClusterRoleClusterViewName = trustManagerCommonResourceName + "-cluster-view"
+	trustManagerClusterRoleBindingName     = trustManagerCommonResourceName
 
 	trustManagerRoleName        = trustManagerCommonResourceName
 	trustManagerRoleBindingName = trustManagerCommonResourceName
@@ -125,8 +126,9 @@ const (
 	serviceAssetName        = "trust-manager/resources/service_trust-manager.yml"
 	metricsServiceAssetName = "trust-manager/resources/service_trust-manager-metrics.yml"
 
-	clusterRoleAssetName        = "trust-manager/resources/clusterrole_trust-manager.yml"
-	clusterRoleBindingAssetName = "trust-manager/resources/clusterrolebinding_trust-manager.yml"
+	clusterRoleAssetName            = "trust-manager/resources/clusterrole_trust-manager.yml"
+	clusterRoleClusterViewAssetName = "trust-manager/resources/clusterrole_trust-manager-cluster-view.yml"
+	clusterRoleBindingAssetName     = "trust-manager/resources/clusterrolebinding_trust-manager.yml"
 
 	roleAssetName        = "trust-manager/resources/role_trust-manager.yml"
 	roleBindingAssetName = "trust-manager/resources/rolebinding_trust-manager.yml"

@@ -102,7 +102,9 @@ func (c *consoleResourcesController) sync(ctx context.Context, _ factory.SyncCon
 			yamlClient.Get, yamlClient.Create, yamlClient.Update,
 			func(a, b *consolev1.ConsoleYAMLSample) bool { return equality.Semantic.DeepEqual(a.Spec, b.Spec) },
 			func(existing, desired *consolev1.ConsoleYAMLSample) *consolev1.ConsoleYAMLSample {
-				u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+				u := existing.DeepCopy()
+				u.Spec = desired.Spec
+				return u
 			},
 		); err != nil {
 			errs = append(errs, fmt.Errorf("failed to apply ConsoleYAMLSample/%s: %w", desired.Name, err))
@@ -115,7 +117,9 @@ func (c *consoleResourcesController) sync(ctx context.Context, _ factory.SyncCon
 			qsClient.Get, qsClient.Create, qsClient.Update,
 			func(a, b *consolev1.ConsoleQuickStart) bool { return equality.Semantic.DeepEqual(a.Spec, b.Spec) },
 			func(existing, desired *consolev1.ConsoleQuickStart) *consolev1.ConsoleQuickStart {
-				u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+				u := existing.DeepCopy()
+				u.Spec = desired.Spec
+				return u
 			},
 		); err != nil {
 			errs = append(errs, fmt.Errorf("failed to apply ConsoleQuickStart/%s: %w", desired.Name, err))

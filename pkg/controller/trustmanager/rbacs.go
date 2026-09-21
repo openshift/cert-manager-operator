@@ -45,6 +45,11 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 		return err
 	}
 
+	if err := r.createOrApplyClusterViewClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile cluster-view clusterrole resource")
+		return err
+	}
+
 	return nil
 }
 
@@ -106,6 +111,44 @@ func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1al
 		ResourceNames: sortedSecrets,
 		Verbs:         []string{"create", "update", "patch", "delete"},
 	})
+}
+
+const clusterReaderAggregateLabel = "rbac.authorization.k8s.io/aggregate-to-cluster-reader"
+
+func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+	desired := getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations)
+	resourceName := desired.GetName()
+	r.log.V(4).Info("reconciling cluster-view clusterrole resource", "name", resourceName)
+
+	existing := &rbacv1.ClusterRole{}
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	if err != nil {
+		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
+	}
+	if exists && !clusterRoleModified(desired, existing) {
+		r.log.V(4).Info("cluster-view clusterrole resource exists and is in desired state", "name", resourceName)
+		return nil
+	}
+
+	r.log.V(2).Info("cluster-view clusterrole resource has been modified, updating to desired state", "name", resourceName)
+	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+		return common.FromClientError(err, "failed to apply clusterrole %q", resourceName)
+	}
+
+	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "clusterrole resource %s applied", resourceName)
+	return nil
+}
+
+func getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
+	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleClusterViewAssetName))
+	common.UpdateName(clusterRole, trustManagerClusterRoleClusterViewName)
+	common.UpdateResourceLabels(clusterRole, resourceLabels)
+	if clusterRole.Labels == nil {
+		clusterRole.Labels = make(map[string]string)
+	}
+	clusterRole.Labels[clusterReaderAggregateLabel] = "true"
+	updateResourceAnnotations(clusterRole, resourceAnnotations)
+	return clusterRole
 }
 
 // ClusterRoleBinding

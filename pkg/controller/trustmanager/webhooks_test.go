@@ -14,7 +14,7 @@ import (
 )
 
 func TestValidatingWebhookConfigObject(t *testing.T) {
-	expectedCAAnnotation := fmt.Sprintf("%s/%s", operandNamespace, trustManagerCertificateName)
+	expectedCAAnnotation := fmt.Sprintf("%s/%s", operandNamespace, trustManagerTLSSecretName)
 
 	tests := []struct {
 		name            string
@@ -37,18 +37,18 @@ func TestValidatingWebhookConfigObject(t *testing.T) {
 			name: "sets CA injection annotation",
 			tm:   testTrustManager(),
 			wantAnnotations: map[string]string{
-				"cert-manager.io/inject-ca-from": expectedCAAnnotation,
+				"cert-manager.io/inject-ca-from-secret": expectedCAAnnotation,
 			},
 		},
 		{
 			name: "CA injection annotation not overrideable by user",
 			tm: testTrustManager().WithAnnotations(map[string]string{
-				"cert-manager.io/inject-ca-from": "should-be-overridden",
-				"user-annotation":                "preserved",
+				"cert-manager.io/inject-ca-from-secret": "should-be-overridden",
+				"user-annotation":                       "preserved",
 			}),
 			wantAnnotations: map[string]string{
-				"cert-manager.io/inject-ca-from": expectedCAAnnotation,
-				"user-annotation":                "preserved",
+				"cert-manager.io/inject-ca-from-secret": expectedCAAnnotation,
+				"user-annotation":                       "preserved",
 			},
 		},
 		{

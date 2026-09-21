@@ -1117,13 +1117,13 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		It("should configure webhook with cert-manager CA injection annotation", func() {
 			createTrustManager(ctx, newTrustManagerCR())
 
-			expectedAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerCertificateName)
+			expectedAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerTLSSecretName)
 
 			By("verifying ValidatingWebhookConfiguration has correct CA injection annotation")
 			Eventually(func(g Gomega) {
 				vwc, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, trustManagerWebhookConfigName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from", expectedAnnotation))
+				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from-secret", expectedAnnotation))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
@@ -1183,6 +1183,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(cert.Spec.DNSNames).Should(ContainElement(expectedDNSName))
 				g.Expect(cert.Spec.IssuerRef.Name).Should(Equal(trustManagerIssuerName))
 				g.Expect(cert.Spec.IssuerRef.Kind).Should(Equal("Issuer"))
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue("cert-manager.io/allow-direct-injection", "true"))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})
@@ -1439,8 +1441,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				vwc, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, trustManagerWebhookConfigName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("custom-annotation", "annotation-value"))
-				expectedCAAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerCertificateName)
-				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from", expectedCAAnnotation))
+				expectedCAAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerTLSSecretName)
+				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from-secret", expectedCAAnnotation))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})

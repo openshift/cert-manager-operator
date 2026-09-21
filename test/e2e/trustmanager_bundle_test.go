@@ -58,8 +58,8 @@ import (
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	configopenshiftv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -320,7 +320,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				if err := bundleClient.Get(ctx, crclient.ObjectKey{Name: bundleName}, &current); err != nil {
 					return err
 				}
-				current.Spec.Sources[0].InLine = &testCertPEM2
+				current.Spec.Sources[0].InLine = testCertPEM2
 				return bundleClient.Update(ctx, &current)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
