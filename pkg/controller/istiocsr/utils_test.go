@@ -13,6 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
 // baseDeployment returns a minimal deployment for spec comparison tests.
@@ -525,6 +528,110 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 			got := networkPolicySpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
 				t.Errorf("networkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
+			}
+		})
+	}
+}
+
+func TestValidateIstioCSRConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		istiocsr   *v1alpha1.IstioCSR
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "empty IstioCSRConfig",
+			istiocsr: &v1alpha1.IstioCSR{
+				Spec: v1alpha1.IstioCSRSpec{},
+			},
+			wantErr:    true,
+			wantErrMsg: "istioCSRConfig config cannot be empty",
+		},
+		{
+			name: "empty IstiodTLSConfig",
+			istiocsr: &v1alpha1.IstioCSR{
+				Spec: v1alpha1.IstioCSRSpec{
+					IstioCSRConfig: v1alpha1.IstioCSRConfig{
+						CertManager: v1alpha1.CertManagerConfig{
+							IssuerRef: certmanagermetav1.ObjectReference{
+								Name: "test",
+								Kind: "issuer",
+							},
+						},
+						Istio: v1alpha1.IstioConfig{
+							Namespace: "istio-system",
+							Revisions: []string{"default"},
+						},
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "istiodTLSConfig config cannot be empty",
+		},
+		{
+			name: "empty Istio config",
+			istiocsr: &v1alpha1.IstioCSR{
+				Spec: v1alpha1.IstioCSRSpec{
+					IstioCSRConfig: v1alpha1.IstioCSRConfig{
+						IstiodTLSConfig: v1alpha1.IstiodTLSConfig{
+							TrustDomain:         "cluster.local",
+							PrivateKeySize:      2048,
+							CertificateDuration: &metav1.Duration{Duration: DefaultCertificateDuration},
+						},
+						CertManager: v1alpha1.CertManagerConfig{
+							IssuerRef: certmanagermetav1.ObjectReference{
+								Name: "test",
+								Kind: "issuer",
+							},
+						},
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "istio config cannot be empty",
+		},
+		{
+			name: "empty CertManager config",
+			istiocsr: &v1alpha1.IstioCSR{
+				Spec: v1alpha1.IstioCSRSpec{
+					IstioCSRConfig: v1alpha1.IstioCSRConfig{
+						IstiodTLSConfig: v1alpha1.IstiodTLSConfig{
+							TrustDomain:         "cluster.local",
+							PrivateKeySize:      2048,
+							CertificateDuration: &metav1.Duration{Duration: DefaultCertificateDuration},
+						},
+						Istio: v1alpha1.IstioConfig{
+							Namespace: "istio-system",
+							Revisions: []string{"default"},
+						},
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: "certManager config cannot be empty",
+		},
+		{
+			name:     "valid config passes",
+			istiocsr: testIstioCSR(),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateIstioCSRConfig(tt.istiocsr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("validateIstioCSRConfig() err = %q, want substring %q", err.Error(), tt.wantErrMsg)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}
