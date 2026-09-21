@@ -1319,3 +1319,51 @@ func TestUpdateVolumeWithIssuerCA(t *testing.T) {
 		})
 	}
 }
+
+func TestGetIssuerUnsupportedKind(t *testing.T) {
+	r := testReconciler(t)
+
+	istiocsr := testIstioCSR()
+	istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "bogus"
+
+	obj, err := r.getIssuer(istiocsr)
+	if obj != nil {
+		t.Errorf("expected nil object for unsupported kind, got %T", obj)
+	}
+	if err == nil {
+		t.Fatal("expected error for unsupported issuer kind")
+	}
+	if !strings.Contains(err.Error(), "unsupported issuer kind") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestGetIssuerValidKinds(t *testing.T) {
+	tests := []struct {
+		name string
+		kind string
+	}{
+		{name: "issuer kind", kind: certmanagerv1.IssuerKind},
+		{name: "cluster issuer kind", kind: certmanagerv1.ClusterIssuerKind},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeClient := &fakes.FakeCtrlClient{}
+			fakeClient.GetReturns(nil)
+
+			r := testReconciler(t)
+			r.CtrlClient = fakeClient
+
+			istiocsr := testIstioCSR()
+			istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = tt.kind
+
+			obj, err := r.getIssuer(istiocsr)
+			if err != nil {
+				t.Fatalf("unexpected error for kind %q: %v", tt.kind, err)
+			}
+			if obj == nil {
+				t.Fatalf("expected non-nil object for kind %q", tt.kind)
+			}
+		})
+	}
+}
