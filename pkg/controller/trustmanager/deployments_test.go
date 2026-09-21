@@ -57,7 +57,7 @@ func TestDeploymentObject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
-			r := testReconciler(t)
+			r := testReconciler()
 			tm := tt.tm.Build()
 			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 			if err != nil {
@@ -86,7 +86,7 @@ func TestDeploymentObject(t *testing.T) {
 
 func TestDeploymentSpec(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
-	r := testReconciler(t)
+	r := testReconciler()
 	tm := testTrustManager().Build()
 	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 	if err != nil {
@@ -215,7 +215,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
-			r := testReconciler(t)
+			r := testReconciler()
 
 			tmBuilder := tt.tmBuilder
 			if tmBuilder == nil {
@@ -247,7 +247,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 
 	t.Run("adds arg, volume, mount, and hash annotation when enabled", func(t *testing.T) {
-		r := testReconciler(t)
+		r := testReconciler()
 		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
 		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 		if err != nil {
@@ -294,7 +294,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 	})
 
 	t.Run("no arg, volume, or annotation when disabled", func(t *testing.T) {
-		r := testReconciler(t)
+		r := testReconciler()
 		tm := testTrustManager().Build()
 		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
 		if err != nil {
@@ -384,7 +384,7 @@ func TestDeploymentOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
-			r := testReconciler(t)
+			r := testReconciler()
 
 			tm := testTrustManager().Build()
 			tt.configure(tm)
@@ -690,7 +690,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			} else {
 				t.Setenv(trustManagerImageNameEnvVarName, "")
 			}
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)

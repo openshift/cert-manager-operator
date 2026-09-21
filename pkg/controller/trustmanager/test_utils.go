@@ -9,8 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-
-	"github.com/go-logr/logr/testr"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/testutil"
@@ -106,11 +105,11 @@ func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 	return b.TrustManager
 }
 
-func testReconciler(t *testing.T) *Reconciler {
+func testReconciler() *Reconciler {
 	return &Reconciler{
 		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
-		log:           testr.New(t),
+		log:           klog.NewKlogr().WithName(ControllerName),
 		scheme:        testutil.Scheme,
 	}
 }
