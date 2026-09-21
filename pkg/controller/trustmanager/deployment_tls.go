@@ -49,6 +49,9 @@ func applyTrustManagerWebhookTLSArgs(deployment *appsv1.Deployment, spec *config
 			continue
 		}
 		sourceArgs := deployment.Spec.Template.Spec.Containers[i].Args
+		// Strip only cipher-suite flags for TLS 1.3. Curve preferences stay:
+		// they apply to TLS 1.2 and TLS 1.3. MergeContainerArgs then overwrites
+		// any stale --tls-curve-preferences value with extra.
 		if spec != nil && spec.MinTLSVersion == configv1.VersionTLS13 {
 			sourceArgs = common.StripArgsByKeys(sourceArgs, common.ArgKeysSet(tlsprofile.TrustManagerCipherSuiteArgKeys))
 		}
