@@ -30,6 +30,9 @@ const (
 	// defaultRequeueTime is the default reconcile requeue time.
 	defaultRequeueTime = time.Second * 30
 
+	// fieldOwner identifies this controller when using Server-Side Apply.
+	fieldOwner = "istio-csr-controller"
+
 	// istiocsrObjectName is the name of the istio-csr resource created by user.
 	// istio-csr CRD enforces name to be `default`.
 	istiocsrObjectName = "default"

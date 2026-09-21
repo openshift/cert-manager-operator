@@ -6,9 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -19,26 +17,7 @@ import (
 
 func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations)
-	resourceName := desired.GetName()
-	r.log.V(4).Info("reconciling validatingwebhookconfiguration resource", "name", resourceName)
-
-	existing := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
-	if err != nil {
-		return common.FromClientError(err, "failed to check if validatingwebhookconfiguration %q exists", resourceName)
-	}
-	if exists && !webhookConfigModified(desired, existing) {
-		r.log.V(4).Info("validatingwebhookconfiguration resource exists and is in desired state", "name", resourceName)
-		return nil
-	}
-
-	r.log.V(2).Info("validatingwebhookconfiguration resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return common.FromClientError(err, "failed to apply validatingwebhookconfiguration %q", resourceName)
-	}
-
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "validatingwebhookconfiguration resource %s applied", resourceName)
-	return nil
+	return common.ApplyResource(r.ctx, r.CtrlClient, r.log, r.eventRecorder, trustManager, desired, &admissionregistrationv1.ValidatingWebhookConfiguration{}, fieldOwner, webhookConfigModified)
 }
 
 func getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations map[string]string) *admissionregistrationv1.ValidatingWebhookConfiguration {
@@ -52,7 +31,6 @@ func getValidatingWebhookConfigObject(resourceLabels, resourceAnnotations map[st
 	return webhookConfig
 }
 
-// updateWebhookClientConfig sets the webhook clientConfig service name and namespace.
 func updateWebhookClientConfig(webhookConfig *admissionregistrationv1.ValidatingWebhookConfiguration) {
 	for i := range webhookConfig.Webhooks {
 		if webhookConfig.Webhooks[i].ClientConfig.Service != nil {
@@ -62,9 +40,6 @@ func updateWebhookClientConfig(webhookConfig *admissionregistrationv1.Validating
 	}
 }
 
-// updateWebhookAnnotations merges user-provided annotations with the required
-// cert-manager CA injection annotation. The CA injection annotation references
-// the Certificate resource by namespace/name and is constructed dynamically.
 func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingWebhookConfiguration, resourceAnnotations map[string]string) {
 	mergedAnnotations := make(map[string]string, len(resourceAnnotations)+1)
 	maps.Copy(mergedAnnotations, resourceAnnotations)
@@ -72,9 +47,6 @@ func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingW
 	webhookConfig.SetAnnotations(mergedAnnotations)
 }
 
-// webhookConfigModified compares only the fields we manage via SSA.
-// Individual webhook fields are compared explicitly because the API server
-// defaults fields like matchPolicy, namespaceSelector, and objectSelector.
 func webhookConfigModified(desired, existing *admissionregistrationv1.ValidatingWebhookConfiguration) bool {
 	if managedMetadataModified(desired, existing) {
 		return true

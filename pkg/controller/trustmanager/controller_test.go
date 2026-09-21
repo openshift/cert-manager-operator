@@ -251,7 +251,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Reason: v1alpha1.ReasonInProgress,
 				},
 			},
-			wantErr: "failed to check if serviceaccount",
+			wantErr: "failed to check if ServiceAccount",
 		},
 		{
 			name: "trust namespace does not exist sets degraded true",
