@@ -391,6 +391,15 @@ spec:
       name: clusterissuers.cert-manager.io
       version: v1
     - description: |-
+        HTTP01Proxy describes the configuration for the HTTP01 challenge proxy that redirects
+        traffic from the API endpoint on port 80 to ingress routers.
+        The name must be 'cluster' to make HTTP01Proxy a singleton, allowing only one instance per cluster.
+        When an HTTP01Proxy is created, a MachineConfig with nftables DNAT/SNAT rules is applied to control plane nodes.
+      displayName: HTTP01Proxy
+      kind: HTTP01Proxy
+      name: http01proxies.operator.openshift.io
+      version: v1alpha1
+    - description: |-
         An Issuer represents a certificate issuing authority which can be
         referenced as part of `issuerRef` fields.
         It is scoped to a single namespace and can therefore only be referenced by
@@ -651,6 +660,17 @@ spec:
           - update
           - watch
         - apiGroups:
+          - machineconfiguration.openshift.io
+          resources:
+          - machineconfigs
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
           - networking.k8s.io
           resources:
           - ingresses
@@ -680,6 +700,7 @@ spec:
           - operator.openshift.io
           resources:
           - certmanagers/finalizers
+          - http01proxies/finalizers
           - istiocsrs/finalizers
           - trustmanagers/finalizers
           verbs:
@@ -693,6 +714,22 @@ spec:
           verbs:
           - get
           - patch
+          - update
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - http01proxies
+          verbs:
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - http01proxies/status
+          verbs:
+          - get
           - update
         - apiGroups:
           - operator.openshift.io
