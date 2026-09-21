@@ -217,6 +217,17 @@ rules:
   - update
   - watch
 - apiGroups:
+  - machineconfiguration.openshift.io
+  resources:
+  - machineconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
@@ -246,6 +257,7 @@ rules:
   - operator.openshift.io
   resources:
   - certmanagers/finalizers
+  - http01proxies/finalizers
   - istiocsrs/finalizers
   - trustmanagers/finalizers
   verbs:
@@ -259,6 +271,22 @@ rules:
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - http01proxies
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - http01proxies/status
+  verbs:
+  - get
   - update
 - apiGroups:
   - operator.openshift.io
