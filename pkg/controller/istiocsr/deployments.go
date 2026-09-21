@@ -81,7 +81,11 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 	common.UpdateResourceLabels(deployment, resourceLabels)
 	updatePodTemplateLabels(deployment, resourceLabels)
 
-	updateArgList(deployment, istiocsr)
+	clusterTLSArgs, err := r.clusterTLSProfileArgs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve cluster TLS profile for istio-csr deployment: %w", err)
+	}
+	updateArgList(deployment, istiocsr, clusterTLSArgs)
 
 	if err := updateResourceRequirement(deployment, istiocsr); err != nil {
 		return nil, fmt.Errorf("failed to update resource requirements: %w", err)
@@ -134,7 +138,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 	deployment.Spec.Template.Labels = resourceLabels
 }
 
-func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
+func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, clusterTLSArgs []string) {
 	istiocsrConfigs := istiocsr.Spec.IstioCSRConfig
 	// Default clusterID to "Kubernetes" if not provided.
 	clusterID := defaultClusterID
@@ -175,6 +179,10 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR) {
 	if istiocsrConfigs.IstioDataPlaneNamespaceSelector != "" {
 		args = append(args, fmt.Sprintf("--configmap-namespace-selector=%s", istiocsrConfigs.IstioDataPlaneNamespaceSelector))
 	}
+
+	// Append cluster TLS profile flags for the gRPC serving listener, when the cluster
+	// requires operands to honor apiserver.config.openshift.io/cluster's TLS settings.
+	args = append(args, clusterTLSArgs...)
 
 	for i, container := range deployment.Spec.Template.Spec.Containers {
 		if container.Name == istiocsrContainerName {
