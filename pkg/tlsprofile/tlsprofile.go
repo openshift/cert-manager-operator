@@ -50,10 +50,17 @@ var CertManagerCipherSuiteArgKeys = []string{
 }
 
 // TrustManagerCipherSuiteArgKeys are trust-manager webhook flags that must not be
-// set when the effective minimum TLS version is 1.3.
+// set when the effective minimum TLS version is 1.3 (Go does not honor cipher
+// configuration for TLS 1.3). --tls-curve-preferences is intentionally omitted:
+// Go still honors CurvePreferences for TLS 1.3.
 var TrustManagerCipherSuiteArgKeys = []string{
 	"--tls-cipher-suites",
 }
+
+// TrustManagerCurvePreferencesArgKey is the trust-manager webhook flag that
+// restricts TLS key-exchange groups (tls.Config.CurvePreferences). Requires
+// trust-manager v0.25.0 or later (the flag did not exist on v0.20.3).
+const TrustManagerCurvePreferencesArgKey = "--tls-curve-preferences"
 
 // CertManagerWebhookTLSArgs returns cert-manager-webhook flags for the main HTTPS
 // listener and the metrics TLS listener when TLS is enabled for metrics.
@@ -99,20 +106,36 @@ func CertManagerOperandMetricsTLSArgs(spec *configv1.TLSProfileSpec) []string {
 // TrustManagerWebhookTLSArgs returns trust-manager webhook TLS flags for the
 // cluster TLS security profile. Metrics remain plain HTTP upstream and are out
 // of scope.
+//
+// --tls-curve-preferences is always set when spec is non-nil, including TLS 1.3.
+// TLSProfileSpec has no curve field yet, so the value is DefaultCurvePreferences
+// (same list ClientTLSConfig uses). Cipher-suite flags are still omitted for TLS 1.3.
+//
+// IMPORTANT: --tls-curve-preferences only exists on trust-manager v0.25.0+
+// (CM-1367, operand bump in PR #495). This function does not check the deployed
+// operand version. Do not let this reach a cluster running an older trust-manager
+// build (e.g. the v0.20.3 bindata this repo ships before #495 merges): the
+// webhook pod will fail flag parsing and CrashLoopBackOff. Merge order matters:
+// PR #495 must land (or its operand bump equivalent) before this is enabled
+// for real clusters under Strict TLS adherence.
 func TrustManagerWebhookTLSArgs(spec *configv1.TLSProfileSpec) []string {
 	if spec == nil {
 		return []string{}
 	}
 	minVersion := string(spec.MinTLSVersion)
+	// Numeric CurveIDs: 29=X25519, 23=P-256, 24=P-384, 25=P-521.
+	curveArg := TrustManagerCurvePreferencesArgKey + "=" + CurvePreferencesArgValue()
 	if spec.MinTLSVersion == configv1.VersionTLS13 {
 		return []string{
 			"--tls-min-version=" + minVersion,
+			curveArg,
 		}
 	}
 	ciphers := joinIANACiphers(spec.Ciphers)
 	return []string{
 		"--tls-min-version=" + minVersion,
 		"--tls-cipher-suites=" + ciphers,
+		curveArg,
 	}
 }
 
