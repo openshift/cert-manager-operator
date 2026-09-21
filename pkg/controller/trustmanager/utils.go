@@ -146,7 +146,13 @@ func secretTargetsEnabled(config v1alpha1.SecretTargetsConfig) bool {
 
 // defaultCAPackageEnabled returns true when the defaultCAPackage policy is Enabled.
 func defaultCAPackageEnabled(config v1alpha1.DefaultCAPackageConfig) bool {
-	return config.Policy == v1alpha1.DefaultCAPackagePolicyEnabled
+	return config.Policy == v1alpha1.Enabled
+}
+
+// approverPolicyEnabled returns true when spec.trustManagerConfig.webhookTLS.approverPolicy.policy
+// is Enabled. When false, no CertificateRequestPolicy or related RBAC is created.
+func approverPolicyEnabled(config v1alpha1.ApproverPolicyConfig) bool {
+	return config.Policy == v1alpha1.Enabled
 }
 
 // getTrustNamespace returns the trust namespace from the TrustManager config.

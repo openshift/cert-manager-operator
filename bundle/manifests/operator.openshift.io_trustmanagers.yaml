@@ -1038,6 +1038,18 @@ spec:
                     - Enabled
                     - Disabled
                     type: string
+                  filterNonCACerts:
+                    default: Disabled
+                    description: |-
+                      filterNonCACerts controls whether trust-manager filters out
+                      non-CA certificates from trust bundles before distributing them.
+                      When set to "Enabled", only certificates with the X.509 basicConstraints
+                      CA bit set are included in bundles.
+                      When set to "Disabled", non-CA certificates are included (default behavior).
+                    enum:
+                    - Enabled
+                    - Disabled
+                    type: string
                   logFormat:
                     default: text
                     description: |-
@@ -1222,6 +1234,43 @@ spec:
                     x-kubernetes-validations:
                     - message: trustNamespace is immutable once set
                       rule: oldSelf == '' || self == oldSelf
+                  webhookTLS:
+                    description: |-
+                      webhookTLS configures the cert-manager Certificate used for the
+                      trust-manager validating webhook serving certificate.
+                    properties:
+                      approverPolicy:
+                        description: |-
+                          approverPolicy configures a CertificateRequestPolicy so that
+                          cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
+                          Resources are created only when policy is Enabled. If Enabled while the
+                          CertificateRequestPolicy CRD is not installed, reconciliation fails until
+                          approver-policy is installed or policy is set to Disabled.
+                        properties:
+                          policy:
+                            default: Disabled
+                            description: |-
+                              policy controls whether a CertificateRequestPolicy and the RBAC that
+                              allows the cert-manager controller ServiceAccount to use it are created.
+                              "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
+                              auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
+                              and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
+                              ServiceAccount. Nothing is created unless this is set to Enabled.
+                              If Enabled while cert-manager-approver-policy is not installed, reconcile
+                              fails because the CertificateRequestPolicy CRD is missing.
+                              "Disabled" does not create these resources (default).
+                            enum:
+                            - Enabled
+                            - Disabled
+                            type: string
+                        type: object
+                      certificateDuration:
+                        description: |-
+                          certificateDuration is the requested validity period of the webhook TLS certificate.
+                          When unset, cert-manager's default certificate duration is used.
+                          Example: "8760h" for one year.
+                        type: string
+                    type: object
                 type: object
             required:
             - trustManagerConfig
@@ -1290,34 +1339,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              defaultCAPackagePolicy:
-                description: defaultCAPackagePolicy indicates the current default
-                  CA package policy.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              filterExpiredCertificatesPolicy:
-                description: filterExpiredCertificatesPolicy indicates the current
-                  policy for filtering expired certificates.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              secretTargetsPolicy:
-                description: secretTargetsPolicy indicates the current secret targets
-                  policy.
-                enum:
-                - Disabled
-                - Custom
-                type: string
               trustManagerImage:
                 description: trustManagerImage is the container image (name:tag) used
                   for trust-manager.
-                type: string
-              trustNamespace:
-                description: trustNamespace is the namespace where trust-manager looks
-                  for trust sources.
                 type: string
             type: object
         required:
