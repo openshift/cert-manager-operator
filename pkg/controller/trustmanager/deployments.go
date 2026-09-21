@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -143,8 +144,18 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--secret-targets-enabled=true")
 	}
 
-	if config.FilterExpiredCertificates == v1alpha1.FilterExpiredCertificatesPolicyEnabled {
+	if config.FilterExpiredCertificates == v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled) {
 		args = append(args, "--filter-expired-certificates=true")
+	}
+
+	if config.FilterNonCACerts == v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled) {
+		args = append(args, "--filter-non-ca-certs=true")
+	}
+
+	if len(config.TargetNamespaces) > 0 {
+		ns := slices.Clone(config.TargetNamespaces)
+		slices.Sort(ns)
+		args = append(args, "--target-namespaces="+strings.Join(ns, ","))
 	}
 
 	if defaultCAPackageEnabled(config.DefaultCAPackage) {

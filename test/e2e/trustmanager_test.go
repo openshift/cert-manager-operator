@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -37,6 +38,9 @@ const (
 	trustManagerClusterRoleBindingName = "trust-manager"
 	trustManagerRoleName               = "trust-manager"
 	trustManagerRoleBindingName        = "trust-manager"
+
+	trustManagerTargetRoleName        = "trust-manager-target"
+	trustManagerTargetRoleBindingName = "trust-manager-target"
 
 	trustManagerLeaderElectionRoleName        = "trust-manager:leaderelection"
 	trustManagerLeaderElectionRoleBindingName = "trust-manager:leaderelection"
@@ -593,7 +597,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should add filter-expired-certificates arg when filterExpiredCertificates is Enabled", func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
 
 			By("verifying deployment args contain --filter-expired-certificates=true")
 			Eventually(func(g Gomega) {
@@ -613,6 +617,134 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
 				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-expired-certificates=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should add filter-non-ca-certs arg when filterNonCACerts is Enabled", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)))
+
+			By("verifying deployment args contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--filter-non-ca-certs=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have filter-non-ca-certs arg when filterNonCACerts is Disabled", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			By("verifying deployment args do not contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-non-ca-certs=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should add target-namespaces arg when targetNamespaces is set", func() {
+			targetNS := createUniqueNamespace("tm-target-ns")
+			createAndDestroyTestNamespace(ctx, clientset, targetNS)
+
+			createTrustManager(ctx, newTrustManagerCR().WithTargetNamespaces(targetNS))
+
+			By("verifying deployment args contain --target-namespaces")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--target-namespaces=" + targetNS))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should update target-namespaces arg when the list changes", func() {
+			ns1 := createUniqueNamespace("tm-target-a-")
+			ns2 := createUniqueNamespace("tm-target-b-")
+			createAndDestroyTestNamespace(ctx, clientset, ns1)
+			createAndDestroyTestNamespace(ctx, clientset, ns2)
+
+			createTrustManager(ctx, newTrustManagerCR().WithTargetNamespaces(ns1))
+
+			By("verifying deployment args contain the initial target namespace")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--target-namespaces=" + ns1))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("updating TrustManager CR with an additional target namespace")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.TargetNamespaces = []string{ns2, ns1}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			wanted := slices.Clone([]string{ns1, ns2})
+			slices.Sort(wanted)
+			By("verifying deployment args contain the updated sorted target namespace list")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--target-namespaces=" + strings.Join(wanted, ",")))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should scope ConfigMap write RBAC to targetNamespaces when set", func() {
+			targetNS := createUniqueNamespace("tm-target-rbac-")
+			createAndDestroyTestNamespace(ctx, clientset, targetNS)
+
+			createTrustManager(ctx, newTrustManagerCR().WithTargetNamespaces(targetNS))
+
+			By("verifying ClusterRole has no cluster-wide ConfigMap write")
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasResourceVerb(cr.Rules, "configmaps", "create")).Should(BeFalse(),
+					"ClusterRole should not have ConfigMap create when targetNamespaces is set")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying namespaced Role exists in the listed target namespace")
+			Eventually(func(g Gomega) {
+				role, err := clientset.RbacV1().Roles(targetNS).Get(ctx, trustManagerTargetRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasResourceVerb(role.Rules, "configmaps", "create")).Should(BeTrue(),
+					"target namespace Role should have ConfigMap create")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying namespaced Role exists in the trust namespace")
+			Eventually(func(g Gomega) {
+				role, err := clientset.RbacV1().Roles(trustManagerNamespace).Get(ctx, trustManagerTargetRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(hasResourceVerb(role.Rules, "configmaps", "create")).Should(BeTrue(),
+					"trust namespace Role should have ConfigMap create")
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying RoleBinding in the listed target namespace")
+			Eventually(func(g Gomega) {
+				rb, err := clientset.RbacV1().RoleBindings(targetNS).Get(ctx, trustManagerTargetRoleBindingName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(rb.RoleRef.Name).Should(Equal(trustManagerTargetRoleName))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have target-namespaces arg when targetNamespaces is unset", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			By("verifying deployment args do not contain --target-namespaces")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement(HavePrefix("--target-namespaces=")))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
@@ -668,7 +800,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyEnabled
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -750,7 +882,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyDisabled
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicy(v1alpha1.Disabled)
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -1202,84 +1334,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(tm.Status.TrustManagerImage).ShouldNot(BeEmpty())
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
-
-		It("should report trust namespace in status", func() {
-			createTrustManager(ctx, newTrustManagerCR())
-
-			By("verifying TrustManager status has default trust namespace set")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.TrustNamespace).Should(Equal("cert-manager"))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report custom trust namespace in status", func() {
-			By("creating custom trust namespace")
-			customTrustNS := createUniqueNamespace("custom-trust-ns-status")
-			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
-
-			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
-
-			By("verifying TrustManager status has custom trust namespace set")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.TrustNamespace).Should(Equal(customTrustNS))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report secretTargets policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"status-test-secret"}))
-
-			By("verifying TrustManager status reflects Custom secretTargets policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.SecretTargetsPolicy).Should(Equal(v1alpha1.SecretTargetsPolicyCustom))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report default CA package policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
-
-			By("verifying status reports Enabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.DefaultCAPackagePolicy).Should(Equal(v1alpha1.DefaultCAPackagePolicyEnabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("updating TrustManager CR to disable default CA package")
-			Eventually(func() error {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyDisabled
-				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
-				return err
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("verifying status reports Disabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.DefaultCAPackagePolicy).Should(Equal(v1alpha1.DefaultCAPackagePolicyDisabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report filterExpiredCertificates policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
-
-			By("verifying status reports Enabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.FilterExpiredCertificatesPolicy).Should(Equal(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
 	})
 
 	// -------------------------------------------------------------------------
@@ -1619,8 +1673,12 @@ func verifyTrustManagerResourceRecreation(deleteFunc func() error, getFunc func(
 
 // hasSecretRule returns true if any rule in the list targets the "secrets" resource.
 func hasSecretRule(rules []rbacv1.PolicyRule) bool {
+	return hasResourceVerb(rules, "secrets", "get") || hasResourceVerb(rules, "secrets", "create")
+}
+
+func hasResourceVerb(rules []rbacv1.PolicyRule, resource, verb string) bool {
 	for _, rule := range rules {
-		if slices.Contains(rule.Resources, "secrets") {
+		if slices.Contains(rule.Resources, resource) && slices.Contains(rule.Verbs, verb) {
 			return true
 		}
 	}

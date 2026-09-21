@@ -254,8 +254,8 @@ func multiOperandTrustManagerCR() *trustManagerCRBuilder {
 	return newTrustManagerCR().
 		WithLabels(map[string]string{"env": "trustmanager-test"}).
 		WithAnnotations(map[string]string{"trustmanager.operator.openshift.io/cluster": "trustmanager-test"}).
-		WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).
-		WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled).
+		WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)).
+		WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)).
 		WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"ca-bundle-secret", multiOperandBundleName}).
 		WithTrustNamespace(trustManagerNamespace)
 }
@@ -554,9 +554,9 @@ func assertTrustManagerCRConfigPropagation(ctx context.Context, clientset *kuber
 
 	tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy).To(Equal(v1alpha1.DefaultCAPackagePolicyEnabled))
+	Expect(tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy).To(Equal(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
 	Expect(tm.Spec.TrustManagerConfig.SecretTargets.Policy).To(Equal(v1alpha1.SecretTargetsPolicyCustom))
-	Expect(tm.Spec.TrustManagerConfig.FilterExpiredCertificates).To(Equal(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+	Expect(tm.Spec.TrustManagerConfig.FilterExpiredCertificates).To(Equal(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
 }
 
 func runMultiOperandBundleSecretTargetTest(ctx context.Context, sourcePEM string) {
