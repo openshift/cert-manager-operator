@@ -38,6 +38,29 @@ func TestGetCondition(t *testing.T) {
 			},
 		},
 		{
+			name: "progressing condition present",
+			conditionalStatus: ConditionalStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:   Ready,
+						Status: metav1.ConditionTrue,
+						Reason: ReasonReady,
+					},
+					{
+						Type:   Progressing,
+						Status: metav1.ConditionFalse,
+						Reason: ReasonReady,
+					},
+				},
+			},
+			condition: Progressing,
+			expectedCondition: &metav1.Condition{
+				Type:   Progressing,
+				Status: metav1.ConditionFalse,
+				Reason: ReasonReady,
+			},
+		},
+		{
 			name: "requested condition not present",
 			conditionalStatus: ConditionalStatus{
 				Conditions: []metav1.Condition{
@@ -113,6 +136,22 @@ func TestSetCondition(t *testing.T) {
 			condition:        Ready,
 			conditionStatus:  metav1.ConditionFalse,
 			conditionReason:  ReasonReady,
+			conditionUpdated: true,
+		},
+		{
+			name: "condition exists and reason changed",
+			conditionalStatus: ConditionalStatus{
+				Conditions: []metav1.Condition{
+					{
+						Type:   Ready,
+						Status: metav1.ConditionFalse,
+						Reason: ReasonFailed,
+					},
+				},
+			},
+			condition:        Ready,
+			conditionStatus:  metav1.ConditionFalse,
+			conditionReason:  ReasonValidationFailed,
 			conditionUpdated: true,
 		},
 		{
