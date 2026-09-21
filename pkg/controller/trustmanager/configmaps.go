@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -27,12 +28,12 @@ type caPackage struct {
 // or updates the package ConfigMap in the operand namespace.
 // Returns the SHA-256 hash of the CA bundle content and any error.
 // Returns ("", nil) when defaultCAPackage is disabled.
-func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) (string, error) {
+func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) (string, error) {
 	if !defaultCAPackageEnabled(trustManager.Spec.TrustManagerConfig.DefaultCAPackage) {
 		return "", nil
 	}
 
-	caBundle, resourceVersion, err := r.readTrustedCABundle()
+	caBundle, resourceVersion, err := r.readTrustedCABundle(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +51,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 	r.log.V(4).Info("reconciling default CA package ConfigMap", "name", cmName)
 
 	existing := &corev1.ConfigMap{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return "", common.FromClientError(err, "failed to check if ConfigMap %q exists", cmName)
 	}
@@ -60,7 +61,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 	}
 
 	r.log.V(2).Info("default CA package ConfigMap has been modified, updating to desired state", "name", cmName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return "", common.FromClientError(err, "failed to apply ConfigMap %q", cmName)
 	}
 
@@ -70,13 +71,13 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 
 // readTrustedCABundle reads the CNO-injected CA bundle from the operator namespace.
 // Returns the PEM bundle, the ConfigMap's resource version, and any error.
-func (r *Reconciler) readTrustedCABundle() (string, string, error) {
+func (r *Reconciler) readTrustedCABundle(ctx context.Context) (string, string, error) {
 	injectionCM := &corev1.ConfigMap{}
 	key := client.ObjectKey{
 		Namespace: common.OperatorNamespace,
 		Name:      common.TrustedCABundleConfigMapName,
 	}
-	if err := r.Get(r.ctx, key, injectionCM); err != nil {
+	if err := r.Get(ctx, key, injectionCM); err != nil {
 		return "", "", common.FromClientError(
 			err,
 			"failed to read CA bundle ConfigMap %q in namespace %q",
