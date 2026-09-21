@@ -25,8 +25,11 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 // RequestEnqueueLabelValue is the label value used for filtering reconcile
@@ -130,6 +133,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			object.GetName() == common.TrustedCABundleConfigMapName
 	})
 
+	// Reconcile when the cluster APIServer is created/deleted, or when TLS
+	// profile / adherence actually change. Status and unrelated spec updates
+	// (encryption, namedCertificates, etc.) are ignored.
+	clusterAPIServerPredicate := clusterAPIServerWatchPredicate()
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
@@ -145,6 +153,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate)).
 		Complete(r)
 }
 
@@ -216,4 +225,30 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 	// trust-manager deployment or its associated resources.
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, "RemoveDeployment", "%s trustmanager marked for deletion, remove all resources created for trustmanager deployment manually", trustManager.GetName())
 	return false, nil
+}
+
+func isClusterAPIServer(obj client.Object) bool {
+	return obj != nil && obj.GetName() == tlsprofile.APIServerClusterName
+}
+
+func clusterAPIServerWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isClusterAPIServer(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isClusterAPIServer(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isClusterAPIServer(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, okOld := e.ObjectOld.(*configv1.APIServer)
+			newObj, okNew := e.ObjectNew.(*configv1.APIServer)
+			if !okOld || !okNew || newObj.GetName() != tlsprofile.APIServerClusterName {
+				return false
+			}
+			return tlsprofile.ClusterAPIServerTLSConfigChanged(oldObj, newObj)
+		},
+	}
 }

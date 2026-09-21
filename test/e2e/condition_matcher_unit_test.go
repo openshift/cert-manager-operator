@@ -62,6 +62,24 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 			errorContains: "context deadline exceeded",
 		},
 		{
+			// Reproduces the CI flake from PR #466: cainjector's "-static-resources-Degraded"
+			// (unrelated, correctly False) is visited before "-deploymentDegraded" (True, the
+			// one we actually care about). With Any=true, the mismatch on the first condition
+			// must not short-circuit the search for a later matching condition.
+			name: "Any matches later condition even when an earlier same-type condition has the wrong status",
+			expectedConditions: map[string]opv1.ConditionStatus{
+				"Degraded": opv1.ConditionTrue,
+			},
+			initialObjects: []runtime.Object{
+				newCertManagerObjectWithConditions(
+					opv1.OperatorCondition{Type: controllerPrefix + "-static-resources-Degraded", Status: opv1.ConditionFalse},
+					opv1.OperatorCondition{Type: controllerPrefix + "-deploymentDegraded", Status: opv1.ConditionTrue},
+				),
+			},
+			matchAny:    true,
+			expectError: false,
+		},
+		{
 			name: "Both degraded is false",
 			expectedConditions: map[string]opv1.ConditionStatus{
 				"Available":   opv1.ConditionTrue,
