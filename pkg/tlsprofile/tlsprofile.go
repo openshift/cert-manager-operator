@@ -155,3 +155,37 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	serving.CipherSuites = iana
 	return nil
 }
+
+// istioCSRServingCurvePreferences is the fixed key-exchange curve preference order applied
+// to the cert-manager-istio-csr gRPC serving listener. apiserver.config.openshift.io's
+// TLSProfileSpec does not expose curve preferences today, so this mirrors the default
+// ECDHE/TLS 1.3 group order Go and OpenShift components generally prefer (X25519 first,
+// followed by the NIST P-curves). Revisit if TLSProfileSpec grows explicit curve settings.
+var istioCSRServingCurvePreferences = []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
+
+// IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
+// listener: --serving-tls-min-version, --serving-tls-cipher-suites, and
+// --serving-tls-curve-preferences (see cert-manager/istio-csr#787, released in
+// cert-manager-istio-csr v0.18.0+). Unlike the cert-manager operand flags, istio-csr
+// expects cipher-suites and curve-preferences as a repeated flag (one value per
+// occurrence) rather than a single comma-separated value.
+//
+// TLS 1.3 cipher suites are not configurable in Go, so cipher flags are omitted when
+// the effective minimum version is 1.3. Curve preferences are always included because
+// Go uses them for both TLS 1.2 ECDHE key exchange and TLS 1.3 group selection.
+func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
+	if spec == nil {
+		return []string{}
+	}
+	minVersion := string(spec.MinTLSVersion)
+	args := []string{"--serving-tls-min-version=" + minVersion}
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
+			args = append(args, "--serving-tls-cipher-suites="+cipher)
+		}
+	}
+	for _, curve := range istioCSRServingCurvePreferences {
+		args = append(args, "--serving-tls-curve-preferences="+curve)
+	}
+	return args
+}
