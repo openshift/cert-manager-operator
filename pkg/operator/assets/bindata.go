@@ -29,13 +29,13 @@
 // bindata/cert-manager-deployment/controller/cert-manager-edit-cr.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-leaderelection-rb.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-leaderelection-role.yaml
-// bindata/cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-rb.yaml
-// bindata/cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-role.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-sa.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-svc.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-tokenrequest-rb.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml
 // bindata/cert-manager-deployment/controller/cert-manager-view-cr.yaml
+// bindata/cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-rb.yaml
+// bindata/cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-role.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-rb.yaml
 // bindata/cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-role.yaml
@@ -1667,94 +1667,6 @@ func certManagerDeploymentControllerCertManagerLeaderelectionRoleYaml() (*asset,
 	return a, nil
 }
 
-var _certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    app: cert-manager
-    app.kubernetes.io/component: controller
-    app.kubernetes.io/instance: cert-manager
-    app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.20.3
-  name: cert-manager-metrics-dynamic-serving
-  namespace: cert-manager
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: cert-manager-metrics-dynamic-serving
-subjects:
-  - kind: ServiceAccount
-    name: cert-manager
-    namespace: cert-manager
-  - kind: ServiceAccount
-    name: cert-manager-webhook
-    namespace: cert-manager
-  - kind: ServiceAccount
-    name: cert-manager-cainjector
-    namespace: cert-manager
-`)
-
-func certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYamlBytes() ([]byte, error) {
-	return _certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYaml, nil
-}
-
-func certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYaml() (*asset, error) {
-	bytes, err := certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-rb.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
-var _certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  labels:
-    app: cert-manager
-    app.kubernetes.io/component: controller
-    app.kubernetes.io/instance: cert-manager
-    app.kubernetes.io/name: cert-manager
-    app.kubernetes.io/version: v1.20.3
-  name: cert-manager-metrics-dynamic-serving
-  namespace: cert-manager
-rules:
-  - apiGroups:
-      - ""
-    resourceNames:
-      - cert-manager-metrics-ca
-    resources:
-      - secrets
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - create
-`)
-
-func certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYamlBytes() ([]byte, error) {
-	return _certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYaml, nil
-}
-
-func certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYaml() (*asset, error) {
-	bytes, err := certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYamlBytes()
-	if err != nil {
-		return nil, err
-	}
-
-	info := bindataFileInfo{name: "cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-role.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
-	a := &asset{bytes: bytes, info: info}
-	return a, nil
-}
-
 var _certManagerDeploymentControllerCertManagerSaYaml = []byte(`apiVersion: v1
 automountServiceAccountToken: true
 kind: ServiceAccount
@@ -1943,6 +1855,94 @@ func certManagerDeploymentControllerCertManagerViewCrYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "cert-manager-deployment/controller/cert-manager-view-cr.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.20.3
+  name: cert-manager-metrics-dynamic-serving
+  namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cert-manager-metrics-dynamic-serving
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager
+    namespace: cert-manager
+  - kind: ServiceAccount
+    name: cert-manager-webhook
+    namespace: cert-manager
+  - kind: ServiceAccount
+    name: cert-manager-cainjector
+    namespace: cert-manager
+`)
+
+func certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYamlBytes() ([]byte, error) {
+	return _certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYaml, nil
+}
+
+func certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYaml() (*asset, error) {
+	bytes, err := certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-rb.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYaml = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/version: v1.20.3
+  name: cert-manager-metrics-dynamic-serving
+  namespace: cert-manager
+rules:
+  - apiGroups:
+      - ""
+    resourceNames:
+      - cert-manager-metrics-ca
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+`)
+
+func certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYamlBytes() ([]byte, error) {
+	return _certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYaml, nil
+}
+
+func certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYaml() (*asset, error) {
+	bytes, err := certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-role.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -4184,13 +4184,13 @@ var _bindata = map[string]func() (*asset, error){
 	"cert-manager-deployment/controller/cert-manager-edit-cr.yaml":                                     certManagerDeploymentControllerCertManagerEditCrYaml,
 	"cert-manager-deployment/controller/cert-manager-leaderelection-rb.yaml":                           certManagerDeploymentControllerCertManagerLeaderelectionRbYaml,
 	"cert-manager-deployment/controller/cert-manager-leaderelection-role.yaml":                         certManagerDeploymentControllerCertManagerLeaderelectionRoleYaml,
-	"cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-rb.yaml":                  certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYaml,
-	"cert-manager-deployment/controller/cert-manager-metrics-dynamic-serving-role.yaml":                certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYaml,
 	"cert-manager-deployment/controller/cert-manager-sa.yaml":                                          certManagerDeploymentControllerCertManagerSaYaml,
 	"cert-manager-deployment/controller/cert-manager-svc.yaml":                                         certManagerDeploymentControllerCertManagerSvcYaml,
 	"cert-manager-deployment/controller/cert-manager-tokenrequest-rb.yaml":                             certManagerDeploymentControllerCertManagerTokenrequestRbYaml,
 	"cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml":                           certManagerDeploymentControllerCertManagerTokenrequestRoleYaml,
 	"cert-manager-deployment/controller/cert-manager-view-cr.yaml":                                     certManagerDeploymentControllerCertManagerViewCrYaml,
+	"cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-rb.yaml":     certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYaml,
+	"cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-role.yaml":   certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-deployment.yaml":                             certManagerDeploymentWebhookCertManagerWebhookDeploymentYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-rb.yaml":                     certManagerDeploymentWebhookCertManagerWebhookDynamicServingRbYaml,
 	"cert-manager-deployment/webhook/cert-manager-webhook-dynamic-serving-role.yaml":                   certManagerDeploymentWebhookCertManagerWebhookDynamicServingRoleYaml,
@@ -4317,13 +4317,15 @@ var _bintree = &bintree{nil, map[string]*bintree{
 			"cert-manager-edit-cr.yaml":                       {certManagerDeploymentControllerCertManagerEditCrYaml, map[string]*bintree{}},
 			"cert-manager-leaderelection-rb.yaml":             {certManagerDeploymentControllerCertManagerLeaderelectionRbYaml, map[string]*bintree{}},
 			"cert-manager-leaderelection-role.yaml":           {certManagerDeploymentControllerCertManagerLeaderelectionRoleYaml, map[string]*bintree{}},
-			"cert-manager-metrics-dynamic-serving-rb.yaml":    {certManagerDeploymentControllerCertManagerMetricsDynamicServingRbYaml, map[string]*bintree{}},
-			"cert-manager-metrics-dynamic-serving-role.yaml":  {certManagerDeploymentControllerCertManagerMetricsDynamicServingRoleYaml, map[string]*bintree{}},
 			"cert-manager-sa.yaml":                            {certManagerDeploymentControllerCertManagerSaYaml, map[string]*bintree{}},
 			"cert-manager-svc.yaml":                           {certManagerDeploymentControllerCertManagerSvcYaml, map[string]*bintree{}},
 			"cert-manager-tokenrequest-rb.yaml":               {certManagerDeploymentControllerCertManagerTokenrequestRbYaml, map[string]*bintree{}},
 			"cert-manager-tokenrequest-role.yaml":             {certManagerDeploymentControllerCertManagerTokenrequestRoleYaml, map[string]*bintree{}},
 			"cert-manager-view-cr.yaml":                       {certManagerDeploymentControllerCertManagerViewCrYaml, map[string]*bintree{}},
+		}},
+		"metrics-dynamic-serving": {nil, map[string]*bintree{
+			"cert-manager-metrics-dynamic-serving-rb.yaml":   {certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRbYaml, map[string]*bintree{}},
+			"cert-manager-metrics-dynamic-serving-role.yaml": {certManagerDeploymentMetricsDynamicServingCertManagerMetricsDynamicServingRoleYaml, map[string]*bintree{}},
 		}},
 		"webhook": {nil, map[string]*bintree{
 			"cert-manager-webhook-deployment.yaml":                     {certManagerDeploymentWebhookCertManagerWebhookDeploymentYaml, map[string]*bintree{}},
