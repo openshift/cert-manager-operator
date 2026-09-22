@@ -20,6 +20,10 @@ func (c *FakeOperatorV1alpha1) IstioCSRs(namespace string) v1alpha1.IstioCSRInte
 	return newFakeIstioCSRs(c, namespace)
 }
 
+func (c *FakeOperatorV1alpha1) TrustManagers() v1alpha1.TrustManagerInterface {
+	return newFakeTrustManagers(c)
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeOperatorV1alpha1) RESTClient() rest.Interface {

@@ -1,0 +1,714 @@
+apiVersion: apiextensions.k8s.io/v1
+name: "TrustManager"
+crdName: trustmanagers.operator.openshift.io
+tests:
+  onCreate:
+    # Category 1: Minimal valid create
+    - name: Should be able to create a minimal TrustManager with required fields only
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig: {}
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 1
+            logFormat: "text"
+            trustNamespace: "cert-manager"
+            filterExpiredCertificates: "Disabled"
+            secretTargets:
+              policy: "Disabled"
+            defaultCAPackage:
+              policy: "Disabled"
+
+    # Category 5: Singleton name validation
+    - name: Should reject TrustManager with name other than cluster
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: not-cluster
+        spec:
+          trustManagerConfig: {}
+      expectedError: "TrustManager is a singleton, .metadata.name must be 'cluster'"
+
+    # Category 2: Valid field values - logLevel
+    - name: Should accept logLevel of 1
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 1
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 1
+
+    - name: Should accept logLevel of 5
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 5
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 5
+
+    # Category 3: Invalid field values - logLevel
+    - name: Should reject logLevel less than 1
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 0
+      expectedError: "spec.trustManagerConfig.logLevel: Invalid value"
+
+    - name: Should reject logLevel greater than 5
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 6
+      expectedError: "spec.trustManagerConfig.logLevel: Invalid value"
+
+    # Category 2: Valid field values - logFormat
+    - name: Should accept logFormat text
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "text"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "text"
+
+    - name: Should accept logFormat json
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "json"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "json"
+
+    # Category 3: Invalid field values - logFormat
+    - name: Should reject invalid logFormat
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "xml"
+      expectedError: "spec.trustManagerConfig.logFormat: Unsupported value"
+
+    # Category 2: Valid field values - trustNamespace
+    - name: Should accept custom trustNamespace
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            trustNamespace: "my-trust-ns"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            trustNamespace: "my-trust-ns"
+
+    # Category 3: Invalid field values - trustNamespace
+    - name: Should reject trustNamespace exceeding 63 characters
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            trustNamespace: "this-namespace-name-is-way-too-long-and-exceeds-the-sixty-three-character-limit"
+      expectedError: "spec.trustManagerConfig.trustNamespace"
+
+    # Category 2: Valid field values - filterExpiredCertificates
+    - name: Should accept filterExpiredCertificates Enabled
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Enabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Enabled"
+
+    - name: Should accept filterExpiredCertificates Disabled
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Disabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Disabled"
+
+    # Category 3: Invalid field values - filterExpiredCertificates
+    - name: Should reject invalid filterExpiredCertificates value
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Always"
+      expectedError: "spec.trustManagerConfig.filterExpiredCertificates: Unsupported value"
+
+    # Category 2: Valid field values - secretTargets policy
+    - name: Should accept secretTargets with policy Disabled
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Disabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Disabled"
+
+    - name: Should accept secretTargets with policy Custom and authorizedSecrets
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-secret"
+                - "another-secret"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-secret"
+                - "another-secret"
+
+    # Category 3: Invalid field values - secretTargets
+    - name: Should reject invalid secretTargets policy
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Enabled"
+      expectedError: "spec.trustManagerConfig.secretTargets.policy: Unsupported value"
+
+    # Category 9: Cross-field validation - secretTargets CEL rules
+    - name: Should reject secretTargets with policy Custom but no authorizedSecrets
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+      expectedError: "authorizedSecrets must not be empty when policy is Custom"
+
+    - name: Should reject secretTargets with policy Custom and empty authorizedSecrets
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets: []
+      expectedError: "authorizedSecrets must not be empty when policy is Custom"
+
+    - name: Should reject secretTargets with policy Disabled and authorizedSecrets set
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Disabled"
+              authorizedSecrets:
+                - "my-secret"
+      expectedError: "authorizedSecrets must be empty when policy is not Custom"
+
+    # Category 2: Valid field values - defaultCAPackage
+    - name: Should accept defaultCAPackage with policy Enabled
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Enabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Enabled"
+
+    - name: Should accept defaultCAPackage with policy Disabled
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Disabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Disabled"
+
+    # Category 3: Invalid field values - defaultCAPackage
+    - name: Should reject invalid defaultCAPackage policy
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Custom"
+      expectedError: "spec.trustManagerConfig.defaultCAPackage.policy: Unsupported value"
+
+    # Category 2: Valid field values - controllerConfig
+    - name: Should accept controllerConfig with labels and annotations
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig: {}
+          controllerConfig:
+            labels:
+              custom-label: "value"
+            annotations:
+              custom-annotation: "value"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig: {}
+          controllerConfig:
+            labels:
+              custom-label: "value"
+            annotations:
+              custom-annotation: "value"
+
+    # Category 2: Valid field values - nodeSelector
+    - name: Should accept nodeSelector with valid entries
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            nodeSelector:
+              kubernetes.io/os: linux
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            nodeSelector:
+              kubernetes.io/os: linux
+
+    # Category 2: Valid field values - tolerations
+    - name: Should accept tolerations
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            tolerations:
+              - key: "node-role.kubernetes.io/master"
+                operator: "Exists"
+                effect: "NoSchedule"
+
+    # Category 2: Valid field values - full configuration
+    - name: Should accept a fully configured TrustManager
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 3
+            logFormat: "json"
+            trustNamespace: "trust-ns"
+            filterExpiredCertificates: "Enabled"
+            defaultCAPackage:
+              policy: "Enabled"
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-bundle-secret"
+            nodeSelector:
+              kubernetes.io/os: linux
+            tolerations:
+              - key: "node.kubernetes.io/not-ready"
+                operator: "Exists"
+                effect: "NoSchedule"
+          controllerConfig:
+            labels:
+              environment: production
+            annotations:
+              description: "trust-manager deployment"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 3
+            logFormat: "json"
+            trustNamespace: "trust-ns"
+            filterExpiredCertificates: "Enabled"
+            defaultCAPackage:
+              policy: "Enabled"
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-bundle-secret"
+            nodeSelector:
+              kubernetes.io/os: linux
+            tolerations:
+              - key: "node.kubernetes.io/not-ready"
+                operator: "Exists"
+                effect: "NoSchedule"
+          controllerConfig:
+            labels:
+              environment: production
+            annotations:
+              description: "trust-manager deployment"
+
+    # Category 9: Empty authorizedSecret string validation
+    - name: Should reject authorizedSecrets with empty string
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - ""
+      expectedError: "spec.trustManagerConfig.secretTargets.authorizedSecrets"
+
+  onUpdate:
+    # Category 4: Immutable field - trustNamespace
+    - name: Should not allow changing trustNamespace once set
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            trustNamespace: "cert-manager"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            trustNamespace: "different-namespace"
+      expectedError: "trustNamespace is immutable once set"
+
+    # Category 4: Valid updates
+    - name: Should allow updating logLevel
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 1
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 3
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logLevel: 3
+
+    - name: Should allow updating logFormat
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "text"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "json"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            logFormat: "json"
+
+    - name: Should allow updating filterExpiredCertificates
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Disabled"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Enabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            filterExpiredCertificates: "Enabled"
+
+    - name: Should allow updating secretTargets policy from Disabled to Custom with authorizedSecrets
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Disabled"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-secret"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+              authorizedSecrets:
+                - "my-secret"
+
+    - name: Should allow updating defaultCAPackage policy
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Disabled"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Enabled"
+      expected: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            defaultCAPackage:
+              policy: "Enabled"
+
+    # Category 4: Invalid updates - cross-field CEL on update
+    - name: Should reject updating secretTargets to Custom without authorizedSecrets
+      initial: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Disabled"
+      updated: |
+        apiVersion: operator.openshift.io/v1alpha1
+        kind: TrustManager
+        metadata:
+          name: cluster
+        spec:
+          trustManagerConfig:
+            secretTargets:
+              policy: "Custom"
+      expectedError: "authorizedSecrets must not be empty when policy is Custom"
