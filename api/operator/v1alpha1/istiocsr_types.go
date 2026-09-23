@@ -167,7 +167,7 @@ type CertManagerConfig struct {
 	// +kubebuilder:validation:XValidation:rule="self.group.lowerAscii() == 'cert-manager.io'",message="group must be 'cert-manager.io'"
 	// +kubebuilder:validation:Required
 	// +required
-	IssuerRef certmanagerv1.ObjectReference `json:"issuerRef"`
+	IssuerRef certmanagerv1.IssuerReference `json:"issuerRef"`
 
 	// istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap.
 	// If empty, the operator will automatically extract the CA certificate from the Secret containing the istiod certificate obtained from cert-manager.

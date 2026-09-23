@@ -1947,7 +1947,7 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			IPAddresses: []string{
 				"127.0.0.1",
 			},
-			IssuerRef: cmmetav1.ObjectReference{
+			IssuerRef: cmmetav1.IssuerReference{
 				Name: clusterIssuerName,
 				Kind: "ClusterIssuer",
 			},

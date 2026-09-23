@@ -60,7 +60,7 @@ func testIstioCSR() *v1alpha1.IstioCSR {
 		Spec: v1alpha1.IstioCSRSpec{
 			IstioCSRConfig: v1alpha1.IstioCSRConfig{
 				CertManager: v1alpha1.CertManagerConfig{
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name:  testResourcesName,
 						Kind:  issuerKind,
 						Group: issuerGroup,

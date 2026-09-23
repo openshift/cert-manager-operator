@@ -357,7 +357,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
-					cert.Spec.IssuerRef = certmanagermetav1.ObjectReference{
+					cert.Spec.IssuerRef = certmanagermetav1.IssuerReference{
 						Name:  "wrong-issuer",
 						Kind:  "Issuer",
 						Group: "cert-manager.io",
