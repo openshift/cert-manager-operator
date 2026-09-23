@@ -172,15 +172,15 @@ E2E_GINKGO_LABEL_FILTER="Platform: isSubsetOf {AWS,Generic} && CredentialsMode: 
 
 ### Running on clusters without Public DNS / Non-AWS environments
 
-Tests requiring a publicly routable base domain (such as ACME HTTP-01 challenges against Let's Encrypt and Route external TLS validation) are labeled with `Feature:PublicDNS`. On private, air-gapped, or internal lab clusters (e.g. non-AWS platforms or clusters with private TLDs like `.local`, `.lan`, `.internal`), filter out `Feature:PublicDNS` or select `Platform:Generic`:
+Tests requiring a publicly routable base domain (such as ACME HTTP-01 challenges against Let's Encrypt and Route external TLS validation) are labeled with `Feature:PublicDNS`. On private, air-gapped, or internal lab clusters (e.g. non-AWS platforms or clusters with private TLDs like `.local`, `.lan`, `.internal`), exclude `Feature:PublicDNS` using Ginkgo label filters:
 
 ```bash
 make test-e2e E2E_GINKGO_LABEL_FILTER="Platform:Generic && !Feature:ServiceMesh && !Feature:PublicDNS"
 ```
 
-Specs requiring `Feature:PublicDNS` will also dynamically self-skip when run against detected non-public domains. The public DNS check can be customized or overridden via environment variables:
-- `E2E_PUBLIC_DNS_RESOLVER`: Custom DNS resolver address to verify public delegation (default `8.8.8.8:53`).
+Specs requiring `Feature:PublicDNS` will also dynamically self-skip on private or unmanaged clusters (e.g. where OpenShift's `dns.config.openshift.io/cluster` does not define a `.spec.publicZone`). The detection behavior can be configured or overridden via environment variables:
 - `E2E_FORCE_PUBLIC_DNS`: Explicitly force public DNS detection to `true` or `false` in CI pipelines.
+- `E2E_PUBLIC_DNS_RESOLVER`: Optional custom DNS resolver address (e.g. `8.8.8.8:53` or `1.1.1.1:53`) to actively query domain records if `.spec.publicZone` is not present on the cluster object. When unset, clusters without `.spec.publicZone` safely default to non-public.
 
 ## Linting the code
 

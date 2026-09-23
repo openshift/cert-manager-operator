@@ -5,7 +5,6 @@ package e2e
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	configapiv1 "github.com/openshift/api/config/v1"
@@ -111,17 +110,8 @@ func TestIsPublicClusterDomain(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.envForce != "" {
-				t.Setenv("E2E_FORCE_PUBLIC_DNS", tc.envForce)
-			} else {
-				os.Unsetenv("E2E_FORCE_PUBLIC_DNS")
-			}
-
-			if tc.customRes != "" {
-				t.Setenv("E2E_PUBLIC_DNS_RESOLVER", tc.customRes)
-			} else {
-				os.Unsetenv("E2E_PUBLIC_DNS_RESOLVER")
-			}
+			t.Setenv("E2E_FORCE_PUBLIC_DNS", tc.envForce)
+			t.Setenv("E2E_PUBLIC_DNS_RESOLVER", tc.customRes)
 
 			result := isPublicClusterDomain(ctx, tc.clientToUse, tc.domain)
 			if result != tc.expected {
