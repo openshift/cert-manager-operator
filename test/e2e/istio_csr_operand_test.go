@@ -445,7 +445,8 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 		testProfile := &configapiv1.TLSSecurityProfile{
-			Type: configapiv1.TLSProfileModernType,
+			Type:   configapiv1.TLSProfileModernType,
+			Modern: &configapiv1.ModernTLSProfile{},
 		}
 		strictAdherence := configapiv1.TLSAdherencePolicyStrictAllComponents
 
