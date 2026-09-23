@@ -603,18 +603,19 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			err = restartIstioCSRDeployment(ctx, clientset, ossmIstioCSRNamespace)
 			Expect(err).NotTo(HaveOccurred())
 
-			cpNamespace, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, istioCSRStatus.IstioCSRGRPCEndpoint, clusterID)
+			cpNamespace, istiodDeploymentName, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, istioCSRStatus.IstioCSRGRPCEndpoint, clusterID)
 			if err != nil {
 				Skip(fmt.Sprintf("OpenShift Service Mesh v3 not available: %v", err))
 			}
 			istioCPNamespace = cpNamespace
 
-			// Restart istiod so it immediately re-dials the (restarted) istio-csr gRPC
-			// endpoint and re-requests istiod-tls. Without this an existing istiod takes
-			// >10 min to organically reconnect, causing waitForIstiodTLSIssuerCAAligned
-			// to time out. The CA material is unchanged -- only the process is bounced.
+			// Restart the exact istiod deployment that was discovered so it immediately
+			// re-dials the (restarted) istio-csr gRPC endpoint and re-requests istiod-tls.
+			// Without this an existing istiod takes >10 min to organically reconnect,
+			// causing waitForIstiodTLSIssuerCAAligned to time out. The CA material is
+			// unchanged — only the process is bounced.
 			By("restarting istiod to reconnect to refreshed istio-csr gRPC endpoint")
-			err = restartIstiodDeployment(ctx, clientset, istioCPNamespace)
+			err = restartIstiodDeployment(ctx, clientset, istioCPNamespace, istiodDeploymentName)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for istiod certificate to become ready in the control plane namespace")
