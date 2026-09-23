@@ -178,7 +178,9 @@ Tests requiring a publicly routable base domain (such as ACME HTTP-01 challenges
 make test-e2e E2E_GINKGO_LABEL_FILTER="Platform:Generic && !Feature:ServiceMesh && !Feature:PublicDNS"
 ```
 
-Specs requiring `Feature:PublicDNS` will also dynamically self-skip when run against detected non-public domains.
+Specs requiring `Feature:PublicDNS` will also dynamically self-skip when run against detected non-public domains. The public DNS check can be customized or overridden via environment variables:
+- `E2E_PUBLIC_DNS_RESOLVER`: Custom DNS resolver address to verify public delegation (default `8.8.8.8:53`).
+- `E2E_FORCE_PUBLIC_DNS`: Explicitly force public DNS detection to `true` or `false` in CI pipelines.
 
 ## Linting the code
 

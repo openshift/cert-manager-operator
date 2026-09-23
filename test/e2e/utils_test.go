@@ -17,7 +17,9 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1877,50 +1879,90 @@ var knownPrivateTLDs = []string{
 	".example",
 }
 
-// isPublicTLDDomain returns true when domain appears to have a real, publicly
-// registered TLD — i.e. none of the knownPrivateTLDs match as a suffix of any
-// label in the domain, and the domain's root/delegation can be resolved by public DNS.
-func isPublicTLDDomain(domain string) bool {
+// hasClusterPublicDNSZone checks if the OpenShift cluster was configured with a public DNS zone
+// in dns.config.openshift.io/cluster (.spec.publicZone).
+func hasClusterPublicDNSZone(ctx context.Context, configClient configv1.ConfigV1Interface) bool {
+	if configClient == nil {
+		return false
+	}
+	dns, err := configClient.DNSes().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return dns.Spec.PublicZone != nil && dns.Spec.PublicZone.ID != ""
+}
+
+// isPublicClusterDomain evaluates whether a domain represents a public, externally routable
+// DNS domain that Let's Encrypt can reach from the internet.
+//
+// Evaluation hierarchy:
+//  1. Explicit CI override via E2E_FORCE_PUBLIC_DNS=true/false.
+//  2. Known private suffix denylist (.local, .lan, .internal, .boe, etc.).
+//  3. OpenShift Cluster DNS API (spec.publicZone) if configClient is provided.
+//  4. Optional configured public resolver via E2E_PUBLIC_DNS_RESOLVER (e.g., in CI or test networks).
+//  5. Safe default: false (treats unmanaged/private clusters as non-public, avoiding failed Let's Encrypt ACME calls).
+func isPublicClusterDomain(ctx context.Context, configClient configv1.ConfigV1Interface, domain string) bool {
+	// 1. Explicit override for CI / manual runs
+	if forced := os.Getenv("E2E_FORCE_PUBLIC_DNS"); forced != "" {
+		if val, err := strconv.ParseBool(forced); err == nil {
+			return val
+		}
+	}
+
 	if domain == "" {
 		return false
 	}
-	lower := strings.ToLower(domain)
+	lower := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
+
+	// 2. Known private suffixes
 	for _, priv := range knownPrivateTLDs {
-		// Match the suffix itself and also ".suffix" anywhere in the domain
-		// so "rhcl-mc3.lnxero1.boe" is caught by both ".boe" and ".lnxero1".
 		if strings.HasSuffix(lower, priv) {
 			return false
 		}
 	}
 
-	// Verify external DNS resolution using public resolver (e.g., 8.8.8.8) with a short timeout.
-	// If public DNS cannot resolve the domain or its parent zones, Let's Encrypt will also fail.
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{Timeout: 2 * time.Second}
-			return d.DialContext(ctx, "udp", "8.8.8.8:53")
-		},
+	// 3. OpenShift Cluster DNS API: check if a public hosted zone is managed
+	if configClient != nil && hasClusterPublicDNSZone(ctx, configClient) {
+		return true
 	}
-	lookupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
-	parts := strings.Split(lower, ".")
-	if len(parts) >= 2 {
-		base := strings.Join(parts[len(parts)-2:], ".")
-		if _, err := resolver.LookupNS(lookupCtx, base); err != nil {
-			return false
+	// 4. Optional user-configured external resolver (only if explicitly set)
+	if resolverAddr := os.Getenv("E2E_PUBLIC_DNS_RESOLVER"); resolverAddr != "" {
+		if !strings.Contains(resolverAddr, ":") {
+			resolverAddr = net.JoinHostPort(resolverAddr, "53")
+		}
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: 2 * time.Second}
+				return d.DialContext(ctx, "udp", resolverAddr)
+			},
+		}
+		lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		if addrs, err := resolver.LookupHost(lookupCtx, lower); err == nil && len(addrs) > 0 {
+			return true
+		}
+		if nsRecords, err := resolver.LookupNS(lookupCtx, lower); err == nil && len(nsRecords) > 0 {
+			return true
 		}
 	}
 
-	return true
+	// 5. Default: false (safe default for disconnected/private clusters)
+	return false
+}
+
+// isPublicTLDDomain is a convenience wrapper for isPublicClusterDomain without cluster client context.
+func isPublicTLDDomain(domain string) bool {
+	return isPublicClusterDomain(context.Background(), nil, domain)
 }
 
 // skipIfNonPublicDomain calls Ginkgo's Skip when the given domain is not a
 // publicly-routable domain. Call this at the top of any It/BeforeAll that
 // reaches out to Let's Encrypt or probes an external route hostname.
-func skipIfNonPublicDomain(domain string) {
-	if !isPublicTLDDomain(domain) {
+func skipIfNonPublicDomain(ctx context.Context, configClient configv1.ConfigV1Interface, domain string) {
+	if !isPublicClusterDomain(ctx, configClient, domain) {
 		Skip(fmt.Sprintf(
 			"Skipping: cluster domain %q is not resolvable via public DNS. "+
 				"ACME HTTP-01 challenges and externally-probed route hostnames require "+

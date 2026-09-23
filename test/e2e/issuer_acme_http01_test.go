@@ -54,7 +54,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic", "Feature
 		appsDomain = "apps." + baseDomain
 
 		By("checking cluster domain is publicly routable for ACME HTTP-01")
-		skipIfNonPublicDomain(baseDomain)
+		skipIfNonPublicDomain(ctx, configClient, baseDomain)
 
 		By("adding required args to cert-manager controller")
 		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{

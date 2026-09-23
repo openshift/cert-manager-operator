@@ -322,7 +322,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 			By("checking cluster ingress domain is publicly routable")
 			ingressCheck, err := configClient.Ingresses().Get(context.Background(), "cluster", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster ingress for domain check")
-			skipIfNonPublicDomain(ingressCheck.Spec.Domain)
+			skipIfNonPublicDomain(ctx, configClient, ingressCheck.Spec.Domain)
 
 			By("deploying hello-openshift application")
 			appName := "hello-openshift"
