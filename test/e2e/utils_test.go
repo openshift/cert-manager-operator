@@ -1953,11 +1953,6 @@ func isPublicClusterDomain(ctx context.Context, configClient configv1.ConfigV1In
 	return false
 }
 
-// isPublicTLDDomain is a convenience wrapper for isPublicClusterDomain without cluster client context.
-func isPublicTLDDomain(domain string) bool {
-	return isPublicClusterDomain(context.Background(), nil, domain)
-}
-
 // skipIfNonPublicDomain calls Ginkgo's Skip when the given domain is not a
 // publicly-routable domain. Call this at the top of any It/BeforeAll that
 // reaches out to Let's Encrypt or probes an external route hostname.

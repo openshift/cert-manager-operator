@@ -35,14 +35,12 @@ func TestIsPublicClusterDomain(t *testing.T) {
 	}).ConfigV1()
 
 	tests := []struct {
-		name         string
-		configClient *fakeconfigv1client.Clientset
-		useClient    bool
-		clientToUse  configv1.ConfigV1Interface
-		domain       string
-		envForce     string
-		customRes    string
-		expected     bool
+		name        string
+		clientToUse configv1.ConfigV1Interface
+		domain      string
+		envForce    string
+		customRes   string
+		expected    bool
 	}{
 		{
 			name:      "empty domain",
