@@ -2,3 +2,7 @@ cloud.google.com/go v0.121.2 h1:v2qQpN6Dx9x2NmwrqlesOt3Ys4ol5/lFZ6Mg1B7OJCg=
 github.com/hashicorp/go-immutable-radix v1.3.1 h1:DKHmCUm2hRBK510BaiZlwvpD40f8bJFeZnpfm2KLowc=
 github.com/hashicorp/golang-lru v0.5.4 h1:YDjusn29QI/Das2iO9M0BHnIbxPeyuCHsjMW+lJfyTc=
 k8s.io/gengo v0.0.0-20220902162205-c0856e24416d h1:U9tB195lKdzwqicbJvyJeOXV7Klv+wNAWENRnXEGi08=
+sigs.k8s.io/kustomize/api v0.21.1/go.mod h1:f3wkKByTrgpgltLgySCntrYoq5d3q7aaxveSagwTlwI=
+sigs.k8s.io/kustomize/cmd/config v0.21.1/go.mod h1:7yEFYBJyBJlpZQ50VaRGQRtFMn3Vzn9Fb2wts4TCok4=
+sigs.k8s.io/kustomize/kustomize/v5 v5.8.1/go.mod h1:0vFa5pQ/elNEQMyiAJuGku9rhAMzz7u9+61hRqFKiwY=
+sigs.k8s.io/kustomize/kyaml v0.21.1/go.mod h1:hmxADesM3yUN2vbA5z1/YTBnzLJ1dajdqpQonwBL1FQ=

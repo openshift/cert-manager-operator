@@ -87,7 +87,7 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 	certificate.Spec.CommonName = dnsName
 	certificate.Spec.DNSNames = []string{dnsName}
 	certificate.Spec.SecretName = trustManagerTLSSecretName
-	certificate.Spec.IssuerRef = certmanagermetav1.ObjectReference{
+	certificate.Spec.IssuerRef = certmanagermetav1.IssuerReference{
 		Name:  trustManagerIssuerName,
 		Kind:  "Issuer",
 		Group: "cert-manager.io",

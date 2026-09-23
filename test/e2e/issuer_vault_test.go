@@ -83,7 +83,7 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 			Spec: certmanagerv1.CertificateSpec{
 				CommonName: commonName,
 				SecretName: certName,
-				IssuerRef: certmanagermetav1.ObjectReference{
+				IssuerRef: certmanagermetav1.IssuerReference{
 					Name: issuerName,
 					Kind: "Issuer",
 				},

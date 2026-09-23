@@ -444,7 +444,7 @@ func runMultiOperandSelfSignedCertificateTest(ctx context.Context) {
 			SecretName: secretName,
 			Duration:   &metav1.Duration{Duration: time.Hour},
 			DNSNames:   []string{selfSignedCertDNSName},
-			IssuerRef: cmmetav1.ObjectReference{
+			IssuerRef: cmmetav1.IssuerReference{
 				Name: clusterIssuerName, Kind: "ClusterIssuer", Group: "cert-manager.io",
 			},
 		},
@@ -478,7 +478,7 @@ func runMultiOperandBogusIssuerCertificateTest(ctx context.Context, clientset *k
 		Spec: certmanagerv1.CertificateSpec{
 			SecretName: secretName,
 			DNSNames:   []string{bogusIssuerCertDNSName},
-			IssuerRef: cmmetav1.ObjectReference{
+			IssuerRef: cmmetav1.IssuerReference{
 				Name: bogusIssuerName, Kind: "ClusterIssuer", Group: "cert-manager.io",
 			},
 		},
