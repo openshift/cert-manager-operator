@@ -105,12 +105,20 @@ func restartIstioCSRDeployment(ctx context.Context, clientset *kubernetes.Client
 	return pollTillDeploymentAvailable(ctx, clientset, namespace, istioCSRGRPCServiceName)
 }
 
-// findIstiodDeploymentInNamespace locates the istiod deployment (standard or revisioned like istiod-*) in the given namespace.
+// findIstiodDeploymentInNamespace locates the active/ready istiod deployment (standard or revisioned like istiod-*) in the given namespace.
+// It prioritizes ready deployments with positive ready replicas to avoid restarting inactive or old revisions.
 func findIstiodDeploymentInNamespace(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (*appsv1.Deployment, error) {
 	deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "app=istiod",
 	})
 	if err == nil && len(deployments.Items) > 0 {
+		// First pass: look for a currently ready revision
+		for _, d := range deployments.Items {
+			if d.Status.ReadyReplicas > 0 {
+				return &d, nil
+			}
+		}
+		// Fallback if no ready replicas yet: pick the first matching deployment
 		return &deployments.Items[0], nil
 	}
 
@@ -118,11 +126,21 @@ func findIstiodDeploymentInNamespace(ctx context.Context, clientset *kubernetes.
 	if err != nil {
 		return nil, fmt.Errorf("list deployments in %s: %w", namespace, err)
 	}
+
+	var candidates []appsv1.Deployment
 	for _, deployment := range allDeployments.Items {
 		if deployment.Name == "istiod" || strings.HasPrefix(deployment.Name, "istiod-") {
-			return &deployment, nil
+			if deployment.Status.ReadyReplicas > 0 {
+				return &deployment, nil
+			}
+			candidates = append(candidates, deployment)
 		}
 	}
+
+	if len(candidates) > 0 {
+		return &candidates[0], nil
+	}
+
 	return nil, fmt.Errorf("no istiod deployment found in namespace %s", namespace)
 }
 

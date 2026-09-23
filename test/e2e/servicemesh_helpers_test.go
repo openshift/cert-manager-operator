@@ -84,33 +84,39 @@ func deriveClusterID(cfg *rest.Config) string {
 	return strings.ReplaceAll(hostPart, ".", "-") + ":" + port
 }
 
-// discoverIstiodControlPlaneNamespace returns the namespace of a ready istiod deployment, if any.
-func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset) (string, bool, error) {
+// discoverIstiodDeployment returns the namespace and name of a ready istiod deployment, if any.
+func discoverIstiodDeployment(ctx context.Context, clientset *kubernetes.Clientset) (string, string, bool, error) {
 	deployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{
 		LabelSelector: "app=istiod",
 	})
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	for _, deployment := range deployments.Items {
 		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
+			return deployment.Namespace, deployment.Name, true, nil
 		}
 	}
 
 	allDeployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	for _, deployment := range allDeployments.Items {
 		if deployment.Name != "istiod" && !strings.HasPrefix(deployment.Name, "istiod-") {
 			continue
 		}
 		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
+			return deployment.Namespace, deployment.Name, true, nil
 		}
 	}
-	return "", false, nil
+	return "", "", false, nil
+}
+
+// discoverIstiodControlPlaneNamespace returns the namespace of a ready istiod deployment, if any.
+func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset) (string, bool, error) {
+	ns, _, found, err := discoverIstiodDeployment(ctx, clientset)
+	return ns, found, err
 }
 
 func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset, timeout time.Duration) (string, error) {
