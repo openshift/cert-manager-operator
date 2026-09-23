@@ -301,4 +301,4 @@ replace sigs.k8s.io/controller-tools => github.com/openshift/kubernetes-sigs-con
 
 replace github.com/tdakkota/asciicheck => github.com/golangci/asciicheck v0.1.1
 
-replace golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.2
+replace golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.4
