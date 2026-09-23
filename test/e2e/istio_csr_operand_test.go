@@ -599,11 +599,35 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			Expect(istioCSRStatus.IstioCSRGRPCEndpoint).NotTo(BeEmpty())
 			Expect(istioCSRStatus.ServiceAccount).NotTo(BeEmpty())
 
+			By("restarting istio-csr deployment to refresh gRPC TLS serving certificate")
+			err = restartIstioCSRDeployment(ctx, clientset, ossmIstioCSRNamespace)
+			Expect(err).NotTo(HaveOccurred())
+
 			cpNamespace, err := ensureServiceMeshForSmoke(ctx, cfg, loader, clientset, istioCSRStatus.IstioCSRGRPCEndpoint, clusterID)
 			if err != nil {
 				Skip(fmt.Sprintf("OpenShift Service Mesh v3 not available: %v", err))
 			}
 			istioCPNamespace = cpNamespace
+
+			// Restart istiod so it immediately re-dials the (restarted) istio-csr gRPC
+			// endpoint and re-requests istiod-tls. Without this an existing istiod takes
+			// >10 min to organically reconnect, causing waitForIstiodTLSIssuerCAAligned
+			// to time out. The CA material is unchanged -- only the process is bounced.
+			By("restarting istiod to reconnect to refreshed istio-csr gRPC endpoint")
+			err = restartIstiodDeployment(ctx, clientset, istioCPNamespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for istiod certificate to become ready in the control plane namespace")
+			err = waitForCertificateReadiness(ctx, istiodCertificateName, istioCPNamespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for istiod-tls secret to contain TLS material in the control plane namespace")
+			err = waitForIstiodTLSSecretReady(ctx, clientset, istioCPNamespace, istioCSRIstiodTLSSecretName)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for istiod-tls CA to match the istio-csr trust anchor")
+			err = waitForIstiodTLSIssuerCAAligned(ctx, clientset, istioCPNamespace, ossmIstioCSRNamespace, istioCSRIstiodTLSSecretName)
+			Expect(err).NotTo(HaveOccurred())
 
 			meshMemberNS, err = loader.CreateTestingNS("osm-apps-1", true)
 			Expect(err).NotTo(HaveOccurred())
@@ -676,10 +700,17 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 				_ = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Delete(ctx, protoCM.Name, metav1.DeleteOptions{})
 			})
 
-			Eventually(func(g Gomega) {
-				_, err := clientset.CoreV1().Secrets(istioCPNamespace).Get(ctx, istioCSRIstiodTLSSecretName, metav1.GetOptions{})
-				g.Expect(err).NotTo(HaveOccurred())
-			}, highTimeout, slowPollInterval).Should(Succeed())
+			By("waiting for istiod certificate to become ready in the control plane namespace")
+			err = waitForCertificateReadiness(ctx, istiodCertificateName, istioCPNamespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for istiod-tls secret to contain TLS material in the control plane namespace")
+			err = waitForIstiodTLSSecretReady(ctx, clientset, istioCPNamespace, istioCSRIstiodTLSSecretName)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for istiod-tls CA to match the istio-csr trust anchor")
+			err = waitForIstiodTLSIssuerCAAligned(ctx, clientset, istioCPNamespace, ossmIstioCSRNamespace, istioCSRIstiodTLSSecretName)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(copySecretToNamespace(ctx, clientset, istioCPNamespace, meshMemberNS.Name, istioCSRIstiodTLSSecretName)).NotTo(HaveOccurred())
 

@@ -317,7 +317,12 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 			}, lowTimeout, fastPollInterval).Should(BeTrue(), "expect all Certificates to be Ready")
 		})
 
-		It("should be able to manage Route external TLS secret", func() {
+		It("should be able to manage Route external TLS secret", Label("Feature:PublicDNS"), func() {
+
+			By("checking cluster ingress domain is publicly routable")
+			ingressCheck, err := configClient.Ingresses().Get(context.Background(), "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to get cluster ingress for domain check")
+			skipIfNonPublicDomain(ingressCheck.Spec.Domain)
 
 			By("deploying hello-openshift application")
 			appName := "hello-openshift"
@@ -325,7 +330,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
 			By("waiting for hello-openshift deployment to be ready")
-			err := pollTillDeploymentAvailable(ctx, k8sClientSet, ns.Name, appName)
+			err = pollTillDeploymentAvailable(ctx, k8sClientSet, ns.Name, appName)
 			Expect(err).NotTo(HaveOccurred(), "timeout waiting for deployment to become available")
 
 			By("getting cluster ingress domain")

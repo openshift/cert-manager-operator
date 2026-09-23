@@ -303,11 +303,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			createTrustManager(ctx, newTrustManagerCR())
 
 			By("modifying ServiceAccount labels externally")
-			sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			sa.Labels["app.kubernetes.io/instance"] = "modified-value"
-			_, err = clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Update(ctx, sa, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				sa.Labels["app.kubernetes.io/instance"] = "modified-value"
+				_, err = clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Update(ctx, sa, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on SA update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores ServiceAccount labels")
 			Eventually(func(g Gomega) {
@@ -317,11 +320,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("modifying ClusterRole labels externally")
-			cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			cr.Labels["app"] = "tampered"
-			_, err = clientset.RbacV1().ClusterRoles().Update(ctx, cr, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				cr.Labels["app"] = "tampered"
+				_, err = clientset.RbacV1().ClusterRoles().Update(ctx, cr, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on ClusterRole update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores ClusterRole labels")
 			Eventually(func(g Gomega) {
@@ -331,11 +337,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("modifying Deployment pod template labels externally")
-			dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			dep.Spec.Template.Labels["app.kubernetes.io/name"] = "tampered"
-			_, err = clientset.AppsV1().Deployments(trustManagerNamespace).Update(ctx, dep, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				dep.Spec.Template.Labels["app.kubernetes.io/name"] = "tampered"
+				_, err = clientset.AppsV1().Deployments(trustManagerNamespace).Update(ctx, dep, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on Deployment update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores Deployment pod template labels")
 			Eventually(func(g Gomega) {
@@ -359,11 +368,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			// both old and new objects on updates, so the event is not silently dropped.
 
 			By("removing managed label from ServiceAccount")
-			sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			delete(sa.Labels, "app")
-			_, err = clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Update(ctx, sa, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				delete(sa.Labels, "app")
+				_, err = clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Update(ctx, sa, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on SA update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores managed label on ServiceAccount")
 			Eventually(func(g Gomega) {
@@ -373,11 +385,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("removing managed label from Deployment")
-			dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			delete(dep.Labels, "app")
-			_, err = clientset.AppsV1().Deployments(trustManagerNamespace).Update(ctx, dep, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				delete(dep.Labels, "app")
+				_, err = clientset.AppsV1().Deployments(trustManagerNamespace).Update(ctx, dep, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on Deployment update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores managed label on Deployment")
 			Eventually(func(g Gomega) {
@@ -387,11 +402,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("removing managed label from ClusterRole")
-			cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			delete(cr.Labels, "app")
-			_, err = clientset.RbacV1().ClusterRoles().Update(ctx, cr, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func(g Gomega) {
+				cr, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerClusterRoleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				delete(cr.Labels, "app")
+				_, err = clientset.RbacV1().ClusterRoles().Update(ctx, cr, metav1.UpdateOptions{})
+				g.Expect(apierrors.IsConflict(err)).Should(BeFalse(), "conflict on ClusterRole update: %v", err)
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying controller restores managed label on ClusterRole")
 			Eventually(func(g Gomega) {
