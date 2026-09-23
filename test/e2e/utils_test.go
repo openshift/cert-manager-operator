@@ -1718,60 +1718,6 @@ func pollTimeoutFromContext(ctx context.Context, defaultTimeout time.Duration) t
 	return defaultTimeout
 }
 
-// execInPodRetriable retries execInPod on transient Kubernetes API / connectivity errors.
-func execInPodRetriable(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, command ...string) (string, error) {
-	timeout := pollTimeoutFromContext(ctx, vaultExecRetryTimeout)
-	var (
-		output  string
-		lastErr error
-	)
-	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(pollCtx context.Context) (bool, error) {
-		output, lastErr = execInPod(pollCtx, cfg, kubeClient, namespace, podName, containerName, command...)
-		if lastErr == nil {
-			return true, nil
-		}
-		if !isRetriableKubeExecError(lastErr) {
-			return false, lastErr
-		}
-		log.Printf("retrying pod exec in %s/%s (%s): %v", namespace, podName, containerName, lastErr)
-		return false, nil
-	})
-	if err != nil {
-		if lastErr != nil {
-			return output, fmt.Errorf("%w: %v", err, lastErr)
-		}
-		return output, err
-	}
-	return output, nil
-}
-
-// execInPodWithStdinRetriable retries execInPodWithStdin on transient errors.
-func execInPodWithStdinRetriable(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, stdin []byte, command ...string) (string, error) {
-	timeout := pollTimeoutFromContext(ctx, vaultExecRetryTimeout)
-	var (
-		output  string
-		lastErr error
-	)
-	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(pollCtx context.Context) (bool, error) {
-		output, lastErr = execInPodWithStdin(pollCtx, cfg, kubeClient, namespace, podName, containerName, stdin, command...)
-		if lastErr == nil {
-			return true, nil
-		}
-		if !isRetriableKubeExecError(lastErr) {
-			return false, lastErr
-		}
-		log.Printf("retrying pod exec (stdin) in %s/%s (%s): %v", namespace, podName, containerName, lastErr)
-		return false, nil
-	})
-	if err != nil {
-		if lastErr != nil {
-			return output, fmt.Errorf("%w: %v", err, lastErr)
-		}
-		return output, err
-	}
-	return output, nil
-}
-
 // waitForVaultExecReady polls until vault commands can be executed in the pod.
 func waitForVaultExecReady(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName string) error {
 	log.Printf("Waiting for Vault pod exec to become reachable...")
@@ -1826,7 +1772,7 @@ func execInPodWithStdin(ctx context.Context, cfg *rest.Config, kubeClient kubern
 // setVaultTokenInPod writes the Vault root token to a file in the pod via stdin so the
 // token is never embedded in shell command strings that may appear in error logs.
 func setVaultTokenInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, rootToken string) error {
-	_, err := execInPodWithStdinRetriable(ctx, cfg, kubeClient, namespace, podName, "vault", []byte(rootToken),
+	_, err := execInPodWithStdin(ctx, cfg, kubeClient, namespace, podName, "vault", []byte(rootToken),
 		"sh", "-c", fmt.Sprintf("cat > %s && chmod 600 %s", vaultTokenFile, vaultTokenFile))
 	return err
 }
@@ -1933,9 +1879,7 @@ var knownPrivateTLDs = []string{
 
 // isPublicTLDDomain returns true when domain appears to have a real, publicly
 // registered TLD — i.e. none of the knownPrivateTLDs match as a suffix of any
-// label in the domain. A return value of false means tests that depend on
-// public ACME CAs (Let's Encrypt) or externally resolvable DNS should be
-// skipped.
+// label in the domain, and the domain's root/delegation can be resolved by public DNS.
 func isPublicTLDDomain(domain string) bool {
 	if domain == "" {
 		return false
@@ -1948,6 +1892,27 @@ func isPublicTLDDomain(domain string) bool {
 			return false
 		}
 	}
+
+	// Verify external DNS resolution using public resolver (e.g., 8.8.8.8) with a short timeout.
+	// If public DNS cannot resolve the domain or its parent zones, Let's Encrypt will also fail.
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 2 * time.Second}
+			return d.DialContext(ctx, "udp", "8.8.8.8:53")
+		},
+	}
+	lookupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	parts := strings.Split(lower, ".")
+	if len(parts) >= 2 {
+		base := strings.Join(parts[len(parts)-2:], ".")
+		if _, err := resolver.LookupNS(lookupCtx, base); err != nil {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -1957,7 +1922,7 @@ func isPublicTLDDomain(domain string) bool {
 func skipIfNonPublicDomain(domain string) {
 	if !isPublicTLDDomain(domain) {
 		Skip(fmt.Sprintf(
-			"Skipping: cluster domain %q does not use a publicly registered TLD. "+
+			"Skipping: cluster domain %q is not resolvable via public DNS. "+
 				"ACME HTTP-01 challenges and externally-probed route hostnames require "+
 				"a real public domain that Let's Encrypt can resolve from the internet. "+
 				"Add Feature:PublicDNS to your Ginkgo label filter to include these tests "+
@@ -2235,14 +2200,14 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	}
 
 	for _, cmdInfo := range commands {
-		_, err := execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", vaultShellCmd(cmdInfo.cmd))
+		_, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", vaultShellCmd(cmdInfo.cmd))
 		if err != nil {
 			return fmt.Errorf("failed to %s: %w", cmdInfo.description, err)
 		}
 	}
 
 	// Generate intermediate CSR
-	csrOutput, err := execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
+	csrOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
 		vaultShellCmd(`vault write -format=json pki_int/intermediate/generate/internal common_name="cluster.local Intermediate Authority" ttl=4380h`))
 	if err != nil {
 		return fmt.Errorf("failed to generate intermediate CSR: %w", err)
@@ -2256,7 +2221,7 @@ func configureVaultPKI(ctx context.Context, cfg *rest.Config, loader library.Dyn
 	signCmd := vaultShellCmd(`vault write -format=json pki/root/sign-intermediate format=pem_bundle ttl=4380h csr=- <<EOF
 ` + csr + `
 EOF`)
-	certOutput, err := execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", signCmd)
+	certOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", signCmd)
 	if err != nil {
 		return fmt.Errorf("failed to sign intermediate certificate: %w", err)
 	}
@@ -2269,13 +2234,13 @@ EOF`)
 	setSignedCmd := vaultShellCmd(`vault write pki_int/intermediate/set-signed certificate=- <<EOF
 ` + signedCert + `
 EOF`)
-	_, err = execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", setSignedCmd)
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", setSignedCmd)
 	if err != nil {
 		return fmt.Errorf("failed to set signed intermediate certificate: %w", err)
 	}
 
 	// Create role for cert-manager
-	_, err = execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c",
 		vaultShellCmd(`vault write pki_int/roles/cluster-dot-local allowed_domains=cluster.local allow_subdomains=true max_ttl=72h`))
 	if err != nil {
 		return fmt.Errorf("failed to create PKI role: %w", err)
@@ -2284,13 +2249,13 @@ EOF`)
 	// Create policy for cert-manager
 	policyCmd := vaultShellCmd(`vault policy write cert-manager - <<EOF
 path "pki_int/sign/cluster-dot-local" {
-  capabilities = ["create", "update"]
+	 capabilities = ["create", "update"]
 }
 path "pki_int/issue/cluster-dot-local" {
-  capabilities = ["create", "update"]
+	 capabilities = ["create", "update"]
 }
 EOF`)
-	_, err = execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
 	if err != nil {
 		return fmt.Errorf("failed to create cert-manager policy: %w", err)
 	}
@@ -2555,7 +2520,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	}
 
 	log.Printf("Initializing Vault...")
-	initOutput, err := execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "init", "-key-shares=1", "-key-threshold=1", "-format=json")
+	initOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "init", "-key-shares=1", "-key-threshold=1", "-format=json")
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to initialize Vault: %w", err)
 	}
@@ -2567,7 +2532,7 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	}
 
 	log.Printf("Unsealing Vault...")
-	_, err = execInPodRetriable(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "unseal", unsealKey)
+	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "unseal", unsealKey)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to unseal Vault: %w", err)
 	}

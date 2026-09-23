@@ -106,9 +106,6 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			"UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", highTimeout)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("waiting for trust-manager validating webhook to be ready")
-		waitForTrustManagerWebhookReady(ctx)
-
 		By("generating test certificates")
 		caTweak := func(cert *x509.Certificate) {
 			cert.IsCA = true

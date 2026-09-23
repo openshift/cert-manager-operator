@@ -146,6 +146,8 @@ func createTrustManager(ctx context.Context, b *trustManagerCRBuilder) {
 	By("waiting for trust-manager deployment to become available")
 	err = pollTillDeploymentAvailable(ctx, k8sClientSet, trustManagerNamespace, trustManagerDeploymentName)
 	Expect(err).ShouldNot(HaveOccurred())
+
+	waitForTrustManagerWebhookReady(ctx)
 }
 
 func deleteTrustManager(ctx context.Context) {

@@ -15,6 +15,7 @@ import (
 	"github.com/openshift/cert-manager-operator/test/library"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -104,18 +105,36 @@ func restartIstioCSRDeployment(ctx context.Context, clientset *kubernetes.Client
 	return pollTillDeploymentAvailable(ctx, clientset, namespace, istioCSRGRPCServiceName)
 }
 
+// findIstiodDeploymentInNamespace locates the istiod deployment (standard or revisioned like istiod-*) in the given namespace.
+func findIstiodDeploymentInNamespace(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (*appsv1.Deployment, error) {
+	deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "app=istiod",
+	})
+	if err == nil && len(deployments.Items) > 0 {
+		return &deployments.Items[0], nil
+	}
+
+	allDeployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list deployments in %s: %w", namespace, err)
+	}
+	for _, deployment := range allDeployments.Items {
+		if deployment.Name == "istiod" || strings.HasPrefix(deployment.Name, "istiod-") {
+			return &deployment, nil
+		}
+	}
+	return nil, fmt.Errorf("no istiod deployment found in namespace %s", namespace)
+}
+
 // restartIstiodDeployment bounces the istiod Deployment in the given control-plane
 // namespace so it immediately re-dials the (possibly restarted) istio-csr gRPC
 // endpoint and re-requests its istiod-tls certificate. Without this, an existing
 // istiod process may take >10 minutes to organically reconnect after istio-csr is
 // restarted, causing waitForIstiodTLSIssuerCAAligned to time out.
 func restartIstiodDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
-	deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, "istiod", metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return nil
-	}
+	deployment, err := findIstiodDeploymentInNamespace(ctx, clientset, namespace)
 	if err != nil {
-		return fmt.Errorf("get deployment %s/istiod: %w", namespace, err)
+		return err
 	}
 
 	if deployment.Spec.Template.Annotations == nil {
@@ -124,7 +143,7 @@ func restartIstiodDeployment(ctx context.Context, clientset *kubernetes.Clientse
 	deployment.Spec.Template.Annotations["cert-manager-operator-e2e/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	if _, err := clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("restart deployment %s/istiod: %w", namespace, err)
+		return fmt.Errorf("restart deployment %s/%s: %w", namespace, deployment.Name, err)
 	}
-	return pollTillDeploymentAvailable(ctx, clientset, namespace, "istiod")
+	return pollTillDeploymentAvailable(ctx, clientset, namespace, deployment.Name)
 }
