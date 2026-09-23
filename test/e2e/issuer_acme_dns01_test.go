@@ -216,7 +216,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			Spec: certmanagerv1.CertificateSpec{
 				DNSNames:   []string{dnsName},
 				SecretName: certName,
-				IssuerRef: certmanagermetav1.ObjectReference{
+				IssuerRef: certmanagermetav1.IssuerReference{
 					Name: issuerName,
 					Kind: issuerKind,
 				},
