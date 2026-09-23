@@ -65,9 +65,9 @@ Rules for integrating cert-manager-operator with cluster-provided OpenShift serv
 
 | Concern | Flag | Hook | Doc |
 |---|---|---|---|
-| Proxy | (OLM-injected env) | `withProxyEnv` | [proxy.md](proxy.md) |
-| Trusted CA | `--trusted-ca-configmap` | `withCAConfigMap` | [proxy.md](proxy.md) |
+| Proxy | (OLM-injected env) | `withProxyEnv` | [proxy.md](../../docs/proxy.md) |
+| Trusted CA | `--trusted-ca-configmap` | `withCAConfigMap` | [proxy.md](../../docs/proxy.md) |
 | TLS profile | (from `APIServer/cluster`) | `common.WithClusterTLSProfileFromAPIServer` | `pkg/tlsprofile` |
-| Cloud credentials | `--cloud-credentials-secret` | `withCloudCredentials` | [cloud_credentials.md](cloud_credentials.md) |
-| Monitoring | CSV `operatorframework.io/cluster-monitoring: "true"` | n/a (bindata Service labels) | [operand_metrics.md](operand_metrics.md) |
+| Cloud credentials | `--cloud-credentials-secret` | `withCloudCredentials` | [cloud_credentials.md](../../docs/cloud_credentials.md) |
+| Monitoring | CSV `operatorframework.io/cluster-monitoring: "true"` | n/a (bindata Service labels) | [operand_metrics.md](../../docs/operand_metrics.md) |
 | Optional APIs | n/a | `utils.InitInformerIfAvailable` + `Applicable()` | `pkg/operator/starter.go` |

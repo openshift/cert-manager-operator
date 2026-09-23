@@ -9,7 +9,7 @@ Those variables are then propagated down to the cert-manager (operand) controlle
 
 Follow the instructions below to let Cert Manager Operator trust a custom Certificate Authority (CA). The operator's OLM subscription has to be already created.
 
-1.  Create the configmap containing the CA bundle in `cert-manager` namespace. Run the following commands to [inject](https://docs.openshift.com/container-platform/4.12/networking/configuring-a-custom-pki.html#certificate-injection-using-operators_configuring-a-custom-pki) the CA bundle trusted by OpenShift into a configmap:
+1.  Create the configmap containing the CA bundle in `cert-manager` namespace. Run the following commands to [inject](https://docs.openshift.com/container-platform/latest/networking/configuring-a-custom-pki.html#certificate-injection-using-operators_configuring-a-custom-pki) the CA bundle trusted by OpenShift into a configmap:
 
     ```bash
     oc -n cert-manager create configmap trusted-ca
