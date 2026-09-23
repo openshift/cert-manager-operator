@@ -102,7 +102,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 					Algorithm: certmanagerv1.ECDSAKeyAlgorithm,
 					Size:      256,
 				},
-				IssuerRef: certmanagermetav1.ObjectReference{
+				IssuerRef: certmanagermetav1.IssuerReference{
 					Name: clusterIssuerName,
 					Kind: "ClusterIssuer",
 				},
@@ -163,7 +163,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 				Spec: certmanagerv1.CertificateSpec{
 					DNSNames:   []string{"sample-ca-issued-cert"},
 					SecretName: certName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name: caIssuerName,
 						Kind: "Issuer",
 					},
@@ -193,7 +193,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 				Spec: certmanagerv1.CertificateSpec{
 					CommonName: certName,
 					SecretName: certName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name: caIssuerName,
 						Kind: "Issuer",
 					},
@@ -232,7 +232,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 					SecretName:  certName,
 					Duration:    &metav1.Duration{Duration: time.Hour},
 					RenewBefore: &metav1.Duration{Duration: time.Minute * 59}, // essentially becomes a renewal loop of 1min
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name: caIssuerName,
 						Kind: "Issuer",
 					},
@@ -266,7 +266,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 						DNSNames:   []string{"svc.cluster.local"},
 						Usages:     []certmanagerv1.KeyUsage{certmanagerv1.UsageServerAuth},
 						SecretName: duplicateSecretName,
-						IssuerRef: certmanagermetav1.ObjectReference{
+						IssuerRef: certmanagermetav1.IssuerReference{
 							Kind: "Issuer",
 							Name: caIssuerName,
 						},
@@ -370,7 +370,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 					SecretName:  certName,
 					Duration:    &metav1.Duration{Duration: time.Hour},
 					RenewBefore: &metav1.Duration{Duration: time.Minute * 58}, // essentially becomes a renewal loop of 2min
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name: caIssuerName,
 						Kind: "Issuer",
 					},
