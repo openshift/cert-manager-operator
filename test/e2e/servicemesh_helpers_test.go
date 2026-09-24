@@ -84,39 +84,45 @@ func deriveClusterID(cfg *rest.Config) string {
 	return strings.ReplaceAll(hostPart, ".", "-") + ":" + port
 }
 
-// discoverIstiodControlPlaneNamespace returns the namespace of a ready istiod deployment, if any.
-func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset) (string, bool, error) {
+// discoverIstiodDeployment returns the namespace and name of a ready istiod deployment, if any.
+func discoverIstiodDeployment(ctx context.Context, clientset *kubernetes.Clientset) (string, string, bool, error) {
 	deployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{
 		LabelSelector: "app=istiod",
 	})
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	for _, deployment := range deployments.Items {
 		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
+			return deployment.Namespace, deployment.Name, true, nil
 		}
 	}
 
 	allDeployments, err := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	for _, deployment := range allDeployments.Items {
 		if deployment.Name != "istiod" && !strings.HasPrefix(deployment.Name, "istiod-") {
 			continue
 		}
 		if deployment.Status.ReadyReplicas > 0 {
-			return deployment.Namespace, true, nil
+			return deployment.Namespace, deployment.Name, true, nil
 		}
 	}
-	return "", false, nil
+	return "", "", false, nil
 }
 
-func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset, timeout time.Duration) (string, error) {
-	var controlPlaneNamespace string
+// discoverIstiodControlPlaneNamespace returns the namespace and deployment name of a ready istiod
+// deployment, if any. Both values are empty when found is false.
+func discoverIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset) (string, string, bool, error) {
+	return discoverIstiodDeployment(ctx, clientset)
+}
+
+func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernetes.Clientset, timeout time.Duration) (string, string, error) {
+	var controlPlaneNamespace, controlPlaneDeployment string
 	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
-		namespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
+		namespace, deploymentName, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
 		if err != nil {
 			return false, err
 		}
@@ -124,12 +130,13 @@ func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernet
 			return false, nil
 		}
 		controlPlaneNamespace = namespace
+		controlPlaneDeployment = deploymentName
 		return true, nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("istiod control plane not available after %s: %w", timeout, err)
+		return "", "", fmt.Errorf("istiod control plane not available after %s: %w", timeout, err)
 	}
-	return controlPlaneNamespace, nil
+	return controlPlaneNamespace, controlPlaneDeployment, nil
 }
 
 func sailOperatorAPIAvailable(ctx context.Context, loader library.DynamicResourceLoader) bool {
@@ -358,7 +365,7 @@ func installOSSMv3(ctx context.Context, cfg *rest.Config, loader library.Dynamic
 	}
 	Expect(waitForSailIstioReady(ctx, loader)).NotTo(HaveOccurred(), "Istio CR should become Healthy")
 
-	_, err := waitForIstiodControlPlaneNamespace(ctx, clientset, ossmIstiodWaitTimeout)
+	_, _, err := waitForIstiodControlPlaneNamespace(ctx, clientset, ossmIstiodWaitTimeout)
 	return err
 }
 
@@ -515,40 +522,47 @@ func ensureOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResour
 	return nil
 }
 
-// ensureServiceMeshForSmoke discovers or installs OSSM v3 and returns the istiod namespace.
-func ensureServiceMeshForSmoke(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, clientset *kubernetes.Clientset, caAddress, clusterID string) (string, error) {
-	if namespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset); err != nil {
-		return "", err
+// ensureServiceMeshForSmoke discovers or installs OSSM v3 and returns the istiod namespace and
+// the exact deployment name that was discovered, so callers can restart that specific deployment
+// without re-selecting from a potentially different set of ready replicas.
+func ensureServiceMeshForSmoke(ctx context.Context, cfg *rest.Config, loader library.DynamicResourceLoader, clientset *kubernetes.Clientset, caAddress, clusterID string) (string, string, error) {
+	if namespace, deploymentName, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset); err != nil {
+		return "", "", err
 	} else if found {
 		By(fmt.Sprintf("reusing existing istiod control plane in namespace %s", namespace))
 		if sailOperatorAPIAvailable(ctx, loader) {
 			_, getErr := loader.DynamicClient.Resource(istioGVR).Get(ctx, "default", metav1.GetOptions{})
 			if getErr == nil {
 				if err := waitForSailIstioReady(ctx, loader); err != nil {
-					return "", fmt.Errorf("existing Istio CR is not Healthy: %w", err)
+					return "", "", fmt.Errorf("existing Istio CR is not Healthy: %w", err)
 				}
 			} else if !apierrors.IsNotFound(getErr) {
-				return "", getErr
+				return "", "", getErr
 			}
 		}
-		if _, err := waitForIstiodControlPlaneNamespace(ctx, clientset, lowTimeout); err != nil {
-			return "", fmt.Errorf("existing istiod is not ready: %w", err)
+		if _, _, err := waitForIstiodControlPlaneNamespace(ctx, clientset, lowTimeout); err != nil {
+			return "", "", fmt.Errorf("existing istiod is not ready: %w", err)
 		}
-		return namespace, nil
+		return namespace, deploymentName, nil
 	}
 
 	if !ossmInstallEnabled() {
-		return "", fmt.Errorf("istiod control plane not found and E2E_INSTALL_SERVICE_MESH=false")
+		return "", "", fmt.Errorf("istiod control plane not found and E2E_INSTALL_SERVICE_MESH=false")
 	}
 	if !clusterExtensionAPIAvailable(ctx, loader) {
-		return "", fmt.Errorf("ClusterExtension API (olm.operatorframework.io/v1) is not available on this cluster")
+		return "", "", fmt.Errorf("ClusterExtension API (olm.operatorframework.io/v1) is not available on this cluster")
 	}
 
 	By("installing OpenShift Service Mesh v3 for multi-operand smoke tests")
 	if err := installOSSMv3(ctx, cfg, loader, clientset, caAddress, clusterID); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return ossmIstioSystemNamespace, nil
+	// After fresh install istiod always lands in istio-system; discover the exact deployment name.
+	_, deploymentName, err := waitForIstiodControlPlaneNamespace(ctx, clientset, ossmIstiodWaitTimeout)
+	if err != nil {
+		return "", "", err
+	}
+	return ossmIstioSystemNamespace, deploymentName, nil
 }
 
 func labelNamespaceForIstioInjection(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {

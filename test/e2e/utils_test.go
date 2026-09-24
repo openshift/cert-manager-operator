@@ -11,11 +11,15 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +86,8 @@ var (
 	// Image pulls and PVC binding on CI often exceed the previous 3m default.
 	vaultPodStartTimeout = 10 * time.Minute
 
+	// vaultExecRetryTimeout retries transient Kubernetes API / pod exec failures during Vault setup.
+	vaultExecRetryTimeout = 5 * time.Minute
 	// fastPollInterval and lowTimeout are
 	// used together in poll(s) with fast reaction and
 	// smaller timeout window.
@@ -1097,6 +1103,60 @@ func randomStr(size int) string {
 	return s.String()
 }
 
+// waitForIstiodTLSSecretReady polls until the istiod-tls secret exists and contains TLS material.
+func waitForIstiodTLSSecretReady(ctx context.Context, clientset *kubernetes.Clientset, namespace, secretName string) error {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		secret, err := clientset.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		for _, key := range []string{"tls.crt", "tls.key", "ca.crt"} {
+			if len(secret.Data[key]) == 0 {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+const (
+	istioCSRIssuerCAConfigMapName = "cert-manager-istio-csr-issuer-ca-copy"
+	istioCSRTrustAnchorKey        = "ca.crt"
+	istiodCertificateName         = "istiod"
+)
+
+// waitForIstiodTLSIssuerCAAligned polls until istiod-tls trusts the same CA as cert-manager-istio-csr.
+func waitForIstiodTLSIssuerCAAligned(ctx context.Context, clientset *kubernetes.Clientset, controlPlaneNS, istioCSRNS, istiodTLSSecretName string) error {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		tlsSecret, err := clientset.CoreV1().Secrets(controlPlaneNS).Get(ctx, istiodTLSSecretName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		issuerCA, err := clientset.CoreV1().ConfigMaps(istioCSRNS).Get(ctx, istioCSRIssuerCAConfigMapName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		istiodCA := bytes.TrimSpace(tlsSecret.Data["ca.crt"])
+		issuerCAPEM := bytes.TrimSpace([]byte(issuerCA.Data[istioCSRTrustAnchorKey]))
+		if len(istiodCA) == 0 || len(issuerCAPEM) == 0 {
+			return false, nil
+		}
+
+		return bytes.Equal(istiodCA, issuerCAPEM), nil
+	})
+}
+
 // pollTillJobCompleted poll the job object and returns non-nil error
 // once the job is completed, otherwise should return a time-out error
 func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
@@ -1111,12 +1171,14 @@ func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, 
 		}
 
 		for _, cond := range job.Status.Conditions {
+			if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
+				return false, fmt.Errorf("job %s/%s failed: %s", namespace, jobName, cond.Message)
+			}
 			if cond.Type == batchv1.JobComplete {
 				if cond.Status == corev1.ConditionTrue {
 					return true, nil
-				} else {
-					return false, nil
 				}
+				return false, nil
 			}
 		}
 
@@ -1617,6 +1679,64 @@ func execInPod(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Inte
 	return stdout.String(), nil
 }
 
+// isRetriableKubeExecError reports whether a pod exec failure is likely transient
+// (API connectivity blips, container restarts, etc.) and safe to retry.
+func isRetriableKubeExecError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	for _, fragment := range []string{
+		"operation timed out",
+		"i/o timeout",
+		"connection refused",
+		"connection reset",
+		"tls handshake timeout",
+		"temporary failure",
+		"no route to host",
+		"network is unreachable",
+		"unable to upgrade connection",
+		"container not found",
+		"error sending request",
+		"context deadline exceeded",
+		"eof",
+	} {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+
+	var netErr net.Error
+	return stderrors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary())
+}
+
+func pollTimeoutFromContext(ctx context.Context, defaultTimeout time.Duration) time.Duration {
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining > 0 && remaining < defaultTimeout {
+			return remaining
+		}
+	}
+	return defaultTimeout
+}
+
+// waitForVaultExecReady polls until vault commands can be executed in the pod.
+func waitForVaultExecReady(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName string) error {
+	log.Printf("Waiting for Vault pod exec to become reachable...")
+	timeout := pollTimeoutFromContext(ctx, vaultExecRetryTimeout)
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(pollCtx context.Context) (bool, error) {
+		_, err := execInPod(pollCtx, cfg, kubeClient, namespace, podName, "vault", "vault", "version")
+		if err == nil {
+			log.Printf("Vault pod exec is reachable")
+			return true, nil
+		}
+		if !isRetriableKubeExecError(err) {
+			return false, fmt.Errorf("vault pod exec failed with non-retriable error: %w", err)
+		}
+		return false, nil
+	})
+}
+
 // execInPodWithStdin executes a command in a pod with optional stdin data.
 func execInPodWithStdin(ctx context.Context, cfg *rest.Config, kubeClient kubernetes.Interface, namespace, podName, containerName string, stdin []byte, command ...string) (string, error) {
 	req := kubeClient.CoreV1().RESTClient().
@@ -1737,6 +1857,116 @@ func httpsGetCallWithCA(ctx context.Context, url string, caCertPEM []byte) error
 	}
 
 	return nil
+}
+
+// knownPrivateTLDs is the set of non-public pseudo-TLDs used in lab / private
+// OpenShift clusters that Let's Encrypt will never accept as valid identifiers.
+// Any cluster whose base domain ends with one of these suffixes cannot pass
+// ACME HTTP-01 challenges or public DNS-dependent route probes.
+var knownPrivateTLDs = []string{
+	".local",
+	".internal",
+	".lan",
+	".home",
+	".corp",
+	".private",
+	".intranet",
+	".localdomain",
+	".boe",
+	".lnxero1",
+	".test",
+	".invalid",
+	".example",
+}
+
+// hasClusterPublicDNSZone checks if the OpenShift cluster was configured with a public DNS zone
+// in dns.config.openshift.io/cluster (.spec.publicZone).
+func hasClusterPublicDNSZone(ctx context.Context, configClient configv1.ConfigV1Interface) bool {
+	if configClient == nil {
+		return false
+	}
+	dns, err := configClient.DNSes().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return dns.Spec.PublicZone != nil && dns.Spec.PublicZone.ID != ""
+}
+
+// isPublicClusterDomain evaluates whether a domain represents a public, externally routable
+// DNS domain that Let's Encrypt can reach from the internet.
+//
+// Evaluation hierarchy:
+//  1. Explicit CI override via E2E_FORCE_PUBLIC_DNS=true/false.
+//  2. Known private suffix denylist (.local, .lan, .internal, .boe, etc.).
+//  3. OpenShift Cluster DNS API (spec.publicZone) if configClient is provided.
+//  4. Optional configured public resolver via E2E_PUBLIC_DNS_RESOLVER (e.g., in CI or test networks).
+//  5. Safe default: false (treats unmanaged/private clusters as non-public, avoiding failed Let's Encrypt ACME calls).
+func isPublicClusterDomain(ctx context.Context, configClient configv1.ConfigV1Interface, domain string) bool {
+	// 1. Explicit override for CI / manual runs
+	if forced := os.Getenv("E2E_FORCE_PUBLIC_DNS"); forced != "" {
+		if val, err := strconv.ParseBool(forced); err == nil {
+			return val
+		}
+	}
+
+	if domain == "" {
+		return false
+	}
+	lower := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
+
+	// 2. Known private suffixes
+	for _, priv := range knownPrivateTLDs {
+		if strings.HasSuffix(lower, priv) {
+			return false
+		}
+	}
+
+	// 3. OpenShift Cluster DNS API: check if a public hosted zone is managed
+	if configClient != nil && hasClusterPublicDNSZone(ctx, configClient) {
+		return true
+	}
+
+	// 4. Optional user-configured external resolver (only if explicitly set)
+	if resolverAddr := os.Getenv("E2E_PUBLIC_DNS_RESOLVER"); resolverAddr != "" {
+		if !strings.Contains(resolverAddr, ":") {
+			resolverAddr = net.JoinHostPort(resolverAddr, "53")
+		}
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: 2 * time.Second}
+				return d.DialContext(ctx, "udp", resolverAddr)
+			},
+		}
+		lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		if addrs, err := resolver.LookupHost(lookupCtx, lower); err == nil && len(addrs) > 0 {
+			return true
+		}
+		if nsRecords, err := resolver.LookupNS(lookupCtx, lower); err == nil && len(nsRecords) > 0 {
+			return true
+		}
+	}
+
+	// 5. Default: false (safe default for disconnected/private clusters)
+	return false
+}
+
+// skipIfNonPublicDomain calls Ginkgo's Skip when the given domain is not a
+// publicly-routable domain. Call this at the top of any It/BeforeAll that
+// reaches out to Let's Encrypt or probes an external route hostname.
+func skipIfNonPublicDomain(ctx context.Context, configClient configv1.ConfigV1Interface, domain string) {
+	if !isPublicClusterDomain(ctx, configClient, domain) {
+		Skip(fmt.Sprintf(
+			"Skipping: cluster domain %q is not resolvable via public DNS. "+
+				"ACME HTTP-01 challenges and externally-probed route hostnames require "+
+				"a real public domain that Let's Encrypt can resolve from the internet. "+
+				"Add Feature:PublicDNS to your Ginkgo label filter to include these tests "+
+				"only when running on a cluster with a public domain.",
+			domain,
+		))
+	}
 }
 
 type apiserverTLSConfig struct {
@@ -2056,10 +2286,10 @@ EOF`)
 	// Create policy for cert-manager
 	policyCmd := vaultShellCmd(`vault policy write cert-manager - <<EOF
 path "pki_int/sign/cluster-dot-local" {
-  capabilities = ["create", "update"]
+	 capabilities = ["create", "update"]
 }
 path "pki_int/issue/cluster-dot-local" {
-  capabilities = ["create", "update"]
+	 capabilities = ["create", "update"]
 }
 EOF`)
 	_, err = execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "sh", "-c", policyCmd)
@@ -2322,6 +2552,10 @@ func setupVaultServer(ctx context.Context, cfg *rest.Config, loader library.Dyna
 	}
 
 	// Initialize and unseal Vault
+	if err := waitForVaultExecReady(ctx, cfg, kubeClient, namespace, vaultPodName); err != nil {
+		return "", "", "", fmt.Errorf("vault pod exec not reachable: %w", err)
+	}
+
 	log.Printf("Initializing Vault...")
 	initOutput, err := execInPod(ctx, cfg, kubeClient, namespace, vaultPodName, "vault", "vault", "operator", "init", "-key-shares=1", "-key-threshold=1", "-format=json")
 	if err != nil {

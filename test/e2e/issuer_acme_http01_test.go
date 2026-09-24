@@ -37,7 +37,7 @@ func acmeHTTP01OpenShiftIngress() *acmev1.ACMEChallengeSolverHTTP01Ingress {
 	}
 }
 
-var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered, func() {
+var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic", "Feature:PublicDNS"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var ns *corev1.Namespace
@@ -52,6 +52,9 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 		Expect(err).NotTo(HaveOccurred(), "failed to get cluster base domain")
 		Expect(baseDomain).NotTo(BeEmpty(), "base domain should not be empty")
 		appsDomain = "apps." + baseDomain
+
+		By("checking cluster domain is publicly routable for ACME HTTP-01")
+		skipIfNonPublicDomain(ctx, configClient, baseDomain)
 
 		By("adding required args to cert-manager controller")
 		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{

@@ -116,11 +116,38 @@ func waitForTrustManagerReady(ctx context.Context) v1alpha1.TrustManagerStatus {
 	return status
 }
 
+// waitForTrustManagerWebhookReady polls the trust-manager service Endpoints until at least
+// one ready endpoint address is available, ensuring the validating webhook is reachable.
+func waitForTrustManagerWebhookReady(ctx context.Context) {
+	By("waiting for trust-manager validating webhook endpoints to become ready")
+	Eventually(func() (bool, error) {
+		ep, err := k8sClientSet.CoreV1().Endpoints(trustManagerNamespace).Get(ctx, trustManagerServiceName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		for _, subset := range ep.Subsets {
+			if len(subset.Addresses) > 0 {
+				return true, nil
+			}
+		}
+		return false, nil
+	}, highTimeout, fastPollInterval).Should(BeTrue(), "trust-manager service has no ready endpoints for validating webhook")
+}
+
 func createTrustManager(ctx context.Context, b *trustManagerCRBuilder) {
 	By("creating TrustManager CR")
 	_, err := trustManagerClient().Create(ctx, b.Build(), metav1.CreateOptions{})
 	Expect(err).ShouldNot(HaveOccurred())
 	waitForTrustManagerReady(ctx)
+
+	By("waiting for trust-manager deployment to become available")
+	err = pollTillDeploymentAvailable(ctx, k8sClientSet, trustManagerNamespace, trustManagerDeploymentName)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	waitForTrustManagerWebhookReady(ctx)
 }
 
 func deleteTrustManager(ctx context.Context) {

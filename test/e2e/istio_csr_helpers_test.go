@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -76,4 +78,52 @@ func expectIstioCSROperandReady(ctx context.Context, clientset *kubernetes.Clien
 	status, err := waitForIstioCSROperandReady(ctx, clientset, loader, namespace)
 	Expect(err).NotTo(HaveOccurred())
 	return status
+}
+
+// restartIstioCSRDeployment rolls out cert-manager-istio-csr so it picks up current TLS material.
+// OSSM smoke tests delete the IstioCSR CR between runs without removing the deployment, which can
+// leave a stale gRPC serving certificate that no longer matches istiod-tls.
+// Returns an error if the deployment does not exist — a missing deployment means no rollout
+// happened and the stale serving certificate is still in use, so the test must not proceed.
+func restartIstioCSRDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
+	deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get deployment %s/%s: %w", namespace, istioCSRGRPCServiceName, err)
+	}
+
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = map[string]string{}
+	}
+	deployment.Spec.Template.Annotations["cert-manager-operator-e2e/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	if _, err := clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("restart deployment %s/%s: %w", namespace, istioCSRGRPCServiceName, err)
+	}
+	return pollTillDeploymentAvailable(ctx, clientset, namespace, istioCSRGRPCServiceName)
+}
+
+// restartIstiodDeployment bounces the specific istiod Deployment (identified by deploymentName) in
+// the given control-plane namespace so it immediately re-dials the (possibly restarted) istio-csr
+// gRPC endpoint and re-requests its istiod-tls certificate. Without this, an existing istiod
+// process may take >10 minutes to organically reconnect after istio-csr is restarted, causing
+// waitForIstiodTLSIssuerCAAligned to time out.
+//
+// The deploymentName is supplied by the caller (derived from ensureServiceMeshForSmoke) to
+// guarantee the same deployment that was originally discovered is restarted, even when multiple
+// ready revisions exist in the same namespace.
+func restartIstiodDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace, deploymentName string) error {
+	deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get istiod deployment %s/%s: %w", namespace, deploymentName, err)
+	}
+
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = map[string]string{}
+	}
+	deployment.Spec.Template.Annotations["cert-manager-operator-e2e/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	if _, err := clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("restart deployment %s/%s: %w", namespace, deploymentName, err)
+	}
+	return pollTillDeploymentAvailable(ctx, clientset, namespace, deploymentName)
 }
