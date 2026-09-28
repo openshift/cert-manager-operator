@@ -137,7 +137,10 @@ func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
 // certificateModified compares only the fields we manage via SSA.
 // We compare individual spec fields rather than the full Spec because
 // cert-manager's webhook may default fields we don't set (e.g. Duration).
-// Duration is compared only when we explicitly set it on the desired object.
+// An explicit duration is compared when set. When it is unset, the live
+// duration is applied away only if trust-manager-controller still owns
+// spec.duration, so server-side apply drops that field and cert-manager can
+// restore its default. A webhook-defaulted duration is left alone.
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if common.ManagedMetadataModified(desired, existing, fieldOwner) {
 		return true
@@ -153,6 +156,27 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	}
 	if desired.Spec.Duration != nil && !ptr.Equal(desired.Spec.Duration, existing.Spec.Duration) {
 		return true
+	}
+	if desired.Spec.Duration == nil && existing.Spec.Duration != nil && controllerOwnsCertificateDuration(existing) {
+		return true
+	}
+	return false
+}
+
+// controllerOwnsCertificateDuration reports whether trust-manager-controller's
+// server-side apply managed fields still include spec.duration.
+func controllerOwnsCertificateDuration(cert *certmanagerv1.Certificate) bool {
+	for _, entry := range cert.GetManagedFields() {
+		if entry.Manager != fieldOwner || entry.Subresource != "" || entry.FieldsV1 == nil || len(entry.FieldsV1.Raw) == 0 {
+			continue
+		}
+		var fields fieldpath.Set
+		if err := fields.FromJSON(bytes.NewReader(entry.FieldsV1.Raw)); err != nil {
+			continue
+		}
+		if fields.Has(fieldpath.MakePathOrDie("spec", "duration")) {
+			return true
+		}
 	}
 	return false
 }
