@@ -204,6 +204,8 @@ type WebhookTLSConfig struct {
 	// certificateDuration is the requested validity period of the webhook TLS certificate.
 	// When unset, cert-manager's default certificate duration is used.
 	// Example: "8760h" for one year.
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern=`^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$`
 	// +kubebuilder:validation:Optional
 	// +optional
 	CertificateDuration *metav1.Duration `json:"certificateDuration,omitempty"`
