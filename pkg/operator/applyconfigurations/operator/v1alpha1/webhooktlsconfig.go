@@ -2,19 +2,14 @@
 
 package v1alpha1
 
-import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
 // WebhookTLSConfigApplyConfiguration represents a declarative configuration of the WebhookTLSConfig type for use
 // with apply.
 //
 // WebhookTLSConfig configures the trust-manager webhook TLS certificate.
 type WebhookTLSConfigApplyConfiguration struct {
-	// certificateDuration is the requested validity period of the webhook TLS certificate.
-	// When unset, cert-manager's default certificate duration is used.
-	// Example: "8760h" for one year.
-	CertificateDuration *v1.Duration `json:"certificateDuration,omitempty"`
+	// certManager configures the cert-manager Certificate issued for the webhook.
+	// When unset, the operator uses its self-signed Issuer and cert-manager defaults.
+	CertManager *TrustManagerCertConfigApplyConfiguration `json:"certManager,omitempty"`
 	// approverPolicy configures a CertificateRequestPolicy so that
 	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
 	// Resources are created only when policy is Enabled. If Enabled while the
@@ -29,11 +24,11 @@ func WebhookTLSConfig() *WebhookTLSConfigApplyConfiguration {
 	return &WebhookTLSConfigApplyConfiguration{}
 }
 
-// WithCertificateDuration sets the CertificateDuration field in the declarative configuration to the given value
+// WithCertManager sets the CertManager field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the CertificateDuration field is set to the value of the last call.
-func (b *WebhookTLSConfigApplyConfiguration) WithCertificateDuration(value v1.Duration) *WebhookTLSConfigApplyConfiguration {
-	b.CertificateDuration = &value
+// If called multiple times, the CertManager field is set to the value of the last call.
+func (b *WebhookTLSConfigApplyConfiguration) WithCertManager(value *TrustManagerCertConfigApplyConfiguration) *WebhookTLSConfigApplyConfiguration {
+	b.CertManager = value
 	return b
 }
 

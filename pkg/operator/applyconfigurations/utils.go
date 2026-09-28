@@ -60,6 +60,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.ServerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManager"):
 		return &operatorv1alpha1.TrustManagerApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerCertConfig"):
+		return &operatorv1alpha1.TrustManagerCertConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerConfig"):
 		return &operatorv1alpha1.TrustManagerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerControllerConfig"):

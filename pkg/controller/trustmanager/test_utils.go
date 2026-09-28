@@ -109,7 +109,7 @@ func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPol
 }
 
 func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *trustManagerBuilder {
-	b.Spec.TrustManagerConfig.WebhookTLS.CertificateDuration = &metav1.Duration{Duration: d}
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.CertificateDuration = &metav1.Duration{Duration: d}
 	return b
 }
 
