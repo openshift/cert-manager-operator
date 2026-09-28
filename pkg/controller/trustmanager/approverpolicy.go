@@ -96,6 +96,9 @@ func getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations map[s
 				"values":   []interface{}{dnsName},
 				"required": true,
 			},
+			// cert-manager defaults an unset Certificate spec.usages to these two values.
+			// approver-policy treats an omitted allowed.usages list as permitting none.
+			"usages": []interface{}{"digital signature", "key encipherment"},
 		},
 		"selector": map[string]interface{}{
 			"issuerRef": map[string]interface{}{
