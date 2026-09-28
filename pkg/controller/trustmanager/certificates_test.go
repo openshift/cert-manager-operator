@@ -127,6 +127,19 @@ func TestCertificateObject(t *testing.T) {
 					t.Errorf("expected annotation %s=%q, got %q", key, val, cert.Annotations[key])
 				}
 			}
+			if cert.Spec.SecretTemplate == nil {
+				t.Fatal("expected secretTemplate to be set")
+			}
+			for key, val := range tt.wantLabels {
+				if cert.Spec.SecretTemplate.Labels[key] != val {
+					t.Errorf("expected secretTemplate label %s=%q, got %q", key, val, cert.Spec.SecretTemplate.Labels[key])
+				}
+			}
+			for key, val := range tt.wantAnnotations {
+				if cert.Spec.SecretTemplate.Annotations[key] != val {
+					t.Errorf("expected secretTemplate annotation %s=%q, got %q", key, val, cert.Spec.SecretTemplate.Annotations[key])
+				}
+			}
 		})
 	}
 }
@@ -163,6 +176,18 @@ func TestCertificateSpec(t *testing.T) {
 		}
 		if cert.Spec.IssuerRef.Group != "cert-manager.io" {
 			t.Errorf("expected issuerRef.group %q, got %q", "cert-manager.io", cert.Spec.IssuerRef.Group)
+		}
+	})
+
+	t.Run("sets secretTemplate with operator-managed labels", func(t *testing.T) {
+		if cert.Spec.SecretTemplate == nil {
+			t.Fatal("expected secretTemplate to be set")
+		}
+		if cert.Spec.SecretTemplate.Labels["app"] != trustManagerCommonName {
+			t.Errorf("expected secretTemplate label app=%q, got %q", trustManagerCommonName, cert.Spec.SecretTemplate.Labels["app"])
+		}
+		if cert.Spec.SecretTemplate.Labels["app.kubernetes.io/managed-by"] != "cert-manager-operator" {
+			t.Errorf("expected secretTemplate managed-by label, got %q", cert.Spec.SecretTemplate.Labels["app.kubernetes.io/managed-by"])
 		}
 	})
 }
@@ -370,6 +395,60 @@ func TestCertificateReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
+			name: "apply when existing has secretTemplate label drift",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.SecretTemplate.Labels["app"] = "tampered"
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "apply when existing has no secretTemplate",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.SecretTemplate = nil
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:      "apply when existing has secretTemplate annotation drift",
+			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
+					cert := getCertificateObject(getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.Spec.SecretTemplate.Annotations["user-annotation"] = "tampered"
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "skip apply when existing secretTemplate annotations are empty vs nil",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.SecretTemplate.Annotations = map[string]string{}
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
 			name: "exists error propagates",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
@@ -420,5 +499,75 @@ func TestCertificateReconciliation(t *testing.T) {
 				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
 			}
 		})
+	}
+}
+
+func TestSecretTemplateModified(t *testing.T) {
+	tests := []struct {
+		name     string
+		desired  *certmanagerv1.CertificateSecretTemplate
+		existing *certmanagerv1.CertificateSecretTemplate
+		want     bool
+	}{
+		{
+			name: "both nil is not modified",
+		},
+		{
+			name:     "desired set and existing nil is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: nil,
+			want:     true,
+		},
+		{
+			name:     "matching labels is not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+		},
+		{
+			name:     "label value drift is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "other"}},
+			want:     true,
+		},
+		{
+			name:     "extra existing template labels are not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm", "extra": "yes"}},
+		},
+		{
+			name:     "nil and empty annotations are not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}, Annotations: map[string]string{}},
+		},
+		{
+			name:     "annotation drift is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "v"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "other"}},
+			want:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := secretTemplateModified(tt.desired, tt.existing)
+			if got != tt.want {
+				t.Errorf("secretTemplateModified() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCertificateSecretTemplateClonesMaps(t *testing.T) {
+	labels := map[string]string{"app": "original"}
+	annotations := map[string]string{"note": "original"}
+	template := certificateSecretTemplate(labels, annotations)
+
+	labels["app"] = "mutated"
+	annotations["note"] = "mutated"
+
+	if template.Labels["app"] != "original" {
+		t.Errorf("expected cloned label to stay %q, got %q", "original", template.Labels["app"])
+	}
+	if template.Annotations["note"] != "original" {
+		t.Errorf("expected cloned annotation to stay %q, got %q", "original", template.Annotations["note"])
 	}
 }
