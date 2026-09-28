@@ -1264,13 +1264,111 @@ spec:
                             - Disabled
                             type: string
                         type: object
-                      certificateDuration:
+                      certManager:
                         description: |-
-                          certificateDuration is the requested validity period of the webhook TLS certificate.
-                          When unset, cert-manager's default certificate duration is used.
-                          Example: "8760h" for one year.
-                        pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
-                        type: string
+                          certManager configures the cert-manager Certificate issued for the webhook.
+                          When unset, the operator uses its self-signed Issuer and cert-manager defaults.
+                        properties:
+                          certificateDuration:
+                            description: |-
+                              certificateDuration is the requested validity period of the webhook TLS certificate.
+                              When unset, cert-manager's default certificate duration is used.
+                              Example: "8760h" for one year.
+                            pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
+                            type: string
+                          certificateRenewBefore:
+                            description: |-
+                              certificateRenewBefore is how long before expiry cert-manager renews the webhook certificate.
+                              When unset, cert-manager renews at one third of the certificate lifetime.
+                            pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
+                            type: string
+                          certificateSignatureAlgorithm:
+                            description: certificateSignatureAlgorithm is the signature
+                              algorithm for the webhook certificate.
+                            enum:
+                            - SHA256WithRSA
+                            - SHA384WithRSA
+                            - SHA512WithRSA
+                            - ECDSAWithSHA256
+                            - ECDSAWithSHA384
+                            - ECDSAWithSHA512
+                            - PureEd25519
+                            type: string
+                          issuerRef:
+                            description: |-
+                              issuerRef overrides the Issuer used for the webhook certificate.
+                              When unset, the operator uses the self-signed Issuer it creates.
+                              kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+                            properties:
+                              group:
+                                description: |-
+                                  Group of the issuer being referred to.
+                                  Defaults to 'cert-manager.io'.
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind of the issuer being referred to.
+                                  Defaults to 'Issuer'.
+                                type: string
+                              name:
+                                description: Name of the issuer being referred to.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                            x-kubernetes-validations:
+                            - message: kind must be either 'Issuer' or 'ClusterIssuer'
+                              rule: self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii()
+                                == 'clusterissuer'
+                            - message: group must be 'cert-manager.io'
+                              rule: self.group.lowerAscii() == 'cert-manager.io'
+                          privateKeyAlgorithm:
+                            description: |-
+                              privateKeyAlgorithm is the private key algorithm for the webhook certificate.
+                              Allowed values are RSA, ECDSA, and Ed25519.
+                            enum:
+                            - RSA
+                            - ECDSA
+                            - Ed25519
+                            type: string
+                          privateKeyRotationPolicy:
+                            description: |-
+                              privateKeyRotationPolicy controls whether a new private key is generated on re-issuance.
+                              Allowed values are Always and Never.
+                            enum:
+                            - Always
+                            - Never
+                            type: string
+                          privateKeySize:
+                            description: |-
+                              privateKeySize is the private key size for the webhook certificate.
+                              RSA allows 2048, 4096, and 8192. ECDSA allows 256, 384, and 521. Ed25519 ignores this field.
+                            enum:
+                            - 256
+                            - 384
+                            - 521
+                            - 2048
+                            - 4096
+                            - 8192
+                            format: int32
+                            type: integer
+                          propagateMetadataToSecret:
+                            description: |-
+                              propagateMetadataToSecret copies the labels and annotations the operator
+                              sets on the webhook Certificate onto that Certificate's Secret.
+                              "Enabled" copies them. "Disabled" does not (default).
+                            enum:
+                            - Enabled
+                            - Disabled
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: privateKeySize must match privateKeyAlgorithm
+                          rule: '!has(self.privateKeySize) || self.privateKeySize
+                            == 0 || !has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm
+                            == "Ed25519" || (self.privateKeyAlgorithm == "RSA" &&
+                            self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm
+                            == "ECDSA" && self.privateKeySize in [256, 384, 521])'
                     type: object
                 type: object
             required:

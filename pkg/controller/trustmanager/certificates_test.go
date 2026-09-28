@@ -184,6 +184,43 @@ func TestCertificateDuration(t *testing.T) {
 	}
 }
 
+func TestWebhookCertConfig(t *testing.T) {
+	tm := testTrustManager().Build()
+	labels := getResourceLabels(tm)
+	annotations := getResourceAnnotations(tm)
+	tm.Spec.TrustManagerConfig.WebhookTLS.CertManager = v1alpha1.TrustManagerCertConfig{
+		CertificateDuration:           &metav1.Duration{Duration: 8760 * time.Hour},
+		CertificateRenewBefore:        &metav1.Duration{Duration: 360 * time.Hour},
+		IssuerRef:                     &certmanagermetav1.ObjectReference{Name: "custom-issuer", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+		PrivateKeyAlgorithm:           "ECDSA",
+		PrivateKeyRotationPolicy:      "Always",
+		PrivateKeySize:                256,
+		CertificateSignatureAlgorithm: "ECDSAWithSHA256",
+		PropagateMetadataToSecret:     v1alpha1.Enabled,
+	}
+
+	cert := getCertificateObject(tm.Spec.TrustManagerConfig, labels, annotations)
+	if cert.Spec.IssuerRef.Name != "custom-issuer" || cert.Spec.IssuerRef.Kind != "ClusterIssuer" {
+		t.Errorf("expected custom issuer, got %+v", cert.Spec.IssuerRef)
+	}
+	if cert.Spec.RenewBefore == nil || cert.Spec.RenewBefore.Duration != 360*time.Hour {
+		t.Errorf("expected renewBefore 360h, got %+v", cert.Spec.RenewBefore)
+	}
+	if cert.Spec.PrivateKey == nil || cert.Spec.PrivateKey.Algorithm != certmanagerv1.ECDSAKeyAlgorithm || cert.Spec.PrivateKey.Size != 256 || cert.Spec.PrivateKey.RotationPolicy != certmanagerv1.RotationPolicyAlways {
+		t.Errorf("expected ECDSA private key, got %+v", cert.Spec.PrivateKey)
+	}
+	if cert.Spec.SignatureAlgorithm != certmanagerv1.ECDSAWithSHA256 {
+		t.Errorf("expected signature algorithm ECDSAWithSHA256, got %q", cert.Spec.SignatureAlgorithm)
+	}
+	if cert.Spec.SecretTemplate == nil || cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"] != labels["app.kubernetes.io/instance"] {
+		t.Errorf("expected secret template labels copied, got %+v", cert.Spec.SecretTemplate)
+	}
+	labels["app.kubernetes.io/instance"] = "changed-after-copy"
+	if cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"] == "changed-after-copy" {
+		t.Errorf("secret template labels share the operator label map")
+	}
+}
+
 func TestIssuerReconciliation(t *testing.T) {
 	tests := []struct {
 		name            string
