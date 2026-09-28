@@ -75,17 +75,17 @@ spec:
             - name: OPERATOR_NAME
               value: cert-manager-operator
             - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-              value: quay.io/jetstack/cert-manager-webhook:v1.20.4
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9:v1.20.4@sha256:b3305a06bff4a344ba1b19c8142d7e605fc723841981c97aab2310ff8a82c66d
             - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-              value: quay.io/jetstack/cert-manager-cainjector:v1.20.4
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9:v1.20.4@sha256:b3305a06bff4a344ba1b19c8142d7e605fc723841981c97aab2310ff8a82c66d
             - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-              value: quay.io/jetstack/cert-manager-controller:v1.20.4
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-rhel9:v1.20.4@sha256:b3305a06bff4a344ba1b19c8142d7e605fc723841981c97aab2310ff8a82c66d
             - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-              value: quay.io/jetstack/cert-manager-acmesolver:v1.20.4
+              value: registry.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9:v1.20.4@sha256:8ce8e3f21e49fda94f6c984e4777637e3773a099c6d74010a26e5e2743965739
             - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
-              value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
+              value: registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9:v0.16.0-3@sha256:f63c50a7465ce4222dc3bb9443056d5bfcb07ecba20fcd9dd6ee143bc591f446
             - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
-              value: quay.io/jetstack/trust-manager:v0.20.3
+              value: registry.redhat.io/cert-manager/cert-manager-trust-manager-rhel9:v0.20.3@sha256:1fef2bffce8c89631099fbf8cefaa031502d670817897660ccfa0a9aa8a9ebc7
             - name: OPERAND_IMAGE_VERSION
               value: 1.20.4
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION
@@ -99,7 +99,7 @@ spec:
             - name: TRUSTED_CA_CONFIGMAP_NAME
             - name: CLOUD_CREDENTIALS_SECRET_NAME
             - name: UNSUPPORTED_ADDON_FEATURES
-          image: controller:latest
+          image: registry.redhat.io/cert-manager/cert-manager-operator-rhel9:v1.20.1@sha256:207804f9237b0c2875f5252997312230c88726b5271c6419320958078dd7b7fd
           imagePullPolicy: IfNotPresent
           name: cert-manager-operator
           securityContext:
