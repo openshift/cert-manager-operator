@@ -1269,6 +1269,7 @@ spec:
                           certificateDuration is the requested validity period of the webhook TLS certificate.
                           When unset, cert-manager's default certificate duration is used.
                           Example: "8760h" for one year.
+                        pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
                         type: string
                     type: object
                 type: object

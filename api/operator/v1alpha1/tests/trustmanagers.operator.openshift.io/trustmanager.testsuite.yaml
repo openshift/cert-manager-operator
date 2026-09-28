@@ -468,6 +468,42 @@ tests:
             custom-annotation: custom-value
 
   # ==========================================
+  # WebhookTLS certificateDuration Tests
+  # ==========================================
+  - name: Should create with a valid webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certificateDuration: 8760h
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            certificateDuration: 8760h
+
+  - name: Should not allow a malformed webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certificateDuration: not-a-duration
+    expectedError: "certificateDuration"
+
+  # ==========================================
   # Immutability Tests (onUpdate)
   # ==========================================
   onUpdate:

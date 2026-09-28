@@ -429,6 +429,25 @@ func TestCertificateReconciliation(t *testing.T) {
 			wantPatchCount:  0,
 		},
 		{
+			name: "apply when explicit duration is removed and controller owns it",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
+					cert.Spec.Duration = &metav1.Duration{Duration: 8760 * time.Hour}
+					cert.SetManagedFields([]metav1.ManagedFieldsEntry{{
+						Manager:    fieldOwner,
+						Operation:  metav1.ManagedFieldsOperationApply,
+						FieldsType: "FieldsV1",
+						FieldsV1:   &metav1.FieldsV1{Raw: []byte(`{"f:spec":{"f:duration":{}}}`)},
+					}})
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
 			name: "exists error propagates",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {

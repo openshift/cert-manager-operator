@@ -37,6 +37,11 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 	if err != nil || !found || cn != expectedDNS {
 		t.Errorf("expected commonName %q, got %q found=%v err=%v", expectedDNS, cn, found, err)
 	}
+
+	usages, found, err := unstructured.NestedStringSlice(obj.Object, "spec", "allowed", "usages")
+	if err != nil || !found || len(usages) != 2 || usages[0] != "digital signature" || usages[1] != "key encipherment" {
+		t.Errorf("expected usages [digital signature, key encipherment], got %v found=%v err=%v", usages, found, err)
+	}
 }
 
 func TestPolicyClusterRoleBindingSubjects(t *testing.T) {
