@@ -478,7 +478,8 @@ tests:
       spec:
         trustManagerConfig:
           webhookTLS:
-            certificateDuration: 8760h
+            certManager:
+              certificateDuration: 8760h
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -490,7 +491,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Disabled
           webhookTLS:
-            certificateDuration: 8760h
+            certManager:
+              certificateDuration: 8760h
 
   - name: Should not allow a malformed webhookTLS certificateDuration
     resourceName: cluster
@@ -500,8 +502,22 @@ tests:
       spec:
         trustManagerConfig:
           webhookTLS:
-            certificateDuration: not-a-duration
+            certManager:
+              certificateDuration: not-a-duration
     expectedError: "certificateDuration"
+
+  - name: Should not allow an RSA private key with an ECDSA size
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 256
+    expectedError: "privateKeySize"
 
   # ==========================================
   # Immutability Tests (onUpdate)
