@@ -150,7 +150,7 @@ func defaultCAPackageEnabled(config v1alpha1.DefaultCAPackageConfig) bool {
 }
 
 // approverPolicyEnabled returns true when spec.trustManagerConfig.webhookTLS.approverPolicy.bootstrapResources
-// is Enabled. When false, no CertificateRequestPolicy or related RBAC is created.
+// is Enabled. When false, the CertificateRequestPolicy and related RBAC are deleted if present.
 func approverPolicyEnabled(config v1alpha1.ApproverPolicyConfig) bool {
 	return config.BootstrapResources == v1alpha1.Enabled
 }
