@@ -9,12 +9,15 @@ import (
 // ApproverPolicyConfigApplyConfiguration represents a declarative configuration of the ApproverPolicyConfig type for use
 // with apply.
 //
-// ApproverPolicyConfig controls creation of a CertificateRequestPolicy for the
+// ApproverPolicyConfig controls creation and removal of a CertificateRequestPolicy for the
 // trust-manager webhook certificate.
 type ApproverPolicyConfigApplyConfiguration struct {
-	// bootstrapResources controls whether the operator automatically provisions
-	// supporting prerequisite resources, such as the CertificateRequestPolicy and
-	// associated RBAC bindings, required for approver-policy to function.
+	// bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
+	// and associated RBAC required for approver-policy to approve the webhook certificate.
+	//
+	// Enabled creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
+	// Disabled (default) does not create them. Flipping from Enabled to Disabled deletes those
+	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
 	//
 	// Setting this to "Enabled" requires cert-manager approver-policy to be installed.
 	BootstrapResources *operatorv1alpha1.Mode `json:"bootstrapResources,omitempty"`
