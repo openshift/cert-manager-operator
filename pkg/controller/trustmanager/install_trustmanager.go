@@ -103,6 +103,15 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		changed = true
 	}
 
+	policyName := ""
+	if approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
+		policyName = trustManagerCertificateRequestPolicyName
+	}
+	if trustManager.Status.CertificateRequestPolicy != policyName {
+		trustManager.Status.CertificateRequestPolicy = policyName
+		changed = true
+	}
+
 	if !changed {
 		return nil
 	}
