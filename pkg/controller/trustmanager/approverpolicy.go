@@ -6,6 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -20,12 +21,13 @@ import (
 
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
-// Helm app.webhook.tls.approverPolicy. Nothing is created unless bootstrapResources is Enabled.
-// If Enabled and the CertificateRequestPolicy CRD is missing (approver-policy not
-// installed), reconciliation fails with a CRD-missing error.
+// Helm app.webhook.tls.approverPolicy. Resources are created when bootstrapResources
+// is Enabled and deleted when it is not. If Enabled and the CertificateRequestPolicy
+// CRD is missing (approver-policy not installed), reconciliation fails with a
+// CRD-missing error. A missing CRD is ignored while bootstrapResources is Disabled.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	if !approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
-		return nil
+		return r.deleteApproverPolicyResources(trustManager)
 	}
 
 	if err := r.createOrApplyCertificateRequestPolicy(trustManager, resourceLabels, resourceAnnotations); err != nil {
@@ -37,6 +39,52 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	if err := r.createOrApplyPolicyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		return err
 	}
+	return nil
+}
+
+// deleteApproverPolicyResources removes the operator-created CertificateRequestPolicy
+// and the RBAC that grants use of it. NotFound is success. A missing
+// CertificateRequestPolicy CRD is ignored so Disabled remains valid when
+// approver-policy is not installed.
+func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustManager) error {
+	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: rbacv1.SchemeGroupVersion.String(),
+			Kind:       "ClusterRoleBinding",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: trustManagerPolicyClusterRoleBindingName},
+	}, "clusterrolebinding", false); err != nil {
+		return err
+	}
+	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRole{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: rbacv1.SchemeGroupVersion.String(),
+			Kind:       "ClusterRole",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: trustManagerPolicyClusterRoleName},
+	}, "clusterrole", false); err != nil {
+		return err
+	}
+	return r.deleteApproverPolicyObject(trustManager, &policyv1alpha1.CertificateRequestPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: policyv1alpha1.SchemeGroupVersion.String(),
+			Kind:       policyv1alpha1.CertificateRequestPolicyKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: trustManagerCertificateRequestPolicyName},
+	}, "certificaterequestpolicy", true)
+}
+
+func (r *Reconciler) deleteApproverPolicyObject(trustManager *v1alpha1.TrustManager, obj client.Object, resourceKind string, ignoreNoMatch bool) error {
+	resourceName := obj.GetName()
+	r.log.V(4).Info("ensuring approver-policy resource is absent", "kind", resourceKind, "name", resourceName)
+	if err := r.Delete(r.ctx, obj); err != nil {
+		if apierrors.IsNotFound(err) || (ignoreNoMatch && meta.IsNoMatchError(err)) {
+			return nil
+		}
+		return common.FromClientError(err, "failed to delete %s %q", resourceKind, resourceName)
+	}
+	r.log.V(2).Info("deleted approver-policy resource", "kind", resourceKind, "name", resourceName)
+	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s deleted", resourceKind, resourceName)
 	return nil
 }
 

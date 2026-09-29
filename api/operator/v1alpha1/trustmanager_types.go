@@ -211,8 +211,8 @@ type WebhookTLSConfig struct {
 
 	// approverPolicy configures a CertificateRequestPolicy so that
 	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Resources are created only when bootstrapResources is Enabled. If Enabled while the
-	// CertificateRequestPolicy CRD is not installed, reconciliation fails until
+	// Resources are created when bootstrapResources is Enabled and removed when it is Disabled.
+	// If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
 	// approver-policy is installed or bootstrapResources is set to Disabled.
 	// +kubebuilder:validation:Optional
 	// +optional
@@ -285,12 +285,15 @@ type TrustManagerCertConfig struct {
 	PropagateMetadataToSecret Mode `json:"propagateMetadataToSecret,omitempty"`
 }
 
-// ApproverPolicyConfig controls creation of a CertificateRequestPolicy for the
+// ApproverPolicyConfig controls creation and removal of a CertificateRequestPolicy for the
 // trust-manager webhook certificate.
 type ApproverPolicyConfig struct {
-	// bootstrapResources controls whether the operator automatically provisions
-	// supporting prerequisite resources, such as the CertificateRequestPolicy and
-	// associated RBAC bindings, required for approver-policy to function.
+	// bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
+	// and associated RBAC required for approver-policy to approve the webhook certificate.
+	//
+	// Enabled creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
+	// Disabled (default) does not create them. Flipping from Enabled to Disabled deletes those
+	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
 	//
 	// Setting this to "Enabled" requires cert-manager approver-policy to be installed.
 	// +kubebuilder:default:="Disabled"

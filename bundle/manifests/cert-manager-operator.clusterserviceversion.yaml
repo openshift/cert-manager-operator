@@ -686,6 +686,7 @@ spec:
           - certificaterequestpolicies
           verbs:
           - create
+          - delete
           - get
           - list
           - patch
