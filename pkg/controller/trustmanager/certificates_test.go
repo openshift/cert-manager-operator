@@ -545,6 +545,23 @@ func TestSecretTemplateModified(t *testing.T) {
 			existing: &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "other"}},
 			want:     true,
 		},
+		{
+			name:     "absent label with empty desired value is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{}},
+			want:     true,
+		},
+		{
+			name:     "present label with empty value is not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
+		},
+		{
+			name:     "absent annotation with empty desired value is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"note": ""}},
+			existing: &certmanagerv1.CertificateSecretTemplate{},
+			want:     true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

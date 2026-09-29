@@ -158,7 +158,8 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 
 func managedMapModified(desired, existing map[string]string) bool {
 	for k, v := range desired {
-		if existing[k] != v {
+		existingValue, ok := existing[k]
+		if !ok || existingValue != v {
 			return true
 		}
 	}
