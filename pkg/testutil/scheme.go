@@ -8,6 +8,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
 
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -25,5 +26,6 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(Scheme))
 	utilruntime.Must(rbacv1.AddToScheme(Scheme))
 	utilruntime.Must(certmanagerv1.AddToScheme(Scheme))
+	utilruntime.Must(policyv1alpha1.AddToScheme(Scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(Scheme))
 }
