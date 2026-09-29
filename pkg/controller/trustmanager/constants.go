@@ -109,7 +109,7 @@ const (
 
 	trustManagerWebhookConfigName = trustManagerCommonResourceName
 
-	// trustManagerCertificateRequestPolicyName is created when webhookTLS.approverPolicy.policy is Enabled.
+	// trustManagerCertificateRequestPolicyName is created when webhookTLS.approverPolicy.bootstrapResources is Enabled.
 	trustManagerCertificateRequestPolicyName = trustManagerCommonResourceName + "-policy"
 	// trustManagerPolicyClusterRoleName grants the cert-manager SA use access to the CRP.
 	trustManagerPolicyClusterRoleName = trustManagerCommonResourceName + "-policy-role"

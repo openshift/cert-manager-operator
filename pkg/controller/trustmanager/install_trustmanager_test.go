@@ -56,6 +56,30 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			wantStatusUpdate: 0,
 			wantStatus:       wantImageStatus,
 		},
+		{
+			name: "sets certificateRequestPolicy when approver-policy bootstrap is enabled",
+			trustManager: func() *v1alpha1.TrustManager {
+				tm := testTrustManager().WithApproverPolicy(v1alpha1.Enabled).Build()
+				tm.Status.TrustManagerImage = testImage
+				return tm
+			},
+			wantStatusUpdate: 1,
+			wantStatus: v1alpha1.TrustManagerStatus{
+				TrustManagerImage:        testImage,
+				CertificateRequestPolicy: trustManagerCertificateRequestPolicyName,
+			},
+		},
+		{
+			name: "clears certificateRequestPolicy when approver-policy bootstrap is disabled",
+			trustManager: func() *v1alpha1.TrustManager {
+				tm := testTrustManager().Build()
+				tm.Status.TrustManagerImage = testImage
+				tm.Status.CertificateRequestPolicy = trustManagerCertificateRequestPolicyName
+				return tm
+			},
+			wantStatusUpdate: 1,
+			wantStatus:       wantImageStatus,
+		},
 	}
 
 	for _, tt := range tests {

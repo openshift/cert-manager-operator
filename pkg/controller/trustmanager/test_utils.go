@@ -114,7 +114,7 @@ func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *t
 }
 
 func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerBuilder {
-	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.Policy = policy
+	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
 	return b
 }
 

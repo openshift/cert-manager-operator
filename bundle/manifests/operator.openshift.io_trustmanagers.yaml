@@ -1243,22 +1243,18 @@ spec:
                         description: |-
                           approverPolicy configures a CertificateRequestPolicy so that
                           cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-                          Resources are created only when policy is Enabled. If Enabled while the
+                          Resources are created only when bootstrapResources is Enabled. If Enabled while the
                           CertificateRequestPolicy CRD is not installed, reconciliation fails until
-                          approver-policy is installed or policy is set to Disabled.
+                          approver-policy is installed or bootstrapResources is set to Disabled.
                         properties:
-                          policy:
+                          bootstrapResources:
                             default: Disabled
                             description: |-
-                              policy controls whether a CertificateRequestPolicy and the RBAC that
-                              allows the cert-manager controller ServiceAccount to use it are created.
-                              "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
-                              auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
-                              and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
-                              ServiceAccount. Nothing is created unless this is set to Enabled.
-                              If Enabled while cert-manager-approver-policy is not installed, reconcile
-                              fails because the CertificateRequestPolicy CRD is missing.
-                              "Disabled" does not create these resources (default).
+                              bootstrapResources controls whether the operator automatically provisions
+                              supporting prerequisite resources, such as the CertificateRequestPolicy and
+                              associated RBAC bindings, required for approver-policy to function.
+
+                              Setting this to "Enabled" requires cert-manager approver-policy to be installed.
                             enum:
                             - Enabled
                             - Disabled
@@ -1377,6 +1373,12 @@ spec:
           status:
             description: status is the most recently observed status of the TrustManager.
             properties:
+              certificateRequestPolicy:
+                description: |-
+                  certificateRequestPolicy is the name of the CertificateRequestPolicy created
+                  for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
+                  is Enabled. Empty when bootstrapResources is Disabled.
+                type: string
               conditions:
                 description: conditions holds information about the current state
                   of the operand deployment.
