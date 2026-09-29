@@ -6,9 +6,12 @@ import (
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
@@ -22,8 +25,9 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 	if obj.GetName() != trustManagerCertificateRequestPolicyName {
 		t.Errorf("expected name %q, got %q", trustManagerCertificateRequestPolicyName, obj.GetName())
 	}
-	if obj.GroupVersionKind() != certificateRequestPolicyGVK {
-		t.Errorf("expected gvk %s, got %s", certificateRequestPolicyGVK, obj.GroupVersionKind())
+	expectedGVK := policyv1alpha1.SchemeGroupVersion.WithKind(policyv1alpha1.CertificateRequestPolicyKind)
+	if obj.GroupVersionKind() != expectedGVK {
+		t.Errorf("expected gvk %s, got %s", expectedGVK, obj.GroupVersionKind())
 	}
 	if obj.GetLabels()["app"] != trustManagerCommonName {
 		t.Errorf("expected app label %q, got %q", trustManagerCommonName, obj.GetLabels()["app"])
@@ -33,14 +37,13 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 	}
 
 	expectedDNS := trustManagerServiceName + "." + operandNamespace + ".svc"
-	cn, found, err := unstructured.NestedString(obj.Object, "spec", "allowed", "commonName", "value")
-	if err != nil || !found || cn != expectedDNS {
-		t.Errorf("expected commonName %q, got %q found=%v err=%v", expectedDNS, cn, found, err)
+	if obj.Spec.Allowed == nil || obj.Spec.Allowed.CommonName == nil || obj.Spec.Allowed.CommonName.Value == nil || *obj.Spec.Allowed.CommonName.Value != expectedDNS {
+		t.Errorf("expected commonName %q, got %#v", expectedDNS, obj.Spec.Allowed)
 	}
-
-	usages, found, err := unstructured.NestedStringSlice(obj.Object, "spec", "allowed", "usages")
-	if err != nil || !found || len(usages) != 2 || usages[0] != "digital signature" || usages[1] != "key encipherment" {
-		t.Errorf("expected usages [digital signature, key encipherment], got %v found=%v err=%v", usages, found, err)
+	if obj.Spec.Allowed.Usages == nil || len(*obj.Spec.Allowed.Usages) != 2 ||
+		(*obj.Spec.Allowed.Usages)[0] != certmanagerv1.UsageDigitalSignature ||
+		(*obj.Spec.Allowed.Usages)[1] != certmanagerv1.UsageKeyEncipherment {
+		t.Errorf("expected usages [digital signature, key encipherment], got %#v", obj.Spec.Allowed.Usages)
 	}
 }
 
@@ -91,7 +94,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
-					case *unstructured.Unstructured:
+					case *policyv1alpha1.CertificateRequestPolicy:
 						getCertificateRequestPolicyObject(testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
 					case *rbacv1.ClusterRole:
 						getPolicyClusterRoleObject(testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
@@ -110,9 +113,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
-					case *unstructured.Unstructured:
+					case *policyv1alpha1.CertificateRequestPolicy:
 						existing := getCertificateRequestPolicyObject(testResourceLabels(), testResourceAnnotations())
-						_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"name": "wrong"}, "spec", "selector", "issuerRef")
+						existing.Spec.Selector.IssuerRef.Name = ptr.To("wrong")
 						existing.DeepCopyInto(dst)
 					case *rbacv1.ClusterRole:
 						getPolicyClusterRoleObject(testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
