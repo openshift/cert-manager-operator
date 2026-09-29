@@ -8,19 +8,15 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
-
-var certificateRequestPolicyGVK = schema.GroupVersionKind{
-	Group:   "policy.cert-manager.io",
-	Version: "v1alpha1",
-	Kind:    "CertificateRequestPolicy",
-}
 
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
@@ -53,8 +49,7 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling certificaterequestpolicy resource", "name", resourceName)
 
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(certificateRequestPolicyGVK)
+	existing := &policyv1alpha1.CertificateRequestPolicy{}
 	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
@@ -79,41 +74,48 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	return nil
 }
 
-func getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations map[string]string) *unstructured.Unstructured {
+func getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations map[string]string) *policyv1alpha1.CertificateRequestPolicy {
 	dnsName := fmt.Sprintf("%s.%s.svc", trustManagerServiceName, operandNamespace)
-	obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-	obj.SetGroupVersionKind(certificateRequestPolicyGVK)
-	obj.SetName(trustManagerCertificateRequestPolicyName)
-	common.UpdateResourceLabels(obj, resourceLabels)
-	updateResourceAnnotations(obj, resourceAnnotations)
-	obj.Object["spec"] = map[string]interface{}{
-		"allowed": map[string]interface{}{
-			"commonName": map[string]interface{}{
-				"value":    dnsName,
-				"required": true,
-			},
-			"dnsNames": map[string]interface{}{
-				"values":   []interface{}{dnsName},
-				"required": true,
-			},
-			// cert-manager defaults an unset Certificate spec.usages to these two values.
-			// approver-policy treats an omitted allowed.usages list as permitting none.
-			"usages": []interface{}{"digital signature", "key encipherment"},
+	// cert-manager defaults an unset Certificate spec.usages to these two values.
+	// approver-policy treats an omitted allowed.usages list as permitting none.
+	usages := []certmanagerv1.KeyUsage{certmanagerv1.UsageDigitalSignature, certmanagerv1.UsageKeyEncipherment}
+	obj := &policyv1alpha1.CertificateRequestPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: policyv1alpha1.SchemeGroupVersion.String(),
+			Kind:       policyv1alpha1.CertificateRequestPolicyKind,
 		},
-		"selector": map[string]interface{}{
-			"issuerRef": map[string]interface{}{
-				"name":  trustManagerIssuerName,
-				"kind":  "Issuer",
-				"group": "cert-manager.io",
+		ObjectMeta: metav1.ObjectMeta{
+			Name: trustManagerCertificateRequestPolicyName,
+		},
+		Spec: policyv1alpha1.CertificateRequestPolicySpec{
+			Allowed: &policyv1alpha1.CertificateRequestPolicyAllowed{
+				CommonName: &policyv1alpha1.CertificateRequestPolicyAllowedString{
+					Value:    ptr.To(dnsName),
+					Required: ptr.To(true),
+				},
+				DNSNames: &policyv1alpha1.CertificateRequestPolicyAllowedStringSlice{
+					Values:   ptr.To([]string{dnsName}),
+					Required: ptr.To(true),
+				},
+				Usages: &usages,
+			},
+			Selector: policyv1alpha1.CertificateRequestPolicySelector{
+				IssuerRef: &policyv1alpha1.CertificateRequestPolicySelectorIssuerRef{
+					Name:  ptr.To(trustManagerIssuerName),
+					Kind:  ptr.To("Issuer"),
+					Group: ptr.To("cert-manager.io"),
+				},
 			},
 		},
 	}
+	common.UpdateResourceLabels(obj, resourceLabels)
+	updateResourceAnnotations(obj, resourceAnnotations)
 	return obj
 }
 
-func certificateRequestPolicyModified(desired, existing *unstructured.Unstructured) bool {
+func certificateRequestPolicyModified(desired, existing *policyv1alpha1.CertificateRequestPolicy) bool {
 	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.Object["spec"], existing.Object["spec"])
+		!reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
 func (r *Reconciler) createOrApplyPolicyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {

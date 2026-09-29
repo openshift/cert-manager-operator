@@ -370,6 +370,10 @@ github.com/ccojocar/zxcvbn-go/utils/math
 # github.com/cenkalti/backoff/v5 v5.0.3
 ## explicit; go 1.23
 github.com/cenkalti/backoff/v5
+# github.com/cert-manager/approver-policy v0.27.0
+## explicit; go 1.26.0
+github.com/cert-manager/approver-policy/pkg/apis/policy
+github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1
 # github.com/cert-manager/cert-manager v1.21.3 => github.com/openshift/jetstack-cert-manager v1.21.3
 ## explicit; go 1.26.0
 github.com/cert-manager/cert-manager/pkg/apis/acme
@@ -1411,7 +1415,7 @@ github.com/pmezard/go-difflib/difflib
 # github.com/polyfloyd/go-errorlint v1.8.0
 ## explicit; go 1.23.0
 github.com/polyfloyd/go-errorlint/errorlint
-# github.com/prometheus/client_golang v1.24.0
+# github.com/prometheus/client_golang v1.24.1
 ## explicit; go 1.25.0
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil/header
@@ -1426,7 +1430,7 @@ github.com/prometheus/client_golang/prometheus/testutil/promlint/validations
 # github.com/prometheus/client_model v0.6.2
 ## explicit; go 1.22.0
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.70.0
+# github.com/prometheus/common v0.70.1
 ## explicit; go 1.25.0
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
