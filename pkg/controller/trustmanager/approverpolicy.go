@@ -24,7 +24,7 @@ var certificateRequestPolicyGVK = schema.GroupVersionKind{
 
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
-// Helm app.webhook.tls.approverPolicy. Nothing is created unless policy is Enabled.
+// Helm app.webhook.tls.approverPolicy. Nothing is created unless bootstrapResources is Enabled.
 // If Enabled and the CertificateRequestPolicy CRD is missing (approver-policy not
 // installed), reconciliation fails with a CRD-missing error.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
@@ -47,7 +47,7 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 // createOrApplyCertificateRequestPolicy applies CertificateRequestPolicy
 // trust-manager-policy so approver-policy can auto-approve the webhook cert.
 // A missing CRP CRD is treated as a reconcile error (install approver-policy
-// or set policy to Disabled).
+// or set bootstrapResources to Disabled).
 func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
@@ -58,7 +58,7 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
-			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.policy to Disabled")
+			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.bootstrapResources to Disabled")
 		}
 		return common.FromClientError(err, "failed to check if certificaterequestpolicy %q exists", resourceName)
 	}
@@ -70,7 +70,7 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	r.log.V(2).Info("certificaterequestpolicy resource has been modified, updating to desired state", "name", resourceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		if meta.IsNoMatchError(err) {
-			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.policy to Disabled")
+			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.bootstrapResources to Disabled")
 		}
 		return common.FromClientError(err, "failed to apply certificaterequestpolicy %q", resourceName)
 	}

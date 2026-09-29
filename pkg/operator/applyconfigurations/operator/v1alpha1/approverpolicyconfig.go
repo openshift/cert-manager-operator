@@ -12,16 +12,12 @@ import (
 // ApproverPolicyConfig controls creation of a CertificateRequestPolicy for the
 // trust-manager webhook certificate.
 type ApproverPolicyConfigApplyConfiguration struct {
-	// policy controls whether a CertificateRequestPolicy and the RBAC that
-	// allows the cert-manager controller ServiceAccount to use it are created.
-	// "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
-	// auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
-	// and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
-	// ServiceAccount. Nothing is created unless this is set to Enabled.
-	// If Enabled while cert-manager-approver-policy is not installed, reconcile
-	// fails because the CertificateRequestPolicy CRD is missing.
-	// "Disabled" does not create these resources (default).
-	Policy *operatorv1alpha1.Mode `json:"policy,omitempty"`
+	// bootstrapResources controls whether the operator automatically provisions
+	// supporting prerequisite resources, such as the CertificateRequestPolicy and
+	// associated RBAC bindings, required for approver-policy to function.
+	//
+	// Setting this to "Enabled" requires cert-manager approver-policy to be installed.
+	BootstrapResources *operatorv1alpha1.Mode `json:"bootstrapResources,omitempty"`
 }
 
 // ApproverPolicyConfigApplyConfiguration constructs a declarative configuration of the ApproverPolicyConfig type for use with
@@ -30,10 +26,10 @@ func ApproverPolicyConfig() *ApproverPolicyConfigApplyConfiguration {
 	return &ApproverPolicyConfigApplyConfiguration{}
 }
 
-// WithPolicy sets the Policy field in the declarative configuration to the given value
+// WithBootstrapResources sets the BootstrapResources field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Policy field is set to the value of the last call.
-func (b *ApproverPolicyConfigApplyConfiguration) WithPolicy(value operatorv1alpha1.Mode) *ApproverPolicyConfigApplyConfiguration {
-	b.Policy = &value
+// If called multiple times, the BootstrapResources field is set to the value of the last call.
+func (b *ApproverPolicyConfigApplyConfiguration) WithBootstrapResources(value operatorv1alpha1.Mode) *ApproverPolicyConfigApplyConfiguration {
+	b.BootstrapResources = &value
 	return b
 }

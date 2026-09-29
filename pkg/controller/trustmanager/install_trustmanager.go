@@ -52,7 +52,7 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
-	// Optional: CertificateRequestPolicy + RBAC when webhookTLS.approverPolicy.policy is Enabled.
+	// Optional: CertificateRequestPolicy + RBAC when webhookTLS.approverPolicy.bootstrapResources is Enabled.
 	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile approver-policy resources")
 		return err
@@ -95,6 +95,15 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 
 	if image := os.Getenv(trustManagerImageNameEnvVarName); trustManager.Status.TrustManagerImage != image {
 		trustManager.Status.TrustManagerImage = image
+		changed = true
+	}
+
+	policyName := ""
+	if approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
+		policyName = trustManagerCertificateRequestPolicyName
+	}
+	if trustManager.Status.CertificateRequestPolicy != policyName {
+		trustManager.Status.CertificateRequestPolicy = policyName
 		changed = true
 	}
 

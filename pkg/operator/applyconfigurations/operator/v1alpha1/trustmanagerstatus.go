@@ -15,6 +15,10 @@ type TrustManagerStatusApplyConfiguration struct {
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage *string `json:"trustManagerImage,omitempty"`
+	// certificateRequestPolicy is the name of the CertificateRequestPolicy created
+	// for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
+	// is Enabled. Empty when bootstrapResources is Disabled.
+	CertificateRequestPolicy *string `json:"certificateRequestPolicy,omitempty"`
 }
 
 // TrustManagerStatusApplyConfiguration constructs a declarative configuration of the TrustManagerStatus type for use with
@@ -41,5 +45,13 @@ func (b *TrustManagerStatusApplyConfiguration) WithConditions(values ...*v1.Cond
 // If called multiple times, the TrustManagerImage field is set to the value of the last call.
 func (b *TrustManagerStatusApplyConfiguration) WithTrustManagerImage(value string) *TrustManagerStatusApplyConfiguration {
 	b.TrustManagerImage = &value
+	return b
+}
+
+// WithCertificateRequestPolicy sets the CertificateRequestPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CertificateRequestPolicy field is set to the value of the last call.
+func (b *TrustManagerStatusApplyConfiguration) WithCertificateRequestPolicy(value string) *TrustManagerStatusApplyConfiguration {
+	b.CertificateRequestPolicy = &value
 	return b
 }

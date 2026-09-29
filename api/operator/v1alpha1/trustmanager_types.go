@@ -211,9 +211,9 @@ type WebhookTLSConfig struct {
 
 	// approverPolicy configures a CertificateRequestPolicy so that
 	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Resources are created only when policy is Enabled. If Enabled while the
+	// Resources are created only when bootstrapResources is Enabled. If Enabled while the
 	// CertificateRequestPolicy CRD is not installed, reconciliation fails until
-	// approver-policy is installed or policy is set to Disabled.
+	// approver-policy is installed or bootstrapResources is set to Disabled.
 	// +kubebuilder:validation:Optional
 	// +optional
 	ApproverPolicy ApproverPolicyConfig `json:"approverPolicy,omitempty"`
@@ -288,20 +288,16 @@ type TrustManagerCertConfig struct {
 // ApproverPolicyConfig controls creation of a CertificateRequestPolicy for the
 // trust-manager webhook certificate.
 type ApproverPolicyConfig struct {
-	// policy controls whether a CertificateRequestPolicy and the RBAC that
-	// allows the cert-manager controller ServiceAccount to use it are created.
-	// "Enabled" creates CertificateRequestPolicy trust-manager-policy (to
-	// auto-approve the webhook certificate), ClusterRole trust-manager-policy-role,
-	// and ClusterRoleBinding trust-manager-policy-binding for the cert-manager
-	// ServiceAccount. Nothing is created unless this is set to Enabled.
-	// If Enabled while cert-manager-approver-policy is not installed, reconcile
-	// fails because the CertificateRequestPolicy CRD is missing.
-	// "Disabled" does not create these resources (default).
+	// bootstrapResources controls whether the operator automatically provisions
+	// supporting prerequisite resources, such as the CertificateRequestPolicy and
+	// associated RBAC bindings, required for approver-policy to function.
+	//
+	// Setting this to "Enabled" requires cert-manager approver-policy to be installed.
 	// +kubebuilder:default:="Disabled"
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional
-	Policy Mode `json:"policy,omitempty"`
+	BootstrapResources Mode `json:"bootstrapResources,omitempty"`
 }
 
 // DefaultCAPackageConfig configures the default CA package feature for trust-manager.
@@ -355,4 +351,9 @@ type TrustManagerStatus struct {
 
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage string `json:"trustManagerImage,omitempty"`
+
+	// certificateRequestPolicy is the name of the CertificateRequestPolicy created
+	// for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
+	// is Enabled. Empty when bootstrapResources is Disabled.
+	CertificateRequestPolicy string `json:"certificateRequestPolicy,omitempty"`
 }
