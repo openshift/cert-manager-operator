@@ -2,9 +2,11 @@ package trustmanager
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
@@ -64,6 +66,7 @@ func TestPolicyClusterRoleBindingSubjects(t *testing.T) {
 }
 
 func TestApproverPolicyReconciliation(t *testing.T) {
+	notFound := apierrors.NewNotFound(schema.GroupResource{Group: "policy.cert-manager.io", Resource: "certificaterequestpolicies"}, trustManagerCertificateRequestPolicyName)
 	tests := []struct {
 		name            string
 		tmBuilder       *trustManagerBuilder
@@ -71,11 +74,64 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		wantErr         string
 		wantExistsCount int
 		wantPatchCount  int
+		wantDeleteCount int
+		wantDeleted     []string
 	}{
 		{
-			name:            "skip when approver policy is disabled",
-			wantExistsCount: 0,
-			wantPatchCount:  0,
+			name:            "deletes approver policy resources when disabled",
+			wantDeleteCount: 3,
+			wantDeleted: []string{
+				trustManagerPolicyClusterRoleBindingName,
+				trustManagerPolicyClusterRoleName,
+				trustManagerCertificateRequestPolicyName,
+			},
+		},
+		{
+			name: "treats already-absent approver policy resources as success",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+					return notFound
+				})
+			},
+			wantDeleteCount: 3,
+			wantDeleted: []string{
+				trustManagerPolicyClusterRoleBindingName,
+				trustManagerPolicyClusterRoleName,
+				trustManagerCertificateRequestPolicyName,
+			},
+		},
+		{
+			name: "ignores missing CertificateRequestPolicy CRD when disabled",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+					switch obj.(type) {
+					case *policyv1alpha1.CertificateRequestPolicy:
+						return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "policy.cert-manager.io", Kind: "CertificateRequestPolicy"}}
+					default:
+						return notFound
+					}
+				})
+			},
+			wantDeleteCount: 3,
+			wantDeleted: []string{
+				trustManagerPolicyClusterRoleBindingName,
+				trustManagerPolicyClusterRoleName,
+				trustManagerCertificateRequestPolicyName,
+			},
+		},
+		{
+			name: "returns error when deleting approver policy RBAC fails",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+					if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+						return fmt.Errorf("delete failed")
+					}
+					return nil
+				})
+			},
+			wantErr:         "failed to delete clusterrolebinding",
+			wantDeleteCount: 1,
+			wantDeleted:     []string{trustManagerPolicyClusterRoleBindingName},
 		},
 		{
 			name:      "apply policy resources when enabled and missing",
@@ -139,6 +195,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantErr:         "CertificateRequestPolicy CRD is not installed",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
+			wantDeleteCount: 0,
 		},
 	}
 
@@ -164,6 +221,18 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			}
 			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
 				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			}
+			if got := mock.DeleteCallCount(); got != tt.wantDeleteCount {
+				t.Errorf("expected %d Delete calls, got %d", tt.wantDeleteCount, got)
+			}
+			for i, name := range tt.wantDeleted {
+				if i >= mock.DeleteCallCount() {
+					break
+				}
+				_, obj, _ := mock.DeleteArgsForCall(i)
+				if obj.GetName() != name {
+					t.Errorf("delete call %d: expected name %q, got %q", i, name, obj.GetName())
+				}
 			}
 		})
 	}
