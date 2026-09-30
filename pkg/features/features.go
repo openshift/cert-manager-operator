@@ -22,9 +22,6 @@ const (
 	// openshiftFeatureGateResource is the API resource name for cluster FeatureGate objects.
 	openshiftFeatureGateResource = "featuregates"
 
-	// FeatureSetOKD is the OKD cluster featureset value.
-	// TODO: After openshift/api is updated to 4.22 (or newer) release content, remove this constant and use the upstream configv1 OKD FeatureSet instead.
-	FeatureSetOKD configv1.FeatureSet = "OKD"
 )
 
 // allowedPreviewFeatureSets is the set of cluster featureset values that
@@ -33,7 +30,7 @@ var allowedPreviewFeatureSets = sets.New[configv1.FeatureSet](
 	configv1.CustomNoUpgrade,
 	configv1.DevPreviewNoUpgrade,
 	configv1.TechPreviewNoUpgrade,
-	FeatureSetOKD,
+	configv1.OKD,
 )
 
 var (

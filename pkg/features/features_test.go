@@ -145,7 +145,7 @@ func TestAllowedPreviewClusterFeatureSets(t *testing.T) {
 		{name: "CustomNoUpgrade is allowed", fs: ocpfeaturegate.CustomNoUpgrade, allowed: true},
 		{name: "DevPreviewNoUpgrade is allowed", fs: ocpfeaturegate.DevPreviewNoUpgrade, allowed: true},
 		{name: "TechPreviewNoUpgrade is allowed", fs: ocpfeaturegate.TechPreviewNoUpgrade, allowed: true},
-		{name: "OKD is allowed", fs: FeatureSetOKD, allowed: true},
+		{name: "OKD is allowed", fs: ocpfeaturegate.OKD, allowed: true},
 		{name: "Default cluster featureset is not allowed", fs: ocpfeaturegate.Default, allowed: false},
 		{name: "unknown featureset is not allowed", fs: "Unknown", allowed: false},
 	}
