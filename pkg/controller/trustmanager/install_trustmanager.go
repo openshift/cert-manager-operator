@@ -52,6 +52,13 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	// Optional: CertificateRequestPolicy + RBAC when webhookTLS.approverPolicy.bootstrapResources is Enabled.
+	// Those resources are deleted when bootstrapResources is not Enabled.
+	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile approver-policy resources")
+		return err
+	}
+
 	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
 		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
@@ -92,23 +99,12 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		changed = true
 	}
 
-	if ns := getTrustNamespace(trustManager); trustManager.Status.TrustNamespace != ns {
-		trustManager.Status.TrustNamespace = ns
-		changed = true
+	policyName := ""
+	if approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
+		policyName = trustManagerCertificateRequestPolicyName
 	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.SecretTargets.Policy; trustManager.Status.SecretTargetsPolicy != policy {
-		trustManager.Status.SecretTargetsPolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.DefaultCAPackage.Policy; trustManager.Status.DefaultCAPackagePolicy != policy {
-		trustManager.Status.DefaultCAPackagePolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.FilterExpiredCertificates; trustManager.Status.FilterExpiredCertificatesPolicy != policy {
-		trustManager.Status.FilterExpiredCertificatesPolicy = policy
+	if trustManager.Status.CertificateRequestPolicy != policyName {
+		trustManager.Status.CertificateRequestPolicy = policyName
 		changed = true
 	}
 

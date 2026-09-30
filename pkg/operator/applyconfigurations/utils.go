@@ -16,6 +16,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=operator.openshift.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("ApproverPolicyConfig"):
+		return &operatorv1alpha1.ApproverPolicyConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CertManager"):
 		return &operatorv1alpha1.CertManagerApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CertManagerConfig"):
@@ -58,6 +60,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.ServerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManager"):
 		return &operatorv1alpha1.TrustManagerApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerCertConfig"):
+		return &operatorv1alpha1.TrustManagerCertConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerConfig"):
 		return &operatorv1alpha1.TrustManagerConfigApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerControllerConfig"):
@@ -66,6 +70,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &operatorv1alpha1.TrustManagerSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("TrustManagerStatus"):
 		return &operatorv1alpha1.TrustManagerStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WebhookTLSConfig"):
+		return &operatorv1alpha1.WebhookTLSConfigApplyConfiguration{}
 
 	}
 	return nil

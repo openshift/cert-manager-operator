@@ -706,6 +706,15 @@ spec:
           - update
           - watch
         - apiGroups:
+          - policy.cert-manager.io
+          resources:
+          - certificaterequestpolicies
+          verbs:
+          - create
+          - delete
+          - get
+          - patch
+        - apiGroups:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings

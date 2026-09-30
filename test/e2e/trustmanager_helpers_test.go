@@ -14,8 +14,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -87,13 +87,18 @@ func (b *trustManagerCRBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsP
 	return b
 }
 
-func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerCRBuilder {
+func (b *trustManagerCRBuilder) WithDefaultCAPackage(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b
 }
 
-func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.FilterExpiredCertificatesPolicy) *trustManagerCRBuilder {
+func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.FilterExpiredCertificates = policy
+	return b
+}
+
+func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.FilterNonCACerts = policy
 	return b
 }
 
