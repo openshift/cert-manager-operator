@@ -66,7 +66,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 }
 
 func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.Service {
-	service := decodeServiceObjBytes(assets.MustAsset(serviceAssetName))
+	service := common.DecodeObjBytes[*corev1.Service](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAssetName))
 	common.UpdateNamespace(service, istiocsr.GetNamespace())
 	common.UpdateResourceLabels(service, resourceLabels)
 	if istiocsr.Spec.IstioCSRConfig.Server != nil {
@@ -76,7 +76,7 @@ func (r *Reconciler) getServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabel
 }
 
 func (r *Reconciler) getMetricsServiceObject(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) *corev1.Service {
-	service := decodeServiceObjBytes(assets.MustAsset(metricsServiceAssetName))
+	service := common.DecodeObjBytes[*corev1.Service](codecs, corev1.SchemeGroupVersion, assets.MustAsset(metricsServiceAssetName))
 	common.UpdateNamespace(service, istiocsr.GetNamespace())
 	common.UpdateResourceLabels(service, resourceLabels)
 	return service

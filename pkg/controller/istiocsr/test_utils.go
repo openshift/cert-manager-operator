@@ -25,6 +25,7 @@ import (
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	"github.com/openshift/cert-manager-operator/pkg/testutil"
 )
@@ -138,7 +139,7 @@ func testACMEIssuer() *certmanagerv1.ClusterIssuer {
 }
 
 func testCertificate() *certmanagerv1.Certificate {
-	cert := decodeCertificateObjBytes(assets.MustAsset(certificateAssetName))
+	cert := common.DecodeObjBytes[*certmanagerv1.Certificate](codecs, certmanagerv1.SchemeGroupVersion, assets.MustAsset(certificateAssetName))
 	cert.SetNamespace(testIstiodNamespace)
 	labels := make(map[string]string)
 	maps.Copy(labels, controllerDefaultResourceLabels)
@@ -154,14 +155,14 @@ func testCertificate() *certmanagerv1.Certificate {
 }
 
 func testClusterRole() *rbacv1.ClusterRole {
-	role := decodeClusterRoleObjBytes(assets.MustAsset(clusterRoleAssetName))
+	role := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleAssetName))
 	role.SetName("cert-manager-istio-csr-sdghj")
 	role.SetLabels(controllerDefaultResourceLabels)
 	return role
 }
 
 func testClusterRoleBinding() *rbacv1.ClusterRoleBinding {
-	roleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.ClusterRoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleBindingAssetName))
 	roleBinding.SetName("cert-manager-istio-csr-dfkhk")
 	roleBinding.SetGenerateName("cert-manager-istio-csr-")
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
@@ -169,7 +170,7 @@ func testClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 }
 
 func testClusterRoleBindingExtra() *rbacv1.ClusterRoleBinding {
-	roleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.ClusterRoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleBindingAssetName))
 	roleBinding.SetName("cert-manager-istio-csr-dfmfj")
 	roleBinding.SetGenerateName("cert-manager-istio-csr-")
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
@@ -177,7 +178,7 @@ func testClusterRoleBindingExtra() *rbacv1.ClusterRoleBinding {
 }
 
 func testDeployment() *appsv1.Deployment {
-	deployment := decodeDeploymentObjBytes(assets.MustAsset(deploymentAssetName))
+	deployment := common.DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, assets.MustAsset(deploymentAssetName))
 	deployment.SetNamespace(testIstioCSRNamespace)
 	deployment.SetLabels(controllerDefaultResourceLabels)
 	deployment.Spec.Template.Labels = controllerDefaultResourceLabels
@@ -186,42 +187,42 @@ func testDeployment() *appsv1.Deployment {
 }
 
 func testRole() *rbacv1.Role {
-	role := decodeRoleObjBytes(assets.MustAsset(roleAssetName))
+	role := common.DecodeObjBytes[*rbacv1.Role](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleAssetName))
 	role.SetNamespace(testIstiodNamespace)
 	role.SetLabels(controllerDefaultResourceLabels)
 	return role
 }
 
 func testRoleBinding() *rbacv1.RoleBinding {
-	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.RoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleBindingAssetName))
 	roleBinding.SetNamespace(testIstiodNamespace)
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
 	return roleBinding
 }
 
 func testRoleLeases() *rbacv1.Role {
-	role := decodeRoleObjBytes(assets.MustAsset(roleLeasesAssetName))
+	role := common.DecodeObjBytes[*rbacv1.Role](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleLeasesAssetName))
 	role.SetNamespace(testIstiodNamespace)
 	role.SetLabels(controllerDefaultResourceLabels)
 	return role
 }
 
 func testRoleBindingLeases() *rbacv1.RoleBinding {
-	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingLeasesAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.RoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleBindingLeasesAssetName))
 	roleBinding.SetNamespace(testIstiodNamespace)
 	roleBinding.SetLabels(controllerDefaultResourceLabels)
 	return roleBinding
 }
 
 func testService() *corev1.Service {
-	service := decodeServiceObjBytes(assets.MustAsset(serviceAssetName))
+	service := common.DecodeObjBytes[*corev1.Service](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAssetName))
 	service.SetNamespace(testIstioCSRNamespace)
 	service.SetLabels(controllerDefaultResourceLabels)
 	return service
 }
 
 func testServiceAccount() *corev1.ServiceAccount {
-	serviceAccount := decodeServiceAccountObjBytes(assets.MustAsset(serviceAccountAssetName))
+	serviceAccount := common.DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAccountAssetName))
 	serviceAccount.SetNamespace(testIstioCSRNamespace)
 	serviceAccount.SetLabels(controllerDefaultResourceLabels)
 	return serviceAccount
