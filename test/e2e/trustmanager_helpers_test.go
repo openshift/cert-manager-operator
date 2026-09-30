@@ -14,8 +14,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -97,6 +97,16 @@ func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.Fi
 	return b
 }
 
+func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.FilterNonCACertsPolicy) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.FilterNonCACerts = policy
+	return b
+}
+
+func (b *trustManagerCRBuilder) WithTargetNamespaces(namespaces ...string) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.TargetNamespaces = namespaces
+	return b
+}
+
 func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 	return b.tm
 }
@@ -145,6 +155,10 @@ func cleanupTrustManagerOperandLeavings(ctx context.Context) {
 	}, lowTimeout, fastPollInterval).Should(BeTrue())
 
 	deleteTrustManagerDefaultCAPackageConfigMap(ctx)
+
+	By("cleaning up leftover target namespace Role and RoleBinding in the trust namespace")
+	_ = k8sClientSet.RbacV1().Roles(trustManagerNamespace).Delete(ctx, "trust-manager-target", metav1.DeleteOptions{})
+	_ = k8sClientSet.RbacV1().RoleBindings(trustManagerNamespace).Delete(ctx, "trust-manager-target", metav1.DeleteOptions{})
 }
 
 // deleteTrustManagerDefaultCAPackageConfigMap removes the operand ConfigMap created when
