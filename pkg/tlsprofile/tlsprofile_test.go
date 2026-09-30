@@ -158,3 +158,47 @@ func TestCertManagerOperandMetricsTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
 		t.Fatalf("unexpected args: %#v", args)
 	}
 }
+
+func TestTrustManagerWebhookTLSArgs_nilSpecReturnsEmpty(t *testing.T) {
+	args := TrustManagerWebhookTLSArgs(nil)
+	if len(args) != 0 {
+		t.Fatalf("expected empty args, got %#v", args)
+	}
+}
+
+func TestTrustManagerWebhookTLSArgs_joinsCiphers(t *testing.T) {
+	spec := &configv1.TLSProfileSpec{
+		Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "TLS_AES_128_GCM_SHA256"},
+		MinTLSVersion: configv1.VersionTLS12,
+	}
+	args := TrustManagerWebhookTLSArgs(spec)
+	argMap := map[string]string{}
+	for _, a := range args {
+		parts := strings.SplitN(a, "=", 2)
+		if len(parts) != 2 {
+			t.Fatalf("bad arg %q", a)
+		}
+		argMap[parts[0]] = parts[1]
+	}
+	if argMap["--tls-min-version"] != "VersionTLS12" {
+		t.Fatalf("unexpected min version: %q", argMap["--tls-min-version"])
+	}
+	if !strings.Contains(argMap["--tls-cipher-suites"], "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256") {
+		t.Fatalf("unexpected tls ciphers: %q", argMap["--tls-cipher-suites"])
+	}
+}
+
+func TestTrustManagerWebhookTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
+	spec := &configv1.TLSProfileSpec{
+		Ciphers: []string{
+			"TLS_AES_128_GCM_SHA256",
+			"TLS_AES_256_GCM_SHA384",
+			"TLS_CHACHA20_POLY1305_SHA256",
+		},
+		MinTLSVersion: configv1.VersionTLS13,
+	}
+	args := TrustManagerWebhookTLSArgs(spec)
+	if len(args) != 1 || args[0] != "--tls-min-version=VersionTLS13" {
+		t.Fatalf("unexpected args: %#v", args)
+	}
+}

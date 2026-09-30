@@ -1,6 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: cert-manager-operator-serving-cert
   creationTimestamp: null
   labels:
     app.kubernetes.io/created-by: cert-manager-operator
