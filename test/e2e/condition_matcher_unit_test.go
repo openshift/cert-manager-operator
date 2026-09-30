@@ -62,6 +62,20 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 			errorContains: "context deadline exceeded",
 		},
 		{
+			name: "Degraded true after a false degraded using Any",
+			expectedConditions: map[string]opv1.ConditionStatus{
+				"Degraded": opv1.ConditionTrue,
+			},
+			initialObjects: []runtime.Object{
+				newCertManagerObjectWithConditions(
+					opv1.OperatorCondition{Type: controllerPrefix + "-static-resources-Degraded", Status: opv1.ConditionFalse},
+					opv1.OperatorCondition{Type: controllerPrefix + "-deploymentDegraded", Status: opv1.ConditionTrue},
+				),
+			},
+			matchAny:    true,
+			expectError: false,
+		},
+		{
 			name: "Both degraded is false",
 			expectedConditions: map[string]opv1.ConditionStatus{
 				"Available":   opv1.ConditionTrue,
