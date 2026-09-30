@@ -478,6 +478,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: selector
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.acme.v1.CertificateDNSNameSelector
+    - name: waitInsteadOfSelfCheck
+      type:
+        namedType: Duration.v1.meta.apis.pkg.apimachinery.k8s.io
 - name: com.github.cert-manager.cert-manager.pkg.apis.acme.v1.ACMEChallengeSolverDNS01
   map:
     fields:
@@ -1010,6 +1013,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: boolean
       default: false
+    - name: presentedAt
+      type:
+        namedType: Time.v1.meta.apis.pkg.apimachinery.k8s.io
     - name: processing
       type:
         scalar: boolean
@@ -1069,6 +1075,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: profile
       type:
         scalar: string
+    - name: replaces
+      type:
+        scalar: string
     - name: request
       type:
         scalar: string
@@ -1124,6 +1133,15 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.ACMERenewalWindow
+  map:
+    fields:
+    - name: end
+      type:
+        namedType: Time.v1.meta.apis.pkg.apimachinery.k8s.io
+    - name: start
+      type:
+        namedType: Time.v1.meta.apis.pkg.apimachinery.k8s.io
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CAIssuer
   map:
     fields:
@@ -1170,6 +1188,30 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateStatus
       default: {}
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateACMEARIStatus
+  map:
+    fields:
+    - name: explanationURL
+      type:
+        scalar: string
+    - name: lastChecked
+      type:
+        namedType: Time.v1.meta.apis.pkg.apimachinery.k8s.io
+    - name: lastError
+      type:
+        scalar: string
+    - name: nextCheck
+      type:
+        namedType: Time.v1.meta.apis.pkg.apimachinery.k8s.io
+    - name: suggestedWindow
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.ACMERenewalWindow
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateACMEStatus
+  map:
+    fields:
+    - name: ari
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateACMEARIStatus
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateAdditionalOutputFormat
   map:
     fields:
@@ -1224,6 +1266,30 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: size
       type:
         scalar: numeric
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateRenewal
+  map:
+    fields:
+    - name: policy
+      type:
+        scalar: string
+    - name: windows
+      type:
+        list:
+          elementType:
+            namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateRenewalWindows
+          elementRelationship: atomic
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateRenewalWindows
+  map:
+    fields:
+    - name: cron
+      type:
+        scalar: string
+    - name: timezone
+      type:
+        scalar: string
+    - name: windowDuration
+      type:
+        namedType: Duration.v1.meta.apis.pkg.apimachinery.k8s.io
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateRequest
   map:
     fields:
@@ -1407,6 +1473,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: renewBeforePercentage
       type:
         scalar: numeric
+    - name: renewal
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateRenewal
     - name: revisionHistoryLimit
       type:
         scalar: numeric
@@ -1438,6 +1507,9 @@ var schemaYAML = typed.YAMLObject(`types:
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateStatus
   map:
     fields:
+    - name: acme
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.CertificateACMEStatus
     - name: conditions
       type:
         list:
@@ -1668,6 +1740,28 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VaultAWSAuth
+  map:
+    fields:
+    - name: iamRoleArn
+      type:
+        scalar: string
+    - name: mountPath
+      type:
+        scalar: string
+    - name: region
+      type:
+        scalar: string
+    - name: role
+      type:
+        scalar: string
+      default: ""
+    - name: serviceAccountRef
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.ServiceAccountRef
+    - name: vaultHeaderValue
+      type:
+        scalar: string
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VaultAppRole
   map:
     fields:
@@ -1689,6 +1783,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: appRole
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VaultAppRole
+    - name: aws
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VaultAWSAuth
     - name: clientCertificate
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VaultClientCertificateAuth
@@ -1776,6 +1873,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: cloud
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VenafiCloud
+    - name: ngts
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VenafiNGTS
     - name: tpp
       type:
         namedType: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VenafiTPP
@@ -1783,6 +1883,23 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VenafiNGTS
+  map:
+    fields:
+    - name: credentialsRef
+      type:
+        namedType: com.github.cert-manager.cert-manager.pkg.apis.meta.v1.LocalObjectReference
+      default: {}
+    - name: tokenEndpoint
+      type:
+        scalar: string
+    - name: tsgID
+      type:
+        scalar: string
+      default: ""
+    - name: url
+      type:
+        scalar: string
 - name: com.github.cert-manager.cert-manager.pkg.apis.certmanager.v1.VenafiTPP
   map:
     fields:
