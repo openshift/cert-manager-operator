@@ -72,6 +72,9 @@ func newGenericDeploymentController(
 		informers = append(informers, infraInformerFactory.Config().V1().APIServers().Informer())
 	}
 
+	// Enable HTTPS metrics before unsupported overrides so break-glass can still win.
+	hooks = append(hooks, withOperandMetricsTLS)
+
 	// unsupportedConfigOverrides must run after cluster TLS so break-glass operand args win.
 	hooks = append(hooks, withUnsupportedArgsOverrideHook)
 

@@ -140,3 +140,13 @@ func TestClientTLSConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestCurvePreferencesArgValue(t *testing.T) {
+	// Pin the numeric IDs so a silent reorder of DefaultCurvePreferences is caught.
+	// 29=X25519, 23=P-256, 24=P-384, 25=P-521 (crypto/tls.CurveID / kube-apiserver).
+	const want = "29,23,24,25"
+	got := CurvePreferencesArgValue()
+	if got != want {
+		t.Fatalf("CurvePreferencesArgValue() = %q, want %q", got, want)
+	}
+}
