@@ -318,7 +318,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			tt.preReq(r, mock)
 
 			tm := tt.tm.Build()
-			hash, err := r.createOrApplyDefaultCAPackageConfigMap(tm, testResourceLabels(), testResourceAnnotations())
+			hash, err := r.createOrApplyDefaultCAPackageConfigMap(context.Background(), tm, testResourceLabels(), testResourceAnnotations())
 			assertError(t, err, tt.wantErr)
 
 			if tt.wantHash && hash == "" {
