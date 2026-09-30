@@ -1,6 +1,7 @@
 package tlsprofile
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -156,5 +157,81 @@ func TestCertManagerOperandMetricsTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
 	args := CertManagerOperandMetricsTLSArgs(spec)
 	if len(args) != 1 || args[0] != "--metrics-tls-min-version=VersionTLS13" {
 		t.Fatalf("unexpected args: %#v", args)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_nilSpecReturnsEmpty(t *testing.T) {
+	args := IstioCSRServingTLSArgs(nil)
+	if len(args) != 0 {
+		t.Fatalf("expected empty args, got %#v", args)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_repeatsCiphersAndCurves(t *testing.T) {
+	spec := &configv1.TLSProfileSpec{
+		Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "ECDHE-RSA-AES256-GCM-SHA384"},
+		MinTLSVersion: configv1.VersionTLS12,
+	}
+	args := IstioCSRServingTLSArgs(spec)
+
+	if args[0] != "--serving-tls-min-version=VersionTLS12" {
+		t.Fatalf("unexpected first arg: %q", args[0])
+	}
+
+	var ciphers, curves []string
+	for _, a := range args[1:] {
+		parts := strings.SplitN(a, "=", 2)
+		if len(parts) != 2 {
+			t.Fatalf("bad arg %q", a)
+		}
+		switch parts[0] {
+		case "--serving-tls-cipher-suites":
+			ciphers = append(ciphers, parts[1])
+		case "--serving-tls-curve-preferences":
+			curves = append(curves, parts[1])
+		default:
+			t.Fatalf("unexpected arg key %q", parts[0])
+		}
+	}
+
+	wantCiphers := []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"}
+	if !reflect.DeepEqual(ciphers, wantCiphers) {
+		t.Fatalf("unexpected cipher-suite flags: got %#v, want %#v", ciphers, wantCiphers)
+	}
+
+	wantCurves := []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
+	if !reflect.DeepEqual(curves, wantCurves) {
+		t.Fatalf("unexpected curve-preference flags: got %#v, want %#v", curves, wantCurves)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_tls13OmitsCipherFlagsButKeepsCurves(t *testing.T) {
+	spec := &configv1.TLSProfileSpec{
+		Ciphers: []string{
+			"TLS_AES_128_GCM_SHA256",
+			"TLS_AES_256_GCM_SHA384",
+			"TLS_CHACHA20_POLY1305_SHA256",
+		},
+		MinTLSVersion: configv1.VersionTLS13,
+	}
+	args := IstioCSRServingTLSArgs(spec)
+
+	if args[0] != "--serving-tls-min-version=VersionTLS13" {
+		t.Fatalf("unexpected first arg: %q", args[0])
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "--serving-tls-cipher-suites") {
+			t.Fatalf("TLS 1.3 must not set cipher flags, got %q", a)
+		}
+	}
+
+	var curveCount int
+	for _, a := range args {
+		if strings.HasPrefix(a, "--serving-tls-curve-preferences=") {
+			curveCount++
+		}
+	}
+	if curveCount != 4 {
+		t.Fatalf("expected 4 curve-preference flags for TLS 1.3, got %d (args=%#v)", curveCount, args)
 	}
 }
