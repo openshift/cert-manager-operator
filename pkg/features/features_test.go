@@ -65,6 +65,7 @@ var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 	// list of features which are expected to be disabled at runtime.
 	false: {
 		featuregate.Feature("TrustManager"),
+		featuregate.Feature("HTTP01Proxy"),
 	},
 }
 
@@ -87,7 +88,7 @@ func TestFeatureGates(t *testing.T) {
 		}
 		slices.Sort(knownOperatorFeatures)
 
-		assert.Equal(t, knownOperatorFeatures, testFeatureNames,
+		assert.ElementsMatch(t, knownOperatorFeatures, testFeatureNames,
 			`the list of features known to the operator differ from what is being tested here,
 			it could be that there was a new Feature added to the api which wasn't added to the tests.
 			Please verify "api/operator/v1alpha1" and "pkg/features" have identical features.`)
@@ -102,7 +103,7 @@ func TestFeatureGates(t *testing.T) {
 		}
 	})
 
-	t.Run("all TechPreview features should be disabled by default", func(t *testing.T) {
+	t.Run("all pre-GA features should be disabled by default", func(t *testing.T) {
 		feats := mutableFeatureGate.GetAll()
 		for feat, spec := range feats {
 			// skip "AllBeta", "AllAlpha": our operator does not use those
@@ -110,9 +111,10 @@ func TestFeatureGates(t *testing.T) {
 				continue
 			}
 
-			assert.Equal(t, spec.PreRelease == "TechPreview", !spec.Default,
-				"prerelease TechPreview %q feature should default to disabled",
-				feat)
+			isPreGA := spec.PreRelease == "TechPreview" || spec.PreRelease == featuregate.Alpha || spec.PreRelease == featuregate.Beta
+			assert.Equal(t, isPreGA, !spec.Default,
+				"pre-GA %q feature (prerelease=%s) should default to disabled",
+				feat, spec.PreRelease)
 		}
 	})
 
