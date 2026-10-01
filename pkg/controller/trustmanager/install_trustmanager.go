@@ -10,7 +10,8 @@ import (
 
 func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.TrustManager) error {
 	if err := validateTrustManagerConfig(trustManager); err != nil {
-		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName())
+		return common.NewIrrecoverableError(err, "%s configuration validation failed", trustManager.GetName()).
+			WithConditionReason(v1alpha1.ReasonValidationFailed)
 	}
 
 	resourceLabels := getResourceLabels(trustManager)
@@ -18,7 +19,8 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 
 	trustNamespace := getTrustNamespace(trustManager)
 	if err := r.validateTrustNamespace(trustNamespace); err != nil {
-		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)
+		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace).
+			WithConditionReason(v1alpha1.ReasonWaitingForDependencies)
 	}
 
 	caBundleHash, err := r.createOrApplyDefaultCAPackageConfigMap(trustManager, resourceLabels, resourceAnnotations)
