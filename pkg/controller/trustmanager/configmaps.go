@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,7 +53,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 	if err != nil {
 		return "", common.FromClientError(err, "failed to check if ConfigMap %q exists", cmName)
 	}
-	if exists && !configMapModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ConfigMapDataModified(desired, existing) {
 		r.log.V(4).Info("default CA package ConfigMap exists and is in desired state", "name", cmName)
 		return bundleHash, nil
 	}
@@ -137,10 +136,4 @@ func buildDefaultCAPackageConfigMap(pkgJSON []byte, resourceLabels, resourceAnno
 	common.UpdateResourceLabels(cm, resourceLabels)
 	updateResourceAnnotations(cm, resourceAnnotations)
 	return cm
-}
-
-// configMapModified checks whether the desired ConfigMap differs from the existing one.
-func configMapModified(desired, existing *corev1.ConfigMap) bool {
-	return managedMetadataModified(desired, existing) ||
-		!maps.Equal(desired.Data, existing.Data)
 }

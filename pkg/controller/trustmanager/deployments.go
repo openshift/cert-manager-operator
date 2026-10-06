@@ -298,7 +298,7 @@ func updateTLSSecretVolume(deployment *appsv1.Deployment) {
 // compared to avoid false positives from API-server-defaulted probe scalars
 // (TimeoutSeconds, SuccessThreshold, FailureThreshold).
 func deploymentModified(desired, existing *appsv1.Deployment) bool {
-	if managedMetadataModified(desired, existing) {
+	if common.ManagedMetadataModified(desired, existing) {
 		return true
 	}
 
