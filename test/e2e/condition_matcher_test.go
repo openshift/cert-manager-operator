@@ -43,18 +43,30 @@ func (m *ConditionMatcher) MatchesStatus(cond *opv1.OperatorCondition) bool {
 func (m *ConditionMatcher) Matches(conditions []opv1.OperatorCondition) bool {
 	matchCount := 0
 	for _, cond := range conditions {
-		if m.MatchesType(&cond) && m.MatchesStatus(&cond) {
+		if !m.MatchesType(&cond) {
+			continue
+		}
 
+		if m.MatchesStatus(&cond) {
 			if m.Any {
 				return true
 			}
-
 			matchCount += 1
+			continue
 		}
 
-		if m.MatchesType(&cond) && !m.MatchesStatus(&cond) {
+		// Status mismatch on a matching type: in "match all" mode this
+		// disqualifies the whole matcher immediately. In "match any" mode,
+		// a mismatch here must not short-circuit other conditions of the
+		// same type (e.g. "*-deploymentDegraded" vs "*-static-resources-Degraded")
+		// that may still satisfy the expected status later in the slice.
+		if !m.Any {
 			return false
 		}
+	}
+
+	if m.Any {
+		return false
 	}
 
 	return matchCount > 0
