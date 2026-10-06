@@ -2,11 +2,8 @@ package trustmanager
 
 import (
 	"fmt"
-	"reflect"
-	"slices"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -28,7 +25,7 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 	if err != nil {
 		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
 	}
-	if exists && !issuerModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.IssuerSpecModified(desired, existing) {
 		r.log.V(4).Info("issuer resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -62,7 +59,7 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 	if err != nil {
 		return common.FromClientError(err, "failed to check if certificate %q exists", resourceName)
 	}
-	if exists && !certificateModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.CertificateManagedFieldsModified(desired, existing) {
 		r.log.V(4).Info("certificate resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -94,27 +91,4 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 	}
 
 	return certificate
-}
-
-// issuerModified compares only the fields we manage via SSA.
-func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.Spec, existing.Spec)
-}
-
-// certificateModified compares only the fields we manage via SSA.
-// We compare individual spec fields rather than the full Spec because
-// cert-manager's webhook may default fields we don't set (e.g. Duration).
-func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
-	if managedMetadataModified(desired, existing) {
-		return true
-	}
-	if desired.Spec.CommonName != existing.Spec.CommonName ||
-		!slices.Equal(desired.Spec.DNSNames, existing.Spec.DNSNames) ||
-		desired.Spec.SecretName != existing.Spec.SecretName ||
-		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
-		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) {
-		return true
-	}
-	return false
 }

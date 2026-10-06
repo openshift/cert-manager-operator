@@ -2,7 +2,6 @@ package trustmanager
 
 import (
 	"fmt"
-	"reflect"
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
@@ -60,7 +59,7 @@ func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManage
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
-	if exists && !clusterRoleModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
 		r.log.V(4).Info("clusterrole resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -120,7 +119,9 @@ func (r *Reconciler) createOrApplyClusterRoleBinding(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
 	}
-	if exists && !clusterRoleBindingModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) &&
+		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
+		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
 		r.log.V(4).Info("clusterrolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -156,7 +157,7 @@ func (r *Reconciler) createOrApplyTrustNamespaceRole(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if role %q exists", resourceName)
 	}
-	if exists && !roleModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
 		r.log.V(4).Info("role resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -191,7 +192,9 @@ func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(trustManager *v1alph
 	if err != nil {
 		return common.FromClientError(err, "failed to check if rolebinding %q exists", resourceName)
 	}
-	if exists && !roleBindingModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) &&
+		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
+		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
 		r.log.V(4).Info("rolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -228,7 +231,7 @@ func (r *Reconciler) createOrApplyLeaderElectionRole(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election role %q exists", resourceName)
 	}
-	if exists && !roleModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
 		r.log.V(4).Info("leader election role resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -263,7 +266,9 @@ func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(trustManager *v1alph
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election rolebinding %q exists", resourceName)
 	}
-	if exists && !roleBindingModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) &&
+		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
+		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
 		r.log.V(4).Info("leader election rolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -296,30 +301,4 @@ func updateBindingSubjects(subjects []rbacv1.Subject, serviceAccountName, namesp
 			subjects[i].Namespace = namespace
 		}
 	}
-}
-
-// clusterRoleModified compares only the fields we manage via SSA.
-func clusterRoleModified(desired, existing *rbacv1.ClusterRole) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.Rules, existing.Rules)
-}
-
-// clusterRoleBindingModified compares only the fields we manage via SSA.
-func clusterRoleBindingModified(desired, existing *rbacv1.ClusterRoleBinding) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.RoleRef, existing.RoleRef) ||
-		!reflect.DeepEqual(desired.Subjects, existing.Subjects)
-}
-
-// roleModified compares only the fields we manage via SSA.
-func roleModified(desired, existing *rbacv1.Role) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.Rules, existing.Rules)
-}
-
-// roleBindingModified compares only the fields we manage via SSA.
-func roleBindingModified(desired, existing *rbacv1.RoleBinding) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.RoleRef, existing.RoleRef) ||
-		!reflect.DeepEqual(desired.Subjects, existing.Subjects)
 }

@@ -76,7 +76,7 @@ func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingW
 // Individual webhook fields are compared explicitly because the API server
 // defaults fields like matchPolicy, namespaceSelector, and objectSelector.
 func webhookConfigModified(desired, existing *admissionregistrationv1.ValidatingWebhookConfiguration) bool {
-	if managedMetadataModified(desired, existing) {
+	if common.ManagedMetadataModified(desired, existing) {
 		return true
 	}
 	if len(desired.Webhooks) != len(existing.Webhooks) {

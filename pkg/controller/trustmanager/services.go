@@ -2,8 +2,6 @@ package trustmanager
 
 import (
 	"fmt"
-	"maps"
-	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,7 +30,7 @@ func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, d
 	if err != nil {
 		return common.FromClientError(err, "failed to check if service %q exists", serviceName)
 	}
-	if exists && !serviceModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ServiceSpecModified(desired, existing) {
 		r.log.V(4).Info("service resource exists and is in desired state", "name", serviceName)
 		return nil
 	}
@@ -44,19 +42,6 @@ func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, d
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "service resource %s applied", serviceName)
 	return nil
-}
-
-// serviceModified compares only the fields we manage via SSA.
-func serviceModified(desired, existing *corev1.Service) bool {
-	if managedMetadataModified(desired, existing) {
-		return true
-	}
-	if desired.Spec.Type != existing.Spec.Type ||
-		!maps.Equal(desired.Spec.Selector, existing.Spec.Selector) ||
-		!reflect.DeepEqual(desired.Spec.Ports, existing.Spec.Ports) {
-		return true
-	}
-	return false
 }
 
 func getWebhookServiceObject(resourceLabels, resourceAnnotations map[string]string) *corev1.Service {

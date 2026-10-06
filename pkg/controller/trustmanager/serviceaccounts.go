@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -22,7 +21,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 	if err != nil {
 		return common.FromClientError(err, "failed to check if serviceaccount %q exists", serviceAccountName)
 	}
-	if exists && !serviceAccountModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ServiceAccountModified(desired, existing) {
 		r.log.V(4).Info("serviceaccount resource exists and is in desired state", "name", serviceAccountName)
 		return nil
 	}
@@ -34,12 +33,6 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "serviceaccount resource %s applied", serviceAccountName)
 	return nil
-}
-
-// serviceAccountModified compares only the fields we manage via SSA.
-func serviceAccountModified(desired, existing *corev1.ServiceAccount) bool {
-	return managedMetadataModified(desired, existing) ||
-		!ptr.Equal(desired.AutomountServiceAccountToken, existing.AutomountServiceAccountToken)
 }
 
 func (r *Reconciler) getServiceAccountObject(resourceLabels, resourceAnnotations map[string]string) *corev1.ServiceAccount {
