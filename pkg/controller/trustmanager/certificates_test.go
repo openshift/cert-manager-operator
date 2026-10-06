@@ -3,6 +3,7 @@ package trustmanager
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,16 +58,8 @@ func TestIssuerObject(t *testing.T) {
 			if tt.wantNamespace != "" && issuer.Namespace != tt.wantNamespace {
 				t.Errorf("expected namespace %q, got %q", tt.wantNamespace, issuer.Namespace)
 			}
-			for key, val := range tt.wantLabels {
-				if issuer.Labels[key] != val {
-					t.Errorf("expected label %s=%q, got %q", key, val, issuer.Labels[key])
-				}
-			}
-			for key, val := range tt.wantAnnotations {
-				if issuer.Annotations[key] != val {
-					t.Errorf("expected annotation %s=%q, got %q", key, val, issuer.Annotations[key])
-				}
-			}
+			assertMapEntries(t, "label", issuer.Labels, tt.wantLabels)
+			assertMapEntries(t, "annotation", issuer.Annotations, tt.wantAnnotations)
 		})
 	}
 }
@@ -117,29 +110,13 @@ func TestCertificateObject(t *testing.T) {
 			if tt.wantNamespace != "" && cert.Namespace != tt.wantNamespace {
 				t.Errorf("expected namespace %q, got %q", tt.wantNamespace, cert.Namespace)
 			}
-			for key, val := range tt.wantLabels {
-				if cert.Labels[key] != val {
-					t.Errorf("expected label %s=%q, got %q", key, val, cert.Labels[key])
-				}
-			}
-			for key, val := range tt.wantAnnotations {
-				if cert.Annotations[key] != val {
-					t.Errorf("expected annotation %s=%q, got %q", key, val, cert.Annotations[key])
-				}
-			}
+			assertMapEntries(t, "label", cert.Labels, tt.wantLabels)
+			assertMapEntries(t, "annotation", cert.Annotations, tt.wantAnnotations)
 			if cert.Spec.SecretTemplate == nil {
 				t.Fatal("expected secretTemplate to be set")
 			}
-			for key, val := range tt.wantLabels {
-				if cert.Spec.SecretTemplate.Labels[key] != val {
-					t.Errorf("expected secretTemplate label %s=%q, got %q", key, val, cert.Spec.SecretTemplate.Labels[key])
-				}
-			}
-			for key, val := range tt.wantAnnotations {
-				if cert.Spec.SecretTemplate.Annotations[key] != val {
-					t.Errorf("expected secretTemplate annotation %s=%q, got %q", key, val, cert.Spec.SecretTemplate.Annotations[key])
-				}
-			}
+			assertMapEntries(t, "secretTemplate label", cert.Spec.SecretTemplate.Labels, tt.wantLabels)
+			assertMapEntries(t, "secretTemplate annotation", cert.Spec.SecretTemplate.Annotations, tt.wantAnnotations)
 		})
 	}
 }
@@ -535,17 +512,6 @@ func TestSecretTemplateModified(t *testing.T) {
 			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm", "extra": "yes"}},
 		},
 		{
-			name:     "nil and empty annotations are not modified",
-			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
-			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}, Annotations: map[string]string{}},
-		},
-		{
-			name:     "annotation drift is modified",
-			desired:  &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "v"}},
-			existing: &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "other"}},
-			want:     true,
-		},
-		{
 			name:     "absent label with empty desired value is modified",
 			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
 			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{}},
@@ -555,6 +521,17 @@ func TestSecretTemplateModified(t *testing.T) {
 			name:     "present label with empty value is not modified",
 			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
 			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": ""}},
+		},
+		{
+			name:     "nil and empty annotations are not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}, Annotations: map[string]string{}},
+		},
+		{
+			name:     "annotation drift is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "v"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"k": "other"}},
+			want:     true,
 		},
 		{
 			name:     "absent annotation with empty desired value is modified",
@@ -573,18 +550,50 @@ func TestSecretTemplateModified(t *testing.T) {
 	}
 }
 
-func TestCertificateSecretTemplateClonesMaps(t *testing.T) {
-	labels := map[string]string{"app": "original"}
-	annotations := map[string]string{"note": "original"}
-	template := certificateSecretTemplate(labels, annotations)
-
-	labels["app"] = "mutated"
-	annotations["note"] = "mutated"
-
-	if template.Labels["app"] != "original" {
-		t.Errorf("expected cloned label to stay %q, got %q", "original", template.Labels["app"])
+// assertMapEntries checks that every expected key is present in got with the same value.
+// Extra keys in got are ignored.
+func assertMapEntries(t *testing.T, field string, got, want map[string]string) {
+	t.Helper()
+	for key, val := range want {
+		if got[key] != val {
+			t.Errorf("expected %s %s=%q, got %q", field, key, val, got[key])
+		}
 	}
-	if template.Annotations["note"] != "original" {
-		t.Errorf("expected cloned annotation to stay %q, got %q", "original", template.Annotations["note"])
+}
+
+// TestSecretTemplateIndependentOfCertificateMetadata checks that spec.secretTemplate
+// keeps its own copies of the label and annotation maps. Editing Certificate metadata
+// afterward must not change the template applied to the webhook TLS Secret.
+func TestSecretTemplateIndependentOfCertificateMetadata(t *testing.T) {
+	tm := testTrustManager().
+		WithLabels(map[string]string{"user-label": "label-value"}).
+		WithAnnotations(map[string]string{"user-annotation": "annotation-value"}).
+		Build()
+	labels := getResourceLabels(tm)
+	annotations := getResourceAnnotations(tm)
+	cert := getCertificateObject(labels, annotations)
+	if cert.Spec.SecretTemplate == nil {
+		t.Fatal("expected secretTemplate to be set")
+	}
+
+	wantLabels := maps.Clone(cert.Spec.SecretTemplate.Labels)
+	wantAnnotations := maps.Clone(cert.Spec.SecretTemplate.Annotations)
+
+	// SetLabels stores this map on the Certificate, so editing cert.Labels edits labels too.
+	cert.Labels["user-label"] = "mutated"
+	cert.Labels["extra-label"] = "added"
+	if labels["user-label"] != "mutated" {
+		t.Fatal("editing certificate labels did not edit the map passed to getCertificateObject")
+	}
+	// updateResourceAnnotations copies this map onto the Certificate, so edit the
+	// source map that certificateSecretTemplate received.
+	annotations["user-annotation"] = "mutated"
+	annotations["extra-annotation"] = "added"
+
+	if !maps.Equal(cert.Spec.SecretTemplate.Labels, wantLabels) {
+		t.Errorf("secretTemplate labels = %v, want %v", cert.Spec.SecretTemplate.Labels, wantLabels)
+	}
+	if !maps.Equal(cert.Spec.SecretTemplate.Annotations, wantAnnotations) {
+		t.Errorf("secretTemplate annotations = %v, want %v", cert.Spec.SecretTemplate.Annotations, wantAnnotations)
 	}
 }
