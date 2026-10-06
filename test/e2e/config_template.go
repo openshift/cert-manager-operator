@@ -31,12 +31,16 @@ type IstioCSRGRPCurlJobConfig struct {
 	ServiceAccountName        string
 }
 
-// ServiceMonitorConfig customizes fields in the ServiceMonitor spec
+// ServiceMonitorConfig customizes fields in the ServiceMonitor spec.
+// ServerName must be a DNS identity on that operand's metrics certificate
+// (<service>.<namespace>.svc). One ServiceMonitor cannot share a serverName
+// across controller, webhook, and cainjector.
 type ServiceMonitorConfig struct {
 	Name          string
 	Namespace     string
 	AppName       string
 	ComponentName string
+	ServerName    string
 }
 
 // OSSMv3Config customizes OpenShift Service Mesh v3 install manifests.
