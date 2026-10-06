@@ -31,7 +31,7 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 	if err != nil {
 		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
 	}
-	if exists && !issuerModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !common.IssuerSpecModified(desired, existing) {
 		r.log.V(4).Info("issuer resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -65,7 +65,7 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 	if err != nil {
 		return common.FromClientError(err, "failed to check if certificate %q exists", resourceName)
 	}
-	if exists && !certificateModified(desired, existing) {
+	if exists && !common.ManagedMetadataModified(desired, existing) && !certificateModified(desired, existing) {
 		r.log.V(4).Info("certificate resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -125,19 +125,11 @@ func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, re
 	return template
 }
 
-// issuerModified compares only the fields we manage via SSA.
-func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
-	return managedMetadataModified(desired, existing) ||
-		!reflect.DeepEqual(desired.Spec, existing.Spec)
-}
-
-// certificateModified compares only the fields we manage via SSA.
-// We compare individual spec fields rather than the full Spec because
-// cert-manager's webhook may default fields we don't set (e.g. Duration).
+// certificateModified compares the Certificate spec fields this controller sets.
+// Other spec fields are ignored because the cert-manager webhook defaults them
+// (for example Duration). secretTemplate uses ownership-aware comparison so
+// extra keys owned by another manager are not treated as drift.
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
-	if managedMetadataModified(desired, existing) {
-		return true
-	}
 	if desired.Spec.CommonName != existing.Spec.CommonName ||
 		!slices.Equal(desired.Spec.DNSNames, existing.Spec.DNSNames) ||
 		desired.Spec.SecretName != existing.Spec.SecretName ||

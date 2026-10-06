@@ -193,37 +193,6 @@ func updateResourceAnnotations(obj client.Object, annotations map[string]string)
 	obj.SetAnnotations(existing)
 }
 
-// managedLabelsModified checks whether all labels present in desired exist
-// with matching values in existing. Extra labels on existing (added by users
-// or other controllers) are allowed and do not count as modified.
-func managedLabelsModified(desired, existing client.Object) bool {
-	existingLabels := existing.GetLabels()
-	for k, v := range desired.GetLabels() {
-		if existingLabels[k] != v {
-			return true
-		}
-	}
-	return false
-}
-
-// managedAnnotationsModified checks whether all annotations present in desired
-// exist with matching values in existing. Extra annotations on existing are
-// allowed and do not count as modified.
-func managedAnnotationsModified(desired, existing client.Object) bool {
-	existingAnnotations := existing.GetAnnotations()
-	for k, v := range desired.GetAnnotations() {
-		if existingAnnotations[k] != v {
-			return true
-		}
-	}
-	return false
-}
-
-// managedMetadataModified returns true if any managed label or annotation has drifted.
-func managedMetadataModified(desired, existing client.Object) bool {
-	return managedLabelsModified(desired, existing) || managedAnnotationsModified(desired, existing)
-}
-
 // namespaceExists checks if a namespace exists in the cluster.
 func (r *Reconciler) namespaceExists(namespace string) (bool, error) {
 	ns := &corev1.Namespace{}
