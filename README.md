@@ -21,14 +21,16 @@ The Operator automatically deploys a cluster-scoped `CertManager` object named `
 +- bundle
   +- cert-manager-operator
     +- manifests - This operator's CRDs
-+- cmd
++- config - Template for generating OLM bundle
 +- deploy
   +- examples - Examples to make testing easier
++- docs - Product documentation (proxy, cloud credentials, metrics)
 +- hack - All sorts of scripts
++- harness-evals - Architecture docs, ADRs, and coding guidelines
 +- images
   +- ci - Dockerfile
-+- config - Template for generating OLM bundle
 +- pkg
++- test - End-to-end and integration tests
 +- tools
 +- vendor
 ```
@@ -74,7 +76,7 @@ Prepare your environment for the installation commands.
 
    Note: If you're on a non-x86 arch like arm64, you may need to use commands like `docker buildx build --platform linux/amd64` or `podman build --platform linux/amd64` to specific the target platforms in the Makefile. (Docs link: [Docker](https://docs.docker.com/engine/reference/commandline/buildx_build/#platform), [Podman](https://docs.podman.io/en/stable/markdown/podman-build.1.html#platform-os-arch-variant))
 
-2. _Optional_: you may need to link the registry secret to `cert-manager-operator` service account if the image is not public ([Doc link](https://docs.openshift.com/container-platform/4.10/openshift_images/managing_images/using-image-pull-secrets.html#images-allow-pods-to-reference-images-from-secure-registries_using-image-pull-secrets)):
+2. _Optional_: you may need to link the registry secret to `cert-manager-operator` service account if the image is not public ([Doc link](https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-allow-pods-to-reference-images-from-secure-registries_using-image-pull-secrets)):
 
     a. Create a secret with authentication details of your image registry:
     ```sh
@@ -108,38 +110,19 @@ Use the following command to update all generated resources:
 
 ## Upgrading cert-manager
 
-Update the version of cert-manager in the `Makefile`:
+Update `CERT_MANAGER_VERSION` in the `Makefile`, then regenerate the bundled manifests:
 
 ```shell
-  $ git diff Makefile
-  diff --git a/Makefile b/Makefile
-  index e414cc7..d04d45d 100644
-  --- a/Makefile
-  +++ b/Makefile
-  @@ -13,7 +13,7 @@ BUNDLE_IMAGE_TAG?=latest
-  
-  TEST_OPERATOR_NAMESPACE?=cert-manager-operator
-  
-  -MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
-  +MANIFEST_SOURCE = https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
-  
-  OPERATOR_SDK_VERSION?=v1.12.0
-  OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk-$(OPERATOR_SDK_VERSION)
+make update-manifests
 ```
 
-Execute the `update-manifests` target:
+After regeneration, update the matching `RELATED_IMAGE_*` env vars and `*_OPERAND_IMAGE_VERSION` constants in `config/manager/manager.yaml` to match, then run:
 
 ```shell
-$ make update
-hack/update-cert-manager-manifests.sh https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
----- Downloading manifest file from https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml ----
----- Installing tooling ----
----- Patching manifest ----
-cert-manager-crds/certificaterequests.cert-manager.io-crd.yaml
-...
+make bundle
 ```
 
-Check the changes in the `bindata/` folder and assert any inconsistencies or errors.
+Check the changes in the `bindata/` folder and assert any inconsistencies or errors. See [harness-evals/harness-docs/CERT_MANAGER_OPERATOR_DEVELOPMENT.md](harness-evals/harness-docs/CERT_MANAGER_OPERATOR_DEVELOPMENT.md) for the full bump checklist.
 
 ## Running tests locally
 
@@ -193,4 +176,4 @@ spec:
 ```
 ## Metrics and Monitoring
 
-The guide to [enable the cert-manager metrics and monitoring](https://github.com/openshift/cert-manager-operator/tree/master/docs/operand_metrics.md) will help you get started.
+The guide to [enable the cert-manager metrics and monitoring](docs/operand_metrics.md) will help you get started.
