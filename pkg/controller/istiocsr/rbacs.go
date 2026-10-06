@@ -469,7 +469,7 @@ func (r *Reconciler) handleClusterRoleBindingModification(istiocsr *v1alpha1.Ist
 	desired.SetGenerateName("")
 	// ClusterRoleBinding.RoleRef is immutable; a new ClusterRole name (e.g. after delete/recreate
 	// with GenerateName) cannot be applied via Update.
-	if rbacRoleBindingRefModified(desired, fetched) {
+	if common.RBACRoleRefModified(desired.RoleRef, fetched.RoleRef) {
 		r.log.V(1).Info("clusterrolebinding roleRef changed, deleting for recreation (roleRef is immutable)", "name", roleBindingName)
 		if err := r.Delete(r.ctx, fetched); err != nil {
 			if !apierrors.IsNotFound(err) {
