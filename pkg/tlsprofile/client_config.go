@@ -4,20 +4,35 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"strconv"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
-// DefaultCurvePreferences is the explicit key-exchange curve order for TLS clients
-// (and can be reused for servers) when the cluster TLS profile API does not yet expose
-// curve preferences. When openshift/api extends TLSProfileSpec with curves, map those
-// fields here instead of using this default.
+// DefaultCurvePreferences is the explicit key-exchange group list for TLS clients
+// and trust-manager webhook servers when the cluster TLS profile API does not yet
+// expose curve preferences. Numeric IDs match crypto/tls.CurveID and kube-apiserver
+// --tls-curve-preferences (29=X25519, 23=P-256, 24=P-384, 25=P-521).
+// When openshift/api extends TLSProfileSpec with curves, map those fields here
+// instead of using this default.
 var DefaultCurvePreferences = []tls.CurveID{
 	tls.X25519,
 	tls.CurveP256,
 	tls.CurveP384,
 	tls.CurveP521,
+}
+
+// CurvePreferencesArgValue returns DefaultCurvePreferences as a comma-separated
+// list of numeric crypto/tls CurveID values. trust-manager --tls-curve-preferences
+// (added in v0.25.0) and kube-apiserver require this numeric form, not IANA names.
+func CurvePreferencesArgValue() string {
+	parts := make([]string, 0, len(DefaultCurvePreferences))
+	for _, id := range DefaultCurvePreferences {
+		parts = append(parts, strconv.Itoa(int(id)))
+	}
+	return strings.Join(parts, ",")
 }
 
 // ClientTLSConfig returns a tls.Config for outbound HTTPS/TLS clients using the same

@@ -186,6 +186,9 @@ func TestTrustManagerWebhookTLSArgs_joinsCiphers(t *testing.T) {
 	if !strings.Contains(argMap["--tls-cipher-suites"], "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256") {
 		t.Fatalf("unexpected tls ciphers: %q", argMap["--tls-cipher-suites"])
 	}
+	if argMap[TrustManagerCurvePreferencesArgKey] != CurvePreferencesArgValue() {
+		t.Fatalf("unexpected curve preferences: %q", argMap[TrustManagerCurvePreferencesArgKey])
+	}
 }
 
 func TestTrustManagerWebhookTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
@@ -198,7 +201,34 @@ func TestTrustManagerWebhookTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
 		MinTLSVersion: configv1.VersionTLS13,
 	}
 	args := TrustManagerWebhookTLSArgs(spec)
-	if len(args) != 1 || args[0] != "--tls-min-version=VersionTLS13" {
-		t.Fatalf("unexpected args: %#v", args)
+	for _, a := range args {
+		if strings.HasPrefix(a, "--tls-cipher-suites") {
+			t.Fatalf("TLS 1.3 must not set cipher flags, got %q", a)
+		}
+	}
+	got := map[string]string{}
+	for _, a := range args {
+		parts := strings.SplitN(a, "=", 2)
+		if len(parts) != 2 {
+			t.Fatalf("bad arg %q", a)
+		}
+		got[parts[0]] = parts[1]
+	}
+	want := map[string]string{
+		"--tls-min-version":                "VersionTLS13",
+		TrustManagerCurvePreferencesArgKey: CurvePreferencesArgValue(),
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("arg %s: got %q want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestTrustManagerCipherSuiteArgKeysOmitsCurvePreferences(t *testing.T) {
+	for _, key := range TrustManagerCipherSuiteArgKeys {
+		if key == TrustManagerCurvePreferencesArgKey {
+			t.Fatal("TLS 1.3 cipher-strip list must not include --tls-curve-preferences")
+		}
 	}
 }

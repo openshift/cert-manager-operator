@@ -50,10 +50,17 @@ var CertManagerCipherSuiteArgKeys = []string{
 }
 
 // TrustManagerCipherSuiteArgKeys are trust-manager webhook flags that must not be
-// set when the effective minimum TLS version is 1.3.
+// set when the effective minimum TLS version is 1.3 (Go does not honor cipher
+// configuration for TLS 1.3). --tls-curve-preferences is intentionally omitted:
+// Go still honors CurvePreferences for TLS 1.3.
 var TrustManagerCipherSuiteArgKeys = []string{
 	"--tls-cipher-suites",
 }
+
+// TrustManagerCurvePreferencesArgKey is the trust-manager webhook flag that
+// restricts TLS key-exchange groups (tls.Config.CurvePreferences). Requires
+// trust-manager v0.25.0 or later (the flag did not exist on v0.20.3).
+const TrustManagerCurvePreferencesArgKey = "--tls-curve-preferences"
 
 // CertManagerWebhookTLSArgs returns cert-manager-webhook flags for the main HTTPS
 // listener and the metrics TLS listener when TLS is enabled for metrics.
@@ -99,21 +106,21 @@ func CertManagerOperandMetricsTLSArgs(spec *configv1.TLSProfileSpec) []string {
 // TrustManagerWebhookTLSArgs returns trust-manager webhook TLS flags for the
 // cluster TLS security profile. Metrics remain plain HTTP upstream and are out
 // of scope.
+//
+// --tls-curve-preferences is always set when spec is non-nil, including TLS 1.3,
+// using DefaultCurvePreferences. TLSProfileSpec has no curve field yet.
+// Cipher-suite flags are omitted for TLS 1.3. The curve flag exists only on
+// trust-manager v0.25.0 and later.
 func TrustManagerWebhookTLSArgs(spec *configv1.TLSProfileSpec) []string {
 	if spec == nil {
 		return []string{}
 	}
-	minVersion := string(spec.MinTLSVersion)
-	if spec.MinTLSVersion == configv1.VersionTLS13 {
-		return []string{
-			"--tls-min-version=" + minVersion,
-		}
+	args := []string{"--tls-min-version=" + string(spec.MinTLSVersion)}
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		args = append(args, "--tls-cipher-suites="+joinIANACiphers(spec.Ciphers))
 	}
-	ciphers := joinIANACiphers(spec.Ciphers)
-	return []string{
-		"--tls-min-version=" + minVersion,
-		"--tls-cipher-suites=" + ciphers,
-	}
+	args = append(args, TrustManagerCurvePreferencesArgKey+"="+CurvePreferencesArgValue())
+	return args
 }
 
 func joinIANACiphers(openSSLNames []string) string {
