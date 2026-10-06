@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 // baseDeployment returns a minimal deployment for spec comparison tests.
@@ -432,9 +434,9 @@ func TestServiceSpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serviceSpecModified(tt.desired, tt.fetched)
+			got := common.ServiceSpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("serviceSpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("ServiceSpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -462,9 +464,9 @@ func TestCertificateSpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := certificateSpecModified(tt.desired, tt.fetched)
+			got := common.CertificateSpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("certificateSpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("CertificateSpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -492,9 +494,9 @@ func TestConfigMapDataModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := configMapDataModified(tt.desired, tt.fetched)
+			got := common.ConfigMapDataModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("configMapDataModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("ConfigMapDataModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -522,9 +524,9 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := networkPolicySpecModified(tt.desired, tt.fetched)
+			got := common.NetworkPolicySpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("networkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("NetworkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}

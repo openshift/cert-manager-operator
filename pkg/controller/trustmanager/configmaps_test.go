@@ -139,9 +139,9 @@ func TestConfigMapModified(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := configMapModified(tt.desired, tt.existing)
+			got := common.ManagedMetadataModified(tt.desired, tt.existing) || common.ConfigMapDataModified(tt.desired, tt.existing)
 			if got != tt.want {
-				t.Errorf("configMapModified() = %v, want %v", got, tt.want)
+				t.Errorf("configMap modified = %v, want %v", got, tt.want)
 			}
 		})
 	}
