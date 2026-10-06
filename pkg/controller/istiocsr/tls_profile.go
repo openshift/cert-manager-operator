@@ -13,9 +13,6 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
-// clusterAPIServerName is the singleton name of apiserver.config.openshift.io/cluster.
-const clusterAPIServerName = "cluster"
-
 // clusterTLSProfileArgs returns cert-manager-istio-csr gRPC serving TLS flags derived
 // from apiserver.config.openshift.io/cluster, honoring the same tlsAdherence gate used
 // for the other cert-manager operands (see pkg/controller/common.WithClusterTLSProfileFromAPIServer).
@@ -23,8 +20,8 @@ const clusterAPIServerName = "cluster"
 // TLS profile, so istio-csr keeps its upstream defaults.
 func (r *Reconciler) clusterTLSProfileArgs() ([]string, error) {
 	apiServer := &configv1.APIServer{}
-	if err := r.Get(r.ctx, client.ObjectKey{Name: clusterAPIServerName}, apiServer); err != nil {
-		return nil, common.FromClientError(err, "failed to get apiserver.config.openshift.io/%s", clusterAPIServerName)
+	if err := r.Get(r.ctx, client.ObjectKey{Name: tlsprofile.APIServerClusterName}, apiServer); err != nil {
+		return nil, common.FromClientError(err, "failed to get apiserver.config.openshift.io/%s", tlsprofile.APIServerClusterName)
 	}
 
 	adherence := apiServer.Spec.TLSAdherence
@@ -36,8 +33,6 @@ func (r *Reconciler) clusterTLSProfileArgs() ([]string, error) {
 		r.log.Info("apiserver.config.openshift.io/cluster has unknown tlsAdherence; treating as StrictAllComponents for istio-csr", "tlsAdherence", adherence)
 	}
 
-	// Resolve TLSSecurityProfile only after tlsAdherence confirms istio-csr must honor the
-	// cluster profile; invalid profile settings are irrelevant when skipped.
 	effective, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
 	if err != nil {
 		return nil, err
