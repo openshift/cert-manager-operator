@@ -43,6 +43,14 @@
 // Group 6 — FilterExpiredCertificates enabled:
 //   - ConfigMap source with valid + expired certs → only valid cert in ConfigMap target
 //   - Transition to Disabled → same Bundle re-syncs with both certs in target
+//
+// Group 7 — FilterNonCACerts enabled:
+//   - ConfigMap source with CA + leaf certs → only CA cert in ConfigMap target
+//   - Transition to Disabled → same Bundle re-syncs with both certs in target
+//
+// Group 8 — TargetNamespaces set:
+//   - Bundle ConfigMap target is written only in listed namespaces
+//   - Bundle ConfigMap is absent from a denied namespace and the suite testNS
 package e2e
 
 import (
@@ -58,8 +66,8 @@ import (
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	configopenshiftv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
+	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -77,8 +85,8 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	ctx := context.TODO()
 
 	var (
-		testNS                                     *corev1.Namespace
-		testCertPEM1, testCertPEM2, expiredCertPEM string
+		testNS                                                  *corev1.Namespace
+		testCertPEM1, testCertPEM2, expiredCertPEM, leafCertPEM string
 
 		originalUnsupportedAddonFeatures string
 		originalOperatorLogLevel         string
@@ -121,6 +129,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			cert.NotAfter = time.Now().Add(-24 * time.Hour)
 		}
 		expiredCertPEM = testutils.GenerateCertificate("e2e-expired-ca", []string{"cert-manager-operator-e2e"}, expiredCATweak)
+		leafCertPEM = testutils.GenerateCertificate("e2e-leaf", []string{"cert-manager-operator-e2e"}, func(*x509.Certificate) {})
 
 		By("creating test namespace for target verification")
 		testNS = createNamespaceWithCleanup(ctx, "bundle-e2e-", map[string]string{bundleTestNamespaceLabel: "true"})
@@ -555,7 +564,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	// ===== Group 3: DefaultCAPackage enabled =====
 	Context("with DefaultCAPackage enabled", Ordered, func() {
 		BeforeAll(func() {
-			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
 
 			By("waiting for default CA package ConfigMap to be created")
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
@@ -866,7 +875,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 		BeforeAll(func() {
 			createTrustManager(ctx, newTrustManagerCR().
 				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{bundleCombined}).
-				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
+				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)))
 
 			By("waiting for default CA package ConfigMap to be created")
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
@@ -1012,7 +1021,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 		BeforeAll(func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)))
 
 			sourceCMName = "filter-src-cm-" + randomStr(5)
 			filterBundleName = "bundle-filter-expired-" + randomStr(5)
@@ -1054,7 +1063,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicyDisabled
+				tm.Spec.TrustManagerConfig.FilterExpiredCertificates = v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Disabled)
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -1071,6 +1080,122 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, highTimeout, fastPollInterval).Should(Succeed())
 
 			verifyBundleSynced(ctx, filterBundleName)
+		})
+	})
+
+	// ===== Group 7: FilterNonCACerts =====
+	Context("with FilterNonCACerts enabled", Ordered, func() {
+		var (
+			filterBundleName string
+			sourceCMName     string
+		)
+
+		BeforeAll(func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)))
+
+			sourceCMName = "filter-nca-src-cm-" + randomStr(5)
+			filterBundleName = "bundle-filter-non-ca-" + randomStr(5)
+			combinedPEM := testCertPEM1 + leafCertPEM
+
+			By("creating source ConfigMap with CA + leaf certs in trust namespace")
+			createSourceConfigMap(ctx, trustManagerNamespace, sourceCMName, bundleSourceKey, combinedPEM)
+
+			bundle := newBundle(filterBundleName).
+				WithConfigMapSource(sourceCMName, bundleSourceKey).
+				WithConfigMapTarget(bundleTargetKey).
+				Build()
+
+			createBundleWithCleanup(ctx, bundle)
+		})
+		AfterAll(func() { deleteTrustManager(ctx) })
+
+		It("should exclude non-CA certificates from ConfigMap target when using ConfigMap source", func() {
+			By("verifying target contains the CA certificate")
+			err := waitForConfigMapTarget(ctx, bundleClient, filterBundleName, testNS.Name, bundleTargetKey, testCertPEM1, highTimeout)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verifying target does NOT contain the leaf certificate")
+			Eventually(func(g Gomega) {
+				cm, err := k8sClientSet.CoreV1().ConfigMaps(testNS.Name).Get(ctx, filterBundleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				data := cm.Data[bundleTargetKey]
+				g.Expect(strings.Contains(data, strings.TrimSpace(testCertPEM1))).Should(BeTrue(), "should contain CA cert")
+				g.Expect(strings.Contains(data, strings.TrimSpace(leafCertPEM))).Should(BeFalse(), "should not contain leaf cert")
+			}, highTimeout, fastPollInterval).Should(Succeed())
+
+			verifyBundleSynced(ctx, filterBundleName)
+		})
+
+		It("should re-sync same Bundle with leaf certs included after disabling filter", func() {
+			By("disabling filterNonCACerts on TrustManager CR")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.TrustManagerConfig.FilterNonCACerts = v1alpha1.FilterNonCACertsPolicy(v1alpha1.Disabled)
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			waitForTrustManagerReady(ctx)
+
+			By("verifying the same Bundle's target now includes the leaf certificate")
+			Eventually(func(g Gomega) {
+				cm, err := k8sClientSet.CoreV1().ConfigMaps(testNS.Name).Get(ctx, filterBundleName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				data := cm.Data[bundleTargetKey]
+				g.Expect(strings.Contains(data, strings.TrimSpace(testCertPEM1))).Should(BeTrue(), "should contain CA cert")
+				g.Expect(strings.Contains(data, strings.TrimSpace(leafCertPEM))).Should(BeTrue(), "should contain leaf cert after disabling filter")
+			}, highTimeout, fastPollInterval).Should(Succeed())
+
+			verifyBundleSynced(ctx, filterBundleName)
+		})
+	})
+
+	// ===== Group 8: TargetNamespaces =====
+	Context("with TargetNamespaces set", Ordered, func() {
+		var (
+			allowedNS *corev1.Namespace
+			deniedNS  *corev1.Namespace
+		)
+
+		BeforeAll(func() {
+			By("creating allowed and denied target namespaces")
+			allowedNS = createNamespaceWithCleanup(ctx, "tm-target-allow-", nil)
+			deniedNS = createNamespaceWithCleanup(ctx, "tm-target-deny-", nil)
+
+			createTrustManager(ctx, newTrustManagerCR().WithTargetNamespaces(allowedNS.Name))
+		})
+		AfterAll(func() { deleteTrustManager(ctx) })
+
+		It("should sync Bundle ConfigMap only into listed target namespaces", func() {
+			bundleName := "bundle-target-ns-" + randomStr(5)
+			bundle := newBundle(bundleName).
+				WithInLineSource(testCertPEM1).
+				WithConfigMapTarget(bundleTargetKey).
+				Build()
+
+			createBundleWithCleanup(ctx, bundle)
+
+			By("verifying ConfigMap exists in the listed target namespace")
+			err := waitForConfigMapTarget(ctx, bundleClient, bundleName, allowedNS.Name, bundleTargetKey, testCertPEM1, highTimeout)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verifying ConfigMap does not exist in a namespace outside the list")
+			Consistently(func(g Gomega) {
+				_, err := k8sClientSet.CoreV1().ConfigMaps(deniedNS.Name).Get(ctx, bundleName, metav1.GetOptions{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"ConfigMap %s should not exist in denied namespace %s", bundleName, deniedNS.Name)
+			}, "30s", fastPollInterval).Should(Succeed())
+
+			By("verifying ConfigMap does not exist in the suite test namespace")
+			Consistently(func(g Gomega) {
+				_, err := k8sClientSet.CoreV1().ConfigMaps(testNS.Name).Get(ctx, bundleName, metav1.GetOptions{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"ConfigMap %s should not exist in suite test namespace %s", bundleName, testNS.Name)
+			}, "30s", fastPollInterval).Should(Succeed())
 		})
 	})
 })
