@@ -3,46 +3,30 @@ package istiocsr
 import (
 	"context"
 
-	configv1 "github.com/openshift/api/config/v1"
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
-// clusterAPIServerName is the singleton name of apiserver.config.openshift.io/cluster.
-const clusterAPIServerName = "cluster"
-
 // clusterTLSProfileArgs returns cert-manager-istio-csr gRPC serving TLS flags derived
-// from apiserver.config.openshift.io/cluster, honoring the same tlsAdherence gate used
-// for the other cert-manager operands (see pkg/controller/common.WithClusterTLSProfileFromAPIServer).
-// It returns nil, nil when the cluster does not require operands to honor the cluster-wide
-// TLS profile, so istio-csr keeps its upstream defaults.
+// from apiserver.config.openshift.io/cluster. It uses the same tlsAdherence gate as
+// the other operands (tlsprofile.ResolveHonoredTLSProfile). A nil result means
+// istio-csr keeps its upstream defaults.
 func (r *Reconciler) clusterTLSProfileArgs() ([]string, error) {
-	apiServer := &configv1.APIServer{}
-	if err := r.Get(r.ctx, client.ObjectKey{Name: clusterAPIServerName}, apiServer); err != nil {
-		return nil, common.FromClientError(err, "failed to get apiserver.config.openshift.io/%s", clusterAPIServerName)
-	}
-
-	adherence := apiServer.Spec.TLSAdherence
-	if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
-		r.log.V(4).Info("skipping cluster TLS profile for istio-csr deployment", "tlsAdherence", adherence)
-		return nil, nil
-	}
-	if adherence != configv1.TLSAdherencePolicyStrictAllComponents {
-		r.log.Info("apiserver.config.openshift.io/cluster has unknown tlsAdherence; treating as StrictAllComponents for istio-csr", "tlsAdherence", adherence)
-	}
-
-	// Resolve TLSSecurityProfile only after tlsAdherence confirms istio-csr must honor the
-	// cluster profile; invalid profile settings are irrelevant when skipped.
-	effective, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	effective, err := tlsprofile.ResolveHonoredTLSProfile(
+		r.ctx,
+		tlsprofile.NewClientReaderAPIServerFetch(r.CtrlClient),
+		"istio-csr",
+		tlsprofile.FetchErrorPropagateExceptNotFound,
+	)
 	if err != nil {
 		return nil, err
 	}
-
+	if effective == nil {
+		return nil, nil
+	}
 	return tlsprofile.IstioCSRServingTLSArgs(effective), nil
 }
 
