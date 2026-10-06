@@ -3,6 +3,7 @@
 package tlsprofile
 
 import (
+	"crypto/tls"
 	"fmt"
 	"strings"
 
@@ -154,4 +155,40 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	}
 	serving.CipherSuites = iana
 	return nil
+}
+
+// istioCSRCurvePreferenceNames are the Go curve names cert-manager-istio-csr accepts
+// on repeated --serving-tls-curve-preferences flags. Order follows DefaultCurvePreferences.
+var istioCSRCurvePreferenceNames = map[tls.CurveID]string{
+	tls.X25519:    "X25519",
+	tls.CurveP256: "CurveP256",
+	tls.CurveP384: "CurveP384",
+	tls.CurveP521: "CurveP521",
+}
+
+// IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
+// listener: --serving-tls-min-version, --serving-tls-cipher-suites, and
+// --serving-tls-curve-preferences (cert-manager-istio-csr v0.18.0+). Cipher and
+// curve flags are repeated, one value per occurrence.
+//
+// TLS 1.3 omits cipher flags. Curve flags are always included and use
+// DefaultCurvePreferences, because TLSProfileSpec does not expose curves yet.
+func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
+	if spec == nil {
+		return []string{}
+	}
+	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
+			args = append(args, "--serving-tls-cipher-suites="+cipher)
+		}
+	}
+	for _, id := range DefaultCurvePreferences {
+		name, ok := istioCSRCurvePreferenceNames[id]
+		if !ok {
+			continue
+		}
+		args = append(args, "--serving-tls-curve-preferences="+name)
+	}
+	return args
 }

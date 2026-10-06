@@ -18,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -26,8 +27,10 @@ import (
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 // RequestEnqueueLabelValue is the label value used for filtering reconcile
@@ -154,6 +157,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&certmanagerv1.ClusterIssuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		// RBAC to read apiserver.config.openshift.io is already granted cluster-wide via the
+		// marker on pkg/controller/certmanager/certmanager_controller.go; no separate RBAC
+		// marker is added here to avoid generating a duplicate ClusterRole rule.
+		Watches(
+			&configv1.APIServer{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllIstioCSRRequests),
+			builder.WithPredicates(clusterAPIServerWatchPredicate()),
+		).
 		Complete(r)
 }
 
@@ -229,6 +240,31 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		},
 		defaultRequeueTime,
 	)
+}
+
+func clusterAPIServerWatchPredicate() predicate.Funcs {
+	isCluster := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == tlsprofile.APIServerClusterName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isCluster(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isCluster(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isCluster(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, okOld := e.ObjectOld.(*configv1.APIServer)
+			newObj, okNew := e.ObjectNew.(*configv1.APIServer)
+			if !okOld || !okNew || !isCluster(newObj) {
+				return false
+			}
+			return tlsprofile.ClusterAPIServerTLSConfigChanged(oldObj, newObj)
+		},
+	}
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
