@@ -289,6 +289,28 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "webhook strips leftover Intermediate TLS flags when tlsAdherence becomes Legacy",
+			tlsProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+			tlsAdherence:   configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			deploymentName: certmanagerWebhookDeployment,
+			containerCount: 1,
+			existingArgs: []string{
+				"--v=2",
+				"--secure-port=10250",
+				"--tls-min-version=VersionTLS12",
+				"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+				"--metrics-tls-min-version=VersionTLS12",
+				"--metrics-tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+			},
+			expectedArgs: []string{
+				"--v=2",
+				"--secure-port=10250",
+			},
+			expectError: false,
+		},
+		{
 			name: "webhook does not get cluster TLS flags when tlsAdherence is unset",
 			tlsProfile: &configv1.TLSSecurityProfile{
 				Type: configv1.TLSProfileIntermediateType,
@@ -427,6 +449,24 @@ func TestWithClusterTLSProfileFromAPIServer_Controller(t *testing.T) {
 			existingArgs: []string{
 				"--v=2",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+			},
+			expectedArgs: []string{
+				"--v=2",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+			},
+		},
+		{
+			name: "controller strips leftover Intermediate metrics TLS flags when tlsAdherence becomes Legacy",
+			tlsProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+			tlsAdherence:   configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			deploymentName: certmanagerControllerDeployment,
+			existingArgs: []string{
+				"--v=2",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+				"--metrics-tls-min-version=VersionTLS12",
+				"--metrics-tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
 			},
 			expectedArgs: []string{
 				"--v=2",
