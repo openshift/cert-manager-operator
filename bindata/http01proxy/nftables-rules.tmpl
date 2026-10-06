@@ -1,0 +1,12 @@
+table inet crtmgr_http01_dnat
+delete table inet crtmgr_http01_dnat
+table inet crtmgr_http01_dnat {
+    chain prerouting {
+        type nat hook prerouting priority 0;
+        ip daddr {{ .APIVIP }} tcp dport 80 dnat ip to {{ .IngressVIP }}:80
+    }
+    chain postrouting {
+        type nat hook postrouting priority 100;
+        ip daddr {{ .IngressVIP }} tcp dport 80 masquerade
+    }
+}

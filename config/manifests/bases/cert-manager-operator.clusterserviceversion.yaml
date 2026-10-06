@@ -127,6 +127,15 @@ spec:
       kind: TrustManager
       name: trustmanagers.operator.openshift.io
       version: v1alpha1
+    - description: |-
+        HTTP01Proxy describes the configuration for the HTTP01 challenge proxy that redirects
+        traffic from the API endpoint on port 80 to ingress routers.
+        The name must be 'cluster' to make HTTP01Proxy a singleton, allowing only one instance per cluster.
+        When an HTTP01Proxy is created, a MachineConfig with nftables DNAT/SNAT rules is applied to control plane nodes.
+      displayName: HTTP01Proxy
+      kind: HTTP01Proxy
+      name: http01proxies.operator.openshift.io
+      version: v1alpha1
     - description: CertManager is the Schema for the certmanagers API
       displayName: CertManager
       kind: CertManager
