@@ -153,6 +153,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				verifyTrustManagerManagedLabels(cert.Labels)
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				verifyTrustManagerManagedLabels(cert.Spec.SecretTemplate.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			// Cluster-scoped resources
@@ -1159,13 +1161,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			err := waitForCertificateReadiness(ctx, trustManagerCertificateName, trustManagerNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("verifying TLS secret is created with expected keys")
+			By("verifying TLS secret is created with expected keys and operator-managed labels")
 			Eventually(func(g Gomega) {
 				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(secret.Data).Should(HaveKey("tls.crt"))
 				g.Expect(secret.Data).Should(HaveKey("tls.key"))
 				g.Expect(secret.Data).Should(HaveKey("ca.crt"))
+				verifyTrustManagerManagedLabels(secret.Labels)
 			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
@@ -1183,6 +1186,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(cert.Spec.DNSNames).Should(ContainElement(expectedDNSName))
 				g.Expect(cert.Spec.IssuerRef.Name).Should(Equal(trustManagerIssuerName))
 				g.Expect(cert.Spec.IssuerRef.Kind).Should(Equal("Issuer"))
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				verifyTrustManagerManagedLabels(cert.Spec.SecretTemplate.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})
@@ -1412,6 +1417,24 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				}
 				return vwc.Labels, nil
 			})
+
+			verifyCustomLabelOnResource("Certificate secretTemplate", func() (map[string]string, error) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				if err != nil {
+					return nil, err
+				}
+				if cert.Spec.SecretTemplate == nil {
+					return nil, fmt.Errorf("certificate secretTemplate is nil")
+				}
+				return cert.Spec.SecretTemplate.Labels, nil
+			})
+
+			By("verifying custom label is copied to the webhook TLS Secret")
+			Eventually(func(g Gomega) {
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Labels).Should(HaveKeyWithValue("custom-label", "custom-value"))
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
 		It("should apply custom annotations from controllerConfig to managed resources", func() {
@@ -1442,6 +1465,21 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				expectedCAAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerCertificateName)
 				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from", expectedCAAnnotation))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying custom annotation is set on Certificate secretTemplate")
+			Eventually(func(g Gomega) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue("custom-annotation", "annotation-value"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying custom annotation is copied to the webhook TLS Secret")
+			Eventually(func(g Gomega) {
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Annotations).Should(HaveKeyWithValue("custom-annotation", "annotation-value"))
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 	})
 
