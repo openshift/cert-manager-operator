@@ -180,8 +180,9 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 		return true
 	}
 
-	// testComponentMetrics creates a ServiceMonitor and verifies metrics are scraped.
-	testComponentMetrics := func(serviceMonitorName, appName, componentName, jobLabel string) {
+	// testComponentMetrics creates an HTTPS ServiceMonitor and verifies metrics are scraped.
+	// serverName is the Service DNS identity on that operand's metrics certificate.
+	testComponentMetrics := func(serviceMonitorName, appName, componentName, jobLabel, serviceName string) {
 		By(fmt.Sprintf("creating ServiceMonitor for cert-manager %s", componentName))
 		loader.CreateFromFile(
 			AssetFunc(testassets.ReadFile).WithTemplateValues(ServiceMonitorConfig{
@@ -189,6 +190,7 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 				Namespace:     operandNamespace,
 				AppName:       appName,
 				ComponentName: componentName,
+				ServerName:    serviceName + "." + operandNamespace + ".svc",
 			}),
 			filepath.Join("testdata", "observe", "servicemonitor.yaml"),
 			operandNamespace,
@@ -313,15 +315,15 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 
 	Context("user workload monitoring", func() {
 		It("should scrape cert-manager controller metrics", func() {
-			testComponentMetrics("cert-manager-controller", "cert-manager", "controller", "cert-manager")
+			testComponentMetrics("cert-manager-controller", "cert-manager", "controller", "cert-manager", "cert-manager")
 		})
 
 		It("should scrape cert-manager cainjector metrics", func() {
-			testComponentMetrics("cert-manager-cainjector", "cainjector", "cainjector", "cert-manager-cainjector")
+			testComponentMetrics("cert-manager-cainjector", "cainjector", "cainjector", "cert-manager-cainjector", "cert-manager-cainjector")
 		})
 
 		It("should scrape cert-manager webhook metrics", func() {
-			testComponentMetrics("cert-manager-webhook", "webhook", "webhook", "cert-manager-webhook")
+			testComponentMetrics("cert-manager-webhook", "webhook", "webhook", "cert-manager-webhook", "cert-manager-webhook")
 		})
 	})
 })
