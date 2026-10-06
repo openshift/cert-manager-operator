@@ -375,6 +375,46 @@ func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 	}
 }
 
+func TestApplyClusterTLSProfile_legacyStripsStaleArgs(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+		},
+	}
+	r := testReconciler(t)
+	r.CtrlClient = fakeCtrlClientWithAPIServer(apiServer)
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: trustManagerContainerName,
+						Args: []string{
+							"--webhook-port=6443",
+							"--tls-min-version=VersionTLS12",
+							"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+						},
+					}},
+				},
+			},
+		},
+	}
+	if err := r.applyClusterTLSProfile(dep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := dep.Spec.Template.Spec.Containers[0].Args
+	if len(got) != 1 || got[0] != "--webhook-port=6443" {
+		t.Fatalf("expected leftover profile TLS flags stripped, got %#v", got)
+	}
+}
+
 func TestApplyTrustManagerWebhookTLSArgs_missingContainer(t *testing.T) {
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
