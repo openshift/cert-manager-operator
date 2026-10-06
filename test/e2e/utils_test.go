@@ -1973,6 +1973,60 @@ func waitForOperandTLSArgsAbsent(deploymentName string, unexpected []string) err
 	})
 }
 
+func profileManagedTLSArgKeys(deploymentName string) []string {
+	switch deploymentName {
+	case certmanagerWebhookDeployment:
+		return tlsprofile.CertManagerWebhookProfileTLSArgKeys
+	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
+		return tlsprofile.CertManagerOperandMetricsProfileTLSArgKeys
+	case trustManagerDeploymentName:
+		return tlsprofile.TrustManagerProfileTLSArgKeys
+	default:
+		return nil
+	}
+}
+
+func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+	keys := profileManagedTLSArgKeys(deploymentName)
+	if len(keys) == 0 {
+		return fmt.Errorf("unsupported deployment %q", deploymentName)
+	}
+
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("deployment %q has no containers", deploymentName)
+	}
+
+	keySet := sets.New(keys...)
+	var present []string
+	for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+		key, _, _ := strings.Cut(arg, "=")
+		if keySet.Has(key) {
+			present = append(present, arg)
+		}
+	}
+	if len(present) > 0 {
+		return fmt.Errorf("deployment %q still has profile-managed TLS flags %v", deploymentName, present)
+	}
+	return nil
+}
+
+func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		err := verifyOperandProfileTLSArgKeysAbsent(deploymentName)
+		if err == nil {
+			return true, nil
+		}
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, nil
+	})
+}
+
 // verifyOperandMetricsHTTPS waits until cert-manager operand deployments expose
 // dynamic metrics serving flags and prometheus.io/scheme=https on the pod template.
 func verifyOperandMetricsHTTPS(deploymentName string) error {
