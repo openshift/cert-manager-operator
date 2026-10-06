@@ -3,6 +3,7 @@
 package tlsprofile
 
 import (
+	"crypto/tls"
 	"fmt"
 	"strings"
 
@@ -156,36 +157,38 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	return nil
 }
 
-// istioCSRServingCurvePreferences is the fixed key-exchange curve preference order applied
-// to the cert-manager-istio-csr gRPC serving listener. apiserver.config.openshift.io's
-// TLSProfileSpec does not expose curve preferences today, so this mirrors the default
-// ECDHE/TLS 1.3 group order Go and OpenShift components generally prefer (X25519 first,
-// followed by the NIST P-curves). Revisit if TLSProfileSpec grows explicit curve settings.
-var istioCSRServingCurvePreferences = []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
+// istioCSRCurvePreferenceNames are the Go curve names cert-manager-istio-csr accepts
+// on repeated --serving-tls-curve-preferences flags. Order follows DefaultCurvePreferences.
+var istioCSRCurvePreferenceNames = map[tls.CurveID]string{
+	tls.X25519:    "X25519",
+	tls.CurveP256: "CurveP256",
+	tls.CurveP384: "CurveP384",
+	tls.CurveP521: "CurveP521",
+}
 
 // IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
 // listener: --serving-tls-min-version, --serving-tls-cipher-suites, and
-// --serving-tls-curve-preferences (see cert-manager/istio-csr#787, released in
-// cert-manager-istio-csr v0.18.0+). Unlike the cert-manager operand flags, istio-csr
-// expects cipher-suites and curve-preferences as a repeated flag (one value per
-// occurrence) rather than a single comma-separated value.
+// --serving-tls-curve-preferences (cert-manager-istio-csr v0.18.0+). Cipher and
+// curve flags are repeated, one value per occurrence.
 //
-// TLS 1.3 cipher suites are not configurable in Go, so cipher flags are omitted when
-// the effective minimum version is 1.3. Curve preferences are always included because
-// Go uses them for both TLS 1.2 ECDHE key exchange and TLS 1.3 group selection.
+// TLS 1.3 omits cipher flags. Curve flags are always included and use
+// DefaultCurvePreferences, because TLSProfileSpec does not expose curves yet.
 func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
 	if spec == nil {
 		return []string{}
 	}
-	minVersion := string(spec.MinTLSVersion)
-	args := []string{"--serving-tls-min-version=" + minVersion}
+	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
 	if spec.MinTLSVersion != configv1.VersionTLS13 {
 		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
 			args = append(args, "--serving-tls-cipher-suites="+cipher)
 		}
 	}
-	for _, curve := range istioCSRServingCurvePreferences {
-		args = append(args, "--serving-tls-curve-preferences="+curve)
+	for _, id := range DefaultCurvePreferences {
+		name, ok := istioCSRCurvePreferenceNames[id]
+		if !ok {
+			continue
+		}
+		args = append(args, "--serving-tls-curve-preferences="+name)
 	}
 	return args
 }

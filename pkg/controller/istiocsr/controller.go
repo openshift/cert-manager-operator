@@ -18,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -29,6 +30,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 // RequestEnqueueLabelValue is the label value used for filtering reconcile
@@ -161,9 +163,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&configv1.APIServer{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueAllIstioCSRRequests),
-			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
-				return object.GetName() == clusterAPIServerName
-			})),
+			builder.WithPredicates(clusterAPIServerWatchPredicate()),
 		).
 		Complete(r)
 }
@@ -240,6 +240,31 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		},
 		defaultRequeueTime,
 	)
+}
+
+func clusterAPIServerWatchPredicate() predicate.Funcs {
+	isCluster := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == tlsprofile.APIServerClusterName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isCluster(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isCluster(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isCluster(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, okOld := e.ObjectOld.(*configv1.APIServer)
+			newObj, okNew := e.ObjectNew.(*configv1.APIServer)
+			if !okOld || !okNew || !isCluster(newObj) {
+				return false
+			}
+			return tlsprofile.ClusterAPIServerTLSConfigChanged(oldObj, newObj)
+		},
+	}
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.

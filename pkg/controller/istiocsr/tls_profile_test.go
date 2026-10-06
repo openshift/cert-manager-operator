@@ -12,12 +12,13 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence configv1.TLSAdherencePolicy) *configv1.APIServer {
 	return &configv1.APIServer{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterAPIServerName,
+			Name: tlsprofile.APIServerClusterName,
 		},
 		Spec: configv1.APIServerSpec{
 			TLSSecurityProfile: tlsProfile,
