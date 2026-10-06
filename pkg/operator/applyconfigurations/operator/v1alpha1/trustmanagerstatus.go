@@ -3,7 +3,6 @@
 package v1alpha1
 
 import (
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
@@ -16,14 +15,10 @@ type TrustManagerStatusApplyConfiguration struct {
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage *string `json:"trustManagerImage,omitempty"`
-	// trustNamespace is the namespace where trust-manager looks for trust sources.
-	TrustNamespace *string `json:"trustNamespace,omitempty"`
-	// secretTargetsPolicy indicates the current secret targets policy.
-	SecretTargetsPolicy *operatorv1alpha1.SecretTargetsPolicy `json:"secretTargetsPolicy,omitempty"`
-	// defaultCAPackagePolicy indicates the current default CA package policy.
-	DefaultCAPackagePolicy *operatorv1alpha1.DefaultCAPackagePolicy `json:"defaultCAPackagePolicy,omitempty"`
-	// filterExpiredCertificatesPolicy indicates the current policy for filtering expired certificates.
-	FilterExpiredCertificatesPolicy *operatorv1alpha1.FilterExpiredCertificatesPolicy `json:"filterExpiredCertificatesPolicy,omitempty"`
+	// certificateRequestPolicy is the name of the CertificateRequestPolicy created
+	// for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
+	// is Enabled. Empty when bootstrapResources is Disabled.
+	CertificateRequestPolicy *string `json:"certificateRequestPolicy,omitempty"`
 }
 
 // TrustManagerStatusApplyConfiguration constructs a declarative configuration of the TrustManagerStatus type for use with
@@ -53,34 +48,10 @@ func (b *TrustManagerStatusApplyConfiguration) WithTrustManagerImage(value strin
 	return b
 }
 
-// WithTrustNamespace sets the TrustNamespace field in the declarative configuration to the given value
+// WithCertificateRequestPolicy sets the CertificateRequestPolicy field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the TrustNamespace field is set to the value of the last call.
-func (b *TrustManagerStatusApplyConfiguration) WithTrustNamespace(value string) *TrustManagerStatusApplyConfiguration {
-	b.TrustNamespace = &value
-	return b
-}
-
-// WithSecretTargetsPolicy sets the SecretTargetsPolicy field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SecretTargetsPolicy field is set to the value of the last call.
-func (b *TrustManagerStatusApplyConfiguration) WithSecretTargetsPolicy(value operatorv1alpha1.SecretTargetsPolicy) *TrustManagerStatusApplyConfiguration {
-	b.SecretTargetsPolicy = &value
-	return b
-}
-
-// WithDefaultCAPackagePolicy sets the DefaultCAPackagePolicy field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DefaultCAPackagePolicy field is set to the value of the last call.
-func (b *TrustManagerStatusApplyConfiguration) WithDefaultCAPackagePolicy(value operatorv1alpha1.DefaultCAPackagePolicy) *TrustManagerStatusApplyConfiguration {
-	b.DefaultCAPackagePolicy = &value
-	return b
-}
-
-// WithFilterExpiredCertificatesPolicy sets the FilterExpiredCertificatesPolicy field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the FilterExpiredCertificatesPolicy field is set to the value of the last call.
-func (b *TrustManagerStatusApplyConfiguration) WithFilterExpiredCertificatesPolicy(value operatorv1alpha1.FilterExpiredCertificatesPolicy) *TrustManagerStatusApplyConfiguration {
-	b.FilterExpiredCertificatesPolicy = &value
+// If called multiple times, the CertificateRequestPolicy field is set to the value of the last call.
+func (b *TrustManagerStatusApplyConfiguration) WithCertificateRequestPolicy(value string) *TrustManagerStatusApplyConfiguration {
+	b.CertificateRequestPolicy = &value
 	return b
 }

@@ -1038,6 +1038,18 @@ spec:
                     - Enabled
                     - Disabled
                     type: string
+                  filterNonCACerts:
+                    default: Disabled
+                    description: |-
+                      filterNonCACerts controls whether trust-manager filters out
+                      non-CA certificates from trust bundles before distributing them.
+                      When set to "Enabled", only certificates with the X.509 basicConstraints
+                      CA bit set are included in bundles.
+                      When set to "Disabled", non-CA certificates are included (default behavior).
+                    enum:
+                    - Enabled
+                    - Disabled
+                    type: string
                   logFormat:
                     default: text
                     description: |-
@@ -1222,6 +1234,141 @@ spec:
                     x-kubernetes-validations:
                     - message: trustNamespace is immutable once set
                       rule: oldSelf == '' || self == oldSelf
+                  webhookTLS:
+                    description: |-
+                      webhookTLS configures the cert-manager Certificate used for the
+                      trust-manager validating webhook serving certificate.
+                    properties:
+                      approverPolicy:
+                        description: |-
+                          approverPolicy configures a CertificateRequestPolicy so that
+                          cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
+                          Resources are created when bootstrapResources is Enabled and removed when it is Disabled.
+                          If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
+                          approver-policy is installed or bootstrapResources is set to Disabled.
+                        properties:
+                          bootstrapResources:
+                            default: Disabled
+                            description: |-
+                              bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
+                              and associated RBAC required for approver-policy to approve the webhook certificate.
+
+                              Enabled creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
+                              Disabled (default) does not create them. Flipping from Enabled to Disabled deletes those
+                              resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
+
+                              Setting this to "Enabled" requires cert-manager approver-policy to be installed.
+                            enum:
+                            - Enabled
+                            - Disabled
+                            type: string
+                        type: object
+                      certManager:
+                        description: |-
+                          certManager configures the cert-manager Certificate issued for the webhook.
+                          When unset, the operator uses its self-signed Issuer and cert-manager defaults.
+                        properties:
+                          certificateDuration:
+                            description: |-
+                              certificateDuration is the requested validity period of the webhook TLS certificate.
+                              When unset, cert-manager's default certificate duration is used.
+                              Example: "8760h" for one year.
+                            pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
+                            type: string
+                          certificateRenewBefore:
+                            description: |-
+                              certificateRenewBefore is how long before expiry cert-manager renews the webhook certificate.
+                              When unset, cert-manager renews at one third of the certificate lifetime.
+                            pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
+                            type: string
+                          certificateSignatureAlgorithm:
+                            description: certificateSignatureAlgorithm is the signature
+                              algorithm for the webhook certificate.
+                            enum:
+                            - SHA256WithRSA
+                            - SHA384WithRSA
+                            - SHA512WithRSA
+                            - ECDSAWithSHA256
+                            - ECDSAWithSHA384
+                            - ECDSAWithSHA512
+                            - PureEd25519
+                            type: string
+                          issuerRef:
+                            description: |-
+                              issuerRef overrides the Issuer used for the webhook certificate.
+                              When unset, the operator uses the self-signed Issuer it creates.
+                              kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+                            properties:
+                              group:
+                                description: |-
+                                  Group of the issuer being referred to.
+                                  Defaults to 'cert-manager.io'.
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind of the issuer being referred to.
+                                  Defaults to 'Issuer'.
+                                type: string
+                              name:
+                                description: Name of the issuer being referred to.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                            x-kubernetes-validations:
+                            - message: kind must be either 'Issuer' or 'ClusterIssuer'
+                              rule: self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii()
+                                == 'clusterissuer'
+                            - message: group must be 'cert-manager.io'
+                              rule: self.group.lowerAscii() == 'cert-manager.io'
+                          privateKeyAlgorithm:
+                            description: |-
+                              privateKeyAlgorithm is the private key algorithm for the webhook certificate.
+                              Allowed values are RSA, ECDSA, and Ed25519.
+                            enum:
+                            - RSA
+                            - ECDSA
+                            - Ed25519
+                            type: string
+                          privateKeyRotationPolicy:
+                            description: |-
+                              privateKeyRotationPolicy controls whether a new private key is generated on re-issuance.
+                              Allowed values are Always and Never.
+                            enum:
+                            - Always
+                            - Never
+                            type: string
+                          privateKeySize:
+                            description: |-
+                              privateKeySize is the private key size for the webhook certificate.
+                              RSA allows 2048, 4096, and 8192. ECDSA allows 256, 384, and 521. Ed25519 ignores this field.
+                            enum:
+                            - 256
+                            - 384
+                            - 521
+                            - 2048
+                            - 4096
+                            - 8192
+                            format: int32
+                            type: integer
+                          propagateMetadataToSecret:
+                            description: |-
+                              propagateMetadataToSecret copies the labels and annotations the operator
+                              sets on the webhook Certificate onto that Certificate's Secret.
+                              "Enabled" copies them. "Disabled" does not (default).
+                            enum:
+                            - Enabled
+                            - Disabled
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: privateKeySize must match privateKeyAlgorithm
+                          rule: '!has(self.privateKeySize) || self.privateKeySize
+                            == 0 || !has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm
+                            == "Ed25519" || (self.privateKeyAlgorithm == "RSA" &&
+                            self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm
+                            == "ECDSA" && self.privateKeySize in [256, 384, 521])'
+                    type: object
                 type: object
             required:
             - trustManagerConfig
@@ -1229,6 +1376,12 @@ spec:
           status:
             description: status is the most recently observed status of the TrustManager.
             properties:
+              certificateRequestPolicy:
+                description: |-
+                  certificateRequestPolicy is the name of the CertificateRequestPolicy created
+                  for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
+                  is Enabled. Empty when bootstrapResources is Disabled.
+                type: string
               conditions:
                 description: conditions holds information about the current state
                   of the operand deployment.
@@ -1290,34 +1443,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              defaultCAPackagePolicy:
-                description: defaultCAPackagePolicy indicates the current default
-                  CA package policy.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              filterExpiredCertificatesPolicy:
-                description: filterExpiredCertificatesPolicy indicates the current
-                  policy for filtering expired certificates.
-                enum:
-                - Enabled
-                - Disabled
-                type: string
-              secretTargetsPolicy:
-                description: secretTargetsPolicy indicates the current secret targets
-                  policy.
-                enum:
-                - Disabled
-                - Custom
-                type: string
               trustManagerImage:
                 description: trustManagerImage is the container image (name:tag) used
                   for trust-manager.
-                type: string
-              trustNamespace:
-                description: trustNamespace is the namespace where trust-manager looks
-                  for trust sources.
                 type: string
             type: object
         required:

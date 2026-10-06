@@ -3,6 +3,7 @@ module github.com/openshift/cert-manager-operator
 go 1.26.0
 
 require (
+	github.com/cert-manager/approver-policy v0.24.0
 	github.com/cert-manager/cert-manager v1.20.3
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
