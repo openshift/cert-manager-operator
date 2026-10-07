@@ -90,7 +90,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			})
 			r.CtrlClient = mock
 
-			if err := r.updateStatusObservedState(tm); err != nil {
+			if err := r.updateStatusObservedState(context.Background(), tm); err != nil {
 				t.Fatalf("updateStatusObservedState: %v", err)
 			}
 			if got := mock.StatusUpdateCallCount(); got != tt.wantStatusUpdate {
