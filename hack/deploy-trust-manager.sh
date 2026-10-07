@@ -145,6 +145,12 @@ wait_for_trust_manager() {
     exit 1
   fi
   oc wait --for=create -n "${OPERAND_NAMESPACE}" deployment/trust-manager --timeout=5m
+  # The TrustManager CR can be Ready while an older pod is still running. If
+  # its ServiceAccount was deleted, that pod's projected token is revoked and
+  # container restarts keep the same volume. Recreate pods now that reconcile
+  # has applied the current ServiceAccount, then wait until the new pod is up.
+  echo "Recreating trust-manager pods so they mount the current ServiceAccount token..."
+  oc delete pods -n "${OPERAND_NAMESPACE}" -l app=cert-manager-trust-manager --wait=true --ignore-not-found=true
   oc wait --for=condition=Available -n "${OPERAND_NAMESPACE}" deployment/trust-manager --timeout=5m
 }
 

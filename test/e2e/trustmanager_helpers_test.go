@@ -143,7 +143,16 @@ func deleteTrustManager(ctx context.Context) {
 
 // cleanupTrustManagerOperandLeavings removes operand resources left behind when the TrustManager CR
 // is deleted. The operator does not tear these down today (see controller cleanUp TODO).
+// The Deployment is removed before the ServiceAccount so no pod is left mounted
+// with a token for an account that is about to be deleted.
 func cleanupTrustManagerOperandLeavings(ctx context.Context) {
+	By("cleaning up trust-manager operand Deployment if present")
+	_ = k8sClientSet.AppsV1().Deployments(trustManagerNamespace).Delete(ctx, trustManagerDeploymentName, metav1.DeleteOptions{})
+	Eventually(func() bool {
+		_, err := k8sClientSet.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+
 	By("cleaning up trust-manager operand ServiceAccount if present")
 	_ = k8sClientSet.CoreV1().ServiceAccounts(trustManagerNamespace).Delete(ctx, trustManagerServiceAccountName, metav1.DeleteOptions{})
 	Eventually(func() bool {

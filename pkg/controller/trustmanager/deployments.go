@@ -22,6 +22,9 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	if err != nil {
 		return err
 	}
+	if err := r.setServiceAccountUIDAnnotation(desired); err != nil {
+		return err
+	}
 
 	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
@@ -283,6 +286,28 @@ func updateNodeSelector(deployment *appsv1.Deployment, trustManager *v1alpha1.Tr
 
 func updateServiceAccountName(deployment *appsv1.Deployment) {
 	deployment.Spec.Template.Spec.ServiceAccountName = trustManagerServiceAccountName
+}
+
+// setServiceAccountUIDAnnotation stamps the live ServiceAccount UID onto the
+// pod template. A new UID means the account was recreated, so the deployment
+// must roll. Otherwise the existing pod keeps a projected token for the
+// deleted account and CrashLoopBackOffs with an unauthenticated API client.
+func (r *Reconciler) setServiceAccountUIDAnnotation(deployment *appsv1.Deployment) error {
+	serviceAccount := &corev1.ServiceAccount{}
+	serviceAccountKey := client.ObjectKey{Namespace: operandNamespace, Name: trustManagerServiceAccountName}
+	if err := r.Get(r.ctx, serviceAccountKey, serviceAccount); err != nil {
+		return common.FromClientError(err, "failed to get serviceaccount %q", serviceAccountKey.String())
+	}
+	// The apiserver assigns a UID when the ServiceAccount is stored. Clients
+	// that do not (unit-test fakes) leave it empty; there is nothing to stamp.
+	if serviceAccount.UID == "" {
+		return nil
+	}
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = map[string]string{}
+	}
+	deployment.Spec.Template.Annotations[serviceAccountUIDAnnotation] = string(serviceAccount.UID)
+	return nil
 }
 
 const tlsVolumeName = "tls"
