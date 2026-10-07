@@ -4,12 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -224,6 +226,27 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			require.Equal(t, tcData.wantArgs, newDeployment.Spec.Template.Spec.Containers[0].Args)
 		})
 	}
+}
+
+func TestWithUnsupportedArgsOverrideHookInvalidJSON(t *testing.T) {
+	deployment := newTestDeploymentWithArgs([]string{"--v=2"})
+	operatorSpec := &operatorv1.OperatorSpec{
+		UnsupportedConfigOverrides: runtime.RawExtension{
+			Raw: []byte(`{invalid-json`),
+		},
+	}
+
+	err := withUnsupportedArgsOverrideHook(operatorSpec, deployment)
+	require.Error(t, err, "expected error for invalid JSON in UnsupportedConfigOverrides")
+}
+
+func TestWithUnsupportedArgsOverrideHookEmptyRaw(t *testing.T) {
+	deployment := newTestDeploymentWithArgs([]string{"--v=2"})
+	operatorSpec := &operatorv1.OperatorSpec{}
+
+	err := withUnsupportedArgsOverrideHook(operatorSpec, deployment)
+	require.NoError(t, err)
+	require.Equal(t, []string{"--v=2"}, deployment.Spec.Template.Spec.Containers[0].Args)
 }
 
 func TestParseEnvMap(t *testing.T) {
