@@ -75,7 +75,7 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 		return nil, fmt.Errorf("failed to verify issuer in %s/%s: %w", istiocsr.GetNamespace(), istiocsr.GetName(), err)
 	}
 
-	deployment := decodeDeploymentObjBytes(assets.MustAsset(deploymentAssetName))
+	deployment := common.DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, assets.MustAsset(deploymentAssetName))
 
 	common.UpdateNamespace(deployment, istiocsr.GetNamespace())
 	common.UpdateResourceLabels(deployment, resourceLabels)
