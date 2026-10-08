@@ -1,8 +1,19 @@
-# ADR-0001: Dual Controller Frameworks (library-go + controller-runtime)
+---
+status: accepted
+applies_to:
+  - pkg/operator/
+  - pkg/controller/certmanager/
+  - pkg/controller/istiocsr/
+  - pkg/controller/trustmanager/
+---
 
-**Status**: Accepted  
-**Date**: 2025-02-01 (IstioCSR era; TrustManager extended 2026-03)  
-**Deciders**: cert-manager-operator maintainers
+# 1. Dual Controller Frameworks (library-go + controller-runtime)
+
+Date: 2025-02-01
+
+## Status
+
+Accepted
 
 ## Context
 
@@ -16,16 +27,13 @@ Keep **library-go** for CertManager (always-on). Use **controller-runtime** for 
 
 ## Consequences
 
-**Positive**:
-- Incremental delivery of IstioCSR/TrustManager without rewriting CertManager.
-- Shared ctrl-runtime helpers in `pkg/controller/common` (errors, status, client retry).
+- Positive: Incremental delivery of IstioCSR/TrustManager without rewriting CertManager.
+- Positive: Shared ctrl-runtime helpers in `pkg/controller/common` (errors, status, client retry).
+- Negative: Agents and contributors must not assume one framework or apply method.
+- Negative: Two status models (`OperatorStatus` vs `ConditionalStatus`).
+- Negative: Duplicate concepts (deployment overrides, image env) expressed differently per stack.
 
-**Negative / Trade-offs**:
-- Agents and contributors must not assume one framework or apply method.
-- Two status models (`OperatorStatus` vs `ConditionalStatus`).
-- Duplicate concepts (deployment overrides, image env) expressed differently per stack.
-
-## Alternatives Considered
+## Alternatives considered
 
 - Rewrite CertManager on controller-runtime — high risk / deferred.
 - Pure library-go for optional operands — poorer fit for multi-watch CR-centric install pipelines.
@@ -35,7 +43,3 @@ Keep **library-go** for CertManager (always-on). Use **controller-runtime** for 
 - `pkg/operator/starter.go`, `pkg/operator/setup_manager.go`
 - `pkg/controller/certmanager/`, `pkg/controller/istiocsr/`, `pkg/controller/trustmanager/`
 - Enhancements: [istio-csr-controller](https://github.com/openshift/enhancements/blob/master/enhancements/cert-manager/istio-csr-controller.md), [trust-manager-controller](https://github.com/openshift/enhancements/blob/master/enhancements/cert-manager/trust-manager-controller.md)
-
-## SME Review Recommended
-
-Rationale for not unifying frameworks long-term; any timeline to migrate CertManager or IstioCSR apply style.

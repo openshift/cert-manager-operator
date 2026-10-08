@@ -1,0 +1,28 @@
+# VCS metadata
+.git
+
+# Build artifacts
+_output
+bin
+/cert-manager-operator
+
+# Secrets safety net
+.env
+.env.*
+*.pem
+*.key
+
+# Editor & OS junk
+.idea
+.vscode
+.DS_Store
+
+# CI, docs, and tooling not needed to compile
+.github
+.agentready
+.pre-commit-config.yaml
+.ci-operator.yaml
+.gitleaks.toml
+.snyk
+docs
+harness-evals
