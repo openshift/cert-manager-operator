@@ -39,6 +39,7 @@ func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIS
 		adherence := apiServer.Spec.TLSAdherence
 		if !libgocrypto.ShouldHonorClusterTLSProfile(adherence) {
 			klog.V(4).Infof("skipping cluster TLS profile for deployment %s: apiserver tlsAdherence=%q", deployment.Name, adherence)
+			stripClusterProfileTLSArgs(deployment)
 			return nil
 		}
 		if adherence != configv1.TLSAdherencePolicyStrictAllComponents {
@@ -71,4 +72,22 @@ func WithClusterTLSProfileFromAPIServer(apiServerInformer configinformersv1.APIS
 		deployment.Spec.Template.Spec.Containers[0] = container
 		return nil
 	}
+}
+
+// stripClusterProfileTLSArgs removes TLS min-version and cipher flags that this
+// hook injects under StrictAllComponents. Called when tlsAdherence no longer
+// honors the cluster profile so leftover Intermediate/Modern flags cannot stick.
+func stripClusterProfileTLSArgs(deployment *appsv1.Deployment) {
+	var keys []string
+	switch deployment.Name {
+	case certmanagerWebhookDeployment:
+		keys = tlsprofile.CertManagerWebhookProfileTLSArgKeys
+	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
+		keys = tlsprofile.CertManagerOperandMetricsProfileTLSArgKeys
+	default:
+		return
+	}
+	container := deployment.Spec.Template.Spec.Containers[0]
+	container.Args = StripArgsByKeys(container.Args, ArgKeysSet(keys))
+	deployment.Spec.Template.Spec.Containers[0] = container
 }

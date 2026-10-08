@@ -14,7 +14,7 @@ import (
 // applyClusterTLSProfile merges cluster TLS security profile flags onto the
 // trust-manager webhook container when apiserver tlsAdherence requires it.
 // When the APIServer resource is missing (non-OpenShift) or adherence does not
-// require enforcement, this is a no-op.
+// require enforcement, previously injected profile TLS flags are stripped.
 func (r *Reconciler) applyClusterTLSProfile(deployment *appsv1.Deployment) error {
 	if r.CtrlClient == nil {
 		return nil
@@ -30,10 +30,26 @@ func (r *Reconciler) applyClusterTLSProfile(deployment *appsv1.Deployment) error
 		return err
 	}
 	if effective == nil {
+		stripTrustManagerProfileTLSArgs(deployment)
 		return nil
 	}
 
 	return applyTrustManagerWebhookTLSArgs(deployment, effective)
+}
+
+func stripTrustManagerProfileTLSArgs(deployment *appsv1.Deployment) {
+	if deployment == nil {
+		return
+	}
+	keys := common.ArgKeysSet(tlsprofile.TrustManagerProfileTLSArgKeys)
+	for i := range deployment.Spec.Template.Spec.Containers {
+		if deployment.Spec.Template.Spec.Containers[i].Name != trustManagerContainerName {
+			continue
+		}
+		deployment.Spec.Template.Spec.Containers[i].Args = common.StripArgsByKeys(
+			deployment.Spec.Template.Spec.Containers[i].Args, keys)
+		return
+	}
 }
 
 // applyTrustManagerWebhookTLSArgs merges profile-derived webhook TLS flags onto

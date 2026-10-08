@@ -1863,6 +1863,20 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// patchAPIServerAuditProfile updates an APIServer field the operator TLS watcher ignores.
+func patchAPIServerAuditProfile(ctx context.Context, profile configapiv1.AuditProfileType) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		updated := apiServer.DeepCopy()
+		updated.Spec.Audit.Profile = profile
+		_, err = configClient.APIServers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})
+}
+
 func isTLSAdherenceUnsupported(err error) bool {
 	if err == nil {
 		return false
@@ -1969,6 +1983,60 @@ func waitForOperandTLSArgsAbsent(deploymentName string, unexpected []string) err
 			return false, nil
 		}
 		// Args still present or transient read issues — keep polling until timeout.
+		return false, nil
+	})
+}
+
+func profileManagedTLSArgKeys(deploymentName string) []string {
+	switch deploymentName {
+	case certmanagerWebhookDeployment:
+		return tlsprofile.CertManagerWebhookProfileTLSArgKeys
+	case certmanagerControllerDeployment, certmanagerCAinjectorDeployment:
+		return tlsprofile.CertManagerOperandMetricsProfileTLSArgKeys
+	case trustManagerDeploymentName:
+		return tlsprofile.TrustManagerProfileTLSArgKeys
+	default:
+		return nil
+	}
+}
+
+func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+	keys := profileManagedTLSArgKeys(deploymentName)
+	if len(keys) == 0 {
+		return fmt.Errorf("unsupported deployment %q", deploymentName)
+	}
+
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return fmt.Errorf("deployment %q has no containers", deploymentName)
+	}
+
+	keySet := sets.New(keys...)
+	var present []string
+	for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+		key, _, _ := strings.Cut(arg, "=")
+		if keySet.Has(key) {
+			present = append(present, arg)
+		}
+	}
+	if len(present) > 0 {
+		return fmt.Errorf("deployment %q still has profile-managed TLS flags %v", deploymentName, present)
+	}
+	return nil
+}
+
+func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		err := verifyOperandProfileTLSArgKeysAbsent(deploymentName)
+		if err == nil {
+			return true, nil
+		}
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
 		return false, nil
 	})
 }

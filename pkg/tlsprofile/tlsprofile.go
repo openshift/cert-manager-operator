@@ -49,9 +49,34 @@ var CertManagerCipherSuiteArgKeys = []string{
 	"--metrics-tls-cipher-suites",
 }
 
+// CertManagerWebhookProfileTLSArgKeys are cluster-profile-managed TLS flags on
+// cert-manager-webhook. They must be absent when tlsAdherence does not honor
+// the cluster profile (LegacyAdheringComponentsOnly / unset).
+var CertManagerWebhookProfileTLSArgKeys = []string{
+	"--tls-min-version",
+	"--tls-cipher-suites",
+	"--metrics-tls-min-version",
+	"--metrics-tls-cipher-suites",
+}
+
+// CertManagerOperandMetricsProfileTLSArgKeys are cluster-profile-managed TLS
+// flags on cert-manager controller and cainjector metrics listeners.
+var CertManagerOperandMetricsProfileTLSArgKeys = []string{
+	"--metrics-tls-min-version",
+	"--metrics-tls-cipher-suites",
+}
+
 // TrustManagerCipherSuiteArgKeys are trust-manager webhook flags that must not be
 // set when the effective minimum TLS version is 1.3.
 var TrustManagerCipherSuiteArgKeys = []string{
+	"--tls-cipher-suites",
+}
+
+// TrustManagerProfileTLSArgKeys are cluster-profile-managed TLS flags on
+// trust-manager. They must be absent when tlsAdherence does not honor the
+// cluster profile.
+var TrustManagerProfileTLSArgKeys = []string{
+	"--tls-min-version",
 	"--tls-cipher-suites",
 }
 

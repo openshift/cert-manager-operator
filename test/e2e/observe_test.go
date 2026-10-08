@@ -5,9 +5,9 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
@@ -138,13 +138,12 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 	}
 
 	// queryPrometheusMetrics executes a PromQL query against Thanos Querier.
-	queryPrometheusMetrics := func(ctx context.Context, jobLabel string) (string, error) {
+	queryPrometheusMetrics := func(ctx context.Context, query string) (string, error) {
 		prometheusPod, err := findReadyPrometheusPod(ctx)
 		if err != nil {
 			return "", err
 		}
 
-		query := fmt.Sprintf(`{job="%s"}`, jobLabel)
 		curlCmd := []string{
 			"curl", "-s", "-S", "-k",
 			"-H", fmt.Sprintf("Authorization: Bearer %s", token),
@@ -154,34 +153,14 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 
 		output, err := execInPod(ctx, cfg, loader.KubeClient, clusterMonitoringNamespace, prometheusPod, "prometheus", curlCmd...)
 		if err != nil {
-			return "", fmt.Errorf("failed to execute query: %w", err)
+			return "", fmt.Errorf("failed to execute query %q: %w", query, err)
 		}
 		return output, nil
 	}
 
-	// validateMetricsResponse checks if the Prometheus query response contains expected data.
-	validateMetricsResponse := func(output, componentName, jobLabel string) bool {
-		if !strings.Contains(output, `"status":"success"`) {
-			GinkgoLogr.Info("Query did not return success status", "component", componentName)
-			return false
-		}
-		if strings.Contains(output, `"result":[]`) {
-			GinkgoLogr.Info("Query returned empty result set - metrics not yet available", "component", componentName)
-			return false
-		}
-		if !strings.Contains(output, fmt.Sprintf(`"namespace":"%s"`, operandNamespace)) {
-			GinkgoLogr.Info("Query did not return expected namespace", "component", componentName, "expected", operandNamespace)
-			return false
-		}
-		if !strings.Contains(output, fmt.Sprintf(`"job":"%s"`, jobLabel)) {
-			GinkgoLogr.Info("Query did not return expected job label", "component", componentName, "expected", jobLabel)
-			return false
-		}
-		return true
-	}
-
-	// testComponentMetrics creates a ServiceMonitor and verifies metrics are scraped.
-	testComponentMetrics := func(serviceMonitorName, appName, componentName, jobLabel string) {
+	// testComponentMetrics creates a CA-verified HTTPS ServiceMonitor and waits until
+	// Prometheus reports up=1 for every target of that job and the given operand metric exists.
+	testComponentMetrics := func(serviceMonitorName, appName, componentName, jobLabel, serviceName, operandMetric string) {
 		By(fmt.Sprintf("creating ServiceMonitor for cert-manager %s", componentName))
 		loader.CreateFromFile(
 			AssetFunc(testassets.ReadFile).WithTemplateValues(ServiceMonitorConfig{
@@ -189,6 +168,7 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 				Namespace:     operandNamespace,
 				AppName:       appName,
 				ComponentName: componentName,
+				ServerName:    serviceName + "." + operandNamespace + ".svc",
 			}),
 			filepath.Join("testdata", "observe", "servicemonitor.yaml"),
 			operandNamespace,
@@ -200,16 +180,40 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 			}
 		})
 
-		By(fmt.Sprintf("waiting for cert-manager %s metrics to be available", componentName))
+		upQuery := fmt.Sprintf(`up{job="%s",namespace="%s"}`, jobLabel, operandNamespace)
+		metricQuery := fmt.Sprintf(`%s{job="%s",namespace="%s"}`, operandMetric, jobLabel, operandNamespace)
+
+		By(fmt.Sprintf("waiting for cert-manager %s scrape targets to be up=1", componentName))
 		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, false, func(pollCtx context.Context) (bool, error) {
-			output, err := queryPrometheusMetrics(pollCtx, jobLabel)
+			output, err := queryPrometheusMetrics(pollCtx, upQuery)
 			if err != nil {
-				GinkgoLogr.Info("Failed to query metrics", "component", componentName, "error", err)
+				GinkgoLogr.Info("Failed to query up metric", "component", componentName, "error", err)
 				return false, nil
 			}
-			return validateMetricsResponse(output, componentName, jobLabel), nil
+			ok, reason := prometheusUpEqualsOne(output, jobLabel)
+			if !ok {
+				GinkgoLogr.Info("up metric not ready", "component", componentName, "reason", reason)
+				return false, nil
+			}
+			return true, nil
 		})
-		Expect(err).NotTo(HaveOccurred(), "timeout waiting for cert-manager %s metrics to be available", componentName)
+		Expect(err).NotTo(HaveOccurred(), "timeout waiting for cert-manager %s targets to report up=1", componentName)
+
+		By(fmt.Sprintf("waiting for cert-manager %s operand metric %s", componentName, operandMetric))
+		err = wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, false, func(pollCtx context.Context) (bool, error) {
+			output, err := queryPrometheusMetrics(pollCtx, metricQuery)
+			if err != nil {
+				GinkgoLogr.Info("Failed to query operand metric", "component", componentName, "metric", operandMetric, "error", err)
+				return false, nil
+			}
+			ok, reason := prometheusMetricPresent(output, operandMetric, jobLabel)
+			if !ok {
+				GinkgoLogr.Info("operand metric not ready", "component", componentName, "metric", operandMetric, "reason", reason)
+				return false, nil
+			}
+			return true, nil
+		})
+		Expect(err).NotTo(HaveOccurred(), "timeout waiting for cert-manager %s metric %s", componentName, operandMetric)
 	}
 
 	// ensureUserWorkloadMonitoringEnabled ensures the cluster-monitoring-config ConfigMap
@@ -313,15 +317,99 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 
 	Context("user workload monitoring", func() {
 		It("should scrape cert-manager controller metrics", func() {
-			testComponentMetrics("cert-manager-controller", "cert-manager", "controller", "cert-manager")
+			testComponentMetrics("cert-manager-controller", "cert-manager", "controller", "cert-manager", "cert-manager", "certmanager_clock_time_seconds")
 		})
 
 		It("should scrape cert-manager cainjector metrics", func() {
-			testComponentMetrics("cert-manager-cainjector", "cainjector", "cainjector", "cert-manager-cainjector")
+			testComponentMetrics("cert-manager-cainjector", "cainjector", "cainjector", "cert-manager-cainjector", "cert-manager-cainjector", "controller_runtime_reconcile_total")
 		})
 
 		It("should scrape cert-manager webhook metrics", func() {
-			testComponentMetrics("cert-manager-webhook", "webhook", "webhook", "cert-manager-webhook")
+			testComponentMetrics("cert-manager-webhook", "webhook", "webhook", "cert-manager-webhook", "cert-manager-webhook", "go_goroutines")
 		})
 	})
 })
+
+type prometheusQueryResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Result []prometheusQuerySample `json:"result"`
+	} `json:"data"`
+}
+
+type prometheusQuerySample struct {
+	Metric map[string]string `json:"metric"`
+	Value  []any             `json:"value"`
+}
+
+func parsePrometheusQueryResponse(output string) (prometheusQueryResponse, error) {
+	var resp prometheusQueryResponse
+	if err := json.Unmarshal([]byte(output), &resp); err != nil {
+		return prometheusQueryResponse{}, fmt.Errorf("decode prometheus response: %w", err)
+	}
+	return resp, nil
+}
+
+func prometheusSampleValue(sample prometheusQuerySample) (string, bool) {
+	if len(sample.Value) < 2 {
+		return "", false
+	}
+	value, ok := sample.Value[1].(string)
+	return value, ok
+}
+
+// prometheusUpEqualsOne reports whether every up series for jobLabel is "1".
+// A successful nonempty query that only contains up=0 is rejected.
+func prometheusUpEqualsOne(output, jobLabel string) (bool, string) {
+	resp, err := parsePrometheusQueryResponse(output)
+	if err != nil {
+		return false, err.Error()
+	}
+	if resp.Status != "success" {
+		return false, fmt.Sprintf("status %q", resp.Status)
+	}
+	if len(resp.Data.Result) == 0 {
+		return false, "empty result"
+	}
+	for _, sample := range resp.Data.Result {
+		if sample.Metric["job"] != jobLabel {
+			return false, fmt.Sprintf("unexpected job %q", sample.Metric["job"])
+		}
+		if sample.Metric["namespace"] != operandNamespace {
+			return false, fmt.Sprintf("unexpected namespace %q", sample.Metric["namespace"])
+		}
+		value, ok := prometheusSampleValue(sample)
+		if !ok {
+			return false, "missing sample value"
+		}
+		if value != "1" {
+			return false, fmt.Sprintf("up=%s for instance %q", value, sample.Metric["instance"])
+		}
+	}
+	return true, ""
+}
+
+func prometheusMetricPresent(output, metricName, jobLabel string) (bool, string) {
+	resp, err := parsePrometheusQueryResponse(output)
+	if err != nil {
+		return false, err.Error()
+	}
+	if resp.Status != "success" {
+		return false, fmt.Sprintf("status %q", resp.Status)
+	}
+	if len(resp.Data.Result) == 0 {
+		return false, "empty result"
+	}
+	for _, sample := range resp.Data.Result {
+		if name := sample.Metric["__name__"]; name != "" && name != metricName {
+			return false, fmt.Sprintf("unexpected metric %q", name)
+		}
+		if sample.Metric["job"] != jobLabel {
+			return false, fmt.Sprintf("unexpected job %q", sample.Metric["job"])
+		}
+		if sample.Metric["namespace"] != operandNamespace {
+			return false, fmt.Sprintf("unexpected namespace %q", sample.Metric["namespace"])
+		}
+	}
+	return true, ""
+}

@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -94,6 +96,43 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		}
 	})
 
+	It("should reject TLS 1.2 and accept TLS 1.3 on metrics and webhook listeners under Modern", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		modernSpec := patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		})
+		expectCertManagerListenersMatchProfile(ctx, modernSpec)
+
+		By("handshaking metrics and webhook sockets: TLS 1.3 succeeds, TLS 1.2 fails")
+		assertModernListenerEnforcement(ctx)
+	})
+
+	It("should enforce Intermediate TLS 1.2 ciphers on metrics and webhook listeners", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		intermediateSpec := patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectCertManagerListenersMatchProfile(ctx, intermediateSpec)
+
+		By("handshaking metrics and webhook sockets: TLS 1.2 + allowed ECDSA GCM succeeds; TLS 1.0 and CBC fail")
+		assertIntermediateListenerEnforcement(ctx)
+	})
+
+	It("should apply Custom TLS 1.3 to cert-manager operand listeners", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		customSpec := patchStrictTLSProfile(ctx, customTLS13SecurityProfile())
+		expectCertManagerListenersMatchProfile(ctx, customSpec)
+
+		By("handshaking metrics and webhook sockets: Custom TLS 1.3 succeeds, TLS 1.2 fails")
+		assertModernListenerEnforcement(ctx)
+	})
+
 	It("should claim tls-profiles feature on the operator CSV when installed via OLM", func() {
 		installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
 		Expect(err).NotTo(HaveOccurred())
@@ -122,20 +161,12 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Expect(found).To(BeTrue(), "no cert-manager-operator CSV found in %s", operatorNamespace)
 	})
 
-	// E2E-012 — Legacy: always-on HTTPS metrics remain; Strict profile TLS flags absent.
-	It("should keep HTTPS metrics under LegacyAdheringComponentsOnly while omitting profile TLS flags", func() {
+	// E2E-012 — Strict Intermediate → Legacy: every profile-managed TLS flag is gone;
+	// leftover Intermediate cipher flags must not remain; live sockets accept TLS 1.2 again
+	// after a prior Strict Modern restriction.
+	It("should strip every profile-managed TLS flag and restore TLS 1.2 on Strict to Legacy", func() {
 		original := requireAPIServerTLSConfig(ctx)
 		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
-
-		modernProfile := &configapiv1.TLSSecurityProfile{
-			Type: configapiv1.TLSProfileModernType,
-		}
-		By("patching apiserver to LegacyAdheringComponentsOnly with Modern profile")
-		err := updateClusterAPIServerTLSConfig(ctx, modernProfile, configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)
-		if isTLSAdherenceUnsupported(err) {
-			Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
-		}
-		Expect(err).NotTo(HaveOccurred())
 
 		operandDeployments := []string{
 			certmanagerControllerDeployment,
@@ -143,28 +174,29 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			certmanagerCAinjectorDeployment,
 		}
 
-		By("verifying metrics-dynamic-serving HTTPS args remain present under Legacy")
-		for _, name := range operandDeployments {
-			Eventually(func() error {
-				return verifyOperandMetricsHTTPS(name)
-			}, lowTimeout, fastPollInterval).Should(Succeed(), "deployment %s", name)
-		}
+		By("applying Strict Modern so listeners reject TLS 1.2")
+		modernSpec := patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		})
+		expectCertManagerListenersMatchProfile(ctx, modernSpec)
+		assertModernListenerEnforcement(ctx)
 
-		modernSpec, err := tlsprofile.EffectiveSpec(modernProfile)
-		Expect(err).NotTo(HaveOccurred())
+		By("applying Strict Intermediate so leftover cipher flags would exist if Legacy only dropped Modern strings")
+		intermediateSpec := patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectCertManagerListenersMatchProfile(ctx, intermediateSpec)
 
-		By("waiting for Modern Strict profile TLS flags to be absent, then consistently re-checking")
-		for _, name := range operandDeployments {
-			unexpected := expectedOperandTLSArgs(name, modernSpec)
-			Expect(unexpected).NotTo(BeEmpty(), "deployment %s", name)
+		By("patching apiserver to LegacyAdheringComponentsOnly with Intermediate profile still set")
+		patchLegacyTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
 
-			err := waitForOperandTLSArgsAbsent(name, unexpected)
-			Expect(err).NotTo(HaveOccurred(), "deployment %s still has profile TLS flags under Legacy", name)
+		By("waiting for every profile-managed TLS flag key to be absent")
+		expectProfileManagedTLSFlagsGone(ctx, operandDeployments)
 
-			Consistently(func() error {
-				return verifyOperandTLSArgsNotPresent(name, unexpected)
-			}, 15*time.Second, fastPollInterval).Should(Succeed(), "deployment %s", name)
-		}
+		By("handshaking sockets: TLS 1.2 succeeds after Strict → Legacy (no longer TLS 1.3-only)")
+		assertTLS12Accepted(ctx, certManagerTLSEndpoints())
 	})
 
 	// E2E-010 — Day-2 Modern → Intermediate on cert-manager operands.
@@ -198,6 +230,64 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			err := verifyOperandTLSArgsMatchClusterProfile(name, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args on %s", name)
 		}
+	})
+
+	// The operator metrics listener is fixed at process start, so a profile
+	// change and an adherence change each exit the container. Kubelet restarts
+	// it in place: the Pod UID stays the same and only the container ID changes.
+	It("should restart the operator container when the cluster TLS profile changes", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		baseline := ensureStrictTLSProfileSettled(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		})
+
+		By("patching apiserver cluster profile from Modern to Intermediate")
+		patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectOperatorContainerRestart(ctx, baseline.RestartKey)
+	})
+
+	It("should restart the operator container when tlsAdherence changes and the profile stays the same", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		baseline := ensureStrictTLSProfileSettled(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+
+		By("patching apiserver to LegacyAdheringComponentsOnly with the Intermediate profile unchanged")
+		patchLegacyTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectOperatorContainerRestart(ctx, baseline.RestartKey)
+	})
+
+	It("should not restart the operator container when an unrelated apiserver field changes", func() {
+		pod := expectReadyOperatorContainer(ctx)
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "read apiserver audit profile")
+
+		originalAudit := apiServer.Spec.Audit.Profile
+		next := configapiv1.WriteRequestBodiesAuditProfileType
+		if originalAudit == next {
+			next = configapiv1.DefaultAuditProfileType
+		}
+		By(fmt.Sprintf("patching apiserver audit profile from %q to %q", originalAudit, next))
+		Expect(patchAPIServerAuditProfile(ctx, next)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(patchAPIServerAuditProfile(context.Background(), originalAudit)).To(Succeed())
+		})
+
+		Consistently(func() (string, error) {
+			current, err := readyOperatorContainer(ctx)
+			if err != nil {
+				return "", err
+			}
+			return current.RestartKey, nil
+		}, 15*time.Second, fastPollInterval).Should(Equal(pod.RestartKey))
 	})
 
 	Context("trust-manager webhook TLS", Ordered, func() {
@@ -320,6 +410,25 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			Expect(err).NotTo(HaveOccurred(), "custom profile args")
 		})
 
+		It("should apply Custom TLS 1.3 flags to trust-manager and reject TLS 1.2 on the webhook", func() {
+			original := requireAPIServerTLSConfig(tmCtx)
+			DeferCleanup(restoreAPIServerTLSConfigCleanup(tmCtx, original))
+
+			createTrustManager(tmCtx, newTrustManagerCR())
+			expectTrustManagerDeploymentPresent(tmCtx)
+
+			customSpec := patchStrictTLSProfile(tmCtx, customTLS13SecurityProfile())
+			By("verifying trust-manager args match Custom TLS 1.3 EffectiveSpec without cipher flags")
+			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, customSpec)
+			Expect(err).NotTo(HaveOccurred(), "custom tls13 profile args")
+			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
+			Expect(err).NotTo(HaveOccurred())
+			expectTrustManagerTLSSecret(tmCtx)
+
+			By("handshaking trust-manager webhook: TLS 1.3 succeeds, TLS 1.2 fails")
+			assertModernListenerEnforcementOn(tmCtx, []certManagerTLSEndpoint{trustManagerWebhookEndpoint()})
+		})
+
 		// Journey 4 — E2E-004
 		It("should keep trust-manager Certificate Ready after Modern TLS profile is applied", func() {
 			original := requireAPIServerTLSConfig(tmCtx)
@@ -379,6 +488,34 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			}, 15*time.Second, fastPollInterval).Should(Succeed())
 		})
 
+		It("should strip every trust-manager profile TLS flag on Strict Intermediate to Legacy", func() {
+			original := requireAPIServerTLSConfig(tmCtx)
+			DeferCleanup(restoreAPIServerTLSConfigCleanup(tmCtx, original))
+
+			createTrustManager(tmCtx, newTrustManagerCR())
+			expectTrustManagerDeploymentPresent(tmCtx)
+
+			By("applying Strict Intermediate so leftover cipher flags would exist")
+			intermediateSpec := patchStrictTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
+				Type: configapiv1.TLSProfileIntermediateType,
+			})
+			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, intermediateSpec)
+			Expect(err).NotTo(HaveOccurred(), "intermediate profile args")
+			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
+			Expect(err).NotTo(HaveOccurred())
+			expectTrustManagerTLSSecret(tmCtx)
+
+			By("patching apiserver to LegacyAdheringComponentsOnly")
+			patchLegacyTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
+				Type: configapiv1.TLSProfileIntermediateType,
+			})
+
+			expectProfileManagedTLSFlagsGone(tmCtx, []string{trustManagerDeploymentName})
+
+			By("handshaking trust-manager webhook: TLS 1.2 succeeds after Strict → Legacy")
+			assertTLS12Accepted(tmCtx, []certManagerTLSEndpoint{trustManagerWebhookEndpoint()})
+		})
+
 		// Journey 5 — NEG-002
 		It("should retain trust-manager TLS args after operator pod restart under Strict Modern", func() {
 			original := requireAPIServerTLSConfig(tmCtx)
@@ -428,6 +565,177 @@ func restoreAPIServerTLSConfigCleanup(ctx context.Context, original *apiserverTL
 	}
 }
 
+func expectCertManagerListenersMatchProfile(ctx context.Context, spec *configapiv1.TLSProfileSpec) {
+	GinkgoHelper()
+	operandDeployments := []string{
+		certmanagerControllerDeployment,
+		certmanagerWebhookDeployment,
+		certmanagerCAinjectorDeployment,
+	}
+	By("waiting for cert-manager operand TLS args and rollout")
+	for _, name := range operandDeployments {
+		err := verifyOperandTLSArgsMatchClusterProfile(name, spec)
+		Expect(err).NotTo(HaveOccurred(), "deployment %s", name)
+		err = waitForDeploymentRollout(ctx, operandNamespace, name, lowTimeout)
+		Expect(err).NotTo(HaveOccurred(), "rollout %s", name)
+		err = verifyOperandMetricsHTTPS(name)
+		Expect(err).NotTo(HaveOccurred(), "https metrics %s", name)
+	}
+	Eventually(func() error {
+		_, err := k8sClientSet.CoreV1().Secrets(operandNamespace).Get(ctx, metricsCASecretName, metav1.GetOptions{})
+		return err
+	}, lowTimeout, fastPollInterval).Should(Succeed(), "metrics CA secret")
+	Eventually(func() error {
+		_, err := k8sClientSet.CoreV1().Secrets(operandNamespace).Get(ctx, webhookCASecretName, metav1.GetOptions{})
+		return err
+	}, lowTimeout, fastPollInterval).Should(Succeed(), "webhook CA secret")
+}
+
+func assertModernListenerEnforcement(ctx context.Context) {
+	GinkgoHelper()
+	assertModernListenerEnforcementOn(ctx, certManagerTLSEndpoints())
+}
+
+func assertModernListenerEnforcementOn(ctx context.Context, endpoints []certManagerTLSEndpoint) {
+	GinkgoHelper()
+	for _, ep := range endpoints {
+		Eventually(func() error {
+			return handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, tls13Only())
+		}, lowTimeout, fastPollInterval).Should(Succeed(), "%s TLS 1.3", ep.name)
+
+		err := handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, tls12Only())
+		Expect(err).To(HaveOccurred(), "%s TLS 1.2 should be rejected under TLS 1.3 min version", ep.name)
+	}
+}
+
+func assertIntermediateListenerEnforcement(ctx context.Context) {
+	GinkgoHelper()
+	allowed := tls12Cipher(tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
+	rejected := tls12Cipher(tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256)
+	for _, ep := range certManagerTLSEndpoints() {
+		Eventually(func() error {
+			return handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, allowed)
+		}, lowTimeout, fastPollInterval).Should(Succeed(), "%s TLS 1.2 allowed cipher", ep.name)
+
+		err := handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, rejected)
+		Expect(err).To(HaveOccurred(), "%s TLS 1.2 CBC cipher should be rejected under Intermediate", ep.name)
+
+		err = handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, tls10Only())
+		Expect(err).To(HaveOccurred(), "%s TLS 1.0 should be rejected under Intermediate", ep.name)
+	}
+}
+
+type certManagerTLSEndpoint struct {
+	name       string
+	deployment string
+	serverName string
+	caSecret   string
+	port       int
+}
+
+func certManagerTLSEndpoints() []certManagerTLSEndpoint {
+	return []certManagerTLSEndpoint{
+		{
+			name:       "controller-metrics",
+			deployment: certmanagerControllerDeployment,
+			serverName: metricsServerName("cert-manager"),
+			caSecret:   metricsCASecretName,
+			port:       metricsPort,
+		},
+		{
+			name:       "webhook-metrics",
+			deployment: certmanagerWebhookDeployment,
+			serverName: metricsServerName("cert-manager-webhook"),
+			caSecret:   metricsCASecretName,
+			port:       metricsPort,
+		},
+		{
+			name:       "cainjector-metrics",
+			deployment: certmanagerCAinjectorDeployment,
+			serverName: metricsServerName("cert-manager-cainjector"),
+			caSecret:   metricsCASecretName,
+			port:       metricsPort,
+		},
+		{
+			name:       "webhook-serving",
+			deployment: certmanagerWebhookDeployment,
+			serverName: metricsServerName("cert-manager-webhook"),
+			caSecret:   webhookCASecretName,
+			port:       webhookSecurePort,
+		},
+	}
+}
+
+func trustManagerWebhookEndpoint() certManagerTLSEndpoint {
+	return certManagerTLSEndpoint{
+		name:       "trust-manager-webhook",
+		deployment: trustManagerDeploymentName,
+		serverName: metricsServerName(trustManagerServiceName),
+		caSecret:   trustManagerTLSSecretName,
+		port:       trustManagerWebhookPort,
+	}
+}
+
+func customTLS13SecurityProfile() *configapiv1.TLSSecurityProfile {
+	return &configapiv1.TLSSecurityProfile{
+		Type: configapiv1.TLSProfileCustomType,
+		Custom: &configapiv1.CustomTLSProfile{
+			TLSProfileSpec: configapiv1.TLSProfileSpec{
+				MinTLSVersion: configapiv1.VersionTLS13,
+				Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
+			},
+		},
+	}
+}
+
+func patchLegacyTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurityProfile) {
+	GinkgoHelper()
+	By(fmt.Sprintf("patching apiserver cluster to LegacyAdheringComponentsOnly with %s TLS profile", profile.Type))
+	err := updateClusterAPIServerTLSConfig(ctx, profile, configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)
+	if isTLSAdherenceUnsupported(err) {
+		Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
+	}
+	Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
+}
+
+func expectProfileManagedTLSFlagsGone(ctx context.Context, deployments []string) {
+	GinkgoHelper()
+	for _, name := range deployments {
+		err := waitForOperandProfileTLSArgKeysAbsent(name)
+		Expect(err).NotTo(HaveOccurred(), "deployment %s still has profile-managed TLS flags under Legacy", name)
+
+		Consistently(func() error {
+			return verifyOperandProfileTLSArgKeysAbsent(name)
+		}, 15*time.Second, fastPollInterval).Should(Succeed(), "deployment %s", name)
+
+		if name != trustManagerDeploymentName {
+			Eventually(func() error {
+				return verifyOperandMetricsHTTPS(name)
+			}, lowTimeout, fastPollInterval).Should(Succeed(), "https metrics remain on %s", name)
+		}
+
+		err = waitForDeploymentRollout(ctx, operandNamespace, name, lowTimeout)
+		Expect(err).NotTo(HaveOccurred(), "rollout %s", name)
+	}
+}
+
+func assertTLS12Accepted(ctx context.Context, endpoints []certManagerTLSEndpoint) {
+	GinkgoHelper()
+	for _, ep := range endpoints {
+		Eventually(func() error {
+			return handshakeOperandPort(ctx, ep.deployment, ep.serverName, ep.caSecret, ep.port, tls12Only())
+		}, lowTimeout, fastPollInterval).Should(Succeed(), "%s TLS 1.2 after Legacy", ep.name)
+	}
+}
+
+func expectTrustManagerTLSSecret(ctx context.Context) {
+	GinkgoHelper()
+	Eventually(func() error {
+		_, err := k8sClientSet.CoreV1().Secrets(operandNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+		return err
+	}, lowTimeout, fastPollInterval).Should(Succeed(), "trust-manager TLS secret")
+}
+
 func patchStrictTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurityProfile) *configapiv1.TLSProfileSpec {
 	GinkgoHelper()
 	By(fmt.Sprintf("patching apiserver cluster to StrictAllComponents with %s TLS profile", profile.Type))
@@ -449,6 +757,124 @@ func expectTrustManagerDeploymentPresent(ctx context.Context) {
 		_, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
 		return err
 	}, lowTimeout, fastPollInterval).Should(Succeed())
+}
+
+const operatorContainerName = "cert-manager-operator"
+
+// operatorContainerIdentity identifies one running operator container.
+// RestartKey changes on an in-place container restart. The Pod UID does not,
+// because RequestShutdown exits the process and kubelet restarts that container.
+type operatorContainerIdentity struct {
+	Name       string
+	RestartKey string
+}
+
+func readyOperatorContainer(ctx context.Context) (*operatorContainerIdentity, error) {
+	dep, err := k8sClientSet.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+	pods, err := k8sClientSet.CoreV1().Pods(operatorNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var newest *corev1.Pod
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ready := false
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				ready = true
+				break
+			}
+		}
+		if !ready {
+			continue
+		}
+		if newest == nil || pod.CreationTimestamp.After(newest.CreationTimestamp.Time) {
+			newest = pod
+		}
+	}
+	if newest == nil {
+		return nil, fmt.Errorf("no ready operator pod in %s", operatorNamespace)
+	}
+
+	var restartKey string
+	for _, status := range newest.Status.ContainerStatuses {
+		if status.Name != operatorContainerName {
+			continue
+		}
+		if status.ContainerID != "" {
+			restartKey = status.ContainerID
+		} else {
+			restartKey = fmt.Sprintf("%s/%d", newest.UID, status.RestartCount)
+		}
+		break
+	}
+	if restartKey == "" {
+		return nil, fmt.Errorf("operator container %s has no restart key on pod %s", operatorContainerName, newest.Name)
+	}
+	return &operatorContainerIdentity{Name: newest.Name, RestartKey: restartKey}, nil
+}
+
+func expectReadyOperatorContainer(ctx context.Context) *operatorContainerIdentity {
+	GinkgoHelper()
+	var got *operatorContainerIdentity
+	Eventually(func() error {
+		pod, err := readyOperatorContainer(ctx)
+		if err != nil {
+			return err
+		}
+		got = pod
+		return nil
+	}, highTimeout, fastPollInterval).Should(Succeed(), "ready operator container")
+	return got
+}
+
+// expectOperatorContainerRestart waits for kubelet to start a new operator
+// container. highTimeout covers the restart backoff kubelet applies after
+// repeated graceful exits in this suite.
+func expectOperatorContainerRestart(ctx context.Context, previousRestartKey string) *operatorContainerIdentity {
+	GinkgoHelper()
+	var got *operatorContainerIdentity
+	Eventually(func() error {
+		pod, err := readyOperatorContainer(ctx)
+		if err != nil {
+			return err
+		}
+		if pod.RestartKey == previousRestartKey {
+			return fmt.Errorf("operator container restartKey still %s", previousRestartKey)
+		}
+		got = pod
+		return nil
+	}, highTimeout, fastPollInterval).Should(Succeed(), "operator container restart from %s", previousRestartKey)
+	return got
+}
+
+// ensureStrictTLSProfileSettled applies profile under StrictAllComponents and
+// waits out the operator restart that change causes. If the cluster is already
+// on that profile and adherence, the current container is the baseline.
+func ensureStrictTLSProfileSettled(ctx context.Context, profile *configapiv1.TLSSecurityProfile) *operatorContainerIdentity {
+	GinkgoHelper()
+	current, err := getClusterAPIServerTLSConfig(ctx)
+	Expect(err).NotTo(HaveOccurred(), "read apiserver TLS configuration")
+	before := expectReadyOperatorContainer(ctx)
+	if current.adherence == configapiv1.TLSAdherencePolicyStrictAllComponents &&
+		current.tlsProfile != nil && current.tlsProfile.Type == profile.Type {
+		return before
+	}
+	patchStrictTLSProfile(ctx, profile)
+	return expectOperatorContainerRestart(ctx, before.RestartKey)
 }
 
 func deleteOperatorControllerPods(ctx context.Context) error {
