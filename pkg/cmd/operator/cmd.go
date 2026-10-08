@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -25,7 +26,12 @@ func NewOperator() *cobra.Command {
 	cc := controllercmd.NewControllerCommandConfig(
 		"cert-manager-operator",
 		version.Get(),
-		operator.RunOperator,
+		// cmd.Run below replaces Controllercmd's start path so the cluster TLS
+		// profile can be applied before the HTTPS listener is created. This
+		// start func is not used.
+		func(context.Context, *controllercmd.ControllerContext) error {
+			return fmt.Errorf("cert-manager-operator start path was not replaced")
+		},
 		clock.RealClock{},
 	)
 
@@ -129,17 +135,24 @@ func startControllerWithClusterTLS(ctx context.Context, c *controllercmd.Control
 		return err
 	}
 
+	var (
+		resolvedTLS tlsprofile.ResolvedProfile
+		watchTLS    bool
+	)
 	if !c.DisableServing {
 		restConfig, err := tlsprofile.RESTConfigFromKubeConfig(kubeConfigFile)
 		if err != nil {
 			klog.Warningf("unable to build rest config for cluster TLS profile lookup; using Controllercmd default TLS settings: %v", err)
 		} else {
 			lookupCtx, cancelLookup := context.WithTimeout(ctx, 30*time.Second)
-			err := tlsprofile.ApplyClusterProfileToHTTPServingInfo(lookupCtx, restConfig, &config.ServingInfo)
+			resolvedTLS, err = tlsprofile.ApplyClusterProfileToHTTPServingInfo(lookupCtx, restConfig, &config.ServingInfo)
 			cancelLookup()
 			if err != nil {
 				return err
 			}
+			// Seed the live watcher from this same read. A second lookup inside
+			// RunOperator could observe a newer profile than the one just applied.
+			watchTLS = true
 		}
 	}
 
@@ -159,7 +172,12 @@ func startControllerWithClusterTLS(ctx context.Context, c *controllercmd.Control
 	config.LeaderElection.RenewDeadline = c.RenewDeadline
 	config.LeaderElection.RetryPeriod = c.RetryPeriod
 
-	builder := controllercmd.NewController("cert-manager-operator", operator.RunOperator, clock.RealClock{}).
+	builder := controllercmd.NewController("cert-manager-operator", func(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+		return operator.RunOperator(ctx, controllerContext, operator.OperatorTLSWatch{
+			Resolved: resolvedTLS,
+			Enabled:  watchTLS,
+		})
+	}, clock.RealClock{}).
 		WithKubeConfigFile(kubeConfigFile, nil).
 		WithComponentNamespace(namespace).
 		WithLeaderElection(config.LeaderElection, namespace, "cert-manager-operator-lock").

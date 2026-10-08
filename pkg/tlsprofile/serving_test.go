@@ -12,14 +12,14 @@ import (
 
 func TestApplyClusterProfileToHTTPServingInfo_guards(t *testing.T) {
 	t.Run("nil serving", func(t *testing.T) {
-		err := ApplyClusterProfileToHTTPServingInfo(context.Background(), &rest.Config{}, nil)
+		_, err := ApplyClusterProfileToHTTPServingInfo(context.Background(), &rest.Config{}, nil)
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 	t.Run("nil rest config", func(t *testing.T) {
 		serving := &configv1.HTTPServingInfo{}
-		err := ApplyClusterProfileToHTTPServingInfo(context.Background(), nil, serving)
+		_, err := ApplyClusterProfileToHTTPServingInfo(context.Background(), nil, serving)
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -113,6 +113,117 @@ func TestApplyToHTTPServingInfo(t *testing.T) {
 			}
 			if tc.wantCipher && len(tc.serving.CipherSuites) == 0 {
 				t.Fatal("expected non-empty cipher list")
+			}
+		})
+	}
+}
+
+func TestProfileForOperatorServing(t *testing.T) {
+	modern := &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType}
+	wantModern, err := EffectiveSpec(modern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIntermediate, err := EffectiveSpec(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidCustom := &configv1.TLSSecurityProfile{Type: configv1.TLSProfileCustomType}
+
+	cases := []struct {
+		name             string
+		apiServer        *configv1.APIServer
+		wantApply        bool
+		wantHonor        bool
+		wantUnresolvable bool
+		wantAdherence    configv1.TLSAdherencePolicy
+		wantSpec         *configv1.TLSProfileSpec
+		wantErr          string
+	}{
+		{
+			name:          "nil apiserver is intermediate and not honored",
+			wantAdherence: configv1.TLSAdherencePolicyNoOpinion,
+			wantSpec:      wantIntermediate,
+		},
+		{
+			name: "legacy keeps spec for watcher seeding and does not apply",
+			apiServer: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+					TLSSecurityProfile: modern,
+				},
+			},
+			wantAdherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			wantSpec:      wantModern,
+		},
+		{
+			name: "strict modern applies",
+			apiServer: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: modern,
+				},
+			},
+			wantApply:     true,
+			wantHonor:     true,
+			wantAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+			wantSpec:      wantModern,
+		},
+		{
+			name: "legacy invalid custom is unresolvable and does not apply",
+			apiServer: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+					TLSSecurityProfile: invalidCustom,
+				},
+			},
+			wantUnresolvable: true,
+			wantAdherence:    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+		},
+		{
+			name: "strict invalid custom fails",
+			apiServer: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: invalidCustom,
+				},
+			},
+			wantErr: "custom TLS profile is missing custom settings",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, apply, err := profileForOperatorServing(tc.apiServer)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
+				}
+				if apply {
+					t.Fatal("apply = true, want false on error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if apply != tc.wantApply {
+				t.Fatalf("apply = %v, want %v", apply, tc.wantApply)
+			}
+			if got.Honor != tc.wantHonor {
+				t.Fatalf("Honor = %v, want %v", got.Honor, tc.wantHonor)
+			}
+			if got.Unresolvable != tc.wantUnresolvable {
+				t.Fatalf("Unresolvable = %v, want %v", got.Unresolvable, tc.wantUnresolvable)
+			}
+			if got.Adherence != tc.wantAdherence {
+				t.Fatalf("Adherence = %q, want %q", got.Adherence, tc.wantAdherence)
+			}
+			if tc.wantSpec == nil {
+				return
+			}
+			if got.Spec.MinTLSVersion != tc.wantSpec.MinTLSVersion {
+				t.Fatalf("MinTLSVersion = %q, want %q", got.Spec.MinTLSVersion, tc.wantSpec.MinTLSVersion)
 			}
 		})
 	}

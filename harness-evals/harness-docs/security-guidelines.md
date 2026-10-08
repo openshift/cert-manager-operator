@@ -37,9 +37,13 @@ architecture. Rules below are enforced by code, CRD validation, or CI unless not
   `StrictAllComponents` (via `libgocrypto.ShouldHonorClusterTLSProfile`). A nil/absent profile
   resolves to `Intermediate`, not "no TLS enforcement" — don't treat missing config as "TLS profile
   disabled".
-- CSV declares `tls-profiles: "false"` despite the runtime hook existing — this is a known
-  inconsistency (see `architecture/components.md`); don't assume the annotation reflects actual
-  behavior when auditing.
+- CSV declares `features.operators.openshift.io/tls-profiles: "true"` in
+  `config/manifests/bases/cert-manager-operator.clusterserviceversion.yaml` and the generated bundle.
+  Keep it `"true"`: operands and the operator metrics server honor the cluster profile when
+  `tlsAdherence` requires it.
+- The operator metrics HTTPS listener (`:8443`) is configured only at process start. A later change
+  to the resolved TLS profile or to raw `tlsAdherence` restarts the operator process
+  (`pkg/tlsprofile.SecurityProfileWatcher`). Do not try to reconfigure that listener in place.
 
 ```go
 // Correct pattern for a new TLS-aware arg (pkg/controller/common/tls_profile_hook.go)
