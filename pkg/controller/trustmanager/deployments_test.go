@@ -17,7 +17,30 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
-const testImage = "registry.redhat.io/cert-manager/cert-manager-trust-manager-rhel9:latest"
+const (
+	testImage             = "registry.redhat.io/cert-manager/cert-manager-trust-manager-rhel9:latest"
+	testServiceAccountUID = "test-service-account-uid"
+)
+
+func stubTrustManagerServiceAccount(m *fakes.FakeCtrlClient) {
+	m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		sa, ok := obj.(*corev1.ServiceAccount)
+		if !ok {
+			// APIServer reads during TLS profile resolution must keep the
+			// zero-object, nil-error behavior the rest of these tests rely on.
+			return nil
+		}
+		sa.UID = testServiceAccountUID
+		return nil
+	})
+}
+
+func withServiceAccountUID(dep *appsv1.Deployment, uid string) {
+	if dep.Spec.Template.Annotations == nil {
+		dep.Spec.Template.Annotations = map[string]string{}
+	}
+	dep.Spec.Template.Annotations[serviceAccountUIDAnnotation] = uid
+}
 
 func TestDeploymentObject(t *testing.T) {
 	tests := []struct {
@@ -452,11 +475,44 @@ func TestDeploymentReconciliation(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error building desired deployment: %v", err)
 					}
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
 			},
 			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
+			name:     "apply when service account uid changes",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					if err != nil {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					withServiceAccountUID(dep, "previous-service-account-uid")
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:     "serviceaccount get error propagates",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+					if _, ok := obj.(*corev1.ServiceAccount); ok {
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			wantErr:         "failed to get serviceaccount",
+			wantExistsCount: 0,
 			wantPatchCount:  0,
 		},
 		{
@@ -692,6 +748,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			}
 			r := testReconciler(t)
 			mock := &fakes.FakeCtrlClient{}
+			stubTrustManagerServiceAccount(mock)
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}

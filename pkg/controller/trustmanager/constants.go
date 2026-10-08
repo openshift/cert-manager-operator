@@ -72,6 +72,13 @@ const (
 
 	// defaultCAPackageHashAnnotation is the pod template annotation that tracks the CA bundle hash.
 	defaultCAPackageHashAnnotation = "operator.openshift.io/default-ca-package-hash"
+
+	// serviceAccountUIDAnnotation is the pod template annotation set to the
+	// trust-manager ServiceAccount UID. Deleting and recreating that account
+	// changes the UID, which rolls the pod. A restarted container keeps the
+	// projected token from pod start, and that token stays invalid after the
+	// account is deleted.
+	serviceAccountUIDAnnotation = "operator.openshift.io/trust-manager-service-account-uid"
 )
 
 // Resource names used for creating resources and cross-referencing between them.
