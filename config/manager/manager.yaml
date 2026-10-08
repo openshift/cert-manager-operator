@@ -75,15 +75,15 @@ spec:
             - name: OPERATOR_NAME
               value: cert-manager-operator
             - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-              value: quay.io/jetstack/cert-manager-webhook:latest
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:67a3076ae529627d27e72f49244891b44234d378254473127ce5870bfb047fc9
             - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-              value: quay.io/jetstack/cert-manager-cainjector:latest
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:67a3076ae529627d27e72f49244891b44234d378254473127ce5870bfb047fc9
             - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-              value: quay.io/jetstack/cert-manager-controller:latest
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:67a3076ae529627d27e72f49244891b44234d378254473127ce5870bfb047fc9
             - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-              value: quay.io/jetstack/cert-manager-acmesolver:v1.17.4
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:15d6fce592d5b6e4193b34e9631b8e90bf7cdfcd542152aa59a550fbf171088c
             - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
-              value: quay.io/jetstack/cert-manager-istio-csr:v0.14.0
+              value: registry.stage.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:a4f93891e6a7d313978a5cb1225bfd67f1c1f46618dc3db503f7f1163f6f8764
             - name: OPERAND_IMAGE_VERSION
               value: 1.17.4
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION
@@ -95,7 +95,7 @@ spec:
             - name: TRUSTED_CA_CONFIGMAP_NAME
             - name: CLOUD_CREDENTIALS_SECRET_NAME
             - name: UNSUPPORTED_ADDON_FEATURES
-          image: controller:latest
+          image: registry.stage.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:7eb3327bcd9a350346511172368562a4cd9c543553ce8d125aeb4c880afe7c5e
           imagePullPolicy: IfNotPresent
           name: cert-manager-operator
           securityContext:
