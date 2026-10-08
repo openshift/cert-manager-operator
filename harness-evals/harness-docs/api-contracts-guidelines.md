@@ -35,7 +35,7 @@ Rules:
 
 ## 2. Spec/Status Conventions
 
-Two status models coexist by design (see `decisions/adr-0001-dual-controller-frameworks.md`).
+Two status models coexist by design (see [ADR-0001](../../docs/adr/0001-dual-controller-frameworks.md)).
 Never assume one is used everywhere:
 
 - **CertManager**: embeds OpenShift `apiv1.OperatorSpec` / `apiv1.OperatorStatus`
@@ -124,7 +124,7 @@ objects — a new namespaced singleton needs the same controller-side check.
 `IstioCSR` (GA, default **true**) and `TrustManager` (TechPreview, default **false**)
 are gated in `api/operator/v1alpha1/features.go` via
 `featuregate.Feature`/`OperatorFeatureGates`, enabled at runtime through
-`--unsupported-addon-features` (see `decisions/adr-0003-feature-gates.md`).
+`--unsupported-addon-features` (see [ADR-0003](../../docs/adr/0003-feature-gates.md)).
 `CertManager` is always on and ungated.
 
 Rules for a new feature-gated CR:

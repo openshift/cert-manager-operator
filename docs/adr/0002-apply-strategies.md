@@ -1,8 +1,19 @@
-# ADR-0002: Per-Controller Resource Apply Strategy
+---
+status: accepted
+applies_to:
+  - pkg/controller/certmanager/
+  - pkg/controller/istiocsr/
+  - pkg/controller/trustmanager/
+  - pkg/controller/common/
+---
 
-**Status**: Accepted  
-**Date**: 2026-03-11 (TrustManager SSA; IstioCSR remains Create+Update)  
-**Deciders**: cert-manager-operator maintainers
+# 2. Per-Controller Resource Apply Strategy
+
+Date: 2026-03-11
+
+## Status
+
+Accepted
 
 ## Context
 
@@ -12,22 +23,19 @@ Documenting a single “we use SSA everywhere” claim is a known hallucination 
 
 ## Decision
 
-1. CertManager continues with library-go apply helpers.  
-2. IstioCSR keeps Create+Update until explicitly migrated.  
-3. **New controller-runtime operand reconcilers must follow TrustManager SSA** (`Patch` + `client.Apply` + `FieldOwner` + `ForceOwnership`).  
+1. CertManager continues with library-go apply helpers.
+2. IstioCSR keeps Create+Update until explicitly migrated.
+3. **New controller-runtime operand reconcilers must follow TrustManager SSA** (`Patch` + `client.Apply` + `FieldOwner` + `ForceOwnership`).
 4. Status updates for IstioCSR/TrustManager may still use `UpdateWithRetry` on the CR object.
 
 ## Consequences
 
-**Positive**:
-- Clear field ownership for TrustManager-managed resources.
-- Shared `common.FromClientError` / `HandleReconcileResult` still apply.
+- Positive: Clear field ownership for TrustManager-managed resources.
+- Positive: Shared `common.FromClientError` / `HandleReconcileResult` still apply.
+- Negative: Three apply idioms in one repo.
+- Negative: IstioCSR and TrustManager diverge — copy-paste across packages is unsafe.
 
-**Negative / Trade-offs**:
-- Three apply idioms in one repo.
-- IstioCSR and TrustManager diverge — copy-paste across packages is unsafe.
-
-## Alternatives Considered
+## Alternatives considered
 
 - Retrofit SSA onto IstioCSR immediately — not done at TrustManager introduction.
 - Strategic merge patches only — rejected for TrustManager in favor of SSA.
@@ -37,7 +45,3 @@ Documenting a single “we use SSA everywhere” claim is a known hallucination 
 - TrustManager: `pkg/controller/trustmanager/services.go`, `deployments.go`, `constants.go` (`fieldOwner`)
 - IstioCSR: `pkg/controller/istiocsr/services.go`, `deployments.go`
 - CertManager: `pkg/controller/certmanager/cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`)
-
-## SME Review Recommended
-
-Whether/when IstioCSR migrates to SSA; field-owner naming convention for future operands.
