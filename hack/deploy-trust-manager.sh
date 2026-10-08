@@ -151,7 +151,10 @@ wait_for_trust_manager() {
   # has applied the current ServiceAccount, then wait until the new pod is up.
   echo "Recreating trust-manager pods so they mount the current ServiceAccount token..."
   oc delete pods -n "${OPERAND_NAMESPACE}" -l app=cert-manager-trust-manager --wait=true --ignore-not-found=true
-  oc wait --for=condition=Available -n "${OPERAND_NAMESPACE}" deployment/trust-manager --timeout=5m
+  # Deployment Available can stay True until the controller observes the
+  # deletion, so wait for the replacement pod itself.
+  oc wait --for=create -n "${OPERAND_NAMESPACE}" pod -l app=cert-manager-trust-manager --timeout=5m
+  oc wait --for=condition=Ready -n "${OPERAND_NAMESPACE}" pod -l app=cert-manager-trust-manager --timeout=5m
 }
 
 wait_for_default_operands

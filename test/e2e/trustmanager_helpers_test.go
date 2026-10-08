@@ -144,13 +144,35 @@ func deleteTrustManager(ctx context.Context) {
 // cleanupTrustManagerOperandLeavings removes operand resources left behind when the TrustManager CR
 // is deleted. The operator does not tear these down today (see controller cleanUp TODO).
 // The Deployment is removed before the ServiceAccount so no pod is left mounted
-// with a token for an account that is about to be deleted.
+// with a token for an account that is about to be deleted. Background deletion
+// drops the Deployment object before its ReplicaSets and pods finish terminating,
+// so those must be gone before the ServiceAccount is deleted.
 func cleanupTrustManagerOperandLeavings(ctx context.Context) {
 	By("cleaning up trust-manager operand Deployment if present")
 	_ = k8sClientSet.AppsV1().Deployments(trustManagerNamespace).Delete(ctx, trustManagerDeploymentName, metav1.DeleteOptions{})
 	Eventually(func() bool {
 		_, err := k8sClientSet.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
 		return apierrors.IsNotFound(err)
+	}, lowTimeout, fastPollInterval).Should(BeTrue())
+
+	// A ReplicaSet that is still present can create a replacement pod after the
+	// current pods have disappeared, so both have to be gone.
+	By("waiting for trust-manager ReplicaSets and pods to disappear")
+	selector := "app=" + trustManagerCommonName
+	Eventually(func() bool {
+		replicaSets, err := k8sClientSet.AppsV1().ReplicaSets(trustManagerNamespace).List(ctx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		if err != nil || len(replicaSets.Items) != 0 {
+			return false
+		}
+		pods, err := k8sClientSet.CoreV1().Pods(trustManagerNamespace).List(ctx, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+		if err != nil {
+			return false
+		}
+		return len(pods.Items) == 0
 	}, lowTimeout, fastPollInterval).Should(BeTrue())
 
 	By("cleaning up trust-manager operand ServiceAccount if present")
