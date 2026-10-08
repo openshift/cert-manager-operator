@@ -13,6 +13,7 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -229,6 +230,64 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			err := verifyOperandTLSArgsMatchClusterProfile(name, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args on %s", name)
 		}
+	})
+
+	// The operator metrics listener is fixed at process start, so a profile
+	// change and an adherence change each exit the container. Kubelet restarts
+	// it in place: the Pod UID stays the same and only the container ID changes.
+	It("should restart the operator container when the cluster TLS profile changes", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		baseline := ensureStrictTLSProfileSettled(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		})
+
+		By("patching apiserver cluster profile from Modern to Intermediate")
+		patchStrictTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectOperatorContainerRestart(ctx, baseline.RestartKey)
+	})
+
+	It("should restart the operator container when tlsAdherence changes and the profile stays the same", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		baseline := ensureStrictTLSProfileSettled(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+
+		By("patching apiserver to LegacyAdheringComponentsOnly with the Intermediate profile unchanged")
+		patchLegacyTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+		expectOperatorContainerRestart(ctx, baseline.RestartKey)
+	})
+
+	It("should not restart the operator container when an unrelated apiserver field changes", func() {
+		pod := expectReadyOperatorContainer(ctx)
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred(), "read apiserver audit profile")
+
+		originalAudit := apiServer.Spec.Audit.Profile
+		next := configapiv1.WriteRequestBodiesAuditProfileType
+		if originalAudit == next {
+			next = configapiv1.DefaultAuditProfileType
+		}
+		By(fmt.Sprintf("patching apiserver audit profile from %q to %q", originalAudit, next))
+		Expect(patchAPIServerAuditProfile(ctx, next)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(patchAPIServerAuditProfile(context.Background(), originalAudit)).To(Succeed())
+		})
+
+		Consistently(func() (string, error) {
+			current, err := readyOperatorContainer(ctx)
+			if err != nil {
+				return "", err
+			}
+			return current.RestartKey, nil
+		}, 15*time.Second, fastPollInterval).Should(Equal(pod.RestartKey))
 	})
 
 	Context("trust-manager webhook TLS", Ordered, func() {
@@ -698,6 +757,124 @@ func expectTrustManagerDeploymentPresent(ctx context.Context) {
 		_, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
 		return err
 	}, lowTimeout, fastPollInterval).Should(Succeed())
+}
+
+const operatorContainerName = "cert-manager-operator"
+
+// operatorContainerIdentity identifies one running operator container.
+// RestartKey changes on an in-place container restart. The Pod UID does not,
+// because RequestShutdown exits the process and kubelet restarts that container.
+type operatorContainerIdentity struct {
+	Name       string
+	RestartKey string
+}
+
+func readyOperatorContainer(ctx context.Context) (*operatorContainerIdentity, error) {
+	dep, err := k8sClientSet.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+	pods, err := k8sClientSet.CoreV1().Pods(operatorNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var newest *corev1.Pod
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ready := false
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				ready = true
+				break
+			}
+		}
+		if !ready {
+			continue
+		}
+		if newest == nil || pod.CreationTimestamp.After(newest.CreationTimestamp.Time) {
+			newest = pod
+		}
+	}
+	if newest == nil {
+		return nil, fmt.Errorf("no ready operator pod in %s", operatorNamespace)
+	}
+
+	var restartKey string
+	for _, status := range newest.Status.ContainerStatuses {
+		if status.Name != operatorContainerName {
+			continue
+		}
+		if status.ContainerID != "" {
+			restartKey = status.ContainerID
+		} else {
+			restartKey = fmt.Sprintf("%s/%d", newest.UID, status.RestartCount)
+		}
+		break
+	}
+	if restartKey == "" {
+		return nil, fmt.Errorf("operator container %s has no restart key on pod %s", operatorContainerName, newest.Name)
+	}
+	return &operatorContainerIdentity{Name: newest.Name, RestartKey: restartKey}, nil
+}
+
+func expectReadyOperatorContainer(ctx context.Context) *operatorContainerIdentity {
+	GinkgoHelper()
+	var got *operatorContainerIdentity
+	Eventually(func() error {
+		pod, err := readyOperatorContainer(ctx)
+		if err != nil {
+			return err
+		}
+		got = pod
+		return nil
+	}, highTimeout, fastPollInterval).Should(Succeed(), "ready operator container")
+	return got
+}
+
+// expectOperatorContainerRestart waits for kubelet to start a new operator
+// container. highTimeout covers the restart backoff kubelet applies after
+// repeated graceful exits in this suite.
+func expectOperatorContainerRestart(ctx context.Context, previousRestartKey string) *operatorContainerIdentity {
+	GinkgoHelper()
+	var got *operatorContainerIdentity
+	Eventually(func() error {
+		pod, err := readyOperatorContainer(ctx)
+		if err != nil {
+			return err
+		}
+		if pod.RestartKey == previousRestartKey {
+			return fmt.Errorf("operator container restartKey still %s", previousRestartKey)
+		}
+		got = pod
+		return nil
+	}, highTimeout, fastPollInterval).Should(Succeed(), "operator container restart from %s", previousRestartKey)
+	return got
+}
+
+// ensureStrictTLSProfileSettled applies profile under StrictAllComponents and
+// waits out the operator restart that change causes. If the cluster is already
+// on that profile and adherence, the current container is the baseline.
+func ensureStrictTLSProfileSettled(ctx context.Context, profile *configapiv1.TLSSecurityProfile) *operatorContainerIdentity {
+	GinkgoHelper()
+	current, err := getClusterAPIServerTLSConfig(ctx)
+	Expect(err).NotTo(HaveOccurred(), "read apiserver TLS configuration")
+	before := expectReadyOperatorContainer(ctx)
+	if current.adherence == configapiv1.TLSAdherencePolicyStrictAllComponents &&
+		current.tlsProfile != nil && current.tlsProfile.Type == profile.Type {
+		return before
+	}
+	patchStrictTLSProfile(ctx, profile)
+	return expectOperatorContainerRestart(ctx, before.RestartKey)
 }
 
 func deleteOperatorControllerPods(ctx context.Context) error {

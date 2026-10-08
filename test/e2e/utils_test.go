@@ -1863,6 +1863,20 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// patchAPIServerAuditProfile updates an APIServer field the operator TLS watcher ignores.
+func patchAPIServerAuditProfile(ctx context.Context, profile configapiv1.AuditProfileType) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		updated := apiServer.DeepCopy()
+		updated.Spec.Audit.Profile = profile
+		_, err = configClient.APIServers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})
+}
+
 func isTLSAdherenceUnsupported(err error) bool {
 	if err == nil {
 		return false
