@@ -110,10 +110,7 @@ type Meter interface {
 	// The name needs to conform to the OpenTelemetry instrument name syntax.
 	// See the Instrument Name section of the package documentation for more
 	// information.
-	Int64ObservableUpDownCounter(
-		name string,
-		options ...Int64ObservableUpDownCounterOption,
-	) (Int64ObservableUpDownCounter, error)
+	Int64ObservableUpDownCounter(name string, options ...Int64ObservableUpDownCounterOption) (Int64ObservableUpDownCounter, error)
 
 	// Int64ObservableGauge returns a new Int64ObservableGauge instrument
 	// identified by name and configured with options. The instrument is used
@@ -197,10 +194,7 @@ type Meter interface {
 	// The name needs to conform to the OpenTelemetry instrument name syntax.
 	// See the Instrument Name section of the package documentation for more
 	// information.
-	Float64ObservableUpDownCounter(
-		name string,
-		options ...Float64ObservableUpDownCounterOption,
-	) (Float64ObservableUpDownCounter, error)
+	Float64ObservableUpDownCounter(name string, options ...Float64ObservableUpDownCounterOption) (Float64ObservableUpDownCounter, error)
 
 	// Float64ObservableGauge returns a new Float64ObservableGauge instrument
 	// identified by name and configured with options. The instrument is used
@@ -244,11 +238,7 @@ type Meter interface {
 // Callbacks. Meaning, it should not report measurements for an instrument with
 // the same attributes as another Callback will report.
 //
-// The function needs to be reentrant and concurrent safe.
-//
-// Note that Go's mutexes are not reentrant, and locking a mutex takes
-// an indefinite amount of time. It is therefore advised to avoid
-// using mutexes inside callbacks.
+// The function needs to be concurrent safe.
 type Callback func(context.Context, Observer) error
 
 // Observer records measurements for multiple instruments in a Callback.
