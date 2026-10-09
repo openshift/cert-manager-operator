@@ -242,12 +242,12 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.58.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
-	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel v1.41.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0 // indirect
-	go.opentelemetry.io/otel/metric v1.40.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
-	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.41.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.41.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
@@ -307,3 +307,13 @@ replace golang.org/x/net => github.com/openshift-sustaining/net v0.50.0-sec.4
 replace google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.75.1-sec.1
 
 replace golang.org/x/crypto => github.com/openshift-sustaining/crypto v0.48.0-sec.3
+
+replace go.opentelemetry.io/otel => go.opentelemetry.io/otel v1.35.0
+
+replace go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v1.35.0
+
+replace go.opentelemetry.io/otel/sdk => go.opentelemetry.io/otel/sdk v1.35.0
+
+replace go.opentelemetry.io/otel/trace => go.opentelemetry.io/otel/trace v1.35.0
+
+replace go.opentelemetry.io/auto/sdk => go.opentelemetry.io/auto/sdk v1.1.0
