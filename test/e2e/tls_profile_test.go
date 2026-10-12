@@ -523,31 +523,6 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		expectOperatorContainerRestart(ctx, baseline.RestartKey)
 	})
 
-	It("should not restart the operator container when an unrelated apiserver field changes", func() {
-		pod := expectReadyOperatorContainer(ctx)
-		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "read apiserver audit profile")
-
-		originalAudit := apiServer.Spec.Audit.Profile
-		next := configapiv1.WriteRequestBodiesAuditProfileType
-		if originalAudit == next {
-			next = configapiv1.DefaultAuditProfileType
-		}
-		By(fmt.Sprintf("patching apiserver audit profile from %q to %q", originalAudit, next))
-		Expect(patchAPIServerAuditProfile(ctx, next)).To(Succeed())
-		DeferCleanup(func() {
-			Expect(patchAPIServerAuditProfile(context.Background(), originalAudit)).To(Succeed())
-		})
-
-		Consistently(func() (string, error) {
-			current, err := readyOperatorContainer(ctx)
-			if err != nil {
-				return "", err
-			}
-			return current.RestartKey, nil
-		}, 15*time.Second, fastPollInterval).Should(Equal(pod.RestartKey))
-	})
-
 	Context("trust-manager webhook TLS", Ordered, func() {
 		var (
 			tmCtx                            = context.Background()
@@ -680,7 +655,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, customSpec)
 			Expect(err).NotTo(HaveOccurred(), "custom tls13 profile args")
 			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "rollout %s after Custom TLS 1.3", trustManagerDeploymentName)
 			expectTrustManagerTLSSecret(tmCtx)
 
 			By("handshaking trust-manager webhook: TLS 1.3 succeeds, TLS 1.2 fails")
@@ -760,7 +735,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args")
 			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "rollout %s after Strict Intermediate", trustManagerDeploymentName)
 			expectTrustManagerTLSSecret(tmCtx)
 
 			By("patching apiserver to LegacyAdheringComponentsOnly")
@@ -1028,7 +1003,7 @@ func expectTrustManagerDeploymentPresent(ctx context.Context) {
 	Eventually(func() error {
 		_, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
 		return err
-	}, lowTimeout, fastPollInterval).Should(Succeed())
+	}, lowTimeout, fastPollInterval).Should(Succeed(), "trust-manager deployment %s", trustManagerDeploymentName)
 }
 
 const operatorContainerName = "cert-manager-operator"

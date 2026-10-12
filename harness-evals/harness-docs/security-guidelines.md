@@ -33,8 +33,9 @@ architecture. Rules below are enforced by code, CRD validation, or CI unless not
   `VersionTLS13` — Go ignores cipher config for TLS 1.3 and cert-manager will fail to start with them
   set. `StripArgsByKeys(..., ArgKeysSet(tlsprofile.CertManagerCipherSuiteArgKeys))` already does this;
   reuse it rather than special-casing TLS 1.3 elsewhere.
-- The hook only activates when `apiserver.config.openshift.io/cluster` `spec.tlsAdherence` is
-  `StrictAllComponents` (via `libgocrypto.ShouldHonorClusterTLSProfile`). A nil/absent profile
+- The hook activates when `apiserver.config.openshift.io/cluster` `spec.tlsAdherence` is
+  `StrictAllComponents` or an unknown value (`libgocrypto.ShouldHonorClusterTLSProfile` treats
+  unknown values as strict). A nil/absent profile
   resolves to `Intermediate`, not "no TLS enforcement" — don't treat missing config as "TLS profile
   disabled".
 - CSV declares `features.operators.openshift.io/tls-profiles: "true"` in
