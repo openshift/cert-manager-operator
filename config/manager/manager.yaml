@@ -95,7 +95,7 @@ spec:
             - name: TRUSTED_CA_CONFIGMAP_NAME
             - name: CLOUD_CREDENTIALS_SECRET_NAME
             - name: UNSUPPORTED_ADDON_FEATURES
-          image: registry.stage.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:7eb3327bcd9a350346511172368562a4cd9c543553ce8d125aeb4c880afe7c5e
+          image: registry.stage.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:168254d18c4a1b8beb8370f836fc87dd399cd85008436bd2689e9598f76998fe
           imagePullPolicy: IfNotPresent
           name: cert-manager-operator
           securityContext:
