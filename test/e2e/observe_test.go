@@ -383,7 +383,7 @@ func prometheusUpEqualsOne(output, jobLabel string) (bool, string) {
 			return false, "missing sample value"
 		}
 		if value != "1" {
-			return false, fmt.Sprintf("up=%s for instance %q", value, sample.Metric["instance"])
+			return false, fmt.Sprintf("up=%s for a target", value)
 		}
 	}
 	return true, ""
