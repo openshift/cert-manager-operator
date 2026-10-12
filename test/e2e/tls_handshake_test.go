@@ -42,14 +42,17 @@ type tlsProbe struct {
 	cipherSuites []uint16
 }
 
+// tls13Only returns a probe that offers only TLS 1.3.
 func tls13Only() tlsProbe {
 	return tlsProbe{minVersion: tls.VersionTLS13, maxVersion: tls.VersionTLS13}
 }
 
+// tls12Only returns a probe that offers only TLS 1.2.
 func tls12Only() tlsProbe {
 	return tlsProbe{minVersion: tls.VersionTLS12, maxVersion: tls.VersionTLS12}
 }
 
+// tls12Cipher returns a TLS 1.2 probe restricted to one cipher suite.
 func tls12Cipher(id uint16) tlsProbe {
 	return tlsProbe{
 		minVersion:   tls.VersionTLS12,
@@ -58,10 +61,12 @@ func tls12Cipher(id uint16) tlsProbe {
 	}
 }
 
+// tls10Only returns a probe that offers only TLS 1.0.
 func tls10Only() tlsProbe {
 	return tlsProbe{minVersion: tls.VersionTLS10, maxVersion: tls.VersionTLS10}
 }
 
+// handshakeTLS dials addr with the probe's version and cipher limits.
 func handshakeTLS(addr, serverName string, roots *x509.CertPool, probe tlsProbe) error {
 	cfg := &tls.Config{
 		RootCAs:            roots,
@@ -82,6 +87,7 @@ func handshakeTLS(addr, serverName string, roots *x509.CertPool, probe tlsProbe)
 	return conn.Close()
 }
 
+// certPoolFromTLSSecret builds a cert pool from the named TLS secret.
 func certPoolFromTLSSecret(ctx context.Context, namespace, secretName string) (*x509.CertPool, error) {
 	secret, err := k8sClientSet.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
@@ -104,6 +110,7 @@ func certPoolFromTLSSecret(ctx context.Context, namespace, secretName string) (*
 	return pool, nil
 }
 
+// readyPodName returns one Ready pod selected by the deployment.
 func readyPodName(ctx context.Context, namespace, deploymentName string) (string, error) {
 	deploy, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil {
@@ -125,6 +132,7 @@ func readyPodName(ctx context.Context, namespace, deploymentName string) (string
 	return "", fmt.Errorf("no ready pod for deployment %s/%s", namespace, deploymentName)
 }
 
+// kubeCLI returns oc when it is on PATH, otherwise kubectl.
 func kubeCLI() string {
 	if _, err := exec.LookPath("oc"); err == nil {
 		return "oc"
@@ -132,6 +140,7 @@ func kubeCLI() string {
 	return "kubectl"
 }
 
+// startPortForward forwards a pod port to localhost and returns the local address.
 func startPortForward(ctx context.Context, namespace, podName string, remotePort int) (localAddr string, stop func(), err error) {
 	cli := kubeCLI()
 	cmd := exec.CommandContext(ctx, cli, "port-forward", "--address=127.0.0.1", "-n", namespace, "pod/"+podName, fmt.Sprintf(":%d", remotePort))
@@ -161,6 +170,7 @@ func startPortForward(ctx context.Context, namespace, podName string, remotePort
 	return fmt.Sprintf("127.0.0.1:%d", localPort), stop, nil
 }
 
+// waitPortForwardLocalPort reads port-forward output until it prints the local port.
 func waitPortForwardLocalPort(r io.Reader, timeout time.Duration) (int, error) {
 	errCh := make(chan error, 1)
 	portCh := make(chan int, 1)
@@ -195,6 +205,7 @@ func waitPortForwardLocalPort(r io.Reader, timeout time.Duration) (int, error) {
 	}
 }
 
+// withPortForward runs fn against a local forward of the pod port.
 func withPortForward(ctx context.Context, namespace, podName string, remotePort int, fn func(localAddr string) error) error {
 	addr, stop, err := startPortForward(ctx, namespace, podName, remotePort)
 	if err != nil {
@@ -217,6 +228,7 @@ func withPortForward(ctx context.Context, namespace, podName string, remotePort 
 	return fn(addr)
 }
 
+// handshakeOperandPort dials a ready operand pod port through a local port-forward.
 func handshakeOperandPort(ctx context.Context, deploymentName, serverName, caSecret string, port int, probe tlsProbe) error {
 	podName, err := readyPodName(ctx, operandNamespace, deploymentName)
 	if err != nil {
@@ -239,10 +251,12 @@ func handshakeOperandPort(ctx context.Context, deploymentName, serverName, caSec
 	})
 }
 
+// metricsServerName returns the in-cluster DNS name used as the TLS server name.
 func metricsServerName(serviceName string) string {
 	return serviceName + "." + operandNamespace + ".svc"
 }
 
+// TestHandshakeTLSRejectsLowerProtocol checks that a TLS 1.3-only server rejects TLS 1.2.
 func TestHandshakeTLSRejectsLowerProtocol(t *testing.T) {
 	ca, certPEM, keyPEM := mustSelfSignedServer(t)
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
@@ -280,6 +294,7 @@ func TestHandshakeTLSRejectsLowerProtocol(t *testing.T) {
 	}
 }
 
+// mustSelfSignedServer returns a self-signed certificate and key for tls-probe.test.
 func mustSelfSignedServer(t *testing.T) (caPEM, certPEM, keyPEM []byte) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -310,6 +325,7 @@ func mustSelfSignedServer(t *testing.T) (caPEM, certPEM, keyPEM []byte) {
 	return certPEM, certPEM, keyPEM
 }
 
+// mustX509KeyPair parses a certificate and key or fails the test.
 func mustX509KeyPair(t *testing.T, certPEM, keyPEM []byte) tls.Certificate {
 	t.Helper()
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)

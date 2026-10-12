@@ -6,6 +6,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+// TestSecurityProfileWatcherHandle checks which profile and adherence changes request one restart.
 func TestSecurityProfileWatcherHandle(t *testing.T) {
 	intermediatePtr, err := EffectiveSpec(nil)
 	if err != nil {

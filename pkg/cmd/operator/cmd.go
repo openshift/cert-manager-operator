@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/library-go/pkg/serviceability"
 )
 
+// NewOperator returns the cert-manager-operator start command.
 func NewOperator() *cobra.Command {
 	cc := controllercmd.NewControllerCommandConfig(
 		"cert-manager-operator",
@@ -107,6 +108,7 @@ enabling customers to test functionality and provide feedback during the develop
 	return cmd
 }
 
+// startControllerWithClusterTLS applies the cluster TLS profile to the metrics listener, then starts the operator.
 func startControllerWithClusterTLS(ctx context.Context, c *controllercmd.ControllerCommandConfig, cmd *cobra.Command) error {
 	unstructuredConfig, config, configContent, err := c.Config()
 	if err != nil {

@@ -803,6 +803,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 	})
 })
 
+// requireAPIServerTLSConfig reads the cluster APIServer TLS configuration or skips the test.
 func requireAPIServerTLSConfig(ctx context.Context) *apiserverTLSConfig {
 	GinkgoHelper()
 	original, err := getClusterAPIServerTLSConfig(ctx)
@@ -813,6 +814,7 @@ func requireAPIServerTLSConfig(ctx context.Context) *apiserverTLSConfig {
 	return original
 }
 
+// restoreAPIServerTLSConfigCleanup returns a function that restores the saved APIServer TLS configuration.
 func restoreAPIServerTLSConfigCleanup(ctx context.Context, original *apiserverTLSConfig) func() {
 	return func() {
 		By("[cleanup] restoring original apiserver TLS configuration")
@@ -822,6 +824,7 @@ func restoreAPIServerTLSConfigCleanup(ctx context.Context, original *apiserverTL
 	}
 }
 
+// expectCertManagerListenersMatchProfile waits until cert-manager TLS args match spec and the deployments roll out.
 func expectCertManagerListenersMatchProfile(ctx context.Context, spec *configapiv1.TLSProfileSpec) {
 	GinkgoHelper()
 	operandDeployments := []string{
@@ -848,11 +851,13 @@ func expectCertManagerListenersMatchProfile(ctx context.Context, spec *configapi
 	}, lowTimeout, fastPollInterval).Should(Succeed(), "webhook CA secret")
 }
 
+// assertModernListenerEnforcement checks that cert-manager listeners accept TLS 1.3 and reject TLS 1.2.
 func assertModernListenerEnforcement(ctx context.Context) {
 	GinkgoHelper()
 	assertModernListenerEnforcementOn(ctx, certManagerTLSEndpoints())
 }
 
+// assertModernListenerEnforcementOn checks that the given listeners accept TLS 1.3 and reject TLS 1.2.
 func assertModernListenerEnforcementOn(ctx context.Context, endpoints []certManagerTLSEndpoint) {
 	GinkgoHelper()
 	for _, ep := range endpoints {
@@ -865,6 +870,7 @@ func assertModernListenerEnforcementOn(ctx context.Context, endpoints []certMana
 	}
 }
 
+// assertIntermediateListenerEnforcement checks Intermediate cipher and version limits on cert-manager listeners.
 func assertIntermediateListenerEnforcement(ctx context.Context) {
 	GinkgoHelper()
 	allowed := tls12Cipher(tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
@@ -890,6 +896,7 @@ type certManagerTLSEndpoint struct {
 	port       int
 }
 
+// certManagerTLSEndpoints lists the cert-manager metrics and webhook ports to probe.
 func certManagerTLSEndpoints() []certManagerTLSEndpoint {
 	return []certManagerTLSEndpoint{
 		{
@@ -923,6 +930,7 @@ func certManagerTLSEndpoints() []certManagerTLSEndpoint {
 	}
 }
 
+// trustManagerWebhookEndpoint returns the trust-manager webhook port to probe.
 func trustManagerWebhookEndpoint() certManagerTLSEndpoint {
 	return certManagerTLSEndpoint{
 		name:       "trust-manager-webhook",
@@ -933,6 +941,7 @@ func trustManagerWebhookEndpoint() certManagerTLSEndpoint {
 	}
 }
 
+// customTLS13SecurityProfile returns a Custom profile whose minimum version is TLS 1.3.
 func customTLS13SecurityProfile() *configapiv1.TLSSecurityProfile {
 	return &configapiv1.TLSSecurityProfile{
 		Type: configapiv1.TLSProfileCustomType,
@@ -945,6 +954,7 @@ func customTLS13SecurityProfile() *configapiv1.TLSSecurityProfile {
 	}
 }
 
+// patchLegacyTLSProfile sets tlsAdherence to LegacyAdheringComponentsOnly with the given profile.
 func patchLegacyTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurityProfile) {
 	GinkgoHelper()
 	By(fmt.Sprintf("patching apiserver cluster to LegacyAdheringComponentsOnly with %s TLS profile", profile.Type))
@@ -955,6 +965,7 @@ func patchLegacyTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurity
 	Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
 }
 
+// expectProfileManagedTLSFlagsGone waits until the deployments drop cluster-profile TLS flags.
 func expectProfileManagedTLSFlagsGone(ctx context.Context, deployments []string) {
 	GinkgoHelper()
 	for _, name := range deployments {
@@ -976,6 +987,7 @@ func expectProfileManagedTLSFlagsGone(ctx context.Context, deployments []string)
 	}
 }
 
+// assertTLS12Accepted checks that each listener accepts a TLS 1.2 handshake.
 func assertTLS12Accepted(ctx context.Context, endpoints []certManagerTLSEndpoint) {
 	GinkgoHelper()
 	for _, ep := range endpoints {
@@ -985,6 +997,7 @@ func assertTLS12Accepted(ctx context.Context, endpoints []certManagerTLSEndpoint
 	}
 }
 
+// expectTrustManagerTLSSecret waits until the trust-manager TLS secret exists.
 func expectTrustManagerTLSSecret(ctx context.Context) {
 	GinkgoHelper()
 	Eventually(func() error {
@@ -993,6 +1006,7 @@ func expectTrustManagerTLSSecret(ctx context.Context) {
 	}, lowTimeout, fastPollInterval).Should(Succeed(), "trust-manager TLS secret")
 }
 
+// patchStrictTLSProfile sets tlsAdherence to StrictAllComponents and returns the resolved profile spec.
 func patchStrictTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurityProfile) *configapiv1.TLSProfileSpec {
 	GinkgoHelper()
 	By(fmt.Sprintf("patching apiserver cluster to StrictAllComponents with %s TLS profile", profile.Type))
@@ -1007,6 +1021,7 @@ func patchStrictTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurity
 	return expectedSpec
 }
 
+// expectTrustManagerDeploymentPresent waits until the trust-manager deployment exists.
 func expectTrustManagerDeploymentPresent(ctx context.Context) {
 	GinkgoHelper()
 	By("waiting for trust-manager deployment to exist")
@@ -1026,6 +1041,7 @@ type operatorContainerIdentity struct {
 	RestartKey string
 }
 
+// readyOperatorContainer returns the Ready operator container and a key that changes on restart.
 func readyOperatorContainer(ctx context.Context) (*operatorContainerIdentity, error) {
 	dep, err := k8sClientSet.AppsV1().Deployments(operatorNamespace).Get(ctx, operatorDeploymentName, metav1.GetOptions{})
 	if err != nil {
@@ -1084,6 +1100,7 @@ func readyOperatorContainer(ctx context.Context) (*operatorContainerIdentity, er
 	return &operatorContainerIdentity{Name: newest.Name, RestartKey: restartKey}, nil
 }
 
+// expectReadyOperatorContainer waits until the operator container is Ready.
 func expectReadyOperatorContainer(ctx context.Context) *operatorContainerIdentity {
 	GinkgoHelper()
 	var got *operatorContainerIdentity
