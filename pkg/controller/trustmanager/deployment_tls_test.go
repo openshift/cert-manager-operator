@@ -327,6 +327,7 @@ func TestApplyClusterTLSProfile_invalidCustomPropagates(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_forbiddenPropagates checks that a Forbidden API error is returned to the caller.
 func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	r := testReconciler(t)
@@ -351,6 +352,7 @@ func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_nilClientIsNoop checks that a nil client leaves the deployment unchanged.
 func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 	r := testReconciler(t)
 	r.CtrlClient = nil
@@ -375,6 +377,7 @@ func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_legacyStripsStaleArgs checks that Legacy adherence removes leftover profile TLS flags.
 func TestApplyClusterTLSProfile_legacyStripsStaleArgs(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	apiServer := &configv1.APIServer{

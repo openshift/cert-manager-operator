@@ -50,12 +50,14 @@ func (f *fakeAPIServerLister) Get(name string) (*configv1.APIServer, error) {
 	return nil, fmt.Errorf("apiserver.config.openshift.io %q not found", name)
 }
 
+// newFakeAPIServerInformer returns an APIServer informer backed by the given object.
 func newFakeAPIServerInformer(apiServer *configv1.APIServer) configv1informer.APIServerInformer {
 	return &fakeAPIServerInformer{
 		lister: &fakeAPIServerLister{apiServer: apiServer},
 	}
 }
 
+// apiserverCluster returns a cluster APIServer with the given TLS profile and adherence.
 func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence configv1.TLSAdherencePolicy) *configv1.APIServer {
 	return &configv1.APIServer{
 		ObjectMeta: metav1.ObjectMeta{
@@ -68,6 +70,7 @@ func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence conf
 	}
 }
 
+// TestWithClusterTLSProfileFromAPIServer_Webhook checks webhook TLS args for each adherence and profile case.
 func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -397,6 +400,7 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 	}
 }
 
+// TestWithClusterTLSProfileFromAPIServer_Controller checks controller metrics TLS args for each adherence and profile case.
 func TestWithClusterTLSProfileFromAPIServer_Controller(t *testing.T) {
 	tests := []struct {
 		name           string

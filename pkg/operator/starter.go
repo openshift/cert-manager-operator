@@ -54,6 +54,7 @@ type OperatorTLSWatch struct {
 	Enabled  bool
 }
 
+// RunOperator starts the cert-manager controllers and restarts the process when the cluster TLS profile or adherence changes.
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWatch OperatorTLSWatch) error {
 	// Set controller-runtime logger before any ctrl.Log usage (e.g. NewControllerManager).
 	// Uses klog so --v flag controls verbosity for both library-go and controller-runtime.

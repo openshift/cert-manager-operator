@@ -342,6 +342,7 @@ type prometheusQuerySample struct {
 	Value  []any             `json:"value"`
 }
 
+// parsePrometheusQueryResponse decodes a Prometheus instant-query JSON body.
 func parsePrometheusQueryResponse(output string) (prometheusQueryResponse, error) {
 	var resp prometheusQueryResponse
 	if err := json.Unmarshal([]byte(output), &resp); err != nil {
@@ -350,6 +351,7 @@ func parsePrometheusQueryResponse(output string) (prometheusQueryResponse, error
 	return resp, nil
 }
 
+// prometheusSampleValue returns the sample's value string.
 func prometheusSampleValue(sample prometheusQuerySample) (string, bool) {
 	if len(sample.Value) < 2 {
 		return "", false
@@ -389,6 +391,7 @@ func prometheusUpEqualsOne(output, jobLabel string) (bool, string) {
 	return true, ""
 }
 
+// prometheusMetricPresent reports whether the query contains metricName for jobLabel.
 func prometheusMetricPresent(output, metricName, jobLabel string) (bool, string) {
 	resp, err := parsePrometheusQueryResponse(output)
 	if err != nil {

@@ -81,6 +81,7 @@ func (w *SecurityProfileWatcher) Start(apiServerInformer configinformersv1.APISe
 	return err
 }
 
+// handle restarts once when the resolved profile or tlsAdherence differs from the values applied at startup.
 func (w *SecurityProfileWatcher) handle(apiServer *configv1.APIServer) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

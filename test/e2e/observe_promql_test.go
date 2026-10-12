@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// TestPrometheusUpEqualsOne checks up=1 acceptance and up=0 rejection without logging the target address.
 func TestPrometheusUpEqualsOne(t *testing.T) {
 	upOne := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","job":"cert-manager","namespace":"cert-manager","instance":"10.0.0.1:9402"},"value":[1,"1"]}]}}`
 	upZero := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","job":"cert-manager","namespace":"cert-manager","instance":"10.0.0.1:9402"},"value":[1,"0"]}]}}`
@@ -30,6 +31,7 @@ func TestPrometheusUpEqualsOne(t *testing.T) {
 	}
 }
 
+// TestPrometheusMetricPresent checks present and empty Prometheus query results.
 func TestPrometheusMetricPresent(t *testing.T) {
 	present := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"certmanager_clock_time_seconds","job":"cert-manager","namespace":"cert-manager"},"value":[1,"1747897156"]}]}}`
 	empty := `{"status":"success","data":{"resultType":"vector","result":[]}}`

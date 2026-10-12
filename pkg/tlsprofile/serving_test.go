@@ -10,6 +10,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+// TestApplyClusterProfileToHTTPServingInfo_guards checks nil serving info and a nil rest config.
 func TestApplyClusterProfileToHTTPServingInfo_guards(t *testing.T) {
 	t.Run("nil serving", func(t *testing.T) {
 		_, err := ApplyClusterProfileToHTTPServingInfo(context.Background(), &rest.Config{}, nil)
@@ -29,6 +30,7 @@ func TestApplyClusterProfileToHTTPServingInfo_guards(t *testing.T) {
 	})
 }
 
+// TestApplyToHTTPServingInfo checks min version and cipher mapping onto HTTPServingInfo.
 func TestApplyToHTTPServingInfo(t *testing.T) {
 	intermediateSpec, err := EffectiveSpec(&configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType})
 	if err != nil {
@@ -118,6 +120,7 @@ func TestApplyToHTTPServingInfo(t *testing.T) {
 	}
 }
 
+// TestProfileForOperatorServing checks when the operator metrics server adopts or skips the cluster profile.
 func TestProfileForOperatorServing(t *testing.T) {
 	modern := &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType}
 	wantModern, err := EffectiveSpec(modern)

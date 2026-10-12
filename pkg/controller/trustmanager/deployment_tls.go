@@ -37,6 +37,7 @@ func (r *Reconciler) applyClusterTLSProfile(deployment *appsv1.Deployment) error
 	return applyTrustManagerWebhookTLSArgs(deployment, effective)
 }
 
+// stripTrustManagerProfileTLSArgs removes cluster-profile TLS flags from the trust-manager container.
 func stripTrustManagerProfileTLSArgs(deployment *appsv1.Deployment) {
 	if deployment == nil {
 		return

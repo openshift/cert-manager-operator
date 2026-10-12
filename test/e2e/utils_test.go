@@ -1993,6 +1993,7 @@ func waitForOperandTLSArgsAbsent(deploymentName string, unexpected []string) err
 	})
 }
 
+// profileManagedTLSArgKeys returns the TLS flags the cluster profile may set on that deployment.
 func profileManagedTLSArgKeys(deploymentName string) []string {
 	switch deploymentName {
 	case certmanagerWebhookDeployment:
@@ -2006,6 +2007,7 @@ func profileManagedTLSArgKeys(deploymentName string) []string {
 	}
 }
 
+// verifyOperandProfileTLSArgKeysAbsent reports profile-managed TLS flags still set on the deployment.
 func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 	keys := profileManagedTLSArgKeys(deploymentName)
 	if len(keys) == 0 {
@@ -2034,6 +2036,7 @@ func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 	return nil
 }
 
+// waitForOperandProfileTLSArgKeysAbsent polls until profile-managed TLS flags are gone.
 func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
 		err := verifyOperandProfileTLSArgKeysAbsent(deploymentName)
