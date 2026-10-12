@@ -3,7 +3,10 @@
 
 package e2e
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPrometheusUpEqualsOne(t *testing.T) {
 	upOne := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","job":"cert-manager","namespace":"cert-manager","instance":"10.0.0.1:9402"},"value":[1,"1"]}]}}`
@@ -16,8 +19,8 @@ func TestPrometheusUpEqualsOne(t *testing.T) {
 	}
 	if ok, reason := prometheusUpEqualsOne(upZero, "cert-manager"); ok {
 		t.Fatalf("expected up=0 to fail, got pass")
-	} else if reason == "" {
-		t.Fatal("expected a failure reason for up=0")
+	} else if reason == "" || strings.Contains(reason, "10.0.0.1") {
+		t.Fatalf("expected a failure reason without the scrape target, got %q", reason)
 	}
 	if ok, _ := prometheusUpEqualsOne(empty, "cert-manager"); ok {
 		t.Fatal("expected empty result to fail")
