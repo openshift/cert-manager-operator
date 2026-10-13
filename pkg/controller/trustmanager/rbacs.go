@@ -96,8 +96,8 @@ func getClusterRoleObject(config v1alpha1.TrustManagerConfig, resourceLabels, re
 	common.UpdateResourceLabels(clusterRole, resourceLabels)
 	updateResourceAnnotations(clusterRole, resourceAnnotations)
 	if len(config.TargetNamespaces) > 0 {
-		// Match upstream Helm: drop cluster-wide ConfigMap/Event write and
-		// emit those rules as per-namespace Roles instead.
+		// Use namespace-scoped Roles for ConfigMap and Event permissions when
+		// TargetNamespaces is set, defaults to ClusterRole when not configured.
 		clusterRole.Rules = slices.DeleteFunc(clusterRole.Rules, isNamespacedTargetRule)
 	} else {
 		appendSecretTargetRules(&clusterRole.Rules, config.SecretTargets)
@@ -105,9 +105,12 @@ func getClusterRoleObject(config v1alpha1.TrustManagerConfig, resourceLabels, re
 	return clusterRole
 }
 
-// isNamespacedTargetRule reports whether the rule is the ConfigMap or Event
-// write that Helm moves onto per-namespace Roles when targetNamespaces is set.
+// isNamespacedTargetRule reports whether the given rule targets core ConfigMaps or Events.
+// These rules are scoped to per-namespace Roles whenever targetNamespaces is set.
 func isNamespacedTargetRule(rule rbacv1.PolicyRule) bool {
+	if !slices.Contains(rule.APIGroups, "") {
+		return false
+	}
 	return slices.Contains(rule.Resources, "configmaps") || slices.Contains(rule.Resources, "events")
 }
 
@@ -372,8 +375,6 @@ func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[
 	updateBindingSubjects(roleBinding.Subjects, trustManagerServiceAccountName, operandNamespace)
 	return roleBinding
 }
-
-// Per-namespace Role/RoleBinding for Bundle target writes when targetNamespaces is set.
 
 func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	for _, ns := range targetRBACNamespaces(trustManager, trustNamespace) {
