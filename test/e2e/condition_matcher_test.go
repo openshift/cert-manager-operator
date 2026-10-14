@@ -5,6 +5,7 @@ package e2e
 
 import (
 	"regexp"
+	"time"
 
 	"context"
 	"encoding/json"
@@ -107,12 +108,18 @@ func GenerateConditionMatchers(tuples []PrefixAndMatchTypeTuple, expectedConditi
 // match with the expected conditions. It returns an error if a timeout (few mins) occurs or an error was
 // encountered which polls the status.
 func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher) error {
+	return verifyOperatorStatusConditionWithTimeout(client, conditionMatchers, lowTimeout)
+}
+
+func verifyOperatorStatusConditionWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher, timeout time.Duration) error {
 	var lastFetchedConditions []opv1.OperatorCondition
 
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		operator, err := client.CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		operator, err := client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			// Retry a kube-apiserver 504. A timeout here means the conditions
+			// never matched, not that one GET failed.
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -148,7 +155,11 @@ func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interfa
 }
 
 func VerifyHealthyOperatorConditions(client v1alpha1client.OperatorV1alpha1Interface) error {
-	return verifyOperatorStatusCondition(client,
+	return verifyHealthyOperatorConditionsWithTimeout(client, lowTimeout)
+}
+
+func verifyHealthyOperatorConditionsWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, timeout time.Duration) error {
+	return verifyOperatorStatusConditionWithTimeout(client,
 		GenerateConditionMatchers(
 			[]PrefixAndMatchTypeTuple{
 				{certManagerController, MatchAllConditions},
@@ -157,5 +168,6 @@ func VerifyHealthyOperatorConditions(client v1alpha1client.OperatorV1alpha1Inter
 			},
 			validOperatorStatusConditions,
 		),
+		timeout,
 	)
 }

@@ -438,6 +438,10 @@ func TestApplyClusterTLSProfile_intermediateCiphers(t *testing.T) {
 func fakeCtrlClientWithAPIServer(apiServer *configv1.APIServer) *fakes.FakeCtrlClient {
 	mock := &fakes.FakeCtrlClient{}
 	mock.GetCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) error {
+		if sa, ok := obj.(*corev1.ServiceAccount); ok {
+			sa.UID = testServiceAccountUID
+			return nil
+		}
 		if key.Name != tlsprofile.APIServerClusterName {
 			return apierrors.NewNotFound(schema.GroupResource{Group: configv1.GroupName, Resource: "apiservers"}, key.Name)
 		}

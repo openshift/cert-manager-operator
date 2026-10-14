@@ -398,9 +398,8 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for operator to become healthy again")
-			Eventually(func() error {
-				return VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
-			}, lowTimeout, fastPollInterval).Should(Succeed())
+			err = verifyHealthyOperatorConditionsWithTimeout(certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying trust-manager TLS args still match Modern EffectiveSpec")
 			err = verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)

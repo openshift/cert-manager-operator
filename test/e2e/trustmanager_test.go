@@ -1540,7 +1540,9 @@ func pollTillTrustManagerWithTimeout(ctx context.Context, client operatorclientv
 	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(context.Context) (bool, error) {
 		trustManager, err := client.Get(ctx, trustManagerName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			// A 504 while kube-apiserver rolls after a TLS profile patch is not
+			// a failed TrustManager. Keep polling until Ready=True or timeout.
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -1735,7 +1737,7 @@ func trustManagerAfterEach(ctx context.Context) func() {
 		Eventually(func() bool {
 			_, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 			return apierrors.IsNotFound(err)
-		}, lowTimeout, fastPollInterval).Should(BeTrue())
+		}, highTimeout, fastPollInterval).Should(BeTrue())
 
 		cleanupTrustManagerOperandLeavings(ctx)
 	}
