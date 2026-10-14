@@ -22,9 +22,6 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	if err != nil {
 		return err
 	}
-	if err := r.setServiceAccountUIDAnnotation(desired); err != nil {
-		return err
-	}
 
 	deploymentName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
@@ -87,6 +84,9 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 		return nil, err
 	}
 	if err := updateNodeSelector(deployment, trustManager); err != nil {
+		return nil, err
+	}
+	if err := r.setServiceAccountUIDAnnotation(deployment); err != nil {
 		return nil, err
 	}
 

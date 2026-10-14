@@ -8,7 +8,9 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +35,21 @@ func stubTrustManagerServiceAccount(m *fakes.FakeCtrlClient) {
 		sa.UID = testServiceAccountUID
 		return nil
 	})
+}
+
+// useServiceAccountForDeploymentRender installs a client that stamps a dummy
+// ServiceAccount UID and reports the cluster APIServer as missing, so render
+// tests keep the same TLS args as a nil client.
+func useServiceAccountForDeploymentRender(r *Reconciler) {
+	mock := &fakes.FakeCtrlClient{}
+	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		if sa, ok := obj.(*corev1.ServiceAccount); ok {
+			sa.UID = testServiceAccountUID
+			return nil
+		}
+		return apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, key.Name)
+	})
+	r.CtrlClient = mock
 }
 
 func withServiceAccountUID(dep *appsv1.Deployment, uid string) {
@@ -81,6 +98,7 @@ func TestDeploymentObject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
+			useServiceAccountForDeploymentRender(r)
 			tm := tt.tm.Build()
 			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 			if err != nil {
@@ -110,6 +128,7 @@ func TestDeploymentObject(t *testing.T) {
 func TestDeploymentSpec(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	r := testReconciler(t)
+	useServiceAccountForDeploymentRender(r)
 	tm := testTrustManager().Build()
 	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 	if err != nil {
@@ -239,6 +258,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
+			useServiceAccountForDeploymentRender(r)
 
 			tmBuilder := tt.tmBuilder
 			if tmBuilder == nil {
@@ -271,6 +291,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 
 	t.Run("adds arg, volume, mount, and hash annotation when enabled", func(t *testing.T) {
 		r := testReconciler(t)
+		useServiceAccountForDeploymentRender(r)
 		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
 		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 		if err != nil {
@@ -318,6 +339,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 
 	t.Run("no arg, volume, or annotation when disabled", func(t *testing.T) {
 		r := testReconciler(t)
+		useServiceAccountForDeploymentRender(r)
 		tm := testTrustManager().Build()
 		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
 		if err != nil {
@@ -408,6 +430,7 @@ func TestDeploymentOverrides(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
 			r := testReconciler(t)
+			useServiceAccountForDeploymentRender(r)
 
 			tm := testTrustManager().Build()
 			tt.configure(tm)
