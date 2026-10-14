@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -115,6 +116,10 @@ func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1al
 
 const clusterReaderAggregateLabel = "rbac.authorization.k8s.io/aggregate-to-cluster-reader"
 
+// rbacAggregationLabelPrefix is the reserved prefix for Kubernetes RBAC aggregation labels.
+// User-provided labels with this prefix must be filtered to prevent privilege escalation.
+const rbacAggregationLabelPrefix = "rbac.authorization.k8s.io/aggregate-to-"
+
 func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
@@ -142,13 +147,27 @@ func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.
 func getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
 	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleClusterViewAssetName))
 	common.UpdateName(clusterRole, trustManagerClusterRoleClusterViewName)
-	common.UpdateResourceLabels(clusterRole, resourceLabels)
+	// Filter user-provided RBAC aggregation labels to prevent privilege escalation.
+	// The controller-managed clusterReaderAggregateLabel is added separately below.
+	common.UpdateResourceLabels(clusterRole, filterRBACAggregatoinLabels(resourceLabels))
 	if clusterRole.Labels == nil {
 		clusterRole.Labels = make(map[string]string)
 	}
 	clusterRole.Labels[clusterReaderAggregateLabel] = "true"
 	updateResourceAnnotations(clusterRole, resourceAnnotations)
 	return clusterRole
+}
+
+// filterRBACAggregatoinLabels returns a copy of labels with any rbac.authorization.k8s.io/aggregate-to-*
+// labels removed. This prevents user-provided labels from escalating privileges via RBAC aggregation.
+func filterRBACAggregatoinLabels(labels map[string]string) map[string]string {
+	filtered := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if !strings.HasPrefix(k, rbacAggregationLabelPrefix) {
+			filtered[k] = v
+		}
+	}
+	return filtered
 }
 
 // ClusterRoleBinding
