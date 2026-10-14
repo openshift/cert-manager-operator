@@ -81,10 +81,7 @@ func (r *Reconciler) getDeploymentObject(istiocsr *v1alpha1.IstioCSR, resourceLa
 	common.UpdateResourceLabels(deployment, resourceLabels)
 	updatePodTemplateLabels(deployment, resourceLabels)
 
-	clusterTLSArgs, err := r.clusterTLSProfileArgs()
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster TLS profile for istio-csr deployment: %w", err)
-	}
+	clusterTLSArgs := r.clusterTLSProfileArgs()
 	updateArgList(deployment, istiocsr, clusterTLSArgs)
 
 	if err := updateResourceRequirement(deployment, istiocsr); err != nil {
