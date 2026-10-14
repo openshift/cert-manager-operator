@@ -176,9 +176,9 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if certificateFieldDrift(desired.Spec.RenewBefore != nil, ptr.Equal(desired.Spec.RenewBefore, existing.Spec.RenewBefore), existing, "spec", "renewBefore") {
 		return true
 	}
-	if certificateFieldDrift(desired.Spec.PrivateKey != nil, reflect.DeepEqual(desired.Spec.PrivateKey, existing.Spec.PrivateKey), existing, "spec", "privateKey") {
-		return true
-	}
+	// Note: PrivateKey is NOT checked here via certificateFieldDrift because we only manage
+	// the RotationPolicy field (already checked above). Other PrivateKey fields (algorithm, size)
+	// may be defaulted by cert-manager and should not trigger a patch.
 	if certificateFieldDrift(desired.Spec.SignatureAlgorithm != "", desired.Spec.SignatureAlgorithm == existing.Spec.SignatureAlgorithm, existing, "spec", "signatureAlgorithm") {
 		return true
 	}
