@@ -285,8 +285,8 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 // Transient API errors, including a kube-apiserver 504 during a TLS-profile rollout,
 // are retried. The wait still succeeds only when the args match.
 func verifyDeploymentArgsWithTimeout(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
@@ -1910,8 +1910,8 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil

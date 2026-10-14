@@ -113,8 +113,8 @@ func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interfa
 func verifyOperatorStatusConditionWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher, timeout time.Duration) error {
 	var lastFetchedConditions []opv1.OperatorCondition
 
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(context.Context) (bool, error) {
-		operator, err := client.CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		operator, err := client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			// Retry a kube-apiserver 504. A timeout here means the conditions
 			// never matched, not that one GET failed.
