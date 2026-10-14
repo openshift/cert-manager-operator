@@ -1,85 +1,84 @@
 package istiocsr
 
 import (
-	"context"
 	"testing"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
-func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence configv1.TLSAdherencePolicy) *configv1.APIServer {
-	return &configv1.APIServer{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: tlsprofile.APIServerClusterName,
-		},
-		Spec: configv1.APIServerSpec{
-			TLSSecurityProfile: tlsProfile,
-			TLSAdherence:       tlsAdherence,
-		},
+// mustEffectiveSpec is a test helper that calls tlsprofile.EffectiveSpec and panics on error.
+func mustEffectiveSpec(t *testing.T, profile *configv1.TLSSecurityProfile) *configv1.TLSProfileSpec {
+	t.Helper()
+	spec, err := tlsprofile.EffectiveSpec(profile)
+	if err != nil {
+		t.Fatalf("EffectiveSpec(%v) failed: %v", profile, err)
 	}
+	return spec
 }
 
 func TestClusterTLSProfileArgs(t *testing.T) {
 	tests := []struct {
 		name         string
-		apiServer    *configv1.APIServer
-		wantErr      bool
+		tlsConfig    func(t *testing.T) TLSConfig
 		wantArgsNil  bool
 		wantContains []string
 	}{
 		{
-			name:        "no tlsAdherence set skips cluster TLS profile",
-			apiServer:   apiserverCluster(nil, configv1.TLSAdherencePolicyNoOpinion),
+			name: "Honor false skips cluster TLS profile",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyNoOpinion,
+					Honor:     false,
+				}
+			},
 			wantArgsNil: true,
 		},
 		{
-			name:        "LegacyAdheringComponentsOnly skips cluster TLS profile for istio-csr",
-			apiServer:   apiserverCluster(nil, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly),
+			name: "LegacyAdheringComponentsOnly skips cluster TLS profile for istio-csr",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+					Honor:     false,
+				}
+			},
+			wantArgsNil: true,
+		},
+		{
+			name: "Honor true with nil Spec returns nil",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec:      nil,
+				}
+			},
 			wantArgsNil: true,
 		},
 		{
 			name: "StrictAllComponents with Modern profile returns serving TLS args",
-			apiServer: apiserverCluster(
-				&configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType},
-				configv1.TLSAdherencePolicyStrictAllComponents,
-			),
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec:      mustEffectiveSpec(t, &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType}),
+				}
+			},
 			wantContains: []string{
 				"--serving-tls-min-version=VersionTLS13",
 				"--serving-tls-curve-preferences=X25519",
 			},
 		},
 		{
-			name: "StrictAllComponents with nil profile defaults to Intermediate",
-			apiServer: apiserverCluster(
-				nil,
-				configv1.TLSAdherencePolicyStrictAllComponents,
-			),
-			wantContains: []string{
-				"--serving-tls-min-version=VersionTLS12",
+			name: "StrictAllComponents with Intermediate profile returns serving TLS args",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec:      mustEffectiveSpec(t, &configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType}),
+				}
 			},
-		},
-		{
-			name: "StrictAllComponents with invalid custom profile returns error",
-			apiServer: apiserverCluster(
-				&configv1.TLSSecurityProfile{Type: configv1.TLSProfileCustomType},
-				configv1.TLSAdherencePolicyStrictAllComponents,
-			),
-			wantErr: true,
-		},
-		{
-			name: "unknown tlsAdherence value is treated as StrictAllComponents",
-			apiServer: apiserverCluster(
-				&configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType},
-				configv1.TLSAdherencePolicy("SomeFutureValue"),
-			),
 			wantContains: []string{
 				"--serving-tls-min-version=VersionTLS12",
 			},
@@ -89,25 +88,9 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := testReconciler(t)
-			mock := &fakes.FakeCtrlClient{}
-			mock.GetCalls(func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-				if apiServer, ok := obj.(*configv1.APIServer); ok {
-					tt.apiServer.DeepCopyInto(apiServer)
-				}
-				return nil
-			})
-			r.CtrlClient = mock
+			r.tlsConfig = tt.tlsConfig(t)
 
-			args, err := r.clusterTLSProfileArgs()
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			args := r.clusterTLSProfileArgs()
 
 			if tt.wantArgsNil {
 				if args != nil {
@@ -122,57 +105,5 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestClusterTLSProfileArgs_getError(t *testing.T) {
-	r := testReconciler(t)
-	mock := &fakes.FakeCtrlClient{}
-	mock.GetCalls(func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-		return errTestClient
-	})
-	r.CtrlClient = mock
-
-	if _, err := r.clusterTLSProfileArgs(); err == nil {
-		t.Fatal("expected error when fetching apiserver.config.openshift.io/cluster fails")
-	}
-}
-
-func TestEnqueueAllIstioCSRRequests(t *testing.T) {
-	r := testReconciler(t)
-	mock := &fakes.FakeCtrlClient{}
-	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-		istiocsrList, ok := list.(*v1alpha1.IstioCSRList)
-		if !ok {
-			return nil
-		}
-		istiocsrList.Items = []v1alpha1.IstioCSR{
-			*testIstioCSR(),
-		}
-		return nil
-	})
-	r.CtrlClient = mock
-
-	requests := r.enqueueAllIstioCSRRequests(context.Background(), &configv1.APIServer{})
-	if len(requests) != 1 {
-		t.Fatalf("expected 1 reconcile request, got %d", len(requests))
-	}
-	want := testIstioCSR()
-	if requests[0].Name != want.GetName() || requests[0].Namespace != want.GetNamespace() {
-		t.Fatalf("unexpected reconcile request: %#v", requests[0])
-	}
-}
-
-func TestEnqueueAllIstioCSRRequests_listError(t *testing.T) {
-	r := testReconciler(t)
-	mock := &fakes.FakeCtrlClient{}
-	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-		return errTestClient
-	})
-	r.CtrlClient = mock
-
-	requests := r.enqueueAllIstioCSRRequests(context.Background(), &configv1.APIServer{})
-	if requests != nil {
-		t.Fatalf("expected nil requests on list error, got %#v", requests)
 	}
 }
