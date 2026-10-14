@@ -525,6 +525,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					dep.Labels["app.kubernetes.io/instance"] = "modified-value"
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -544,6 +545,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					dep.Annotations["user-annotation"] = "tampered"
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -561,6 +563,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -581,6 +584,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					dep.Spec.Template.Annotations[defaultCAPackageHashAnnotation] = "stale-hash"
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -598,6 +602,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					dep.Spec.Template.Spec.Containers[0].Image = "wrong-image:latest"
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -615,6 +620,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 						t.Fatalf("unexpected error: %v", err)
 					}
 					dep.Spec.Replicas = ptr.To(int32(5))
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
@@ -634,6 +640,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 					dep.Spec.Template.Spec.Containers[0].Args = append(
 						dep.Spec.Template.Spec.Containers[0].Args, "--extra-arg=true",
 					)
+					withServiceAccountUID(dep, testServiceAccountUID)
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
