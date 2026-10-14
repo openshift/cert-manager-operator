@@ -24,9 +24,10 @@ type ConditionMatcher struct {
 	TypePattern    *regexp.Regexp       `json:"condition.Type"`
 	ExpectedStatus opv1.ConditionStatus `json:"condition.Status"`
 
-	// Any when true will expect matcher to succeed
-	// when atleast one conditions match, default is false when
-	// matcher will succeed only on matching all pattern conditions.
+	// Any when true succeeds if at least one type-matching condition has
+	// ExpectedStatus. Other type-matching conditions with a different status
+	// are ignored. When false, every type-matching condition must have
+	// ExpectedStatus.
 	Any bool `json:"matcher.shouldMatchAny"`
 }
 

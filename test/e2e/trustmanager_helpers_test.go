@@ -180,7 +180,7 @@ func newBundle(name string) *bundleBuilder {
 }
 
 func (b *bundleBuilder) WithInLineSource(pemData string) *bundleBuilder {
-	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{InLine: &pemData})
+	b.bundle.Spec.Sources = append(b.bundle.Spec.Sources, trustapi.BundleSource{InLine: pemData})
 	return b
 }
 
@@ -214,7 +214,7 @@ func (b *bundleBuilder) WithSecretTarget(key string) *bundleBuilder {
 }
 
 func (b *bundleBuilder) WithTargetMetadata(labels, annotations map[string]string) *bundleBuilder {
-	meta := &trustapi.TargetMetadata{Labels: labels, Annotations: annotations}
+	meta := trustapi.TargetMetadata{Labels: labels, Annotations: annotations}
 	if b.bundle.Spec.Target.ConfigMap != nil {
 		b.bundle.Spec.Target.ConfigMap.Metadata = meta
 	}

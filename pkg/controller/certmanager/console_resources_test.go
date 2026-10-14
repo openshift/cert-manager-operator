@@ -263,7 +263,9 @@ func TestApplyConsoleResourceCreatesWhenNotFound(t *testing.T) {
 		client.Get, client.Create, client.Update,
 		func(a, b *consolev1.ConsoleYAMLSample) bool { return a.Spec == b.Spec },
 		func(existing, desired *consolev1.ConsoleYAMLSample) *consolev1.ConsoleYAMLSample {
-			u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+			u := existing.DeepCopy()
+			u.Spec = desired.Spec
+			return u
 		},
 	)
 	if err != nil {
@@ -307,7 +309,9 @@ func TestApplyConsoleResourceUpdatesWhenSpecDiffers(t *testing.T) {
 		client.Get, client.Create, client.Update,
 		func(a, b *consolev1.ConsoleQuickStart) bool { return a.Spec.DisplayName == b.Spec.DisplayName },
 		func(existing, desired *consolev1.ConsoleQuickStart) *consolev1.ConsoleQuickStart {
-			u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+			u := existing.DeepCopy()
+			u.Spec = desired.Spec
+			return u
 		},
 	)
 	if err != nil {
@@ -347,7 +351,9 @@ func TestApplyConsoleResourceNoOpWhenSpecsEqual(t *testing.T) {
 		client.Get, client.Create, client.Update,
 		func(a, b *consolev1.ConsoleYAMLSample) bool { return a.Spec.Title == b.Spec.Title },
 		func(existing, desired *consolev1.ConsoleYAMLSample) *consolev1.ConsoleYAMLSample {
-			u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+			u := existing.DeepCopy()
+			u.Spec = desired.Spec
+			return u
 		},
 	)
 	if err != nil {
@@ -436,7 +442,9 @@ func TestApplyConsoleResourceUpdateError(t *testing.T) {
 		client.Get, client.Create, client.Update,
 		func(a, b *consolev1.ConsoleYAMLSample) bool { return a.Spec.Title == b.Spec.Title },
 		func(existing, desired *consolev1.ConsoleYAMLSample) *consolev1.ConsoleYAMLSample {
-			u := existing.DeepCopy(); u.Spec = desired.Spec; return u
+			u := existing.DeepCopy()
+			u.Spec = desired.Spec
+			return u
 		},
 	)
 	if err == nil {
