@@ -18,7 +18,7 @@ const (
 )
 
 func (r *Reconciler) createOrApplyRBACResource(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
-	serviceAccount := decodeServiceAccountObjBytes(assets.MustAsset(serviceAccountAssetName)).GetName()
+	serviceAccount := cachedServiceAccountName
 
 	clusterRoleName, err := r.createOrApplyClusterRoles(istiocsr, resourceLabels, istioCSRCreateRecon)
 	if err != nil {
@@ -135,7 +135,7 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 }
 
 func (r *Reconciler) getClusterRoleObject(istioCSRNamespace string, resourceLabels map[string]string) *rbacv1.ClusterRole {
-	clusterRole := decodeClusterRoleObjBytes(assets.MustAsset(clusterRoleAssetName))
+	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleAssetName))
 	updateToUseGenerateName(clusterRole)
 	updateResourceLabelsWithIstioMapperLabels(clusterRole, istioCSRNamespace, resourceLabels)
 	return clusterRole
@@ -247,7 +247,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 }
 
 func (r *Reconciler) getClusterRoleBindingObject(clusterRoleName, serviceAccount, istiocsrNamespace string, resourceLabels map[string]string) *rbacv1.ClusterRoleBinding {
-	clusterRoleBinding := decodeClusterRoleBindingObjBytes(assets.MustAsset(clusterRoleBindingAssetName))
+	clusterRoleBinding := common.DecodeObjBytes[*rbacv1.ClusterRoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleBindingAssetName))
 	clusterRoleBinding.RoleRef.Name = clusterRoleName
 	updateToUseGenerateName(clusterRoleBinding)
 	updateResourceLabelsWithIstioMapperLabels(clusterRoleBinding, istiocsrNamespace, resourceLabels)
@@ -305,7 +305,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 }
 
 func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
-	role := decodeRoleObjBytes(assets.MustAsset(roleAssetName))
+	role := common.DecodeObjBytes[*rbacv1.Role](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleAssetName))
 	common.UpdateNamespace(role, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(role, istiocsrNamespace, resourceLabels)
 	return role
@@ -348,7 +348,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 }
 
 func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
-	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.RoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleBindingAssetName))
 	common.UpdateNamespace(roleBinding, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(roleBinding, istiocsrNamespace, resourceLabels)
 	updateServiceAccountNamespaceInRBACBindingObject[*rbacv1.RoleBinding](roleBinding, serviceAccount, istiocsrNamespace)
@@ -392,7 +392,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 }
 
 func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
-	role := decodeRoleObjBytes(assets.MustAsset(roleLeasesAssetName))
+	role := common.DecodeObjBytes[*rbacv1.Role](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleLeasesAssetName))
 	common.UpdateNamespace(role, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(role, istiocsrNamespace, resourceLabels)
 	return role
@@ -435,7 +435,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 }
 
 func (r *Reconciler) getRoleBindingForLeasesObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
-	roleBinding := decodeRoleBindingObjBytes(assets.MustAsset(roleBindingLeasesAssetName))
+	roleBinding := common.DecodeObjBytes[*rbacv1.RoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleBindingLeasesAssetName))
 	common.UpdateNamespace(roleBinding, roleNamespace)
 	updateResourceLabelsWithIstioMapperLabels(roleBinding, istiocsrNamespace, resourceLabels)
 	updateServiceAccountNamespaceInRBACBindingObject[*rbacv1.RoleBinding](roleBinding, serviceAccount, istiocsrNamespace)
