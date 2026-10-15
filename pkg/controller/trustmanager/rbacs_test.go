@@ -1003,8 +1003,6 @@ func TestTargetRBACNamespaces(t *testing.T) {
 
 func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 	targetNS := "app-ns"
-	// Sorted: app-ns, cert-manager
-	targetNamespaces := []string{targetNS, defaultTrustNamespace}
 
 	tests := []struct {
 		name            string
@@ -1021,53 +1019,49 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantExistsCount: 10,
-			wantPatchCount:  10,
+			wantExistsCount: 11,
+			wantPatchCount:  11,
 		},
 		{
 			name: "skip apply when all RBAC resources including target Roles match desired",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				tm := testTrustManager().WithTargetNamespaces(targetNS).Build()
 				config := tm.Spec.TrustManagerConfig
-				existsCall := 0
+				labels := testResourceLabels()
+				annotations := testResourceAnnotations()
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					existsCall++
-					switch existsCall {
-					case 1:
-						cr := getClusterRoleObject(config, testResourceLabels(), testResourceAnnotations())
-						cr.DeepCopyInto(obj.(*rbacv1.ClusterRole))
-					case 2:
-						crb := getClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
-						crb.DeepCopyInto(obj.(*rbacv1.ClusterRoleBinding))
-					case 3:
-						role := getTrustNamespaceRoleObject(testResourceLabels(), testResourceAnnotations(), defaultTrustNamespace)
-						role.DeepCopyInto(obj.(*rbacv1.Role))
-					case 4:
-						rb := getTrustNamespaceRoleBindingObject(testResourceLabels(), testResourceAnnotations(), defaultTrustNamespace)
-						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
-					case 5:
-						role := getLeaderElectionRoleObject(testResourceLabels(), testResourceAnnotations())
-						role.DeepCopyInto(obj.(*rbacv1.Role))
-					case 6:
-						rb := getLeaderElectionRoleBindingObject(testResourceLabels(), testResourceAnnotations())
-						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
-					case 7:
-						role := getTargetNamespaceRoleObject(targetNamespaces[0], config.SecretTargets, testResourceLabels(), testResourceAnnotations())
-						role.DeepCopyInto(obj.(*rbacv1.Role))
-					case 8:
-						rb := getTargetNamespaceRoleBindingObject(targetNamespaces[0], testResourceLabels(), testResourceAnnotations())
-						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
-					case 9:
-						role := getTargetNamespaceRoleObject(targetNamespaces[1], config.SecretTargets, testResourceLabels(), testResourceAnnotations())
-						role.DeepCopyInto(obj.(*rbacv1.Role))
-					case 10:
-						rb := getTargetNamespaceRoleBindingObject(targetNamespaces[1], testResourceLabels(), testResourceAnnotations())
-						rb.DeepCopyInto(obj.(*rbacv1.RoleBinding))
+					switch o := obj.(type) {
+					case *rbacv1.ClusterRole:
+						if key.Name == trustManagerClusterRoleClusterViewName {
+							getClusterViewClusterRoleObject(labels, annotations).DeepCopyInto(o)
+						} else {
+							getClusterRoleObject(config, labels, annotations).DeepCopyInto(o)
+						}
+					case *rbacv1.ClusterRoleBinding:
+						getClusterRoleBindingObject(labels, annotations).DeepCopyInto(o)
+					case *rbacv1.Role:
+						switch key.Name {
+						case trustManagerLeaderElectionRoleName:
+							getLeaderElectionRoleObject(labels, annotations).DeepCopyInto(o)
+						case trustManagerTargetRoleName:
+							getTargetNamespaceRoleObject(key.Namespace, config.SecretTargets, labels, annotations).DeepCopyInto(o)
+						default:
+							getTrustNamespaceRoleObject(labels, annotations, defaultTrustNamespace).DeepCopyInto(o)
+						}
+					case *rbacv1.RoleBinding:
+						switch key.Name {
+						case trustManagerLeaderElectionRoleBindingName:
+							getLeaderElectionRoleBindingObject(labels, annotations).DeepCopyInto(o)
+						case trustManagerTargetRoleBindingName:
+							getTargetNamespaceRoleBindingObject(key.Namespace, labels, annotations).DeepCopyInto(o)
+						default:
+							getTrustNamespaceRoleBindingObject(labels, annotations, defaultTrustNamespace).DeepCopyInto(o)
+						}
 					}
 					return true, nil
 				})
 			},
-			wantExistsCount: 10,
+			wantExistsCount: 11,
 			wantPatchCount:  0,
 		},
 		{
@@ -1103,8 +1097,8 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 					return nil
 				})
 			},
-			wantExistsCount: 10,
-			wantPatchCount:  10,
+			wantExistsCount: 11,
+			wantPatchCount:  11,
 			wantDeleteCount: 2,
 		},
 		{
@@ -1121,8 +1115,8 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 				})
 			},
 			wantErr:         "failed to apply target namespace role",
-			wantExistsCount: 7,
-			wantPatchCount:  7,
+			wantExistsCount: 8,
+			wantPatchCount:  8,
 		},
 	}
 
