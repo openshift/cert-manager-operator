@@ -127,6 +127,13 @@ spec:
       kind: TrustManager
       name: trustmanagers.operator.openshift.io
       version: v1alpha1
+    - description: |-
+        ApproverPolicyManager describes the desired configuration and observed state of approver-policy.
+        The name must be 'cluster', allowing only one instance per cluster.
+      displayName: ApproverPolicyManager
+      kind: ApproverPolicyManager
+      name: approverpolicymanagers.operator.openshift.io
+      version: v1alpha1
     - description: CertManager is the Schema for the certmanagers API
       displayName: CertManager
       kind: CertManager

@@ -1,0 +1,6 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: ApproverPolicyManager
+metadata:
+  name: cluster
+spec:
+  approverPolicyConfig: {}
