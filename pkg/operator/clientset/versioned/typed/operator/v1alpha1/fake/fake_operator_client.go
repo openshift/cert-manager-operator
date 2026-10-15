@@ -12,6 +12,10 @@ type FakeOperatorV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeOperatorV1alpha1) ApproverPolicyManagers() v1alpha1.ApproverPolicyManagerInterface {
+	return newFakeApproverPolicyManagers(c)
+}
+
 func (c *FakeOperatorV1alpha1) CertManagers() v1alpha1.CertManagerInterface {
 	return newFakeCertManagers(c)
 }
