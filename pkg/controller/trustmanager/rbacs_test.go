@@ -48,6 +48,24 @@ func TestRoleObject(t *testing.T) {
 			},
 		},
 		{
+			name: "cluster-view cluster role filters user-provided RBAC aggregation labels",
+			tm: testTrustManager().WithLabels(map[string]string{
+				"rbac.authorization.k8s.io/aggregate-to-view":  "true",
+				"rbac.authorization.k8s.io/aggregate-to-edit":  "true",
+				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
+				"safe-user-label": "should-be-present",
+			}),
+			getRole: func(l, a map[string]string) client.Object {
+				return getClusterViewClusterRoleObject(l, a)
+			},
+			wantName: trustManagerClusterRoleClusterViewName,
+			wantLabels: map[string]string{
+				"app":                       trustManagerCommonName,
+				clusterReaderAggregateLabel: "true",
+				"safe-user-label":           "should-be-present",
+			},
+		},
+		{
 			name: "trust namespace role has correct metadata",
 			tm:   testTrustManager(),
 			getRole: func(l, a map[string]string) client.Object {
@@ -848,5 +866,93 @@ func assertSubjects(t *testing.T, subjects []rbacv1.Subject, expectedName, expec
 	}
 	if !found {
 		t.Error("expected to find a ServiceAccount subject")
+	}
+}
+
+func TestFilterRBACAggregatoinLabels(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      map[string]string
+		wantLabels map[string]string
+		wantAbsent []string
+	}{
+		{
+			name:       "empty labels",
+			input:      map[string]string{},
+			wantLabels: map[string]string{},
+		},
+		{
+			name: "preserves non-reserved labels",
+			input: map[string]string{
+				"app":            "test",
+				"custom-label":   "value",
+				"another.io/key": "value",
+			},
+			wantLabels: map[string]string{
+				"app":            "test",
+				"custom-label":   "value",
+				"another.io/key": "value",
+			},
+		},
+		{
+			name: "filters all rbac aggregation labels",
+			input: map[string]string{
+				"rbac.authorization.k8s.io/aggregate-to-view":           "true",
+				"rbac.authorization.k8s.io/aggregate-to-edit":           "true",
+				"rbac.authorization.k8s.io/aggregate-to-admin":          "true",
+				"rbac.authorization.k8s.io/aggregate-to-cluster-reader": "true",
+				"rbac.authorization.k8s.io/aggregate-to-custom":         "true",
+			},
+			wantLabels: map[string]string{},
+			wantAbsent: []string{
+				"rbac.authorization.k8s.io/aggregate-to-view",
+				"rbac.authorization.k8s.io/aggregate-to-edit",
+				"rbac.authorization.k8s.io/aggregate-to-admin",
+				"rbac.authorization.k8s.io/aggregate-to-cluster-reader",
+				"rbac.authorization.k8s.io/aggregate-to-custom",
+			},
+		},
+		{
+			name: "filters reserved labels while preserving others",
+			input: map[string]string{
+				"app": "test",
+				"rbac.authorization.k8s.io/aggregate-to-view":  "true",
+				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
+				"safe-label": "preserved",
+			},
+			wantLabels: map[string]string{
+				"app":        "test",
+				"safe-label": "preserved",
+			},
+			wantAbsent: []string{
+				"rbac.authorization.k8s.io/aggregate-to-view",
+				"rbac.authorization.k8s.io/aggregate-to-admin",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterRBACAggregatoinLabels(tt.input)
+
+			// Check expected labels are present
+			for k, v := range tt.wantLabels {
+				if result[k] != v {
+					t.Errorf("expected label %s=%q, got %q", k, v, result[k])
+				}
+			}
+
+			// Check expected absent labels are not present
+			for _, k := range tt.wantAbsent {
+				if _, exists := result[k]; exists {
+					t.Errorf("expected label %q to be filtered out, but it was present", k)
+				}
+			}
+
+			// Check no extra labels
+			if len(result) != len(tt.wantLabels) {
+				t.Errorf("expected %d labels, got %d", len(tt.wantLabels), len(result))
+			}
+		})
 	}
 }

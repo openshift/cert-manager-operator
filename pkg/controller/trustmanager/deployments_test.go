@@ -190,6 +190,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			notExpectedArgs: []string{
 				"--secret-targets-enabled=true",
 				"--filter-expired-certificates=true",
+				"--filter-non-ca-certs=true",
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
 		},
@@ -199,12 +200,14 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				WithLogLevel(5).
 				WithLogFormat("json").
 				WithTrustNamespace("custom-ns").
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled),
+				WithFilterExpiredCertificates(v1alpha1.Enabled).
+				WithFilterNonCACerts(v1alpha1.Enabled),
 			expectedArgs: []string{
 				"--log-level=5",
 				"--log-format=json",
 				"--trust-namespace=custom-ns",
 				"--filter-expired-certificates=true",
+				"--filter-non-ca-certs=true",
 			},
 			notExpectedArgs: []string{
 				"--log-level=1",
@@ -241,7 +244,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 		},
 		{
 			name:      "includes default-package-location when defaultCAPackage is Enabled",
-			tmBuilder: testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tmBuilder: testTrustManager().WithDefaultCAPackage(v1alpha1.Enabled),
 			expectedArgs: []string{
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
@@ -250,6 +253,20 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			name: "excludes default-package-location when defaultCAPackage is Disabled",
 			notExpectedArgs: []string{
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
+			},
+		},
+		{
+			name:      "includes filter-non-ca-certs when filterNonCACerts is Enabled",
+			tmBuilder: testTrustManager().WithFilterNonCACerts(v1alpha1.Enabled),
+			expectedArgs: []string{
+				"--filter-non-ca-certs=true",
+			},
+		},
+		{
+			name:      "excludes filter-non-ca-certs when filterNonCACerts is Disabled",
+			tmBuilder: testTrustManager().WithFilterNonCACerts(v1alpha1.Disabled),
+			notExpectedArgs: []string{
+				"--filter-non-ca-certs=true",
 			},
 		},
 	}
@@ -292,7 +309,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 	t.Run("adds arg, volume, mount, and hash annotation when enabled", func(t *testing.T) {
 		r := testReconciler(t)
 		useServiceAccountForDeploymentRender(r)
-		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.Enabled).Build()
 		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -581,7 +598,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.Enabled).Build()
 					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
@@ -596,12 +613,12 @@ func TestDeploymentReconciliation(t *testing.T) {
 		},
 		{
 			name:         "apply when existing has pod template annotation drift",
-			tmBuilder:    testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
+			tmBuilder:    testTrustManager().WithDefaultCAPackage(v1alpha1.Enabled),
 			caBundleHash: "abc123hash",
 			setImage:     true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
+					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.Enabled).Build()
 					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
