@@ -199,6 +199,16 @@ metadata:
         },
         {
           "apiVersion": "operator.openshift.io/v1alpha1",
+          "kind": "ApproverPolicyManager",
+          "metadata": {
+            "name": "cluster"
+          },
+          "spec": {
+            "approverPolicyConfig": {}
+          }
+        },
+        {
+          "apiVersion": "operator.openshift.io/v1alpha1",
           "kind": "CertManager",
           "metadata": {
             "name": "cluster"
@@ -333,6 +343,13 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: |-
+        ApproverPolicyManager describes the desired configuration and observed state of approver-policy.
+        The name must be 'cluster', allowing only one instance per cluster.
+      displayName: ApproverPolicyManager
+      kind: ApproverPolicyManager
+      name: approverpolicymanagers.operator.openshift.io
+      version: v1alpha1
     - description: A Bundle is used to distribute trust bundles across a Kubernetes
         cluster.
       displayName: Bundle
@@ -843,6 +860,8 @@ spec:
                   value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
                 - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
                   value: quay.io/jetstack/trust-manager:v0.25.0
+                - name: RELATED_IMAGE_APPROVER_POLICY
+                  value: quay.io/jetstack/cert-manager-approver-policy:v0.27.0
                 - name: OPERAND_IMAGE_VERSION
                   value: 1.20.3
                 - name: ISTIOCSR_OPERAND_IMAGE_VERSION
@@ -972,5 +991,7 @@ spec:
     name: cert-manager-istiocsr
   - image: quay.io/jetstack/trust-manager:v0.25.0
     name: cert-manager-trust-manager
+  - image: quay.io/jetstack/cert-manager-approver-policy:v0.27.0
+    name: approver-policy
   replaces: cert-manager-operator.v1.19.0
   version: 1.20.0
