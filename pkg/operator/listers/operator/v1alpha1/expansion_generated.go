@@ -2,6 +2,10 @@
 
 package v1alpha1
 
+// ApproverPolicyManagerListerExpansion allows custom methods to be added to
+// ApproverPolicyManagerLister.
+type ApproverPolicyManagerListerExpansion interface{}
+
 // CertManagerListerExpansion allows custom methods to be added to
 // CertManagerLister.
 type CertManagerListerExpansion interface{}

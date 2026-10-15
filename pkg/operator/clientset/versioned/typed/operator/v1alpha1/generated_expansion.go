@@ -2,6 +2,8 @@
 
 package v1alpha1
 
+type ApproverPolicyManagerExpansion interface{}
+
 type CertManagerExpansion interface{}
 
 type IstioCSRExpansion interface{}

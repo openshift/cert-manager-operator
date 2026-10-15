@@ -86,6 +86,8 @@ spec:
               value: quay.io/jetstack/cert-manager-istio-csr:v0.16.0
             - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
               value: quay.io/jetstack/trust-manager:v0.25.0
+            - name: RELATED_IMAGE_APPROVER_POLICY
+              value: quay.io/jetstack/cert-manager-approver-policy:v0.27.0
             - name: OPERAND_IMAGE_VERSION
               value: 1.20.3
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION

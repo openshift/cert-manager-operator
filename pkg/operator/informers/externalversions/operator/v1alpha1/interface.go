@@ -8,6 +8,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// ApproverPolicyManagers returns a ApproverPolicyManagerInformer.
+	ApproverPolicyManagers() ApproverPolicyManagerInformer
 	// CertManagers returns a CertManagerInformer.
 	CertManagers() CertManagerInformer
 	// IstioCSRs returns a IstioCSRInformer.
@@ -25,6 +27,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// ApproverPolicyManagers returns a ApproverPolicyManagerInformer.
+func (v *version) ApproverPolicyManagers() ApproverPolicyManagerInformer {
+	return &approverPolicyManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // CertManagers returns a CertManagerInformer.
