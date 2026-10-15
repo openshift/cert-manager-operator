@@ -209,7 +209,7 @@ func TestServiceReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if service",
+			wantErr:         "failed to check if Service",
 			wantExistsCount: 1,
 			wantPatchCount:  0,
 		},
@@ -223,7 +223,7 @@ func TestServiceReconciliation(t *testing.T) {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply service",
+			wantErr:         "failed to apply Service",
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
@@ -242,7 +242,7 @@ func TestServiceReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply service",
+			wantErr:         "failed to apply Service",
 			wantExistsCount: 2,
 			wantPatchCount:  2,
 		},
