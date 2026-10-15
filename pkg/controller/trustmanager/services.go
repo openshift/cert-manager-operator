@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"reflect"
@@ -13,22 +14,22 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyServices(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	if err := r.createOrApplyService(trustManager, getWebhookServiceObject(resourceLabels, resourceAnnotations)); err != nil {
+func (r *Reconciler) createOrApplyServices(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+	if err := r.createOrApplyService(ctx, trustManager, getWebhookServiceObject(resourceLabels, resourceAnnotations)); err != nil {
 		return err
 	}
-	if err := r.createOrApplyService(trustManager, getMetricsServiceObject(resourceLabels, resourceAnnotations)); err != nil {
+	if err := r.createOrApplyService(ctx, trustManager, getMetricsServiceObject(resourceLabels, resourceAnnotations)); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, desired *corev1.Service) error {
+func (r *Reconciler) createOrApplyService(ctx context.Context, trustManager *v1alpha1.TrustManager, desired *corev1.Service) error {
 	serviceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling service resource", "name", serviceName)
 
 	existing := &corev1.Service{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if service %q exists", serviceName)
 	}
@@ -38,7 +39,7 @@ func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, d
 	}
 
 	r.log.V(2).Info("service resource has been modified, updating to desired state", "name", serviceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply service %q", serviceName)
 	}
 

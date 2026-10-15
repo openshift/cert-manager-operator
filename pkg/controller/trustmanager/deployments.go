@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
+func (r *Reconciler) createOrApplyDeployment(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
 	desired, err := r.getDeploymentObject(trustManager, resourceLabels, resourceAnnotations, caBundleHash)
 	if err != nil {
 		return err
@@ -27,7 +28,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
 
 	existing := &appsv1.Deployment{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
 	}
@@ -37,7 +38,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	}
 
 	r.log.V(2).Info("deployment resource has been modified, updating to desired state", "name", deploymentName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply deployment %q", deploymentName)
 	}
 
