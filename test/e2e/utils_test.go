@@ -2052,7 +2052,8 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
 	}
 
-	if err := verifyDeploymentArgsInNamespace(k8sclient, namespace, istioCSRGRPCServiceName, expected, true); err != nil {
+	// highTimeout covers one in-flight kube-apiserver rollout after the profile patch.
+	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
 	}
 
@@ -2060,7 +2061,7 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
