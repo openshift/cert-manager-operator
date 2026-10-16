@@ -2,14 +2,10 @@ package trustmanager
 
 import (
 	"fmt"
-	"maps"
 	"os"
-	"reflect"
-	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -31,7 +27,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	if err != nil {
 		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
 	}
-	if exists && !deploymentModified(desired, existing) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("deployment resource exists and is in desired state", "name", deploymentName)
 		return nil
 	}
@@ -294,116 +290,4 @@ func updateTLSSecretVolume(deployment *appsv1.Deployment) {
 			return
 		}
 	}
-}
-
-// deploymentModified compares only the fields we manage via SSA.
-// For the readiness probe, only the fields explicitly set in our bindata are
-// compared to avoid false positives from API-server-defaulted probe scalars
-// (TimeoutSeconds, SuccessThreshold, FailureThreshold).
-func deploymentModified(desired, existing *appsv1.Deployment) bool {
-	if common.ManagedMetadataModified(desired, existing) {
-		return true
-	}
-
-	if !ptr.Equal(desired.Spec.Replicas, existing.Spec.Replicas) ||
-		!reflect.DeepEqual(desired.Spec.Selector, existing.Spec.Selector) {
-		return true
-	}
-
-	if !maps.Equal(desired.Spec.Template.Labels, existing.Spec.Template.Labels) ||
-		!maps.Equal(desired.Spec.Template.Annotations, existing.Spec.Template.Annotations) {
-		return true
-	}
-
-	desiredPodSpec := desired.Spec.Template.Spec
-	existingPodSpec := existing.Spec.Template.Spec
-
-	if desiredPodSpec.ServiceAccountName != existingPodSpec.ServiceAccountName ||
-		!maps.Equal(desiredPodSpec.NodeSelector, existingPodSpec.NodeSelector) ||
-		!reflect.DeepEqual(desiredPodSpec.Volumes, existingPodSpec.Volumes) ||
-		!reflect.DeepEqual(desiredPodSpec.Affinity, existingPodSpec.Affinity) ||
-		!reflect.DeepEqual(desiredPodSpec.Tolerations, existingPodSpec.Tolerations) {
-		return true
-	}
-
-	if len(desiredPodSpec.Containers) != len(existingPodSpec.Containers) {
-		return true
-	}
-
-	for i := range desiredPodSpec.Containers {
-		if containerModified(&desiredPodSpec.Containers[i], &existingPodSpec.Containers[i]) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func containerModified(desired, existing *corev1.Container) bool {
-	if desired.Name != existing.Name ||
-		desired.Image != existing.Image ||
-		desired.ImagePullPolicy != existing.ImagePullPolicy {
-		return true
-	}
-
-	if !slices.Equal(desired.Args, existing.Args) ||
-		!reflect.DeepEqual(desired.Resources, existing.Resources) ||
-		!reflect.DeepEqual(desired.SecurityContext, existing.SecurityContext) ||
-		!reflect.DeepEqual(desired.VolumeMounts, existing.VolumeMounts) {
-		return true
-	}
-
-	if !containerPortsMatch(desired.Ports, existing.Ports) {
-		return true
-	}
-
-	if readinessProbeModified(desired.ReadinessProbe, existing.ReadinessProbe) {
-		return true
-	}
-
-	return false
-}
-
-func containerPortsMatch(desired, existing []corev1.ContainerPort) bool {
-	if len(desired) != len(existing) {
-		return false
-	}
-	for _, dp := range desired {
-		matched := false
-		for _, ep := range existing {
-			if dp.ContainerPort == ep.ContainerPort && dp.Name == ep.Name {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	return true
-}
-
-// readinessProbeModified compares only the probe fields we explicitly set in
-// bindata (HTTPGet, InitialDelaySeconds, PeriodSeconds), avoiding
-// API-server-defaulted int32 fields like TimeoutSeconds and FailureThreshold.
-func readinessProbeModified(desired, existing *corev1.Probe) bool {
-	if desired == nil && existing == nil {
-		return false
-	}
-	if desired == nil || existing == nil {
-		return true
-	}
-	if desired.InitialDelaySeconds != existing.InitialDelaySeconds ||
-		desired.PeriodSeconds != existing.PeriodSeconds {
-		return true
-	}
-	if desired.HTTPGet != nil && existing.HTTPGet != nil {
-		if desired.HTTPGet.Path != existing.HTTPGet.Path ||
-			desired.HTTPGet.Port != existing.HTTPGet.Port {
-			return true
-		}
-	} else if desired.HTTPGet != existing.HTTPGet {
-		return true
-	}
-	return false
 }

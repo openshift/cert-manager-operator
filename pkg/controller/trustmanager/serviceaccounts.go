@@ -21,7 +21,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 	if err != nil {
 		return common.FromClientError(err, "failed to check if serviceaccount %q exists", serviceAccountName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ServiceAccountModified(desired, existing) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("serviceaccount resource exists and is in desired state", "name", serviceAccountName)
 		return nil
 	}

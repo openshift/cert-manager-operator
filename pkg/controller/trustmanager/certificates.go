@@ -25,7 +25,7 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 	if err != nil {
 		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.IssuerSpecModified(desired, existing) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("issuer resource exists and is in desired state", "name", resourceName)
 		return nil
 	}

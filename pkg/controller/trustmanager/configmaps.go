@@ -53,7 +53,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 	if err != nil {
 		return "", common.FromClientError(err, "failed to check if ConfigMap %q exists", cmName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ConfigMapDataModified(desired, existing) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("default CA package ConfigMap exists and is in desired state", "name", cmName)
 		return bundleHash, nil
 	}

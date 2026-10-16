@@ -30,7 +30,7 @@ func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, d
 	if err != nil {
 		return common.FromClientError(err, "failed to check if service %q exists", serviceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.ServiceSpecModified(desired, existing) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("service resource exists and is in desired state", "name", serviceName)
 		return nil
 	}
