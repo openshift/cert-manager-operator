@@ -457,6 +457,13 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}
 		Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
 
+		// A cluster that does not know spec.tlsAdherence accepts the update and drops the field.
+		stored, err := getClusterAPIServerTLSConfig(ctx)
+		Expect(err).NotTo(HaveOccurred(), "failed to read apiserver TLS configuration after patch")
+		if stored.adherence != strictAdherence {
+			Skip(fmt.Sprintf("apiserver did not store spec.tlsAdherence=%s (got %q)", strictAdherence, stored.adherence))
+		}
+
 		expectedSpec, err := tlsprofile.EffectiveSpec(testProfile)
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve expected TLS profile spec")
 
