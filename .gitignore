@@ -8,8 +8,27 @@
 # Test binary, build with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Code coverage profiles and other test artifacts
 *.out
+cover.out
+coverage.txt
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Editor/IDE and OS junk
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
 
 /cert-manager-operator
 
@@ -24,3 +43,4 @@ bin/
 
 # Test binaries
 testbin/
+.agentready/

@@ -23,5 +23,5 @@ Related diagrams (IstioCSR): `istio-csr-create.puml` / `istio-csr-delete.puml` u
 
 ## Notes
 
-- ADRs in `decisions/` capture **component architectural** choices (framework split, apply strategy, feature gates). Do not duplicate enhancement prose here.
+- ADRs in [`docs/adr/`](../../../docs/adr/) capture **component architectural** choices (framework split, apply strategy, feature gates). Do not duplicate enhancement prose here.
 - Cross-component platform proposals mentioning cert-manager (OLM platform operators, Route external certs, etc.) are out of scope for this index unless they change this operator’s API or controllers.
