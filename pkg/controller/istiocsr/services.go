@@ -45,7 +45,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s service resource already exists, maybe from previous installation", serviceName)
 		}
-		if hasObjectChanged(svc, fetched) {
+		if common.HasObjectChanged(svc, fetched) {
 			r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
 			if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
 				return common.FromClientError(err, "failed to update %s service resource", serviceName)

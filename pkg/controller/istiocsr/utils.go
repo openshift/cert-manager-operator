@@ -134,133 +134,100 @@ func updateResourceLabelsWithIstioMapperLabels(obj client.Object, istiocsrNamesp
 	obj.SetLabels(l)
 }
 
-func hasObjectChanged(desired, fetched client.Object) bool {
-	if reflect.TypeOf(desired) != reflect.TypeOf(fetched) {
-		panic("both objects to be compared must be of same type")
+func decodeDeploymentObjBytes(objBytes []byte) *appsv1.Deployment {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(appsv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
-
-	var objectModified bool
-	switch desiredObj := desired.(type) {
-	case *certmanagerv1.Certificate:
-		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
-		if !ok {
-			panic("failed to convert fetched to *certmanagerv1.Certificate")
-		}
-		objectModified = common.CertificateSpecModified(desiredObj, fetchedCert)
-	case *rbacv1.ClusterRole:
-		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRole")
-		}
-		objectModified = common.RBACRulesModified(desiredObj.Rules, fetchedClusterRole.Rules)
-	case *rbacv1.ClusterRoleBinding:
-		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
-		}
-		objectModified = common.RBACRoleRefModified(desiredObj.RoleRef, fetchedClusterRoleBinding.RoleRef) ||
-			common.RBACSubjectsModified(desiredObj.Subjects, fetchedClusterRoleBinding.Subjects)
-	case *appsv1.Deployment:
-		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
-		if !ok {
-			panic("failed to convert fetched to *appsv1.Deployment")
-		}
-		objectModified = deploymentSpecModified(desiredObj, fetchedDeployment)
-	case *rbacv1.Role:
-		fetchedRole, ok := fetched.(*rbacv1.Role)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.Role")
-		}
-		objectModified = common.RBACRulesModified(desiredObj.Rules, fetchedRole.Rules)
-	case *rbacv1.RoleBinding:
-		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
-		if !ok {
-			panic("failed to convert fetched to *rbacv1.RoleBinding")
-		}
-		objectModified = common.RBACRoleRefModified(desiredObj.RoleRef, fetchedRoleBinding.RoleRef) ||
-			common.RBACSubjectsModified(desiredObj.Subjects, fetchedRoleBinding.Subjects)
-	case *corev1.Service:
-		fetchedService, ok := fetched.(*corev1.Service)
-		if !ok {
-			panic("failed to convert fetched to *corev1.Service")
-		}
-		objectModified = common.ServiceSpecModified(desiredObj, fetchedService)
-	case *corev1.ConfigMap:
-		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
-		if !ok {
-			panic("failed to convert fetched to *corev1.ConfigMap")
-		}
-		objectModified = common.ConfigMapDataModified(desiredObj, fetchedConfigMap)
-	case *networkingv1.NetworkPolicy:
-		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
-		if !ok {
-			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
-		}
-		objectModified = common.NetworkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
-	case *corev1.ServiceAccount:
-		// No spec to compare; drift is labels/annotations only, ObjectMetadataModified() handles it.
-	default:
-		panic(fmt.Sprintf("unsupported object type: %T", desired))
+	deployment, ok := obj.(*appsv1.Deployment)
+	if !ok {
+		panic("failed to convert to *appsv1.Deployment")
 	}
-	return objectModified || common.ObjectMetadataModified(desired, fetched)
+	return deployment
 }
 
-func deploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
-	// check just the fields which are set by the controller and set in static manifest,
-	// as fields with default values end up in manifest and causes plain check to fail.
-	if *desired.Spec.Replicas != *fetched.Spec.Replicas ||
-		!reflect.DeepEqual(desired.Spec.Selector.MatchLabels, fetched.Spec.Selector.MatchLabels) {
-		return true
+func decodeClusterRoleObjBytes(objBytes []byte) *rbacv1.ClusterRole {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
+	clusterRole, ok := obj.(*rbacv1.ClusterRole)
+	if !ok {
+		panic("failed to convert to *rbacv1.ClusterRole")
+	}
+	return clusterRole
+}
 
-	if !reflect.DeepEqual(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
-		len(desired.Spec.Template.Spec.Containers) != len(fetched.Spec.Template.Spec.Containers) {
-		return true
+func decodeClusterRoleBindingObjBytes(objBytes []byte) *rbacv1.ClusterRoleBinding {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
+	clusterRoleBinding, ok := obj.(*rbacv1.ClusterRoleBinding)
+	if !ok {
+		panic("failed to convert to *rbacv1.ClusterRoleBinding")
+	}
+	return clusterRoleBinding
+}
 
-	desiredContainer := desired.Spec.Template.Spec.Containers[0]
-	fetchedContainer := fetched.Spec.Template.Spec.Containers[0]
-	if !reflect.DeepEqual(desiredContainer.Args, fetchedContainer.Args) ||
-		desiredContainer.Name != fetchedContainer.Name || desiredContainer.Image != fetchedContainer.Image ||
-		desiredContainer.ImagePullPolicy != fetchedContainer.ImagePullPolicy {
-		return true
+func decodeRoleObjBytes(objBytes []byte) *rbacv1.Role {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
+	role, ok := obj.(*rbacv1.Role)
+	if !ok {
+		panic("failed to convert to *rbacv1.Role")
+	}
+	return role
+}
 
-	if len(desiredContainer.Ports) != len(fetchedContainer.Ports) {
-		return true
+func decodeRoleBindingObjBytes(objBytes []byte) *rbacv1.RoleBinding {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(rbacv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
-	for _, fetchedPort := range fetchedContainer.Ports {
-		matched := false
-		for _, desiredPort := range desiredContainer.Ports {
-			if fetchedPort.ContainerPort == desiredPort.ContainerPort {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return true
-		}
+	roleBinding, ok := obj.(*rbacv1.RoleBinding)
+	if !ok {
+		panic("failed to convert to *rbacv1.RoleBinding")
 	}
+	return roleBinding
+}
 
-	if desiredContainer.ReadinessProbe.HTTPGet.Path != fetchedContainer.ReadinessProbe.HTTPGet.Path ||
-		desiredContainer.ReadinessProbe.InitialDelaySeconds != fetchedContainer.ReadinessProbe.InitialDelaySeconds ||
-		desiredContainer.ReadinessProbe.PeriodSeconds != fetchedContainer.ReadinessProbe.PeriodSeconds {
-		return true
+func decodeServiceObjBytes(objBytes []byte) *corev1.Service {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
-
-	if !reflect.DeepEqual(desiredContainer.Resources, fetchedContainer.Resources) ||
-		!reflect.DeepEqual(*desiredContainer.SecurityContext, *fetchedContainer.SecurityContext) ||
-		!reflect.DeepEqual(desiredContainer.VolumeMounts, fetchedContainer.VolumeMounts) {
-		return true
+	service, ok := obj.(*corev1.Service)
+	if !ok {
+		panic("failed to convert to *corev1.Service")
 	}
+	return service
+}
 
-	if desired.Spec.Template.Spec.ServiceAccountName != fetched.Spec.Template.Spec.ServiceAccountName ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) ||
-		!reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes) {
-		return true
+func decodeServiceAccountObjBytes(objBytes []byte) *corev1.ServiceAccount {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
 	}
+	serviceAccount, ok := obj.(*corev1.ServiceAccount)
+	if !ok {
+		panic("failed to convert to *corev1.ServiceAccount")
+	}
+	return serviceAccount
+}
 
-	return false
+func decodeCertificateObjBytes(objBytes []byte) *certmanagerv1.Certificate {
+	obj, err := runtime.Decode(codecs.UniversalDecoder(certmanagerv1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
+	}
+	certificate, ok := obj.(*certmanagerv1.Certificate)
+	if !ok {
+		panic("failed to convert to *certmanagerv1.Certificate")
+	}
+	return certificate
 }
 
 func validateIstioCSRConfig(istiocsr *v1alpha1.IstioCSR) error {
