@@ -470,7 +470,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
-			name: "skip apply when existing secretTemplate annotations are empty vs nil",
+			name: "apply when existing secretTemplate drops the direct-injection annotation",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
@@ -480,7 +480,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantPatchCount:  1,
 		},
 		{
 			name: "exists error propagates",
