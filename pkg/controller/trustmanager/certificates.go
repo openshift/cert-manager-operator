@@ -93,20 +93,31 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 		Kind:  "Issuer",
 		Group: "cert-manager.io",
 	}
-	certificate.Spec.SecretTemplate = certificateSecretTemplate(resourceLabels, resourceAnnotations)
+	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
 	return certificate
 }
 
 // certificateSecretTemplate copies operator-managed labels and annotations onto
-// the Certificate so cert-manager can propagate them to the webhook TLS Secret.
-func certificateSecretTemplate(resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.CertificateSecretTemplate {
+// the Certificate secretTemplate so cert-manager propagates them to the webhook
+// TLS Secret. Annotations already set on the manifest, including
+// cert-manager.io/allow-direct-injection, are kept.
+func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.CertificateSecretTemplate {
 	template := &certmanagerv1.CertificateSecretTemplate{}
+	if base != nil {
+		template = base.DeepCopy()
+	}
 	if len(resourceLabels) > 0 {
-		template.Labels = maps.Clone(resourceLabels)
+		if template.Labels == nil {
+			template.Labels = make(map[string]string, len(resourceLabels))
+		}
+		maps.Copy(template.Labels, resourceLabels)
 	}
 	if len(resourceAnnotations) > 0 {
-		template.Annotations = maps.Clone(resourceAnnotations)
+		if template.Annotations == nil {
+			template.Annotations = make(map[string]string, len(resourceAnnotations))
+		}
+		maps.Copy(template.Annotations, resourceAnnotations)
 	}
 	return template
 }
