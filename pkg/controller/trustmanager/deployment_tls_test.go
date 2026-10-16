@@ -21,7 +21,6 @@ import (
 )
 
 func TestApplyTrustManagerWebhookTLSArgs(t *testing.T) {
-	wantCurves := tlsprofile.CurvePreferencesArgValue()
 	tests := []struct {
 		name               string
 		spec               *configv1.TLSProfileSpec
@@ -29,43 +28,41 @@ func TestApplyTrustManagerWebhookTLSArgs(t *testing.T) {
 		wantAbsent         []string
 		wantMinVer         string
 		wantCipherContains string
-		wantCurves         string
 	}{
 		{
-			name: "intermediate sets min version, ciphers, and curve preferences",
+			name: "intermediate sets min version and ciphers",
 			spec: &configv1.TLSProfileSpec{
 				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites", tlsprofile.TrustManagerCurvePreferencesArgKey},
+			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites"},
+			wantAbsent:         []string{"--tls-curve-preferences"},
 			wantMinVer:         "VersionTLS12",
 			wantCipherContains: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			wantCurves:         wantCurves,
 		},
 		{
-			name: "old sets min version, ciphers, and curve preferences",
+			name: "old sets min version and ciphers",
 			spec: &configv1.TLSProfileSpec{
 				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "AES128-SHA"},
 				MinTLSVersion: configv1.VersionTLS10,
 			},
-			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites", tlsprofile.TrustManagerCurvePreferencesArgKey},
+			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites"},
+			wantAbsent:         []string{"--tls-curve-preferences"},
 			wantMinVer:         "VersionTLS10",
 			wantCipherContains: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			wantCurves:         wantCurves,
 		},
 		{
-			name: "modern tls13 omits cipher suites but keeps curve preferences",
+			name: "modern tls13 omits cipher suites and curve preferences",
 			spec: &configv1.TLSProfileSpec{
 				Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
 				MinTLSVersion: configv1.VersionTLS13,
 			},
-			wantKeys:   []string{"--tls-min-version", tlsprofile.TrustManagerCurvePreferencesArgKey},
-			wantAbsent: []string{"--tls-cipher-suites"},
+			wantKeys:   []string{"--tls-min-version"},
+			wantAbsent: []string{"--tls-cipher-suites", "--tls-curve-preferences"},
 			wantMinVer: "VersionTLS13",
-			wantCurves: wantCurves,
 		},
 		{
-			name: "custom tls12 sets min version, mapped ciphers, and curve preferences",
+			name: "custom tls12 sets min version and mapped ciphers",
 			spec: &configv1.TLSProfileSpec{
 				Ciphers: []string{
 					"ECDHE-RSA-AES128-GCM-SHA256",
@@ -73,21 +70,20 @@ func TestApplyTrustManagerWebhookTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites", tlsprofile.TrustManagerCurvePreferencesArgKey},
+			wantKeys:           []string{"--tls-min-version", "--tls-cipher-suites"},
+			wantAbsent:         []string{"--tls-curve-preferences"},
 			wantMinVer:         "VersionTLS12",
 			wantCipherContains: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			wantCurves:         wantCurves,
 		},
 		{
-			name: "custom tls13 omits cipher suites but keeps curve preferences",
+			name: "custom tls13 omits cipher suites and curve preferences",
 			spec: &configv1.TLSProfileSpec{
 				Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
 				MinTLSVersion: configv1.VersionTLS13,
 			},
-			wantKeys:   []string{"--tls-min-version", tlsprofile.TrustManagerCurvePreferencesArgKey},
-			wantAbsent: []string{"--tls-cipher-suites"},
+			wantKeys:   []string{"--tls-min-version"},
+			wantAbsent: []string{"--tls-cipher-suites", "--tls-curve-preferences"},
 			wantMinVer: "VersionTLS13",
-			wantCurves: wantCurves,
 		},
 		{
 			name: "nil spec is no-op",
@@ -104,9 +100,9 @@ func TestApplyTrustManagerWebhookTLSArgs(t *testing.T) {
 						Spec: corev1.PodSpec{
 							Containers: []corev1.Container{{
 								Name: trustManagerContainerName,
-								// Stale cipher and curve values must be replaced (or stripped
-								// for TLS 1.3 ciphers) when a profile spec is applied.
-								Args: []string{"--webhook-port=6443", "--tls-cipher-suites=STALE", tlsprofile.TrustManagerCurvePreferencesArgKey + "=1"},
+								// A stale cipher value must be replaced (or stripped for TLS 1.3)
+								// when a profile spec is applied.
+								Args: []string{"--webhook-port=6443", "--tls-cipher-suites=STALE"},
 							}},
 						},
 					},
@@ -140,15 +136,9 @@ func TestApplyTrustManagerWebhookTLSArgs(t *testing.T) {
 			if tt.wantCipherContains != "" && !strings.Contains(argMap["--tls-cipher-suites"], tt.wantCipherContains) {
 				t.Fatalf("expected cipher %q in %q", tt.wantCipherContains, argMap["--tls-cipher-suites"])
 			}
-			if tt.wantCurves != "" && argMap[tlsprofile.TrustManagerCurvePreferencesArgKey] != tt.wantCurves {
-				t.Fatalf("got curve preferences %q want %q", argMap[tlsprofile.TrustManagerCurvePreferencesArgKey], tt.wantCurves)
-			}
 			if tt.spec == nil {
 				if argMap["--tls-cipher-suites"] != "STALE" {
 					t.Fatalf("nil spec must leave stale cipher arg, got %#v", argMap)
-				}
-				if argMap[tlsprofile.TrustManagerCurvePreferencesArgKey] != "1" {
-					t.Fatalf("nil spec must leave stale curve arg, got %#v", argMap)
 				}
 			}
 		})
@@ -302,7 +292,9 @@ func TestApplyClusterTLSProfile_adherence(t *testing.T) {
 			argMap := containerArgMap(dep)
 			_, hasMin := argMap["--tls-min-version"]
 			_, hasCipher := argMap["--tls-cipher-suites"]
-			_, hasCurves := argMap[tlsprofile.TrustManagerCurvePreferencesArgKey]
+			if _, hasCurves := argMap["--tls-curve-preferences"]; hasCurves {
+				t.Fatalf("curve preferences must be left unset, args=%#v", argMap)
+			}
 			if tt.wantTLSArgs != hasMin {
 				t.Fatalf("wantTLSArgs=%v hasMin=%v args=%#v", tt.wantTLSArgs, hasMin, argMap)
 			}
@@ -311,12 +303,6 @@ func TestApplyClusterTLSProfile_adherence(t *testing.T) {
 			}
 			if hasCipher != tt.wantCipherKey {
 				t.Fatalf("wantCipherKey=%v hasCipher=%v", tt.wantCipherKey, hasCipher)
-			}
-			if tt.wantTLSArgs != hasCurves {
-				t.Fatalf("wantTLSArgs=%v hasCurves=%v args=%#v", tt.wantTLSArgs, hasCurves, argMap)
-			}
-			if tt.wantTLSArgs && argMap[tlsprofile.TrustManagerCurvePreferencesArgKey] != tlsprofile.CurvePreferencesArgValue() {
-				t.Fatalf("curve preferences got %q want %q", argMap[tlsprofile.TrustManagerCurvePreferencesArgKey], tlsprofile.CurvePreferencesArgValue())
 			}
 			if tt.wantCipherContains != "" && !strings.Contains(argMap["--tls-cipher-suites"], tt.wantCipherContains) {
 				t.Fatalf("expected cipher %q in %q", tt.wantCipherContains, argMap["--tls-cipher-suites"])

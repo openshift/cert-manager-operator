@@ -35,8 +35,8 @@ func TestClientTLSConfig(t *testing.T) {
 				if len(cfg.CipherSuites) == 0 {
 					t.Fatal("expected CipherSuites set")
 				}
-				if len(cfg.CurvePreferences) != len(DefaultCurvePreferences) {
-					t.Fatalf("curve count: got %d want %d", len(cfg.CurvePreferences), len(DefaultCurvePreferences))
+				if cfg.CurvePreferences != nil {
+					t.Fatalf("expected nil CurvePreferences so Go defaults apply, got %#v", cfg.CurvePreferences)
 				}
 			},
 		},
@@ -60,8 +60,8 @@ func TestClientTLSConfig(t *testing.T) {
 				if cfg.CipherSuites != nil {
 					t.Fatalf("expected nil CipherSuites for TLS 1.3, got %#v", cfg.CipherSuites)
 				}
-				if len(cfg.CurvePreferences) != len(DefaultCurvePreferences) {
-					t.Fatalf("curve count: got %d want %d", len(cfg.CurvePreferences), len(DefaultCurvePreferences))
+				if cfg.CurvePreferences != nil {
+					t.Fatalf("expected nil CurvePreferences so Go defaults apply, got %#v", cfg.CurvePreferences)
 				}
 			},
 		},
@@ -138,15 +138,5 @@ func TestClientTLSConfig(t *testing.T) {
 				tt.check(t, cfg)
 			}
 		})
-	}
-}
-
-func TestCurvePreferencesArgValue(t *testing.T) {
-	// Pin the numeric IDs so a silent reorder of DefaultCurvePreferences is caught.
-	// 29=X25519, 23=P-256, 24=P-384, 25=P-521 (crypto/tls.CurveID / kube-apiserver).
-	const want = "29,23,24,25"
-	got := CurvePreferencesArgValue()
-	if got != want {
-		t.Fatalf("CurvePreferencesArgValue() = %q, want %q", got, want)
 	}
 }
