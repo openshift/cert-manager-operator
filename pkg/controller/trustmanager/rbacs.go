@@ -64,7 +64,7 @@ func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManage
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("clusterrole resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -124,7 +124,7 @@ func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("cluster-view clusterrole resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -162,9 +162,7 @@ func (r *Reconciler) createOrApplyClusterRoleBinding(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) &&
-		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
-		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("clusterrolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -200,7 +198,7 @@ func (r *Reconciler) createOrApplyTrustNamespaceRole(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if role %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("role resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -235,9 +233,7 @@ func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(trustManager *v1alph
 	if err != nil {
 		return common.FromClientError(err, "failed to check if rolebinding %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) &&
-		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
-		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("rolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -274,7 +270,7 @@ func (r *Reconciler) createOrApplyLeaderElectionRole(trustManager *v1alpha1.Trus
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election role %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) && !common.RBACRulesModified(desired.Rules, existing.Rules) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("leader election role resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -309,9 +305,7 @@ func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(trustManager *v1alph
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election rolebinding %q exists", resourceName)
 	}
-	if exists && !common.ManagedMetadataModified(desired, existing) &&
-		!common.RBACRoleRefModified(desired.RoleRef, existing.RoleRef) &&
-		!common.RBACSubjectsModified(desired.Subjects, existing.Subjects) {
+	if exists && !common.HasObjectChanged(desired, existing) {
 		r.log.V(4).Info("leader election rolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
