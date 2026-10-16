@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 // baseDeployment returns a minimal deployment for spec comparison tests.
@@ -172,9 +174,9 @@ func TestHasObjectChanged(t *testing.T) {
 					}
 				}()
 			}
-			got := hasObjectChanged(tt.desired, tt.fetched)
+			got := common.HasObjectChanged(tt.desired, tt.fetched)
 			if !tt.wantPanic && got != tt.wantChanged {
-				t.Errorf("hasObjectChanged() = %v, want %v", got, tt.wantChanged)
+				t.Errorf("common.HasObjectChanged() = %v, want %v", got, tt.wantChanged)
 			}
 		})
 	}
@@ -314,10 +316,103 @@ func TestDeploymentSpecModified(t *testing.T) {
 			}(),
 			wantTrue: true,
 		},
+		{
+			name:    "unset nodeSelector ignores fetched value",
+			desired: baseDeployment(1, "img"),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
+				return d
+			}(),
+			wantTrue: false,
+		},
+		{
+			name: "nodeSelector drift when desired sets it",
+			desired: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
+				return d
+			}(),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "windows"}
+				return d
+			}(),
+			wantTrue: true,
+		},
+		{
+			name:    "unset affinity ignores fetched value",
+			desired: baseDeployment(1, "img"),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.Affinity = &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}}
+				return d
+			}(),
+			wantTrue: false,
+		},
+		{
+			name: "affinity drift when desired sets it",
+			desired: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.Affinity = &corev1.Affinity{
+					NodeAffinity: &corev1.NodeAffinity{},
+				}
+				return d
+			}(),
+			fetched:  baseDeployment(1, "img"),
+			wantTrue: true,
+		},
+		{
+			name:    "unset tolerations ignore fetched value",
+			desired: baseDeployment(1, "img"),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.Tolerations = []corev1.Toleration{{Key: "dedicated", Operator: corev1.TolerationOpExists}}
+				return d
+			}(),
+			wantTrue: false,
+		},
+		{
+			name: "tolerations drift when desired sets them",
+			desired: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				d.Spec.Template.Spec.Tolerations = []corev1.Toleration{{Key: "dedicated", Operator: corev1.TolerationOpExists}}
+				return d
+			}(),
+			fetched:  baseDeployment(1, "img"),
+			wantTrue: true,
+		},
+		{
+			name:    "unset revisionHistoryLimit ignores fetched value",
+			desired: baseDeployment(1, "img"),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				limit := int32(10)
+				d.Spec.RevisionHistoryLimit = &limit
+				return d
+			}(),
+			wantTrue: false,
+		},
+		{
+			name: "revisionHistoryLimit drift when desired sets it",
+			desired: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				limit := int32(10)
+				d.Spec.RevisionHistoryLimit = &limit
+				return d
+			}(),
+			fetched: func() *appsv1.Deployment {
+				d := baseDeployment(1, "img")
+				limit := int32(2)
+				d.Spec.RevisionHistoryLimit = &limit
+				return d
+			}(),
+			wantTrue: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := deploymentSpecModified(tt.desired, tt.fetched)
+			got := common.DeploymentSpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
 				t.Errorf("deploymentSpecModified() = %v, want %v", got, tt.wantTrue)
 			}
@@ -335,8 +430,8 @@ func TestHasObjectChanged_RoleAndRoleBinding(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"a": "1"}},
 			Rules:      []rbacv1.PolicyRule{{Verbs: []string{"list"}}},
 		}
-		if !hasObjectChanged(desired, fetched) {
-			t.Error("hasObjectChanged() = false, want true for Role rules different")
+		if !common.HasObjectChanged(desired, fetched) {
+			t.Error("common.HasObjectChanged() = false, want true for Role rules different")
 		}
 	})
 	t.Run("ClusterRoleBinding RoleRef different", func(t *testing.T) {
@@ -350,8 +445,8 @@ func TestHasObjectChanged_RoleAndRoleBinding(t *testing.T) {
 			RoleRef:    rbacv1.RoleRef{APIGroup: "rbac", Kind: "ClusterRole", Name: "role-b"},
 			Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "y", Namespace: "z"}},
 		}
-		if !hasObjectChanged(desired, fetched) {
-			t.Error("hasObjectChanged() = false, want true for RoleRef different")
+		if !common.HasObjectChanged(desired, fetched) {
+			t.Error("common.HasObjectChanged() = false, want true for RoleRef different")
 		}
 	})
 	t.Run("ClusterRoleBinding Subjects different", func(t *testing.T) {
@@ -365,8 +460,8 @@ func TestHasObjectChanged_RoleAndRoleBinding(t *testing.T) {
 			RoleRef:    rbacv1.RoleRef{APIGroup: "rbac", Kind: "ClusterRole", Name: "x"},
 			Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "other", Namespace: "z"}},
 		}
-		if !hasObjectChanged(desired, fetched) {
-			t.Error("hasObjectChanged() = false, want true for Subjects different")
+		if !common.HasObjectChanged(desired, fetched) {
+			t.Error("common.HasObjectChanged() = false, want true for Subjects different")
 		}
 	})
 	t.Run("RoleBinding RoleRef different", func(t *testing.T) {
@@ -380,8 +475,8 @@ func TestHasObjectChanged_RoleAndRoleBinding(t *testing.T) {
 			RoleRef:    rbacv1.RoleRef{APIGroup: "rbac", Kind: "Role", Name: "role-b"},
 			Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "y", Namespace: "z"}},
 		}
-		if !hasObjectChanged(desired, fetched) {
-			t.Error("hasObjectChanged() = false, want true for RoleBinding RoleRef different")
+		if !common.HasObjectChanged(desired, fetched) {
+			t.Error("common.HasObjectChanged() = false, want true for RoleBinding RoleRef different")
 		}
 	})
 }
@@ -432,9 +527,9 @@ func TestServiceSpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serviceSpecModified(tt.desired, tt.fetched)
+			got := common.ServiceSpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("serviceSpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("ServiceSpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -462,9 +557,9 @@ func TestCertificateSpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := certificateSpecModified(tt.desired, tt.fetched)
+			got := common.CertificateSpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("certificateSpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("CertificateSpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -492,9 +587,9 @@ func TestConfigMapDataModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := configMapDataModified(tt.desired, tt.fetched)
+			got := common.ConfigMapDataModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("configMapDataModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("ConfigMapDataModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}
@@ -522,9 +617,9 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := networkPolicySpecModified(tt.desired, tt.fetched)
+			got := common.NetworkPolicySpecModified(tt.desired, tt.fetched)
 			if got != tt.wantTrue {
-				t.Errorf("networkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
+				t.Errorf("NetworkPolicySpecModified() = %v, want %v", got, tt.wantTrue)
 			}
 		})
 	}

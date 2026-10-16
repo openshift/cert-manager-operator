@@ -101,7 +101,7 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrole resource already exists, maybe from previous installation", roleName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("clusterrole has been modified, updating to desired state", "name", roleName)
 			// desired is built with GenerateName for create; for update the name must match the live object.
 			desired.SetName(fetched.GetName())
@@ -216,7 +216,7 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrolebinding resource already exists, maybe from previous installation", roleBindingName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			recreate, err := r.handleClusterRoleBindingModification(istiocsr, desired, fetched, roleBindingName)
 			if err != nil {
 				return err
@@ -283,7 +283,7 @@ func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLab
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s role resource already exists, maybe from previous installation", roleName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s role resource", roleName)
@@ -326,7 +326,7 @@ func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serv
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s rolebinding resource already exists, maybe from previous installation", roleBindingName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
@@ -370,7 +370,7 @@ func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, res
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s role resource already exists, maybe from previous installation", roleName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("role has been modified, updating to desired state", "name", roleName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s role resource", roleName)
@@ -413,7 +413,7 @@ func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioC
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s rolebinding resource already exists, maybe from previous installation", roleBindingName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("rolebinding has been modified, updating to desired state", "name", roleBindingName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s rolebinding resource", roleBindingName)
@@ -469,7 +469,7 @@ func (r *Reconciler) handleClusterRoleBindingModification(istiocsr *v1alpha1.Ist
 	desired.SetGenerateName("")
 	// ClusterRoleBinding.RoleRef is immutable; a new ClusterRole name (e.g. after delete/recreate
 	// with GenerateName) cannot be applied via Update.
-	if rbacRoleBindingRefModified(desired, fetched) {
+	if common.RBACRoleRefModified(desired.RoleRef, fetched.RoleRef) {
 		r.log.V(1).Info("clusterrolebinding roleRef changed, deleting for recreation (roleRef is immutable)", "name", roleBindingName)
 		if err := r.Delete(r.ctx, fetched); err != nil {
 			if !apierrors.IsNotFound(err) {
