@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"context"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -53,7 +54,6 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			),
 			wantContains: []string{
 				"--serving-tls-min-version=VersionTLS13",
-				"--serving-tls-curve-preferences=X25519",
 			},
 		},
 		{
@@ -70,6 +70,30 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			name: "StrictAllComponents with invalid custom profile returns error",
 			apiServer: apiserverCluster(
 				&configv1.TLSSecurityProfile{Type: configv1.TLSProfileCustomType},
+				configv1.TLSAdherencePolicyStrictAllComponents,
+			),
+			wantErr: true,
+		},
+		{
+			name: "StrictAllComponents with Old profile is rejected before rollout",
+			apiServer: apiserverCluster(
+				&configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType},
+				configv1.TLSAdherencePolicyStrictAllComponents,
+			),
+			wantErr: true,
+		},
+		{
+			name: "StrictAllComponents with Custom TLS 1.0 is rejected before rollout",
+			apiServer: apiserverCluster(
+				&configv1.TLSSecurityProfile{
+					Type: configv1.TLSProfileCustomType,
+					Custom: &configv1.CustomTLSProfile{
+						TLSProfileSpec: configv1.TLSProfileSpec{
+							MinTLSVersion: configv1.VersionTLS10,
+							Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+						},
+					},
+				},
 				configv1.TLSAdherencePolicyStrictAllComponents,
 			),
 			wantErr: true,
@@ -138,7 +162,7 @@ func TestClusterTLSProfileArgs_getError(t *testing.T) {
 	}
 }
 
-func TestEnqueueAllIstioCSRRequests(t *testing.T) {
+func TestEnqueueActiveIstioCSRRequests(t *testing.T) {
 	r := testReconciler(t)
 	mock := &fakes.FakeCtrlClient{}
 	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -153,7 +177,7 @@ func TestEnqueueAllIstioCSRRequests(t *testing.T) {
 	})
 	r.CtrlClient = mock
 
-	requests := r.enqueueAllIstioCSRRequests(context.Background(), &configv1.APIServer{})
+	requests := r.enqueueActiveIstioCSRRequests(context.Background(), &configv1.APIServer{})
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 reconcile request, got %d", len(requests))
 	}
@@ -163,7 +187,63 @@ func TestEnqueueAllIstioCSRRequests(t *testing.T) {
 	}
 }
 
-func TestEnqueueAllIstioCSRRequests_listError(t *testing.T) {
+func TestEnqueueActiveIstioCSRRequests_onlyOldest(t *testing.T) {
+	r := testReconciler(t)
+	older := testIstioCSR()
+	older.CreationTimestamp = metav1.NewTime(time.Unix(1, 0).UTC())
+	newer := testIstioCSR()
+	newer.Name = "later"
+	newer.Namespace = "other-ns"
+	newer.CreationTimestamp = metav1.NewTime(time.Unix(2, 0).UTC())
+
+	mock := &fakes.FakeCtrlClient{}
+	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		istiocsrList, ok := list.(*v1alpha1.IstioCSRList)
+		if !ok {
+			return nil
+		}
+		istiocsrList.Items = []v1alpha1.IstioCSR{*older, *newer}
+		return nil
+	})
+	r.CtrlClient = mock
+
+	requests := r.enqueueActiveIstioCSRRequests(context.Background(), &configv1.APIServer{})
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 reconcile request, got %#v", requests)
+	}
+	if requests[0].Name != older.Name || requests[0].Namespace != older.Namespace {
+		t.Fatalf("expected oldest instance, got %#v", requests[0])
+	}
+}
+
+func TestEnqueueActiveIstioCSRRequests_equalTimestampsEnqueueNone(t *testing.T) {
+	r := testReconciler(t)
+	created := metav1.NewTime(time.Unix(1, 0).UTC())
+	first := testIstioCSR()
+	first.CreationTimestamp = created
+	second := testIstioCSR()
+	second.Name = "other"
+	second.Namespace = "other-ns"
+	second.CreationTimestamp = created
+
+	mock := &fakes.FakeCtrlClient{}
+	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		istiocsrList, ok := list.(*v1alpha1.IstioCSRList)
+		if !ok {
+			return nil
+		}
+		istiocsrList.Items = []v1alpha1.IstioCSR{*first, *second}
+		return nil
+	})
+	r.CtrlClient = mock
+
+	requests := r.enqueueActiveIstioCSRRequests(context.Background(), &configv1.APIServer{})
+	if len(requests) != 0 {
+		t.Fatalf("expected no reconcile requests, got %#v", requests)
+	}
+}
+
+func TestEnqueueActiveIstioCSRRequests_listError(t *testing.T) {
 	r := testReconciler(t)
 	mock := &fakes.FakeCtrlClient{}
 	mock.ListCalls(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -171,7 +251,7 @@ func TestEnqueueAllIstioCSRRequests_listError(t *testing.T) {
 	})
 	r.CtrlClient = mock
 
-	requests := r.enqueueAllIstioCSRRequests(context.Background(), &configv1.APIServer{})
+	requests := r.enqueueActiveIstioCSRRequests(context.Background(), &configv1.APIServer{})
 	if requests != nil {
 		t.Fatalf("expected nil requests on list error, got %#v", requests)
 	}

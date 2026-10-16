@@ -11,6 +11,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -1887,14 +1888,36 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// isTLSAdherenceUnsupported reports whether err is an API status whose cause
+// says spec.tlsAdherence is not supported on this cluster. Other Invalid and
+// Forbidden errors, including RBAC denials and validation of unrelated fields,
+// return false so the caller fails the test.
 func isTLSAdherenceUnsupported(err error) bool {
-	if err == nil {
+	var status apierrors.APIStatus
+	if err == nil || !stderrors.As(err, &status) {
 		return false
 	}
-	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+	details := status.Status().Details
+	if details == nil {
+		return false
+	}
+	for _, cause := range details.Causes {
+		if tlsAdherenceCauseUnsupported(cause) {
+			return true
+		}
+	}
+	return false
+}
+
+func tlsAdherenceCauseUnsupported(cause metav1.StatusCause) bool {
+	if cause.Field != "spec.tlsAdherence" {
+		return false
+	}
+	if cause.Type == metav1.CauseTypeFieldValueNotSupported {
 		return true
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "tlsadherence")
+	msg := strings.ToLower(cause.Message)
+	return strings.Contains(msg, "unknown field") || strings.Contains(msg, "unrecognized field")
 }
 
 func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
@@ -2047,7 +2070,10 @@ func verifyOperandMetricsHTTPS(deploymentName string) error {
 // given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
 // same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
 func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
-	expected := tlsprofile.IstioCSRServingTLSArgs(spec)
+	expected, err := tlsprofile.IstioCSRServingTLSArgs(spec)
+	if err != nil {
+		return fmt.Errorf("istio-csr serving TLS args: %w", err)
+	}
 	if len(expected) == 0 {
 		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
 	}

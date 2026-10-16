@@ -205,24 +205,30 @@ func TestTrustManagerWebhookTLSArgs_tls13OmitsCipherFlags(t *testing.T) {
 }
 
 func TestIstioCSRServingTLSArgs_nilSpecReturnsEmpty(t *testing.T) {
-	args := IstioCSRServingTLSArgs(nil)
+	args, err := IstioCSRServingTLSArgs(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(args) != 0 {
 		t.Fatalf("expected empty args, got %#v", args)
 	}
 }
 
-func TestIstioCSRServingTLSArgs_repeatsCiphersAndCurves(t *testing.T) {
+func TestIstioCSRServingTLSArgs_repeatsCiphersAndOmitsCurves(t *testing.T) {
 	spec := &configv1.TLSProfileSpec{
 		Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256", "ECDHE-RSA-AES256-GCM-SHA384"},
 		MinTLSVersion: configv1.VersionTLS12,
 	}
-	args := IstioCSRServingTLSArgs(spec)
+	args, err := IstioCSRServingTLSArgs(spec)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if args[0] != "--serving-tls-min-version=VersionTLS12" {
 		t.Fatalf("unexpected first arg: %q", args[0])
 	}
 
-	var ciphers, curves []string
+	var ciphers []string
 	for _, a := range args[1:] {
 		parts := strings.SplitN(a, "=", 2)
 		if len(parts) != 2 {
@@ -231,8 +237,6 @@ func TestIstioCSRServingTLSArgs_repeatsCiphersAndCurves(t *testing.T) {
 		switch parts[0] {
 		case "--serving-tls-cipher-suites":
 			ciphers = append(ciphers, parts[1])
-		case "--serving-tls-curve-preferences":
-			curves = append(curves, parts[1])
 		default:
 			t.Fatalf("unexpected arg key %q", parts[0])
 		}
@@ -242,14 +246,9 @@ func TestIstioCSRServingTLSArgs_repeatsCiphersAndCurves(t *testing.T) {
 	if !reflect.DeepEqual(ciphers, wantCiphers) {
 		t.Fatalf("unexpected cipher-suite flags: got %#v, want %#v", ciphers, wantCiphers)
 	}
-
-	wantCurves := []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
-	if !reflect.DeepEqual(curves, wantCurves) {
-		t.Fatalf("unexpected curve-preference flags: got %#v, want %#v", curves, wantCurves)
-	}
 }
 
-func TestIstioCSRServingTLSArgs_tls13OmitsCipherFlagsButKeepsCurves(t *testing.T) {
+func TestIstioCSRServingTLSArgs_tls13OmitsCipherAndCurveFlags(t *testing.T) {
 	spec := &configv1.TLSProfileSpec{
 		Ciphers: []string{
 			"TLS_AES_128_GCM_SHA256",
@@ -258,24 +257,40 @@ func TestIstioCSRServingTLSArgs_tls13OmitsCipherFlagsButKeepsCurves(t *testing.T
 		},
 		MinTLSVersion: configv1.VersionTLS13,
 	}
-	args := IstioCSRServingTLSArgs(spec)
+	args, err := IstioCSRServingTLSArgs(spec)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if args[0] != "--serving-tls-min-version=VersionTLS13" {
 		t.Fatalf("unexpected first arg: %q", args[0])
 	}
-	for _, a := range args {
-		if strings.HasPrefix(a, "--serving-tls-cipher-suites") {
-			t.Fatalf("TLS 1.3 must not set cipher flags, got %q", a)
-		}
+	if len(args) != 1 {
+		t.Fatalf("TLS 1.3 must set only the minimum version, got %#v", args)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_rejectsMinVersionBelowTLS12(t *testing.T) {
+	for _, version := range []configv1.TLSProtocolVersion{configv1.VersionTLS10, configv1.VersionTLS11} {
+		t.Run(string(version), func(t *testing.T) {
+			args, err := IstioCSRServingTLSArgs(&configv1.TLSProfileSpec{
+				MinTLSVersion: version,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+			})
+			if err == nil {
+				t.Fatal("expected error for minimum TLS version below 1.2")
+			}
+			if args != nil {
+				t.Fatalf("expected no args, got %#v", args)
+			}
+		})
 	}
 
-	var curveCount int
-	for _, a := range args {
-		if strings.HasPrefix(a, "--serving-tls-curve-preferences=") {
-			curveCount++
-		}
+	oldSpec, err := EffectiveSpec(&configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType})
+	if err != nil {
+		t.Fatalf("Old profile: %v", err)
 	}
-	if curveCount != 4 {
-		t.Fatalf("expected 4 curve-preference flags for TLS 1.3, got %d (args=%#v)", curveCount, args)
+	if _, err := IstioCSRServingTLSArgs(oldSpec); err == nil {
+		t.Fatal("expected Old profile to be rejected")
 	}
 }

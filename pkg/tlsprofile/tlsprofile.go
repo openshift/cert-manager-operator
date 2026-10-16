@@ -3,7 +3,6 @@
 package tlsprofile
 
 import (
-	"crypto/tls"
 	"fmt"
 	"strings"
 
@@ -157,25 +156,25 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	return nil
 }
 
-// istioCSRCurvePreferenceNames are the Go curve names cert-manager-istio-csr accepts
-// on repeated --serving-tls-curve-preferences flags. Order follows DefaultCurvePreferences.
-var istioCSRCurvePreferenceNames = map[tls.CurveID]string{
-	tls.X25519:    "X25519",
-	tls.CurveP256: "CurveP256",
-	tls.CurveP384: "CurveP384",
-	tls.CurveP521: "CurveP521",
-}
-
 // IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
-// listener: --serving-tls-min-version, --serving-tls-cipher-suites, and
-// --serving-tls-curve-preferences (cert-manager-istio-csr v0.18.0+). Cipher and
-// curve flags are repeated, one value per occurrence.
+// listener: --serving-tls-min-version and repeated --serving-tls-cipher-suites
+// (cert-manager-istio-csr v0.18.0+).
 //
-// TLS 1.3 omits cipher flags. Curve flags are always included and use
-// DefaultCurvePreferences, because TLSProfileSpec does not expose curves yet.
-func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
+// TLS 1.3 omits cipher flags. Curve flags are omitted so the operand keeps Go's
+// default curve preferences, including hybrid post-quantum exchanges. spec.groups
+// is not mapped here.
+//
+// cert-manager-istio-csr rejects a serving minimum below TLS 1.2 at startup.
+// VersionTLS10 and VersionTLS11, including the built-in Old profile and Custom
+// profiles that set those versions, return an error so the caller does not
+// roll out a deployment the operand cannot start.
+func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) ([]string, error) {
 	if spec == nil {
-		return []string{}
+		return []string{}, nil
+	}
+	switch spec.MinTLSVersion {
+	case configv1.VersionTLS10, configv1.VersionTLS11:
+		return nil, fmt.Errorf("cert-manager-istio-csr does not support minimum TLS version %s; VersionTLS12 or higher is required", spec.MinTLSVersion)
 	}
 	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
 	if spec.MinTLSVersion != configv1.VersionTLS13 {
@@ -183,12 +182,5 @@ func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
 			args = append(args, "--serving-tls-cipher-suites="+cipher)
 		}
 	}
-	for _, id := range DefaultCurvePreferences {
-		name, ok := istioCSRCurvePreferenceNames[id]
-		if !ok {
-			continue
-		}
-		args = append(args, "--serving-tls-curve-preferences="+name)
-	}
-	return args
+	return args, nil
 }
