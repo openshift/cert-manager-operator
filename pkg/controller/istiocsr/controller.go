@@ -29,24 +29,13 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 // RequestEnqueueLabelValue is the label value used for filtering reconcile
 // events to include only the resources created by the IstioCSR controller.
 // The label key is common.ManagedResourceLabelKey.
 const RequestEnqueueLabelValue = "cert-manager-istio-csr"
-
-// TLSConfig holds cluster TLS profile settings resolved once at controller startup.
-// When the cluster TLS profile or adherence changes, the operator restarts and
-// re-initializes this config. See pkg/tlsprofile.SecurityProfileWatcher.
-type TLSConfig struct {
-	// Adherence is the raw tlsAdherence value from apiserver.config.openshift.io/cluster.
-	Adherence configv1.TLSAdherencePolicy
-	// Spec is the effective TLS profile spec. Nil when Honor is false.
-	Spec *configv1.TLSProfileSpec
-	// Honor is true when the cluster requires operands to honor the TLS profile.
-	Honor bool
-}
 
 // Reconciler reconciles a IstioCSR object.
 type Reconciler struct {
@@ -56,7 +45,6 @@ type Reconciler struct {
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 	scheme        *runtime.Scheme
-	tlsConfig     TLSConfig
 }
 
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs,verbs=get;list;watch;update;patch
@@ -64,11 +52,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=istiocsrs/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
-// New returns a new Reconciler instance with the given TLS configuration.
-// The TLS config is resolved once at controller startup; subsequent changes
-// to the cluster TLS profile trigger an operator restart which re-initializes
-// the controller with the new config.
-func New(mgr ctrl.Manager, tlsConfig TLSConfig) (*Reconciler, error) {
+// New returns a new Reconciler instance.
+func New(mgr ctrl.Manager) (*Reconciler, error) {
 	c, err := common.NewClient(mgr)
 	if err != nil {
 		return nil, err
@@ -79,7 +64,6 @@ func New(mgr ctrl.Manager, tlsConfig TLSConfig) (*Reconciler, error) {
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
-		tlsConfig:     tlsConfig,
 	}, nil
 }
 
@@ -172,6 +156,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&certmanagerv1.ClusterIssuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		Watches(
+			&configv1.APIServer{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueActiveIstioCSRRequests),
+			builder.WithPredicates(tlsprofile.ClusterAPIServerWatchPredicate()),
+		).
 		Complete(r)
 }
 
