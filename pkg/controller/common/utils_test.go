@@ -8,8 +8,17 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func TestUpdateName(t *testing.T) {
+	cm := &corev1.ConfigMap{}
+	UpdateName(cm, "test-name")
+	assert.Equal(t, "test-name", cm.Name)
+}
 
 // TestUpdateNamespace provides table-driven tests for UpdateNamespace(obj, newNamespace).
 func TestUpdateNamespace(t *testing.T) {
@@ -291,4 +300,37 @@ func TestAddAnnotation(t *testing.T) {
 			assert.Equal(t, tt.wantVal, tt.obj.GetAnnotations()[tt.key])
 		})
 	}
+}
+
+func TestDecodeObjBytes_ValidConfigMap(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	codecs := serializer.NewCodecFactory(scheme)
+	gv := schema.GroupVersion{Group: "", Version: "v1"}
+
+	yamlBytes := []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: decoded-cm
+  namespace: test-ns
+data:
+  key: value
+`)
+
+	cm := DecodeObjBytes[*corev1.ConfigMap](codecs, gv, yamlBytes)
+	require.NotNil(t, cm)
+	assert.Equal(t, "decoded-cm", cm.Name)
+	assert.Equal(t, "test-ns", cm.Namespace)
+	assert.Equal(t, "value", cm.Data["key"])
+}
+
+func TestDecodeObjBytes_InvalidBytes(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	codecs := serializer.NewCodecFactory(scheme)
+	gv := schema.GroupVersion{Group: "", Version: "v1"}
+
+	require.Panics(t, func() {
+		DecodeObjBytes[*corev1.ConfigMap](codecs, gv, []byte("not valid yaml or json {{{"))
+	})
 }
