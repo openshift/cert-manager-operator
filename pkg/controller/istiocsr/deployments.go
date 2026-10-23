@@ -46,7 +46,7 @@ func (r *Reconciler) createOrApplyDeployments(istiocsr *v1alpha1.IstioCSR, resou
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s deployment resource already exists, maybe from previous installation", deploymentName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("deployment has been modified, updating to desired state", "name", deploymentName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s deployment resource", deploymentName)
@@ -574,7 +574,7 @@ func (r *Reconciler) createOrUpdateCAConfigMap(istiocsr *v1alpha1.IstioCSR, cert
 		},
 	}
 
-	if exist && hasObjectChanged(desired, fetched) {
+	if exist && common.HasObjectChanged(desired, fetched) {
 		r.log.V(1).Info("ca configmap need update", "name", configmapKey)
 		if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 			return fmt.Errorf("failed to update %s configmap resource: %w", configmapKey, err)

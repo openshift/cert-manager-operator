@@ -34,7 +34,7 @@ func (r *Reconciler) createOrApplyCertificates(istiocsr *v1alpha1.IstioCSR, reso
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s certificate resource already exists, maybe from previous installation", certificateName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("certificate has been modified, updating to desired state", "name", certificateName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s certificate resource", certificateName)
