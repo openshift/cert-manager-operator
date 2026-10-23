@@ -205,10 +205,10 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		_, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Create(ctx, istioCSR, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
-			err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Delete(ctx, istioCSR.GetName(), metav1.DeleteOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
-			}
+			err := retryDeleteIgnoringNotFound(ctx, func(pollCtx context.Context) error {
+				return loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Delete(pollCtx, istioCSR.GetName(), metav1.DeleteOptions{})
+			})
+			Expect(err).NotTo(HaveOccurred())
 		})
 	}
 

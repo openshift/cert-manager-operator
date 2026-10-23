@@ -1278,11 +1278,13 @@ func pollTillIstioCSRAvailableWithTimeout(ctx context.Context, loader library.Dy
 
 // waitForIstioCSRConditionMessage polls until IstioCSR status has a condition of the
 // given type and status whose message contains messageSubstring.
+// Transient API errors, including a kube-apiserver 504, are retried until timeout.
+// wait.PollUntilContextTimeout treats any other non-nil callback error as fatal.
 func waitForIstioCSRConditionMessage(ctx context.Context, loader library.DynamicResourceLoader, namespace, name, conditionType string, conditionStatus metav1.ConditionStatus, messageSubstring string, timeout, interval time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(pollCtx context.Context) (bool, error) {
 		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Get(pollCtx, name, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -1312,6 +1314,21 @@ func waitForIstioCSRConditionMessage(ctx context.Context, loader library.Dynamic
 			}
 		}
 		return false, nil
+	})
+}
+
+// retryDeleteIgnoringNotFound deletes via del and retries transient API errors.
+// NotFound is success. A non-retriable error is returned immediately.
+func retryDeleteIgnoringNotFound(ctx context.Context, del func(context.Context) error) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(pollCtx context.Context) (bool, error) {
+		err := del(pollCtx)
+		if err == nil || apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if isRetriableAPIError(err) {
+			return false, nil
+		}
+		return false, err
 	})
 }
 
