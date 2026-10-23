@@ -693,7 +693,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
-			err := r.createOrApplyRBACResource(istiocsr, controllerDefaultResourceLabels, true)
+			err := r.createOrApplyRBACResource(context.Background(), istiocsr, controllerDefaultResourceLabels, true)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyRBACResource() err: %v, wantErr: %v", err, tt.wantErr)
 			}
