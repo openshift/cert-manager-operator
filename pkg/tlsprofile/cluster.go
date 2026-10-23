@@ -98,6 +98,52 @@ func ResolveHonoredTLSProfile(ctx context.Context, fetch FetchAPIServerFunc, com
 	return EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
 }
 
+// ResolvedProfile is the cluster TLS state used to configure the operator
+// metrics server and to seed SecurityProfileWatcher. Spec is resolved even
+// when Honor is false so a later profile change and a later adherence change
+// can each trigger a restart.
+type ResolvedProfile struct {
+	// Adherence is the raw tlsAdherence value (may be empty).
+	Adherence configv1.TLSAdherencePolicy
+	// Spec is the effective TLS profile. Empty when Unresolvable is true.
+	Spec configv1.TLSProfileSpec
+	// Honor is true when ShouldHonorClusterTLSProfile(Adherence) is true.
+	Honor bool
+	// Unresolvable is true when the profile could not be resolved and Honor
+	// is false, so startup left Controllercmd defaults in place. Spec is then
+	// not meaningful.
+	Unresolvable bool
+}
+
+// ResolveFromAPIServer resolves TLS settings from an already-fetched APIServer.
+// A nil APIServer is treated as empty (Intermediate spec, empty adherence).
+// Custom profiles with missing settings and unrecognized profile types return
+// an error; Adherence and Honor are still populated so callers can decide
+// whether that error is fatal.
+func ResolveFromAPIServer(apiServer *configv1.APIServer) (ResolvedProfile, error) {
+	if apiServer == nil {
+		apiServer = &configv1.APIServer{}
+	}
+
+	adherence := apiServer.Spec.TLSAdherence
+	honor := libgocrypto.ShouldHonorClusterTLSProfile(adherence)
+	if adherence != configv1.TLSAdherencePolicyNoOpinion &&
+		adherence != configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly &&
+		adherence != configv1.TLSAdherencePolicyStrictAllComponents {
+		klog.Warningf("apiserver.config.openshift.io/%s has unknown tlsAdherence %q; treating as StrictAllComponents", APIServerClusterName, adherence)
+	}
+
+	spec, err := EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return ResolvedProfile{Adherence: adherence, Honor: honor}, err
+	}
+	return ResolvedProfile{
+		Adherence: adherence,
+		Spec:      *spec,
+		Honor:     honor,
+	}, nil
+}
+
 // ClusterAPIServerTLSConfigChanged reports whether TLS fields that this
 // operator honors changed between old and new. Status and unrelated spec
 // updates are ignored. A nil/non-nil transition is treated as a change.

@@ -44,9 +44,8 @@ Rules for integrating cert-manager-operator with cluster-provided OpenShift serv
 ## 5. Monitoring
 
 - **Rule**: The operator does not create `ServiceMonitor`/`PodMonitor` objects itself. It only advertises CSV annotation `operatorframework.io/cluster-monitoring: "true"` and ships operand Services with the standard label set (`app.kubernetes.io/{name,instance,component}`) in `bindata/`; enabling scrape is a cluster/admin action.
-- Operands expose Prometheus metrics on port `9402` at `/metrics` for all three components (controller, webhook, cainjector).
-- Admins must enable OpenShift user-workload monitoring (`enableUserWorkload: true` in `cluster-monitoring-config`) and apply a `ServiceMonitor` selecting `cert-manager` namespace services by the labels above.
-- Metrics TLS (when the cluster TLS profile requires it) is layered on via `tlsprofile.CertManagerOperandMetricsTLSArgs`, not via this doc's ServiceMonitor step — do not conflate the two; a metrics TLS listener still needs `insecureSkipVerify`/TLS config on the scraping side if enabled.
+- Operands serve Prometheus metrics on port `9402` at `/metrics` over HTTPS for controller, webhook, and cainjector. `withOperandMetricsTLS` always enables this; it is not gated on the cluster TLS profile. Cipher and minimum-version flags still come from `common.WithClusterTLSProfileFromAPIServer`.
+- Admins must enable OpenShift user-workload monitoring (`enableUserWorkload: true` in `cluster-monitoring-config`) and apply one HTTPS `ServiceMonitor` per operand. Each certificate lists only that Service's DNS names (`<service>`, `<service>.<namespace>`, `<service>.<namespace>.svc`), so `tlsConfig.serverName` cannot be shared across the three Services. Trust Secret `cert-manager-metrics-ca` key `ca.crt`. The pod annotation `prometheus.io/scheme=https` does not update an existing ServiceMonitor; an HTTP scrape returns 400.
 - See [docs/operand_metrics.md](../../docs/operand_metrics.md) for full scrape/query walkthrough.
 
 ## 6. Optional APIs (Infrastructure / APIServer discovery)

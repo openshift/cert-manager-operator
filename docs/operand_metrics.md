@@ -39,7 +39,17 @@ You should see pods like `prometheus-operator`, `prometheus-user-workload`, and 
 
 ### Configure Metric Scraping for cert-manager
 
-cert-manager operands (controller, webhook, and cainjector) expose Prometheus metrics on port 9402 by default via the `/metrics` service endpoint. To collect metrics from these services, you need to define how Prometheus should scrape their metrics endpoints. This is typically done using a ServiceMonitor or PodMonitor custom resource. The following example uses the ServiceMonitor for demonstration.
+cert-manager operands (controller, webhook, and cainjector) serve Prometheus metrics on port 9402 at `/metrics` over HTTPS. HTTPS is always enabled, including the default cluster TLS security profile. Plain HTTP on that port returns HTTP 400, and Prometheus marks the target down.
+
+Each operand certificate is signed by the CA stored in Secret `cert-manager-metrics-ca`, key `ca.crt`, in the operand namespace. The operands create that Secret when they start. The certificate lists only that Service's DNS names:
+
+- controller (`cert-manager`): `cert-manager`, `cert-manager.cert-manager`, `cert-manager.cert-manager.svc`
+- webhook (`cert-manager-webhook`): `cert-manager-webhook`, `cert-manager-webhook.cert-manager`, `cert-manager-webhook.cert-manager.svc`
+- cainjector (`cert-manager-cainjector`): `cert-manager-cainjector`, `cert-manager-cainjector.cert-manager`, `cert-manager-cainjector.cert-manager.svc`
+
+`tlsConfig.serverName` is one value for every Service an endpoint selects, so one ServiceMonitor cannot verify all three targets. Use `<service>.<namespace>.svc`. The cluster DNS name `<service>.<namespace>.svc.cluster.local` is not on the certificate.
+
+The operator sets `prometheus.io/scheme: https` on the operand pods. Prometheus Operator does not read that annotation when a ServiceMonitor selects the Service. An existing ServiceMonitor keeps its previous scheme until you change the ServiceMonitor itself.
 
 1. Check the cert-manager services in the `cert-manager` namespace.
 
@@ -51,7 +61,13 @@ cert-manager-cainjector   ClusterIP   172.30.148.41   <none>        9402/TCP    
 cert-manager-webhook      ClusterIP   172.30.100.46   <none>        443/TCP,9402/TCP   62s
 ```
 
-2. Apply a YAML manifest for the ServiceMonitor to look for services matching the specified labels within the `cert-manager` namespace and scrape metrics from their `/metrics` path on port 9402.
+2. Confirm the metrics CA Secret exists.
+
+```
+$ oc -n cert-manager get secret cert-manager-metrics-ca
+```
+
+3. Apply one ServiceMonitor per operand. Each scrape uses HTTPS, trusts `ca.crt` from `cert-manager-metrics-ca`, and sets `serverName` to that Service's certificate identity. Re-applying this manifest replaces an older ServiceMonitor named `cert-manager` that selected all three Services over HTTP.
 
 ```
 $ oc apply -f - <<EOF
@@ -69,30 +85,84 @@ spec:
     - honorLabels: false
       interval: 60s
       path: /metrics
+      scheme: https
       scrapeTimeout: 30s
       targetPort: 9402
+      tlsConfig:
+        ca:
+          secret:
+            key: ca.crt
+            name: cert-manager-metrics-ca
+        serverName: cert-manager.cert-manager.svc
   selector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - cainjector
-          - cert-manager
-          - webhook
-      - key: app.kubernetes.io/instance
-        operator: In
-        values:
-          - cert-manager
-      - key: app.kubernetes.io/component
-        operator: In
-        values:
-          - cainjector
-          - controller
-          - webhook
+    matchLabels:
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: controller
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: webhook
+  name: cert-manager-webhook
+  namespace: cert-manager
+spec:
+  endpoints:
+    - honorLabels: false
+      interval: 60s
+      path: /metrics
+      scheme: https
+      scrapeTimeout: 30s
+      targetPort: 9402
+      tlsConfig:
+        ca:
+          secret:
+            key: ca.crt
+            name: cert-manager-metrics-ca
+        serverName: cert-manager-webhook.cert-manager.svc
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: webhook
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: webhook
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: cert-manager
+    app.kubernetes.io/instance: cert-manager
+    app.kubernetes.io/name: cainjector
+  name: cert-manager-cainjector
+  namespace: cert-manager
+spec:
+  endpoints:
+    - honorLabels: false
+      interval: 60s
+      path: /metrics
+      scheme: https
+      scrapeTimeout: 30s
+      targetPort: 9402
+      tlsConfig:
+        ca:
+          secret:
+            key: ca.crt
+            name: cert-manager-metrics-ca
+        serverName: cert-manager-cainjector.cert-manager.svc
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cainjector
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: cainjector
 EOF
 ```
 
-Once the ServiceMonitor is in place and user workload monitoring is enabled, the Prometheus instance for user workloads will start collecting metrics from the cert-manager operands. The scraped metrics will be labeled with `job="cert-manager"`, `job="cert-manager-cainjector"`, or `job="cert-manager-webhook"` respectively.
+If the operand namespace is not `cert-manager`, set each `serverName` to `<service>.<namespace>.svc` and create the ServiceMonitors in that namespace. The Secret reference is resolved in the ServiceMonitor namespace.
+
+Once these ServiceMonitors are in place and user workload monitoring is enabled, the Prometheus instance for user workloads will start collecting metrics from the cert-manager operands. The scraped metrics will be labeled with `job="cert-manager"`, `job="cert-manager-cainjector"`, or `job="cert-manager-webhook"` respectively.
 
 You can select and view these Prometheus Targets via the OpenShift web console, by navigating to the "Observe" -> "Targets" page.
 
