@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/pkg/controller/common"
-	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
 func (r *Reconciler) createOrApplyNetworkPolicies(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
