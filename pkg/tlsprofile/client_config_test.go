@@ -35,8 +35,8 @@ func TestClientTLSConfig(t *testing.T) {
 				if len(cfg.CipherSuites) == 0 {
 					t.Fatal("expected CipherSuites set")
 				}
-				if len(cfg.CurvePreferences) != len(DefaultCurvePreferences) {
-					t.Fatalf("curve count: got %d want %d", len(cfg.CurvePreferences), len(DefaultCurvePreferences))
+				if cfg.CurvePreferences != nil {
+					t.Fatalf("expected nil CurvePreferences so Go defaults apply, got %#v", cfg.CurvePreferences)
 				}
 			},
 		},
@@ -60,8 +60,8 @@ func TestClientTLSConfig(t *testing.T) {
 				if cfg.CipherSuites != nil {
 					t.Fatalf("expected nil CipherSuites for TLS 1.3, got %#v", cfg.CipherSuites)
 				}
-				if len(cfg.CurvePreferences) != len(DefaultCurvePreferences) {
-					t.Fatalf("curve count: got %d want %d", len(cfg.CurvePreferences), len(DefaultCurvePreferences))
+				if cfg.CurvePreferences != nil {
+					t.Fatalf("expected nil CurvePreferences so Go defaults apply, got %#v", cfg.CurvePreferences)
 				}
 			},
 		},

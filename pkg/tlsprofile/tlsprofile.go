@@ -50,7 +50,8 @@ var CertManagerCipherSuiteArgKeys = []string{
 }
 
 // TrustManagerCipherSuiteArgKeys are trust-manager webhook flags that must not be
-// set when the effective minimum TLS version is 1.3.
+// set when the effective minimum TLS version is 1.3 (Go does not honor cipher
+// configuration for TLS 1.3).
 var TrustManagerCipherSuiteArgKeys = []string{
 	"--tls-cipher-suites",
 }
@@ -99,21 +100,20 @@ func CertManagerOperandMetricsTLSArgs(spec *configv1.TLSProfileSpec) []string {
 // TrustManagerWebhookTLSArgs returns trust-manager webhook TLS flags for the
 // cluster TLS security profile. Metrics remain plain HTTP upstream and are out
 // of scope.
+//
+// Curve preferences are not set. TLSProfileSpec has no groups field in the
+// vendored API, and an explicit list would drop Go's default MLKEM groups.
+// Leaving the flag unset matches cert-manager operands, which also rely on
+// Go's default CurvePreferences. Cipher-suite flags are omitted for TLS 1.3.
 func TrustManagerWebhookTLSArgs(spec *configv1.TLSProfileSpec) []string {
 	if spec == nil {
 		return []string{}
 	}
-	minVersion := string(spec.MinTLSVersion)
-	if spec.MinTLSVersion == configv1.VersionTLS13 {
-		return []string{
-			"--tls-min-version=" + minVersion,
-		}
+	args := []string{"--tls-min-version=" + string(spec.MinTLSVersion)}
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		args = append(args, "--tls-cipher-suites="+joinIANACiphers(spec.Ciphers))
 	}
-	ciphers := joinIANACiphers(spec.Ciphers)
-	return []string{
-		"--tls-min-version=" + minVersion,
-		"--tls-cipher-suites=" + ciphers,
-	}
+	return args
 }
 
 func joinIANACiphers(openSSLNames []string) string {

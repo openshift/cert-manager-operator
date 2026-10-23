@@ -9,20 +9,11 @@ import (
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
-// DefaultCurvePreferences is the explicit key-exchange curve order for TLS clients
-// (and can be reused for servers) when the cluster TLS profile API does not yet expose
-// curve preferences. When openshift/api extends TLSProfileSpec with curves, map those
-// fields here instead of using this default.
-var DefaultCurvePreferences = []tls.CurveID{
-	tls.X25519,
-	tls.CurveP256,
-	tls.CurveP384,
-	tls.CurveP521,
-}
-
 // ClientTLSConfig returns a tls.Config for outbound HTTPS/TLS clients using the same
-// minimum protocol version, cipher suites, and curve preferences as the given resolved
-// TLS profile spec (typically from apiserver.config.openshift.io/cluster).
+// minimum protocol version and cipher suites as the given resolved TLS profile spec
+// (typically from apiserver.config.openshift.io/cluster). Curve preferences are left
+// unset so Go's default groups apply, matching cert-manager operands. TLSProfileSpec
+// has no groups field in the vendored API yet.
 func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tls.Config, error) {
 	if spec == nil {
 		return nil, fmt.Errorf("TLS profile spec is nil")
@@ -34,7 +25,6 @@ func ClientTLSConfig(spec *configv1.TLSProfileSpec, rootCAs *x509.CertPool) (*tl
 	tlsConfig := &tls.Config{
 		RootCAs:            rootCAs,
 		MinVersion:         minVer,
-		CurvePreferences:   append([]tls.CurveID(nil), DefaultCurvePreferences...),
 		InsecureSkipVerify: false,
 	}
 	if minVer == tls.VersionTLS13 {
