@@ -88,14 +88,20 @@ Defined in `api/operator/v1alpha1/features.go`; registered in `pkg/features`.
 
 ## Image Resolution
 
-Makefile versions: `CERT_MANAGER_VERSION` (v1.20.3), `ISTIO_CSR_VERSION` (v0.16.0), `TRUST_MANAGER_VERSION` (v0.20.3).
+Makefile versions: `CERT_MANAGER_VERSION` (v1.20.3), `ISTIO_CSR_VERSION` (v0.16.0), `TRUST_MANAGER_VERSION` (v0.25.0), `APPROVER_POLICY_VERSION` (v0.27.0).
 
 OLM injects env (CSV / `config/manager/manager.yaml`):
 
 - `RELATED_IMAGE_CERT_MANAGER_{WEBHOOK,CA_INJECTOR,CONTROLLER,ACMESOLVER,ISTIOCSR,TRUST_MANAGER}`
-- `OPERAND_IMAGE_VERSION`, `ISTIOCSR_OPERAND_IMAGE_VERSION`, `TRUSTMANAGER_OPERAND_IMAGE_VERSION`, `OPERATOR_IMAGE_VERSION`
+- `RELATED_IMAGE_APPROVER_POLICY`
+- `OPERAND_IMAGE_VERSION`, `ISTIOCSR_OPERAND_IMAGE_VERSION`, `TRUSTMANAGER_OPERAND_IMAGE_VERSION`, `APPROVERPOLICY_OPERAND_IMAGE_VERSION`, `OPERATOR_IMAGE_VERSION`
 
 CertManager remaps quay substrings → RELATED_IMAGE_* in `related_images.go`.
+TrustManager reads its related image for the Deployment and status, and its operand
+version for `app.kubernetes.io/version` labels. Approver-policy's image and version
+variables are supplied by the bundle and `make local-run`; no approver-policy
+controller consumes them yet. `make local-run` uses the Makefile operand versions
+directly (including `v`); packaged operand-version env values omit that prefix.
 
 ## Errors & Status (ctrl-runtime path)
 

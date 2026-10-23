@@ -26,7 +26,7 @@ make bundle-build / bundle-push
 make catalog-build / catalog-push
 ```
 
-`make bundle` sets the CSV `image:`/`containerImage` from `IMG` and regenerates `bundle/manifests`/`bundle/metadata` (via `operator-sdk generate bundle`) from whatever is currently checked into `config/manager/manager.yaml` and `config/manifests/bases/...csv.yaml`, then runs `operator-sdk bundle validate`. It does **not** derive `RELATED_IMAGE_*`/`OPERAND_IMAGE_VERSION` values from the `CERT_MANAGER_VERSION`/`ISTIO_CSR_VERSION`/`TRUST_MANAGER_VERSION` Make variables — those env values are hand-maintained literals in `config/manager/manager.yaml` that must be edited to match before running `make bundle` (see below). **Never hand-edit generated `bundle/` files** — edit the source (`config/manager/manager.yaml`, `config/manifests/bases/...csv.yaml`, `config/rbac/*`) and re-run `make bundle`.
+`make bundle` sets the CSV `image:`/`containerImage` from `IMG` and regenerates `bundle/manifests`/`bundle/metadata` (via `operator-sdk generate bundle`) from whatever is currently checked into `config/manager/manager.yaml` and `config/manifests/bases/...csv.yaml`, then runs `operator-sdk bundle validate`. It does **not** derive `RELATED_IMAGE_*`/`OPERAND_IMAGE_VERSION` values from the `CERT_MANAGER_VERSION`/`ISTIO_CSR_VERSION`/`TRUST_MANAGER_VERSION`/`APPROVER_POLICY_VERSION` Make variables — those env values are hand-maintained literals in `config/manager/manager.yaml` that must be edited to match before running `make bundle` (see below). **Never hand-edit generated `bundle/` files** — edit the source (`config/manager/manager.yaml`, `config/manifests/bases/...csv.yaml`, `config/rbac/*`) and re-run `make bundle`.
 
 ## Version knobs (Makefile)
 
@@ -36,7 +36,7 @@ make catalog-build / catalog-push
 | `BUNDLE_VERSION` | Operator version embedded in CSV `spec.version` / `metadata.name` suffix (via `operator-sdk generate bundle --version`). |
 | `IMG_VERSION` | Operator image tag (`IMG`). |
 | `CATALOG_VERSION` | Catalog/index image tag. |
-| `CERT_MANAGER_VERSION`, `ISTIO_CSR_VERSION`, `TRUST_MANAGER_VERSION` | Operand image versions; consumed by `make update-manifests` to pull upstream manifests into `bindata/`. Must be kept **manually** in sync with the hardcoded `RELATED_IMAGE_*`/`*_OPERAND_IMAGE_VERSION` values in `config/manager/manager.yaml` — bumping this variable alone does not update the Deployment/CSV. |
+| `CERT_MANAGER_VERSION`, `ISTIO_CSR_VERSION`, `TRUST_MANAGER_VERSION`, `APPROVER_POLICY_VERSION` | Operand image versions; consumed by `make update-manifests` to pull upstream manifests into `bindata/`. Must be kept **manually** in sync with the hardcoded `RELATED_IMAGE_*`/`*_OPERAND_IMAGE_VERSION` values in `config/manager/manager.yaml` — bumping this variable alone does not update the Deployment/CSV. |
 | `CHANNELS` / `DEFAULT_CHANNEL` | e.g. `stable-v1,stable-v1.20` / `stable-v1`, must match `bundle/metadata/annotations.yaml`. |
 
 All are overridable, e.g. `make bundle BUNDLE_VERSION=1.21.0 CERT_MANAGER_VERSION=v1.21.0`.
@@ -68,7 +68,7 @@ spec:
 The CSV `spec.relatedImages` list is auto-populated by `operator-sdk generate bundle` (via `make
 bundle`) from every `RELATED_IMAGE_*`-prefixed container `env` entry in `config/manager/manager.yaml`
 — but `manager.yaml`'s literal image tags are **not** derived from `CERT_MANAGER_VERSION` /
-`ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION`; they must be hand-edited to match whenever those
+`ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION` / `APPROVER_POLICY_VERSION`; they must be hand-edited to match whenever those
 Make variables change, or `relatedImages` will silently drift from the intended operand versions.
 
 | CSV `relatedImages.name` | Env var | Consumed by |
@@ -79,9 +79,10 @@ Make variables change, or `relatedImages` will silently drift from the intended 
 | `cert-manager-acmesolver` | `RELATED_IMAGE_CERT_MANAGER_ACMESOLVER` | same |
 | `cert-manager-istiocsr` | `RELATED_IMAGE_CERT_MANAGER_ISTIOCSR` | `pkg/controller/istiocsr/constants.go` |
 | `cert-manager-trust-manager` | `RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER` | `pkg/controller/trustmanager/constants.go` |
+| `approver-policy` | `RELATED_IMAGE_APPROVER_POLICY` | Prepared for a future approver-policy controller; no runtime consumer yet |
 
 `OPERAND_IMAGE_VERSION`, `ISTIOCSR_OPERAND_IMAGE_VERSION`, `TRUSTMANAGER_OPERAND_IMAGE_VERSION`,
-`OPERATOR_IMAGE_VERSION` are likewise hardcoded in `config/manager/manager.yaml` for
+`APPROVERPOLICY_OPERAND_IMAGE_VERSION`, `OPERATOR_IMAGE_VERSION` are likewise hardcoded in `config/manager/manager.yaml` for
 disconnected/digest-pinned overrides and must be bumped by hand alongside the image references.
 Adding a **new** operand image requires: a new `RELATED_IMAGE_*` env in
 `config/manager/manager.yaml`, an entry in the `imageEnvMap` (or equivalent constants file) that
@@ -90,6 +91,13 @@ reads it, and re-running `make bundle` so the corresponding `relatedImages` entr
 **not** inspect Go `imageEnvMap`/constants. Confirm the runtime mapping with source review or a
 unit test; a missing map entry can pass bundle validate and still break disconnected operand
 image resolution.
+
+For approver-policy, `APPROVER_POLICY_VERSION=v0.27.0` corresponds to
+`RELATED_IMAGE_APPROVER_POLICY=quay.io/jetstack/cert-manager-approver-policy:v0.27.0`
+and packaged `APPROVERPOLICY_OPERAND_IMAGE_VERSION=0.27.0`. `make local-run` supplies
+both variables from `APPROVER_POLICY_VERSION`, retaining `v` in the version env
+value just as it does for TrustManager. Neither approver-policy env variable has
+a runtime consumer yet; the controller implementation must add those consumers.
 
 ## RBAC changes
 
@@ -155,7 +163,7 @@ since they are not invoked by any Makefile target in this repo.
 
 ## Checklist: bumping an operand version
 
-- [ ] Update `CERT_MANAGER_VERSION` / `ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION` in `Makefile`.
+- [ ] Update `CERT_MANAGER_VERSION` / `ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION` / `APPROVER_POLICY_VERSION` in `Makefile`.
 - [ ] `make update-manifests` (pulls new upstream manifests into `bindata/`).
 - [ ] `make update-bindata` and confirm `make verify-bindata` (also covered by `make verify-scripts`) is clean.
 - [ ] Manually update the matching `RELATED_IMAGE_*` / `*_OPERAND_IMAGE_VERSION` literal values in

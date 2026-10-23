@@ -168,6 +168,7 @@ spec:
   - TLS
   - istio-csr
   - trust-manager
+  - approver-policy
   links:
   - name: Documentation
     url: https://github.com/openshift/cert-manager-operator/blob/master/README.md
