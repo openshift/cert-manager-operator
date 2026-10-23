@@ -28,6 +28,9 @@ func TestIsTLSAdherenceUnsupported(t *testing.T) {
 	invalidValue := apierrors.NewInvalid(gk, "cluster", field.ErrorList{
 		field.Invalid(field.NewPath("spec", "tlsAdherence"), "nope", "must be a valid policy"),
 	})
+	updateBadRequest := apierrors.NewBadRequest(`APIServer in version "v1" cannot be handled as a APIServer: strict decoding error: unknown field "spec.tlsAdherence"`)
+	unrelatedBadRequest := apierrors.NewBadRequest(`the object provided is unrecognized (must be of type APIServer): json parse error`)
+	badRequestMentionsField := apierrors.NewBadRequest(`spec.tlsAdherence: Invalid value: "nope"`)
 
 	cases := []struct {
 		name string
@@ -38,10 +41,14 @@ func TestIsTLSAdherenceUnsupported(t *testing.T) {
 		{name: "field value not supported", err: unsupported, want: true},
 		{name: "unknown field", err: unknownField, want: true},
 		{name: "wrapped unsupported", err: fmt.Errorf("update apiserver: %w", unsupported), want: true},
+		{name: "update bad request unknown field", err: updateBadRequest, want: true},
+		{name: "wrapped update bad request", err: fmt.Errorf("update apiserver: %w", updateBadRequest), want: true},
 		{name: "unrelated invalid", err: unrelatedInvalid, want: false},
 		{name: "forbidden", err: forbidden, want: false},
 		{name: "invalid value on tlsAdherence", err: invalidValue, want: false},
 		{name: "plain error mentioning field", err: fmt.Errorf("tlsAdherence is unsupported"), want: false},
+		{name: "unrelated bad request", err: unrelatedBadRequest, want: false},
+		{name: "bad request mentioning field without unknown-field text", err: badRequestMentionsField, want: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1905,20 +1905,29 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
-// isTLSAdherenceUnsupported reports whether err is an API status whose cause
-// says spec.tlsAdherence is not supported on this cluster. Other Invalid and
-// Forbidden errors, including RBAC denials and validation of unrelated fields,
-// return false so the caller fails the test.
+// tlsAdherenceUnknownField is the strict-decoding phrase the generic Update
+// handler places in a BadRequest status message. That response has no field cause.
+const tlsAdherenceUnknownField = `unknown field "spec.tlsAdherence"`
+
+// isTLSAdherenceUnsupported reports whether err is an API status that says
+// spec.tlsAdherence is not supported on this cluster. A status cause for that
+// field matches, as does an Update BadRequest whose message contains
+// tlsAdherenceUnknownField. Other Invalid, BadRequest, and Forbidden errors,
+// including RBAC denials and validation of unrelated fields, return false so
+// the caller fails the test.
 func isTLSAdherenceUnsupported(err error) bool {
 	var status apierrors.APIStatus
 	if err == nil || !stderrors.As(err, &status) {
 		return false
 	}
-	details := status.Status().Details
-	if details == nil {
+	st := status.Status()
+	if st.Reason == metav1.StatusReasonBadRequest && strings.Contains(st.Message, tlsAdherenceUnknownField) {
+		return true
+	}
+	if st.Details == nil {
 		return false
 	}
-	for _, cause := range details.Causes {
+	for _, cause := range st.Details.Causes {
 		if tlsAdherenceCauseUnsupported(cause) {
 			return true
 		}
@@ -2095,7 +2104,8 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
 	}
 
-	// highTimeout covers one in-flight kube-apiserver rollout after the profile patch.
+	// highTimeout covers one in-flight kube-apiserver rollout. The profile patch
+	// itself does not wait for that rollout, so this poll must outlast a 504.
 	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
 	}
@@ -2104,10 +2114,10 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
