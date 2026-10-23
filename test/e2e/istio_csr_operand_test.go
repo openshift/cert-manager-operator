@@ -420,7 +420,9 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should configure gRPC serving TLS args from apiserver cluster profile", Label("ISTIOCSR-028"), func() {
+	// Feature:TLSProfile matches the other APIServer-mutating specs: e2e-operator-tech-preview
+	// is a HostedCluster and excludes this label, and tls-scanner runs it with TLSAdherence enabled.
+	It("should configure gRPC serving TLS args from apiserver cluster profile", Label("ISTIOCSR-028", "TechPreview", "Feature:TLSProfile"), func() {
 		original, err := getClusterAPIServerTLSConfig(ctx)
 		if apierrors.IsNotFound(err) {
 			Skip("apiserver.config.openshift.io/cluster is not available on this cluster")
@@ -455,6 +457,14 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
 		}
 		Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
+
+		// A disabled TLSAdherence gate accepts the update and drops spec.tlsAdherence,
+		// returning success with warning 'unknown field "spec.tlsAdherence"'.
+		persisted, err := getClusterAPIServerTLSConfig(ctx)
+		Expect(err).NotTo(HaveOccurred(), "failed to re-read apiserver TLS configuration")
+		if persisted.adherence != strictAdherence {
+			Skip("apiserver dropped spec.tlsAdherence; TLSAdherence feature gate is off")
+		}
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(testProfile)
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve expected TLS profile spec")
