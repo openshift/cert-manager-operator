@@ -23,12 +23,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - serviceaccounts/token
-  verbs:
-  - create
-- apiGroups:
   - acme.cert-manager.io
   resources:
   - challenges
