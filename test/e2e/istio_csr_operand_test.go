@@ -17,10 +17,12 @@ import (
 	acmev1 "github.com/cert-manager/cert-manager/pkg/apis/acme/v1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
-	"github.com/openshift/cert-manager-operator/test/library"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configapiv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
+	"github.com/openshift/cert-manager-operator/test/library"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -418,6 +420,59 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
+	// Feature:TLSProfile matches the other APIServer-mutating specs: e2e-operator-tech-preview
+	// is a HostedCluster and excludes this label, and tls-scanner runs it with TLSAdherence enabled.
+	It("should configure gRPC serving TLS args from apiserver cluster profile", Label("ISTIOCSR-028", "TechPreview", "Feature:TLSProfile"), func() {
+		original, err := getClusterAPIServerTLSConfig(ctx)
+		if apierrors.IsNotFound(err) {
+			Skip("apiserver.config.openshift.io/cluster is not available on this cluster")
+		}
+		Expect(err).NotTo(HaveOccurred(), "failed to read apiserver TLS configuration")
+
+		DeferCleanup(func() {
+			By("[cleanup] restoring original apiserver TLS configuration")
+			Eventually(func() error {
+				return restoreClusterAPIServerTLSConfig(ctx, original)
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		ns, err := loader.CreateTestingNS("istiocsr-tls-profile", true)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() {
+			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		})
+		createIssuerPrerequisites(ns.Name)
+
+		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+
+		testProfile := &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		}
+		strictAdherence := configapiv1.TLSAdherencePolicyStrictAllComponents
+
+		By("patching apiserver cluster to enforce StrictAllComponents with Modern TLS profile")
+		err = updateClusterAPIServerTLSConfig(ctx, testProfile, strictAdherence)
+		if isTLSAdherenceUnsupported(err) {
+			Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
+		}
+		Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
+
+		// A disabled TLSAdherence gate accepts the update and drops spec.tlsAdherence,
+		// returning success with warning 'unknown field "spec.tlsAdherence"'.
+		persisted, err := getClusterAPIServerTLSConfig(ctx)
+		Expect(err).NotTo(HaveOccurred(), "failed to re-read apiserver TLS configuration")
+		if persisted.adherence != strictAdherence {
+			Skip("apiserver dropped spec.tlsAdherence; TLSAdherence feature gate is off")
+		}
+
+		expectedSpec, err := tlsprofile.EffectiveSpec(testProfile)
+		Expect(err).NotTo(HaveOccurred(), "failed to resolve expected TLS profile spec")
+
+		By("verifying cert-manager-istio-csr deployment exposes cluster TLS flags")
+		Expect(verifyIstioCSRServingTLSArgsMatchClusterProfile(clientset, ns.Name, expectedSpec)).NotTo(HaveOccurred())
+	})
+
 	It("should recreate ServiceAccount when deleted", Label("ISTIOCSR-017"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-sa", true)
 		Expect(err).NotTo(HaveOccurred())
@@ -540,10 +595,10 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(library.UpsertConfigMap(ctx, clientset, cm)).NotTo(HaveOccurred())
 
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
-			addCustomCAConfigMap:      true,
-			customCAConfigMapName:     cm.Name,
+			addCustomCAConfigMap:       true,
+			customCAConfigMapName:      cm.Name,
 			customCAConfigMapNamespace: "",
-			customCAConfigMapKey:      "ca-cert.pem",
+			customCAConfigMapKey:       "ca-cert.pem",
 		})
 		createIstioCSR(ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with missing ConfigMap key message")

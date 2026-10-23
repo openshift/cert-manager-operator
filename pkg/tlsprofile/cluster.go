@@ -11,6 +11,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
@@ -107,4 +109,32 @@ func ClusterAPIServerTLSConfigChanged(old, new *configv1.APIServer) bool {
 	}
 	return old.Spec.TLSAdherence != new.Spec.TLSAdherence ||
 		!equality.Semantic.DeepEqual(old.Spec.TLSSecurityProfile, new.Spec.TLSSecurityProfile)
+}
+
+// ClusterAPIServerWatchPredicate matches the cluster APIServer on create, delete,
+// and generic events, and on updates only when ClusterAPIServerTLSConfigChanged
+// is true.
+func ClusterAPIServerWatchPredicate() predicate.Funcs {
+	isCluster := func(obj client.Object) bool {
+		return obj != nil && obj.GetName() == APIServerClusterName
+	}
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isCluster(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isCluster(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isCluster(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, okOld := e.ObjectOld.(*configv1.APIServer)
+			newObj, okNew := e.ObjectNew.(*configv1.APIServer)
+			if !okOld || !okNew || !isCluster(newObj) {
+				return false
+			}
+			return ClusterAPIServerTLSConfigChanged(oldObj, newObj)
+		},
+	}
 }

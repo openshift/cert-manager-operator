@@ -155,3 +155,32 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	serving.CipherSuites = iana
 	return nil
 }
+
+// IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
+// listener: --serving-tls-min-version and repeated --serving-tls-cipher-suites
+// (cert-manager-istio-csr v0.18.0+).
+//
+// TLS 1.3 omits cipher flags. Curve flags are omitted so the operand keeps Go's
+// default curve preferences, including hybrid post-quantum exchanges. spec.groups
+// is not mapped here.
+//
+// cert-manager-istio-csr rejects a serving minimum below TLS 1.2 at startup.
+// VersionTLS10 and VersionTLS11, including the built-in Old profile and Custom
+// profiles that set those versions, return an error so the caller does not
+// roll out a deployment the operand cannot start.
+func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) ([]string, error) {
+	if spec == nil {
+		return []string{}, nil
+	}
+	switch spec.MinTLSVersion {
+	case configv1.VersionTLS10, configv1.VersionTLS11:
+		return nil, fmt.Errorf("cert-manager-istio-csr does not support minimum TLS version %s; VersionTLS12 or higher is required", spec.MinTLSVersion)
+	}
+	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
+	if spec.MinTLSVersion != configv1.VersionTLS13 {
+		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
+			args = append(args, "--serving-tls-cipher-suites="+cipher)
+		}
+	}
+	return args, nil
+}
