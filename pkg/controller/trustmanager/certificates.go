@@ -2,6 +2,7 @@ package trustmanager
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -92,8 +93,33 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 		Kind:  "Issuer",
 		Group: "cert-manager.io",
 	}
+	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
 	return certificate
+}
+
+// certificateSecretTemplate copies operator-managed labels and annotations onto
+// the Certificate secretTemplate so cert-manager propagates them to the webhook
+// TLS Secret. Annotations already set on the manifest, including
+// cert-manager.io/allow-direct-injection, are kept.
+func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.CertificateSecretTemplate {
+	template := &certmanagerv1.CertificateSecretTemplate{}
+	if base != nil {
+		template = base.DeepCopy()
+	}
+	if len(resourceLabels) > 0 {
+		if template.Labels == nil {
+			template.Labels = make(map[string]string, len(resourceLabels))
+		}
+		maps.Copy(template.Labels, resourceLabels)
+	}
+	if len(resourceAnnotations) > 0 {
+		if template.Annotations == nil {
+			template.Annotations = make(map[string]string, len(resourceAnnotations))
+		}
+		maps.Copy(template.Annotations, resourceAnnotations)
+	}
+	return template
 }
 
 // issuerModified compares only the fields we manage via SSA.
@@ -114,7 +140,7 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		desired.Spec.SecretName != existing.Spec.SecretName ||
 		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
 		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
-		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
+		secretTemplateModified(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
 		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
 		return true
 	}
@@ -129,4 +155,35 @@ func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey
 		return ""
 	}
 	return pk.RotationPolicy
+}
+
+// secretTemplateModified reports whether managed secretTemplate labels or
+// annotations have drifted. Extra keys on the existing template are allowed,
+// matching how other managed metadata is compared. Nil and empty maps are
+// treated as equivalent so cert-manager omitting an empty annotations field
+// does not force a re-apply.
+func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTemplate) bool {
+	if desired == nil && existing == nil {
+		return false
+	}
+	var desiredLabels, desiredAnnotations, existingLabels, existingAnnotations map[string]string
+	if desired != nil {
+		desiredLabels = desired.Labels
+		desiredAnnotations = desired.Annotations
+	}
+	if existing != nil {
+		existingLabels = existing.Labels
+		existingAnnotations = existing.Annotations
+	}
+	return managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations)
+}
+
+func managedMapModified(desired, existing map[string]string) bool {
+	for k, v := range desired {
+		existingValue, ok := existing[k]
+		if !ok || existingValue != v {
+			return true
+		}
+	}
+	return false
 }
