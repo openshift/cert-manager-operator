@@ -283,8 +283,28 @@ func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string
 	if len(timeout) > 0 && timeout[0] > 0 {
 		t = timeout[0]
 	}
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, t, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return verifyDeploymentArgsWithTimeout(k8sclient, deploymentName, args, added, t)
+}
+
+// verifyDeploymentArgsWithTimeout is verifyDeploymentArgs with an explicit timeout.
+// Transient API errors, including a kube-apiserver 504 during a TLS-profile rollout,
+// are retried. The wait still succeeds only when the args match.
+func verifyDeploymentArgsWithTimeout(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout time.Duration) error {
+	return verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, operandNamespace, deploymentName, args, added, timeout)
+}
+
+// verifyDeploymentArgsInNamespace polls every $fastPollInterval to check if the deployment (in the given
+// namespace) args list is updated to contain the passed args. It returns an error if a timeout ($lowTimeout)
+// occurs or an error was encountered while polling the deployment args list. This is the namespace-aware
+// counterpart of verifyDeploymentArgs, needed for operands like cert-manager-istio-csr whose deployment lives
+// in a per-test namespace rather than the shared operandNamespace.
+func verifyDeploymentArgsInNamespace(k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool) error {
+	return verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, deploymentName, args, added, lowTimeout)
+}
+
+func verifyDeploymentArgsInNamespaceWithTimeout(k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
@@ -1258,11 +1278,13 @@ func pollTillIstioCSRAvailableWithTimeout(ctx context.Context, loader library.Dy
 
 // waitForIstioCSRConditionMessage polls until IstioCSR status has a condition of the
 // given type and status whose message contains messageSubstring.
+// Transient API errors, including a kube-apiserver 504, are retried until timeout.
+// wait.PollUntilContextTimeout treats any other non-nil callback error as fatal.
 func waitForIstioCSRConditionMessage(ctx context.Context, loader library.DynamicResourceLoader, namespace, name, conditionType string, conditionStatus metav1.ConditionStatus, messageSubstring string, timeout, interval time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(pollCtx context.Context) (bool, error) {
 		obj, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Get(pollCtx, name, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -1292,6 +1314,21 @@ func waitForIstioCSRConditionMessage(ctx context.Context, loader library.Dynamic
 			}
 		}
 		return false, nil
+	})
+}
+
+// retryDeleteIgnoringNotFound deletes via del and retries transient API errors.
+// NotFound is success. A non-retriable error is returned immediately.
+func retryDeleteIgnoringNotFound(ctx context.Context, del func(context.Context) error) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(pollCtx context.Context) (bool, error) {
+		err := del(pollCtx)
+		if err == nil || apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if isRetriableAPIError(err) {
+			return false, nil
+		}
+		return false, err
 	})
 }
 
@@ -2023,6 +2060,45 @@ func verifyOperandMetricsHTTPS(deploymentName string) error {
 	})
 }
 
+// verifyIstioCSRServingTLSArgsMatchClusterProfile waits until the cert-manager-istio-csr deployment (in the
+// given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
+// same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
+func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
+	expected := tlsprofile.IstioCSRServingTLSArgs(spec)
+	if len(expected) == 0 {
+		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
+	}
+
+	// highTimeout covers one in-flight kube-apiserver rollout after the profile patch.
+	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
+		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
+	}
+
+	if spec.MinTLSVersion != configapiv1.VersionTLS13 {
+		return nil
+	}
+
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return false, fmt.Errorf("deployment %q has no containers", istioCSRGRPCServiceName)
+		}
+
+		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
+			if strings.HasPrefix(arg, "--serving-tls-cipher-suites=") {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
 // isSTSCluster checks if the AWS/GCP/Azure cluster is using Security Token Service or Workload Identity
 // by checking if the serviceAccountIssuer is configured in the cluster's Authentication config
 func isSTSCluster(ctx context.Context, opClient operatorv1.OperatorV1Interface, configClient configv1.ConfigV1Interface) (bool, error) {
@@ -2102,7 +2178,7 @@ func createCertificateForVaultServer(ctx context.Context, certmanagerClient *cer
 			IPAddresses: []string{
 				"127.0.0.1",
 			},
-			IssuerRef: cmmetav1.ObjectReference{
+			IssuerRef: cmmetav1.IssuerReference{
 				Name: clusterIssuerName,
 				Kind: "ClusterIssuer",
 			},

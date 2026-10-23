@@ -44,8 +44,6 @@ var (
 		"cert-manager-deployment/controller/cert-manager-leaderelection-role.yaml",
 		"cert-manager-deployment/controller/cert-manager-sa.yaml",
 		"cert-manager-deployment/controller/cert-manager-svc.yaml",
-		"cert-manager-deployment/controller/cert-manager-tokenrequest-rb.yaml",
-		"cert-manager-deployment/controller/cert-manager-tokenrequest-role.yaml",
 		"cert-manager-deployment/controller/cert-manager-view-cr.yaml",
 		"cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-role.yaml",
 		"cert-manager-deployment/metrics-dynamic-serving/cert-manager-metrics-dynamic-serving-rb.yaml",

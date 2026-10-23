@@ -343,7 +343,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 				Spec: certmanagerv1.CertificateSpec{
 					DNSNames:   []string{dnsName},
 					SecretName: secretName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Name: issuerName,
 						Kind: "Issuer",
 					},
@@ -505,7 +505,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 				},
 				Spec: certmanagerv1.CertificateSpec{
 					SecretName: http01CertName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Kind: "ClusterIssuer",
 						Name: clusterIssuerName,
 					},
@@ -555,7 +555,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 				},
 				Spec: certmanagerv1.CertificateSpec{
 					SecretName: azureCertName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Kind: "ClusterIssuer",
 						Name: clusterIssuerName,
 					},
@@ -589,7 +589,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 				},
 				Spec: certmanagerv1.CertificateSpec{
 					SecretName: route53CertName,
-					IssuerRef: certmanagermetav1.ObjectReference{
+					IssuerRef: certmanagermetav1.IssuerReference{
 						Kind: "ClusterIssuer",
 						Name: clusterIssuerName,
 					},

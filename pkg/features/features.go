@@ -21,7 +21,6 @@ import (
 const (
 	// openshiftFeatureGateResource is the API resource name for cluster FeatureGate objects.
 	openshiftFeatureGateResource = "featuregates"
-
 )
 
 // allowedPreviewFeatureSets is the set of cluster featureset values that
