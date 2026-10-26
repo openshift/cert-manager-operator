@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/util/wait"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -56,6 +59,50 @@ func (d DynamicResourceLoader) noErrorSkipNotExisting(err error) {
 	}
 }
 
+// isRetriableAPIError reports a transient API or transport failure. Kept in this
+// package so manifest deletes can retry without importing the e2e suite.
+func isRetriableAPIError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if k8serrors.IsTimeout(err) ||
+		k8serrors.IsServerTimeout(err) ||
+		k8serrors.IsTooManyRequests(err) ||
+		k8serrors.IsServiceUnavailable(err) ||
+		k8serrors.IsInternalError(err) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"connection reset",
+		"connection refused",
+		"http2: client connection lost",
+		"unexpected eof",
+		"tls: handshake timeout",
+		"i/o timeout",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// retryRetriable runs fn until it succeeds. Transient API errors are retried.
+// Any other error is returned immediately.
+func retryRetriable(ctx context.Context, fn func(context.Context) error) error {
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 3*time.Minute, true, func(pollCtx context.Context) (bool, error) {
+		err := fn(pollCtx)
+		if err == nil {
+			return true, nil
+		}
+		if isRetriableAPIError(err) {
+			return false, nil
+		}
+		return false, err
+	})
+}
+
 func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	b, err := assetFunc(filename)
 	require.NoError(d.t, err)
@@ -80,7 +127,12 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 
 		unstructuredObj := &unstructured.Unstructured{Object: unstructuredMap}
 
-		gr, err := restmapper.GetAPIGroupResources(d.KubeClient.Discovery())
+		var gr []*restmapper.APIGroupResources
+		err = retryRetriable(d.context, func(context.Context) error {
+			var getErr error
+			gr, getErr = restmapper.GetAPIGroupResources(d.KubeClient.Discovery())
+			return getErr
+		})
 		require.NoError(d.t, err)
 
 		mapper := restmapper.NewDiscoveryRESTMapper(gr)
@@ -105,7 +157,13 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Deleting resource %v\n", filename)
 	deleteFunc := func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
-		err := dynamicResourceInterface.Delete(context.TODO(), unstructured.GetName(), metav1.DeleteOptions{})
+		err := retryRetriable(d.context, func(ctx context.Context) error {
+			err := dynamicResourceInterface.Delete(ctx, unstructured.GetName(), metav1.DeleteOptions{})
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		})
 		d.noErrorSkipNotExisting(err)
 	}
 
