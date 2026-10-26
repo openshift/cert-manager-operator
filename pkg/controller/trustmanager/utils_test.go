@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -175,6 +176,370 @@ func TestManagedLabelsModified(t *testing.T) {
 	}
 }
 
+// buildManagedFieldsJSON constructs a FieldsV1 JSON blob for testing.
+// It accepts label keys and annotation keys that the field manager "owns".
+func buildManagedFieldsJSON(t *testing.T, labelKeys, annotationKeys []string) []byte {
+	t.Helper()
+
+	metadata := map[string]interface{}{}
+
+	if len(labelKeys) > 0 {
+		labels := map[string]interface{}{}
+		for _, k := range labelKeys {
+			labels["f:"+k] = map[string]interface{}{}
+		}
+		metadata["f:labels"] = labels
+	}
+	if len(annotationKeys) > 0 {
+		annotations := map[string]interface{}{}
+		for _, k := range annotationKeys {
+			annotations["f:"+k] = map[string]interface{}{}
+		}
+		metadata["f:annotations"] = annotations
+	}
+
+	raw, err := json.Marshal(map[string]interface{}{
+		"f:metadata": metadata,
+	})
+	if err != nil {
+		t.Fatalf("failed to build managedFields JSON: %v", err)
+	}
+	return raw
+}
+
+func TestManagedLabelsModifiedWithManagedFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		desired       map[string]string
+		existing      map[string]string
+		managedFields []metav1.ManagedFieldsEntry
+		want          bool
+	}{
+		{
+			name:     "stale owned label removed from desired returns modified",
+			desired:  map[string]string{"app": "x"},
+			existing: map[string]string{"app": "x", "team": "platform"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app", "team"}, nil)},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "third-party label not owned is ignored",
+			desired:  map[string]string{"app": "x"},
+			existing: map[string]string{"app": "x", "extra": "v"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app"}, nil)},
+				},
+			},
+			want: false,
+		},
+		{
+			name:     "all owned labels present returns not modified",
+			desired:  map[string]string{"app": "x", "team": "platform"},
+			existing: map[string]string{"app": "x", "team": "platform"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app", "team"}, nil)},
+				},
+			},
+			want: false,
+		},
+		{
+			name:     "owned by different manager is ignored",
+			desired:  map[string]string{"app": "x"},
+			existing: map[string]string{"app": "x", "other": "v"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   "some-other-controller",
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app", "other"}, nil)},
+				},
+			},
+			want: false,
+		},
+		{
+			name:          "empty managedFields returns not modified when forward check passes",
+			desired:       map[string]string{"app": "x"},
+			existing:      map[string]string{"app": "x", "stale": "v"},
+			managedFields: nil,
+			want:          false,
+		},
+		{
+			name:     "non-Apply operation entries are ignored",
+			desired:  map[string]string{"app": "x"},
+			existing: map[string]string{"app": "x", "team": "platform"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationUpdate,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app", "team"}, nil)},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
+			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+				Labels:        tt.existing,
+				ManagedFields: tt.managedFields,
+			}}
+			got := managedLabelsModified(desired, existing)
+			if got != tt.want {
+				t.Errorf("managedLabelsModified() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestManagedAnnotationsModifiedWithManagedFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		desired       map[string]string
+		existing      map[string]string
+		managedFields []metav1.ManagedFieldsEntry
+		want          bool
+	}{
+		{
+			name:     "stale owned annotation removed from desired returns modified",
+			desired:  map[string]string{"keep": "v"},
+			existing: map[string]string{"keep": "v", "stale": "old"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, nil, []string{"keep", "stale"})},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "third-party annotation not owned is ignored",
+			desired:  map[string]string{"keep": "v"},
+			existing: map[string]string{"keep": "v", "other-controller/note": "x"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, nil, []string{"keep"})},
+				},
+			},
+			want: false,
+		},
+		{
+			name:     "all owned annotations present returns not modified",
+			desired:  map[string]string{"a": "1", "b": "2"},
+			existing: map[string]string{"a": "1", "b": "2"},
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, nil, []string{"a", "b"})},
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Annotations: tt.desired}}
+			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+				Annotations:   tt.existing,
+				ManagedFields: tt.managedFields,
+			}}
+			got := managedAnnotationsModified(desired, existing)
+			if got != tt.want {
+				t.Errorf("managedAnnotationsModified() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOwnedMetadataKeys(t *testing.T) {
+	tests := []struct {
+		name            string
+		managedFields   []metav1.ManagedFieldsEntry
+		manager         string
+		wantLabels      map[string]struct{}
+		wantAnnotations map[string]struct{}
+	}{
+		{
+			name:            "nil managedFields returns empty sets",
+			managedFields:   nil,
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{},
+			wantAnnotations: map[string]struct{}{},
+		},
+		{
+			name: "extracts labels and annotations from matching manager",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"app", "team"}, []string{"note"})},
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{"app": {}, "team": {}},
+			wantAnnotations: map[string]struct{}{"note": {}},
+		},
+		{
+			name: "ignores entries from other managers",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   "other-controller",
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"foreign"}, nil)},
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{},
+			wantAnnotations: map[string]struct{}{},
+		},
+		{
+			name: "ignores Update operation entries",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationUpdate,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"updated-label"}, nil)},
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{},
+			wantAnnotations: map[string]struct{}{},
+		},
+		{
+			name: "handles nil FieldsV1 gracefully",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  nil,
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{},
+			wantAnnotations: map[string]struct{}{},
+		},
+		{
+			name: "handles invalid JSON gracefully (fail-open)",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: []byte("not valid json")},
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{},
+			wantAnnotations: map[string]struct{}{},
+		},
+		{
+			name: "merges keys from multiple Apply entries by same manager",
+			managedFields: []metav1.ManagedFieldsEntry{
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"a"}, []string{"x"})},
+				},
+				{
+					Manager:   fieldOwner,
+					Operation: metav1.ManagedFieldsOperationApply,
+					FieldsV1:  &metav1.FieldsV1{Raw: buildManagedFieldsJSON(t, []string{"b"}, []string{"y"})},
+				},
+			},
+			manager:         fieldOwner,
+			wantLabels:      map[string]struct{}{"a": {}, "b": {}},
+			wantAnnotations: map[string]struct{}{"x": {}, "y": {}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{ManagedFields: tt.managedFields}}
+			gotLabels, gotAnnotations := ownedMetadataKeys(obj, tt.manager)
+			if !mapsEqualStruct(gotLabels, tt.wantLabels) {
+				t.Errorf("ownedMetadataKeys() labels = %v, want %v", gotLabels, tt.wantLabels)
+			}
+			if !mapsEqualStruct(gotAnnotations, tt.wantAnnotations) {
+				t.Errorf("ownedMetadataKeys() annotations = %v, want %v", gotAnnotations, tt.wantAnnotations)
+			}
+		})
+	}
+}
+
+func TestManagedFieldsDeleted(t *testing.T) {
+	tests := []struct {
+		name        string
+		ownedKeys   map[string]struct{}
+		desiredKeys map[string]string
+		want        bool
+	}{
+		{
+			name:        "no owned keys returns false",
+			ownedKeys:   map[string]struct{}{},
+			desiredKeys: map[string]string{"a": "1"},
+			want:        false,
+		},
+		{
+			name:        "all owned keys present in desired returns false",
+			ownedKeys:   map[string]struct{}{"a": {}, "b": {}},
+			desiredKeys: map[string]string{"a": "1", "b": "2", "c": "3"},
+			want:        false,
+		},
+		{
+			name:        "owned key missing from desired returns true",
+			ownedKeys:   map[string]struct{}{"a": {}, "b": {}},
+			desiredKeys: map[string]string{"a": "1"},
+			want:        true,
+		},
+		{
+			name:        "nil desired with owned keys returns true",
+			ownedKeys:   map[string]struct{}{"a": {}},
+			desiredKeys: nil,
+			want:        true,
+		},
+		{
+			name:        "nil owned and nil desired returns false",
+			ownedKeys:   map[string]struct{}{},
+			desiredKeys: nil,
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := managedFieldsDeleted(tt.ownedKeys, tt.desiredKeys)
+			if got != tt.want {
+				t.Errorf("managedFieldsDeleted() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// mapsEqualStruct compares two map[string]struct{} for equality.
+func mapsEqualStruct(a, b map[string]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if _, ok := b[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func TestValidateTrustManagerConfig(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -224,11 +589,78 @@ func TestValidateTrustManagerConfig(t *testing.T) {
 				return b
 			}(),
 		},
+		{
+			name:    "reserved label key 'app' is rejected",
+			tm:      testTrustManager().WithLabels(map[string]string{"app": "custom-value"}),
+			wantErr: `key "app" is reserved for controller use`,
+		},
+		{
+			name:    "reserved label key 'app.kubernetes.io/managed-by' is rejected",
+			tm:      testTrustManager().WithLabels(map[string]string{"app.kubernetes.io/managed-by": "other"}),
+			wantErr: `key "app.kubernetes.io/managed-by" is reserved for controller use`,
+		},
+		{
+			name:    "reserved annotation key is rejected",
+			tm:      testTrustManager().WithAnnotations(map[string]string{"cert-manager.io/inject-ca-from-secret": "wrong"}),
+			wantErr: `key "cert-manager.io/inject-ca-from-secret" is reserved for controller use`,
+		},
+		{
+			name: "valid custom label and annotation pass",
+			tm: testTrustManager().
+				WithLabels(map[string]string{"team": "platform"}).
+				WithAnnotations(map[string]string{"example.com/note": "test"}),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTrustManagerConfig(tt.tm.Build())
+			assertError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestValidateReservedKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		userKeys map[string]string
+		reserved map[string]struct{}
+		wantErr  string
+	}{
+		{
+			name:     "no conflict returns nil",
+			userKeys: map[string]string{"custom": "val"},
+			reserved: map[string]struct{}{"app": {}},
+			wantErr:  "",
+		},
+		{
+			name:     "single reserved key is rejected",
+			userKeys: map[string]string{"app": "custom"},
+			reserved: map[string]struct{}{"app": {}},
+			wantErr:  `key "app" is reserved for controller use`,
+		},
+		{
+			name:     "multiple reserved keys are rejected",
+			userKeys: map[string]string{"app": "a", "app.kubernetes.io/managed-by": "b"},
+			reserved: map[string]struct{}{"app": {}, "app.kubernetes.io/managed-by": {}},
+			wantErr:  "is reserved for controller use",
+		},
+		{
+			name:     "empty user keys returns nil",
+			userKeys: map[string]string{},
+			reserved: map[string]struct{}{"app": {}},
+			wantErr:  "",
+		},
+		{
+			name:     "empty reserved set returns nil",
+			userKeys: map[string]string{"app": "val"},
+			reserved: map[string]struct{}{},
+			wantErr:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateReservedKeys(tt.userKeys, tt.reserved, controllerConfigFieldPath, "labels")
 			assertError(t, err, tt.wantErr)
 		})
 	}
