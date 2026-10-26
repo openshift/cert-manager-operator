@@ -8,9 +8,11 @@ package v1alpha1
 // ApproverPolicyManagerControllerConfig configures the operator's behavior for resource creation.
 type ApproverPolicyManagerControllerConfigApplyConfiguration struct {
 	// labels to apply to resources created for approver-policy, in addition to operator defaults.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
 	// This field can have at most 20 entries.
 	Labels map[string]string `json:"labels,omitempty"`
 	// annotations to apply to resources created for approver-policy.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
 	// This field can have at most 20 entries.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }

@@ -1247,6 +1247,39 @@ tests:
           logFormat: text
         controllerConfig:
           labels: {}
+  - name: Should not allow reserved label key on controllerConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: ApproverPolicyManager
+      spec:
+        approverPolicyConfig: {}
+        controllerConfig:
+          labels:
+            app: custom-value
+    expectedError: "label key uses a reserved domain or the reserved key 'app'"
+  - name: Should not allow RBAC aggregate label on controllerConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: ApproverPolicyManager
+      spec:
+        approverPolicyConfig: {}
+        controllerConfig:
+          labels:
+            rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    expectedError: "label key uses a reserved domain or the reserved key 'app'"
+  - name: Should not allow reserved annotation key on controllerConfig
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: ApproverPolicyManager
+      spec:
+        approverPolicyConfig: {}
+        controllerConfig:
+          annotations:
+            cert-manager.io/inject-ca-from-secret: ns/secret
+    expectedError: "annotation key uses a reserved domain"
   - name: Should accept 1 labels
     resourceName: cluster
     initial: |

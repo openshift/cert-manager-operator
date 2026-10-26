@@ -132,19 +132,23 @@ type ApproverPolicyManagerConfig struct {
 // ApproverPolicyManagerControllerConfig configures the operator's behavior for resource creation.
 type ApproverPolicyManagerControllerConfig struct {
 	// labels to apply to resources created for approver-policy, in addition to operator defaults.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
 	// This field can have at most 20 entries.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=20
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/|^app$'))",message="label key uses a reserved domain or the reserved key 'app'"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// annotations to apply to resources created for approver-policy.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
 	// This field can have at most 20 entries.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=20
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/'))",message="annotation key uses a reserved domain"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`

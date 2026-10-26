@@ -69,21 +69,30 @@ spec:
                   annotations:
                     additionalProperties:
                       type: string
-                    description: annotations to apply to all resources created for
-                      the trust-manager deployment.
+                    description: |-
+                      annotations to apply to all resources created for the trust-manager deployment.
+                      Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: annotation key uses a reserved domain
+                      rule: self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/'))
                   labels:
                     additionalProperties:
                       type: string
-                    description: labels to apply to all resources created for the
-                      trust-manager deployment.
+                    description: |-
+                      labels to apply to all resources created for the trust-manager deployment.
+                      Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: label key uses a reserved domain or the reserved key
+                        'app'
+                      rule: self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/|^app$'))
                 type: object
               trustManagerConfig:
                 description: trustManagerConfig configures the trust-manager operand's
