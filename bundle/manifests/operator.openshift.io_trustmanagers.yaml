@@ -69,21 +69,38 @@ spec:
                   annotations:
                     additionalProperties:
                       type: string
-                    description: annotations to apply to all resources created for
-                      the trust-manager deployment.
+                    description: |-
+                      annotations to apply to all resources created for the trust-manager deployment.
+                      The annotation key "cert-manager.io/inject-ca-from-secret" is reserved for controller use.
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: annotation key 'cert-manager.io/inject-ca-from-secret'
+                        is reserved for controller use
+                      rule: '!(''cert-manager.io/inject-ca-from-secret'' in self)'
                   labels:
                     additionalProperties:
                       type: string
-                    description: labels to apply to all resources created for the
-                      trust-manager deployment.
+                    description: |-
+                      labels to apply to all resources created for the trust-manager deployment.
+                      The following label keys are reserved for controller use and cannot be configured:
+                      app, app.kubernetes.io/name, app.kubernetes.io/instance, app.kubernetes.io/version,
+                      app.kubernetes.io/managed-by, app.kubernetes.io/part-of.
+                      Labels with prefix rbac.authorization.k8s.io/aggregate-to- are also forbidden.
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: reserved label keys cannot be configured via controllerConfig
+                      rule: self.all(k, !(k in ['app', 'app.kubernetes.io/name', 'app.kubernetes.io/instance',
+                        'app.kubernetes.io/version', 'app.kubernetes.io/managed-by',
+                        'app.kubernetes.io/part-of']))
+                    - message: label keys with prefix rbac.authorization.k8s.io/aggregate-to-
+                        cannot be configured via controllerConfig
+                      rule: self.all(k, !k.startsWith('rbac.authorization.k8s.io/aggregate-to-'))
                 type: object
               trustManagerConfig:
                 description: trustManagerConfig configures the trust-manager operand's
