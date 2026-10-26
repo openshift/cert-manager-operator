@@ -30,10 +30,15 @@ var (
 	// For more details,
 	// https://github.com/openshift/enhancements/pull/1929
 	FeatureHTTP01Proxy featuregate.Feature = "HTTP01Proxy"
+
+	// FeatureApproverPolicyManager enables the controller for
+	// approverpolicymanagers.operator.openshift.io resources.
+	FeatureApproverPolicyManager featuregate.Feature = "ApproverPolicyManager"
 )
 
 var OperatorFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	FeatureIstioCSR:     {Default: true, PreRelease: featuregate.GA},
-	FeatureTrustManager: {Default: false, PreRelease: "TechPreview"},
-	FeatureHTTP01Proxy:  {Default: false, PreRelease: featuregate.Alpha},
+	FeatureIstioCSR:              {Default: true, PreRelease: featuregate.GA},
+	FeatureTrustManager:          {Default: false, PreRelease: "TechPreview"},
+	FeatureHTTP01Proxy:           {Default: false, PreRelease: featuregate.Alpha},
+	FeatureApproverPolicyManager: {Default: false, PreRelease: "TechPreview"},
 }

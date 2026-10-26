@@ -245,10 +245,10 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
-  - certmanagers
+  - approverpolicymanagers
+  - istiocsrs
+  - trustmanagers
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -257,6 +257,7 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
+  - approverpolicymanagers/finalizers
   - certmanagers/finalizers
   - http01proxies/finalizers
   - istiocsrs/finalizers
@@ -266,6 +267,7 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
+  - approverpolicymanagers/status
   - certmanagers/status
   - istiocsrs/status
   - trustmanagers/status
@@ -273,6 +275,18 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - certmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - operator.openshift.io
   resources:
@@ -289,17 +303,6 @@ rules:
   verbs:
   - get
   - update
-- apiGroups:
-  - operator.openshift.io
-  resources:
-  - istiocsrs
-  - trustmanagers
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
