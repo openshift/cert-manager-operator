@@ -1445,6 +1445,48 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from-secret", expectedCAAnnotation))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
+
+		It("should remove custom labels from managed resources when removed from controllerConfig", func() {
+			const customLabelKey = "custom-label"
+			const customLabelValue = "custom-value"
+
+			By("creating TrustManager CR with custom labels")
+			createTrustManager(ctx, newTrustManagerCR().WithLabels(map[string]string{
+				customLabelKey: customLabelValue,
+			}))
+
+			By("waiting for custom label on ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Labels).Should(HaveKeyWithValue(customLabelKey, customLabelValue))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("removing custom labels from TrustManager controllerConfig")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.ControllerConfig.Labels = map[string]string{}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom label to be removed from ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Labels).ShouldNot(HaveKey(customLabelKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom label to be removed from Deployment")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Labels).ShouldNot(HaveKey(customLabelKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
 	})
 
 	// -------------------------------------------------------------------------

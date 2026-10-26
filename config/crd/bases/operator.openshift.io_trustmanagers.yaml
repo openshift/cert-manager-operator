@@ -69,21 +69,47 @@ spec:
                   annotations:
                     additionalProperties:
                       type: string
-                    description: annotations to apply to all resources created for
-                      the trust-manager deployment.
+                    description: |-
+                      annotations to apply to all resources created for the trust-manager deployment.
+                      The annotation key "cert-manager.io/inject-ca-from-secret" is reserved for controller use.
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: annotation key 'cert-manager.io/inject-ca-from-secret'
+                        is reserved for controller use
+                      rule: '!(''cert-manager.io/inject-ca-from-secret'' in self)'
                   labels:
                     additionalProperties:
                       type: string
-                    description: labels to apply to all resources created for the
-                      trust-manager deployment.
+                    description: |-
+                      labels to apply to all resources created for the trust-manager deployment.
+                      The following label keys are reserved for controller use and cannot be configured:
+                      app, app.kubernetes.io/name, app.kubernetes.io/instance, app.kubernetes.io/version,
+                      app.kubernetes.io/managed-by, app.kubernetes.io/part-of
                     maxProperties: 25
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: label key 'app' is reserved for controller use
+                      rule: '!(''app'' in self)'
+                    - message: label key 'app.kubernetes.io/name' is reserved for
+                        controller use
+                      rule: '!(''app.kubernetes.io/name'' in self)'
+                    - message: label key 'app.kubernetes.io/instance' is reserved
+                        for controller use
+                      rule: '!(''app.kubernetes.io/instance'' in self)'
+                    - message: label key 'app.kubernetes.io/version' is reserved for
+                        controller use
+                      rule: '!(''app.kubernetes.io/version'' in self)'
+                    - message: label key 'app.kubernetes.io/managed-by' is reserved
+                        for controller use
+                      rule: '!(''app.kubernetes.io/managed-by'' in self)'
+                    - message: label key 'app.kubernetes.io/part-of' is reserved for
+                        controller use
+                      rule: '!(''app.kubernetes.io/part-of'' in self)'
                 type: object
               trustManagerConfig:
                 description: trustManagerConfig configures the trust-manager operand's

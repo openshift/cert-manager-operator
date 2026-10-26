@@ -383,7 +383,7 @@ tests:
         trustManagerConfig: {}
         controllerConfig:
           labels:
-            app.kubernetes.io/managed-by: cert-manager-operator
+            custom-label: custom-value
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -395,7 +395,43 @@ tests:
           filterExpiredCertificates: Disabled
         controllerConfig:
           labels:
+            custom-label: custom-value
+
+  - name: Should not allow reserved label key 'app'
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig: {}
+        controllerConfig:
+          labels:
+            app: custom-value
+    expectedError: "label key 'app' is reserved for controller use"
+
+  - name: Should not allow reserved label key 'app.kubernetes.io/managed-by'
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig: {}
+        controllerConfig:
+          labels:
             app.kubernetes.io/managed-by: cert-manager-operator
+    expectedError: "label key 'app.kubernetes.io/managed-by' is reserved for controller use"
+
+  - name: Should not allow reserved annotation key
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig: {}
+        controllerConfig:
+          annotations:
+            cert-manager.io/inject-ca-from-secret: ns/secret
+    expectedError: "annotation key 'cert-manager.io/inject-ca-from-secret' is reserved for controller use"
 
   - name: Should create with controllerConfig annotations
     resourceName: cluster

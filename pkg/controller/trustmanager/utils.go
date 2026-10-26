@@ -2,19 +2,23 @@ package trustmanager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"reflect"
+	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -193,9 +197,13 @@ func updateResourceAnnotations(obj client.Object, annotations map[string]string)
 	obj.SetAnnotations(existing)
 }
 
-// managedLabelsModified checks whether all labels present in desired exist
-// with matching values in existing. Extra labels on existing (added by users
-// or other controllers) are allowed and do not count as modified.
+// managedLabelsModified checks whether labels managed by this controller have
+// drifted between the desired and existing objects. It detects both:
+//   - Forward drift: a desired label is missing or has the wrong value on existing.
+//   - Stale keys: a label previously owned by this controller (via SSA managedFields)
+//     is no longer present in the desired state and needs pruning.
+//
+// Extra labels on existing that were never owned by this controller are ignored.
 func managedLabelsModified(desired, existing client.Object) bool {
 	existingLabels := existing.GetLabels()
 	for k, v := range desired.GetLabels() {
@@ -203,12 +211,15 @@ func managedLabelsModified(desired, existing client.Object) bool {
 			return true
 		}
 	}
+	if managedFieldsDeleted(ownedMetadataLabels(existing, fieldOwner), desired.GetLabels()) {
+		return true
+	}
 	return false
 }
 
-// managedAnnotationsModified checks whether all annotations present in desired
-// exist with matching values in existing. Extra annotations on existing are
-// allowed and do not count as modified.
+// managedAnnotationsModified checks whether annotations managed by this controller
+// have drifted between the desired and existing objects. It detects both forward
+// drift and stale keys, mirroring the logic in managedLabelsModified.
 func managedAnnotationsModified(desired, existing client.Object) bool {
 	existingAnnotations := existing.GetAnnotations()
 	for k, v := range desired.GetAnnotations() {
@@ -216,12 +227,109 @@ func managedAnnotationsModified(desired, existing client.Object) bool {
 			return true
 		}
 	}
+	if managedFieldsDeleted(ownedMetadataAnnotations(existing, fieldOwner), desired.GetAnnotations()) {
+		return true
+	}
 	return false
 }
 
 // managedMetadataModified returns true if any managed label or annotation has drifted.
 func managedMetadataModified(desired, existing client.Object) bool {
 	return managedLabelsModified(desired, existing) || managedAnnotationsModified(desired, existing)
+}
+
+// ownedMetadataKeys extracts the label and annotation keys previously claimed
+// by the given field manager from the object's managedFields entries.
+// It only considers entries where Operation == Apply to match SSA ownership.
+// If managedFields parsing fails, empty sets are returned (fail-open with warning log).
+func ownedMetadataKeys(obj client.Object, manager string) (labels map[string]struct{}, annotations map[string]struct{}) {
+	labels = make(map[string]struct{})
+	annotations = make(map[string]struct{})
+
+	for _, mf := range obj.GetManagedFields() {
+		if mf.Manager != manager || mf.Operation != metav1.ManagedFieldsOperationApply {
+			continue
+		}
+		if mf.FieldsV1 == nil {
+			continue
+		}
+		ownedLabels, ownedAnnotations := parseFieldsV1Metadata(mf.FieldsV1.Raw)
+		for k := range ownedLabels {
+			labels[k] = struct{}{}
+		}
+		for k := range ownedAnnotations {
+			annotations[k] = struct{}{}
+		}
+	}
+	return labels, annotations
+}
+
+// ownedMetadataLabels returns the label keys previously claimed by the given
+// field manager. It is a convenience wrapper around ownedMetadataKeys.
+func ownedMetadataLabels(obj client.Object, manager string) map[string]struct{} {
+	labels, _ := ownedMetadataKeys(obj, manager)
+	return labels
+}
+
+// ownedMetadataAnnotations returns the annotation keys previously claimed by
+// the given field manager. It is a convenience wrapper around ownedMetadataKeys.
+func ownedMetadataAnnotations(obj client.Object, manager string) map[string]struct{} {
+	_, annotations := ownedMetadataKeys(obj, manager)
+	return annotations
+}
+
+// parseFieldsV1Metadata parses the FieldsV1 JSON and returns the label and
+// annotation keys (with the "f:" prefix stripped). Returns empty maps on
+// parse failure (fail-open with warning log).
+func parseFieldsV1Metadata(raw []byte) (labels map[string]struct{}, annotations map[string]struct{}) {
+	labels = make(map[string]struct{})
+	annotations = make(map[string]struct{})
+
+	if len(raw) == 0 {
+		return labels, annotations
+	}
+
+	// fieldsV1Metadata is the minimal structure needed to extract label and
+	// annotation keys from the FieldsV1 JSON blob in managedFields.
+	// The JSON shape is: {"f:metadata": {"f:labels": {"f:<key>": {}}, "f:annotations": {"f:<key>": {}}}}
+	type fieldsV1Metadata struct {
+		Metadata struct {
+			Labels      map[string]json.RawMessage `json:"f:labels"`
+			Annotations map[string]json.RawMessage `json:"f:annotations"`
+		} `json:"f:metadata"`
+	}
+
+	var fields fieldsV1Metadata
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		crlog.Log.WithName(ControllerName).V(2).Info(
+			"failed to parse managedFields FieldsV1 metadata, skipping stale-key detection for this entry",
+			"error", err,
+		)
+		return labels, annotations
+	}
+
+	for k := range fields.Metadata.Labels {
+		if key, ok := strings.CutPrefix(k, "f:"); ok {
+			labels[key] = struct{}{}
+		}
+	}
+	for k := range fields.Metadata.Annotations {
+		if key, ok := strings.CutPrefix(k, "f:"); ok {
+			annotations[key] = struct{}{}
+		}
+	}
+	return labels, annotations
+}
+
+// managedFieldsDeleted returns true if any key in ownedKeys is absent from
+// desiredKeys, indicating that a previously owned field should be pruned.
+func managedFieldsDeleted(ownedKeys map[string]struct{}, desiredKeys map[string]string) bool {
+	for k := range ownedKeys {
+		if _, exists := desiredKeys[k]; !exists {
+			return true
+		}
+	}
+	return false
 }
 
 // namespaceExists checks if a namespace exists in the cluster.
