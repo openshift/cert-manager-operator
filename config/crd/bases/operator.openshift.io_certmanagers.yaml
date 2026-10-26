@@ -630,6 +630,7 @@ spec:
                 - TraceAll
                 type: string
               managementState:
+                default: Managed
                 description: managementState indicates whether and how the operator
                   should manage the component
                 pattern: ^(Managed|Unmanaged|Force|Removed)$
