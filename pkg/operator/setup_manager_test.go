@@ -1,16 +1,24 @@
 package operator
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/approverpolicy"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/pkg/controller/trustmanager"
@@ -177,6 +185,64 @@ func TestFindExistingCacheEntry(t *testing.T) {
 			}
 			if found && reflect.TypeOf(key) != reflect.TypeOf(tt.lookup) {
 				t.Errorf("expected key to be %T, got %T", tt.lookup, key)
+			}
+		})
+	}
+}
+
+func TestControllerConfigAndCacheCombinations(t *testing.T) {
+	for mask := 0; mask < 8; mask++ {
+		t.Run(fmt.Sprintf("controllers=%03b", mask), func(t *testing.T) {
+			config := ControllerConfig{EnableIstioCSR: mask&1 != 0, EnableTrustManager: mask&2 != 0, EnableApproverPolicyManager: mask&4 != 0}
+			assert.Equal(t, mask != 0, config.enabled(), "approver-only configuration must start the manager")
+			objects, err := buildCacheObjectList(config)
+			require.NoError(t, err)
+			seen := map[reflect.Type]bool{}
+			for object := range objects {
+				typ := reflect.TypeOf(object)
+				assert.False(t, seen[typ], "duplicate cache entry for %s", typ)
+				seen[typ] = true
+			}
+			for _, controller := range []struct {
+				enabled bool
+				object  client.Object
+				label   string
+			}{
+				{config.EnableIstioCSR, &v1alpha1.IstioCSR{}, istiocsr.RequestEnqueueLabelValue},
+				{config.EnableTrustManager, &v1alpha1.TrustManager{}, trustmanager.RequestEnqueueLabelValue},
+				{config.EnableApproverPolicyManager, &v1alpha1.ApproverPolicyManager{}, approverpolicy.RequestEnqueueLabelValue},
+			} {
+				_, entry, found := findExistingCacheEntry(objects, controller.object)
+				assert.Equal(t, controller.enabled, found)
+				if found {
+					assert.Nil(t, entry.Label, "primary CRs are unfiltered")
+				}
+				_, deployment, found := findExistingCacheEntry(objects, &appsv1.Deployment{})
+				if config.enabled() {
+					require.True(t, found)
+					assert.Equal(t, controller.enabled, deployment.Label.Matches(labels.Set{common.ManagedResourceLabelKey: controller.label}))
+					assert.False(t, deployment.Label.Matches(labels.Set{}))
+					assert.False(t, deployment.Label.Matches(labels.Set{common.ManagedResourceLabelKey: "unrelated"}))
+				} else {
+					assert.False(t, found)
+				}
+			}
+			for _, obj := range []client.Object{&corev1.ConfigMap{}, &certmanagerv1.Issuer{}, &certmanagerv1.ClusterIssuer{}, &corev1.Secret{}, &metav1.PartialObjectMetadata{}} {
+				_, _, found := findExistingCacheEntry(objects, obj)
+				assert.False(t, found, "%T must retain its unfiltered shared informer", obj)
+			}
+			if config.EnableApproverPolicyManager {
+				for _, obj := range approverPolicyManagedResources {
+					_, entry, found := findExistingCacheEntry(objects, obj)
+					require.True(t, found, "missing cache config for %T", obj)
+					assert.True(t, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: approverpolicy.RequestEnqueueLabelValue}))
+				}
+			}
+			_, webhook, found := findExistingCacheEntry(objects, &admissionregistrationv1.ValidatingWebhookConfiguration{})
+			assert.Equal(t, config.EnableTrustManager || config.EnableApproverPolicyManager, found)
+			if found {
+				assert.Equal(t, config.EnableTrustManager, webhook.Label.Matches(labels.Set{common.ManagedResourceLabelKey: trustmanager.RequestEnqueueLabelValue}))
+				assert.Equal(t, config.EnableApproverPolicyManager, webhook.Label.Matches(labels.Set{common.ManagedResourceLabelKey: approverpolicy.RequestEnqueueLabelValue}))
 			}
 		})
 	}

@@ -685,10 +685,10 @@ spec:
         - apiGroups:
           - operator.openshift.io
           resources:
-          - certmanagers
+          - approverpolicymanagers
+          - istiocsrs
+          - trustmanagers
           verbs:
-          - create
-          - delete
           - get
           - list
           - patch
@@ -697,6 +697,7 @@ spec:
         - apiGroups:
           - operator.openshift.io
           resources:
+          - approverpolicymanagers/finalizers
           - certmanagers/finalizers
           - istiocsrs/finalizers
           - trustmanagers/finalizers
@@ -705,6 +706,7 @@ spec:
         - apiGroups:
           - operator.openshift.io
           resources:
+          - approverpolicymanagers/status
           - certmanagers/status
           - istiocsrs/status
           - trustmanagers/status
@@ -715,9 +717,10 @@ spec:
         - apiGroups:
           - operator.openshift.io
           resources:
-          - istiocsrs
-          - trustmanagers
+          - certmanagers
           verbs:
+          - create
+          - delete
           - get
           - list
           - patch
