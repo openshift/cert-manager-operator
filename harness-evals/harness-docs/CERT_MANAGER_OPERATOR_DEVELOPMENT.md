@@ -39,15 +39,21 @@ FIPS: `make build` sources `hack/go-fips.sh`. WARN (non-FIPS) builds are **local
 | `cert-manager-controller` / webhook / ca-injector / acmesolver | `RELATED_IMAGE_CERT_MANAGER_*` | `related_images.go` |
 | `cert-manager-istiocsr` | `RELATED_IMAGE_CERT_MANAGER_ISTIOCSR` | `istiocsr/constants.go` |
 | `cert-manager-trust-manager` | `RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER` | `trustmanager/constants.go` |
+| `approver-policy` | `RELATED_IMAGE_APPROVER_POLICY` | Prepared for a future approver-policy controller; no runtime consumer yet |
 
 `RELATED_IMAGE_*` / `*_OPERAND_IMAGE_VERSION` literals in **`config/manager/manager.yaml` are hand-maintained** — bumping Makefile `CERT_*_VERSION` alone does **not** update them. Edit `manager.yaml` to match, then `make bundle` (auto-fills CSV `relatedImages` from `RELATED_IMAGE_*` env). New operand image also needs controller constants/map. See [olm-packaging-guidelines.md](./olm-packaging-guidelines.md).
 
 ### Bump operand versions
 
-1. Makefile `CERT_MANAGER_VERSION` / `ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION` (+ bundle version)
+1. Makefile `CERT_MANAGER_VERSION` / `ISTIO_CSR_VERSION` / `TRUST_MANAGER_VERSION` / `APPROVER_POLICY_VERSION` (+ bundle version)
 2. `make update-manifests` + keep jetstack replace version lockstep
 3. **Manually** update matching `RELATED_IMAGE_*` / `*_OPERAND_IMAGE_VERSION` in `config/manager/manager.yaml`
 4. `make bundle`; refresh CSV description links / RBAC if upstream changed; run `hack/verify-crds*.sh` directly if CRDs changed (not in `make verify-scripts`)
+
+For approver-policy, keep `RELATED_IMAGE_APPROVER_POLICY` and
+`APPROVERPOLICY_OPERAND_IMAGE_VERSION` aligned with `APPROVER_POLICY_VERSION`.
+`make local-run` derives both from that Makefile variable, retaining its `v` prefix;
+the packaged operand-version env value in `manager.yaml` omits `v`.
 
 ### Enable TrustManager locally
 
