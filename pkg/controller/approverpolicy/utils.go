@@ -42,6 +42,11 @@ func (r *Reconciler) updateFinalizer(ctx context.Context, instance *v1alpha1.App
 			if err := r.Update(ctx, current); err != nil {
 				return err
 			}
+			if add {
+				r.log.V(1).Info("added finalizer", "name", current.Name)
+			} else {
+				r.log.V(1).Info("removed finalizer", "name", current.Name)
+			}
 		}
 		current.DeepCopyInto(instance)
 		return nil
@@ -70,6 +75,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, instance *v1alpha1.Approv
 		if err := r.StatusUpdate(ctx, current); err != nil {
 			return fmt.Errorf("failed to update ApproverPolicyManager status: %w", err)
 		}
+		r.log.V(2).Info("updated status conditions", "name", current.Name, "conditions", current.Status.Conditions)
 		return nil
 	})
 }

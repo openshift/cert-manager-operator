@@ -249,8 +249,8 @@ func TestHandleReconcileResultUpdatesMessagesAndGeneration(t *testing.T) {
 	assert.Equal(t, before, stored.Status.GetCondition(v1alpha1.Ready).LastTransitionTime)
 }
 
-func TestSingletonPredicate(t *testing.T) {
-	p := singletonPredicate()
+func TestPrimaryResourcePredicate(t *testing.T) {
+	p := primaryResourcePredicate()
 	for _, tc := range []struct {
 		name   string
 		mutate func(*v1alpha1.ApproverPolicyManager)
@@ -263,8 +263,6 @@ func TestSingletonPredicate(t *testing.T) {
 		{"annotations", func(o *v1alpha1.ApproverPolicyManager) { o.Annotations = map[string]string{"x": "y"} }, true},
 		{"finalizer", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} }, true},
 		{"deletion", func(o *v1alpha1.ApproverPolicyManager) { now := metav1.Now(); o.DeletionTimestamp = &now }, true},
-		{"wrong name", func(o *v1alpha1.ApproverPolicyManager) { o.Name = "other"; o.Generation++ }, false},
-		{"namespace", func(o *v1alpha1.ApproverPolicyManager) { o.Namespace = "other"; o.Generation++ }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			old := testInstance()
@@ -273,18 +271,16 @@ func TestSingletonPredicate(t *testing.T) {
 			assert.Equal(t, tc.want, p.Update(event.UpdateEvent{ObjectOld: old, ObjectNew: updated}))
 		})
 	}
-	for _, obj := range []client.Object{testInstance(), &v1alpha1.ApproverPolicyManager{ObjectMeta: metav1.ObjectMeta{Name: "other"}}, nil} {
-		want := obj != nil && obj.GetName() == "cluster"
-		assert.Equal(t, want, p.Create(event.CreateEvent{Object: obj}))
-		assert.Equal(t, want, p.Delete(event.DeleteEvent{Object: obj}))
-		assert.Equal(t, want, p.Generic(event.GenericEvent{Object: obj}))
-	}
+	assert.True(t, p.Create(event.CreateEvent{Object: testInstance()}))
+	assert.True(t, p.Delete(event.DeleteEvent{Object: testInstance()}))
+	assert.True(t, p.Generic(event.GenericEvent{Object: testInstance()}))
 	assert.False(t, p.Update(event.UpdateEvent{ObjectNew: testInstance()}))
 	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: testInstance()}))
 }
 
 func TestManagedResourcePredicate(t *testing.T) {
-	p := managedResourcePredicate()
+	r := &Reconciler{log: logr.Discard()}
+	p := r.managedResourcePredicate()
 	managed := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}}}
 	unmanaged := &appsv1.Deployment{}
 	foreign := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{common.ManagedResourceLabelKey: "cert-manager-trust-manager"}}}
@@ -297,11 +293,50 @@ func TestManagedResourcePredicate(t *testing.T) {
 	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: unmanaged}), "label removal")
 	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "label addition")
 	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: foreign}))
-	updated := managed.DeepCopy()
-	updated.Status.ReadyReplicas = 1
-	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: updated}), "Deployment readiness is observable")
 	secret := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Labels: managed.Labels}}
 	assert.True(t, p.Create(event.CreateEvent{Object: secret}), "metadata-only Secret events")
+}
+
+func TestDeploymentPredicate(t *testing.T) {
+	r := &Reconciler{log: logr.Discard()}
+	p := r.deploymentPredicate()
+	managed := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name: "approver-policy", Namespace: "cert-manager", Generation: 1,
+		Labels: map[string]string{common.ManagedResourceLabelKey: RequestEnqueueLabelValue},
+	}}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*appsv1.Deployment)
+		want   bool
+	}{
+		{"unchanged", func(*appsv1.Deployment) {}, false},
+		{"status only", func(o *appsv1.Deployment) { o.Status.ReadyReplicas = 1; o.Status.AvailableReplicas = 1 }, false},
+		{"resourceVersion only", func(o *appsv1.Deployment) { o.ResourceVersion = "2" }, false},
+		{"spec generation", func(o *appsv1.Deployment) { o.Generation++ }, true},
+		{"labels", func(o *appsv1.Deployment) { o.Labels["x"] = "y" }, true},
+		{"annotations", func(o *appsv1.Deployment) { o.Annotations = map[string]string{"x": "y"} }, true},
+		{"managed label removed", func(o *appsv1.Deployment) { o.Labels = nil }, true},
+		{"managed label replaced", func(o *appsv1.Deployment) { o.Labels[common.ManagedResourceLabelKey] = "cert-manager-trust-manager" }, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			updated := managed.DeepCopy()
+			tc.mutate(updated)
+			assert.Equal(t, tc.want, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: updated}))
+		})
+	}
+	unmanaged := managed.DeepCopy()
+	unmanaged.Labels = nil
+	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "managed label added")
+	updated := unmanaged.DeepCopy()
+	updated.Generation++
+	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: updated}), "unrelated spec update")
+	assert.False(t, p.Update(event.UpdateEvent{ObjectNew: managed}))
+	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: managed}))
+	for _, obj := range []client.Object{managed, unmanaged} {
+		assert.Equal(t, obj == managed, p.Create(event.CreateEvent{Object: obj}))
+		assert.Equal(t, obj == managed, p.Delete(event.DeleteEvent{Object: obj}))
+		assert.Equal(t, obj == managed, p.Generic(event.GenericEvent{Object: obj}))
+	}
 }
 
 // registrationManager captures registration without starting informers or a

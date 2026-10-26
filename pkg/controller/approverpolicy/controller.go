@@ -54,14 +54,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if !features.IsApproverPolicyManagerFeatureGateEnabled() {
 		return nil
 	}
-	enqueue := handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
+	enqueue := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
+		r.log.V(4).Info("received reconcile event", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: approverPolicyManagerObjectName}}}
 	})
-	managed := builder.WithPredicates(managedResourcePredicate())
+	managed := builder.WithPredicates(r.managedResourcePredicate())
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(ControllerName).
-		For(&v1alpha1.ApproverPolicyManager{}, builder.WithPredicates(singletonPredicate())).
-		Watches(&appsv1.Deployment{}, enqueue, managed).
+		For(&v1alpha1.ApproverPolicyManager{}, builder.WithPredicates(primaryResourcePredicate())).
+		Watches(&appsv1.Deployment{}, enqueue, builder.WithPredicates(r.deploymentPredicate())).
 		Watches(&corev1.ServiceAccount{}, enqueue, managed).
 		Watches(&corev1.Service{}, enqueue, managed).
 		Watches(&rbacv1.ClusterRole{}, enqueue, managed).
@@ -75,16 +76,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func singletonPredicate() predicate.Predicate {
-	isSingleton := func(obj client.Object) bool {
-		return obj != nil && obj.GetName() == approverPolicyManagerObjectName && obj.GetNamespace() == ""
-	}
+// primaryResourcePredicate ignores status-only updates while admitting lifecycle
+// changes. The CRD enforces the singleton name and cluster scope; Reconcile also
+// rejects invalid requests before client I/O.
+func primaryResourcePredicate() predicate.Predicate {
 	return predicate.Funcs{
-		CreateFunc:  func(e event.CreateEvent) bool { return isSingleton(e.Object) },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return isSingleton(e.Object) },
-		GenericFunc: func(e event.GenericEvent) bool { return isSingleton(e.Object) },
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			if e.ObjectOld == nil || !isSingleton(e.ObjectNew) {
+			if e.ObjectOld == nil || e.ObjectNew == nil {
 				return false
 			}
 			return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() ||
@@ -96,20 +94,38 @@ func singletonPredicate() predicate.Predicate {
 	}
 }
 
-func managedResourcePredicate() predicate.Predicate {
+func (r *Reconciler) managedResourcePredicate() predicate.Predicate {
 	isManaged := func(obj client.Object) bool {
-		return obj != nil && obj.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		if obj == nil {
+			return false
+		}
+		matches := obj.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		r.log.V(4).Info("predicate evaluation", "object", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace(), "labels", obj.GetLabels(), "matches", matches)
+		return matches
 	}
 	return predicate.Funcs{
 		CreateFunc:  func(e event.CreateEvent) bool { return isManaged(e.Object) },
 		DeleteFunc:  func(e event.DeleteEvent) bool { return isManaged(e.Object) },
 		GenericFunc: func(e event.GenericEvent) bool { return isManaged(e.Object) },
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			// Admit label removal and Deployment status changes as well as spec
-			// changes, so later operand readiness checks can observe rollout.
+			// Check both versions so removing the managed label still reconciles.
 			return isManaged(e.ObjectOld) || isManaged(e.ObjectNew)
 		},
 	}
+}
+
+// deploymentPredicate follows TrustManager's filter: observe spec and metadata
+// drift, but ignore rollout status churn. Readiness checks must explicitly
+// requeue while a rollout is pending.
+func (r *Reconciler) deploymentPredicate() predicate.Predicate {
+	return predicate.And(
+		predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{},
+			predicate.AnnotationChangedPredicate{},
+		),
+		r.managedResourcePredicate(),
+	)
 }
 
 // Reconcile bootstraps the singleton lifecycle. Operand installation is added
@@ -119,30 +135,36 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		req.Name != approverPolicyManagerObjectName || req.Namespace != "" {
 		return ctrl.Result{}, nil
 	}
+	r.log.V(1).Info("reconciling", "request", req)
 
 	instance := &v1alpha1.ApproverPolicyManager{}
 	if err := r.Get(ctx, req.NamespacedName, instance); err != nil {
 		if apierrors.IsNotFound(err) {
+			r.log.V(1).Info("ApproverPolicyManager object not found, skipping reconciliation", "request", req)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to fetch ApproverPolicyManager %q: %w", req.Name, err)
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		r.log.V(1).Info("ApproverPolicyManager is marked for deletion", "name", instance.Name)
 		// This scaffold creates no operand resources. Before introducing resource
 		// installation, add cleanup here and wait for completion before releasing
 		// the finalizer: CR disappearance will allow the built-in approver to resume.
 		if err := r.updateFinalizer(ctx, instance, false); err != nil {
+			r.log.Error(err, "failed to remove finalizer", "name", instance.Name)
 			return r.handleReconcileResult(ctx, instance, common.FromClientError(err, "failed to remove finalizer"))
 		}
 		return ctrl.Result{}, nil
 	}
 
 	if err := r.updateFinalizer(ctx, instance, true); err != nil {
+		r.log.Error(err, "failed to add finalizer", "name", instance.Name)
 		return r.handleReconcileResult(ctx, instance, common.FromClientError(err, "failed to add finalizer"))
 	}
 	// The fresh read used for the finalizer may have observed deletion beginning.
 	if !instance.DeletionTimestamp.IsZero() {
+		r.log.V(1).Info("ApproverPolicyManager deletion started during finalizer initialization, retrying", "name", instance.Name)
 		return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 	}
 	return r.processReconcileRequest(ctx, instance)
@@ -161,7 +183,9 @@ func (r *Reconciler) handleReconcileResult(ctx context.Context, instance *v1alph
 	// writer compares against the latest object, including message and generation
 	// changes, and preserves conditions owned by other writers.
 	desired := v1alpha1.ConditionalStatus{}
-	return common.HandleReconcileResult(&desired, reconcileErr, r.log.WithValues("name", instance.Name),
+	// The helper computes conditions from an empty status on each pass. Log in
+	// updateStatus only after a persisted change, avoiding repeated update logs.
+	return common.HandleReconcileResult(&desired, reconcileErr, logr.Discard(),
 		func(prependErr error) error {
 			if err := r.updateStatus(ctx, instance, desired); err != nil {
 				return errors.Join(prependErr, err)
