@@ -190,7 +190,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 	validateEnv := func(argMap map[string]corev1.EnvVar, supportedEnv []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedEnv, k) {
-				return fmt.Errorf("validation failed due to unsupported env var %q=%q; supported env vars are: %s", k, v, strings.Join(supportedEnv, ", "))
+				return fmt.Errorf("validation failed due to unsupported env var %q=%q; supported env vars are: %s", k, v.Value, strings.Join(supportedEnv, ", "))
 			}
 		}
 		return nil

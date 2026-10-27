@@ -72,7 +72,7 @@ func TestWithContainerEnvValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerControllerDeployment,
-			wantErrMsg:     "unsupported env var",
+			wantErrMsg:     `validation failed due to unsupported env var "UNKNOWN_VAR"="foo"; supported env vars are: HTTP_PROXY, HTTPS_PROXY, NO_PROXY`,
 		},
 		{
 			name: "webhook rejects any env var (empty supported list)",
@@ -87,7 +87,7 @@ func TestWithContainerEnvValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerWebhookDeployment,
-			wantErrMsg:     "unsupported env var",
+			wantErrMsg:     `validation failed due to unsupported env var "HTTP_PROXY"="http://proxy:8080"; supported env vars are: `,
 		},
 		{
 			name: "cainjector rejects any env var (empty supported list)",
@@ -102,7 +102,7 @@ func TestWithContainerEnvValidateHook(t *testing.T) {
 				},
 			},
 			deploymentName: certmanagerCAinjectorDeployment,
-			wantErrMsg:     "unsupported env var",
+			wantErrMsg:     `validation failed due to unsupported env var "HTTP_PROXY"="http://proxy:8080"; supported env vars are: `,
 		},
 		{
 			name: "nil controller config skips validation",
@@ -142,8 +142,7 @@ func TestWithContainerEnvValidateHook(t *testing.T) {
 			hookErr := hook(nil, &appsv1.Deployment{})
 
 			if tc.wantErrMsg != "" {
-				require.Error(t, hookErr)
-				assert.Contains(t, hookErr.Error(), tc.wantErrMsg)
+				assert.EqualError(t, hookErr, tc.wantErrMsg)
 			} else {
 				require.NoError(t, hookErr)
 			}
