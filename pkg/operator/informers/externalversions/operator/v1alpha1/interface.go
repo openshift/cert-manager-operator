@@ -12,6 +12,8 @@ type Interface interface {
 	ApproverPolicyManagers() ApproverPolicyManagerInformer
 	// CertManagers returns a CertManagerInformer.
 	CertManagers() CertManagerInformer
+	// HTTP01Proxies returns a HTTP01ProxyInformer.
+	HTTP01Proxies() HTTP01ProxyInformer
 	// IstioCSRs returns a IstioCSRInformer.
 	IstioCSRs() IstioCSRInformer
 	// TrustManagers returns a TrustManagerInformer.
@@ -37,6 +39,11 @@ func (v *version) ApproverPolicyManagers() ApproverPolicyManagerInformer {
 // CertManagers returns a CertManagerInformer.
 func (v *version) CertManagers() CertManagerInformer {
 	return &certManagerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// HTTP01Proxies returns a HTTP01ProxyInformer.
+func (v *version) HTTP01Proxies() HTTP01ProxyInformer {
+	return &hTTP01ProxyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // IstioCSRs returns a IstioCSRInformer.

@@ -57,6 +57,8 @@
 // bindata/console/cert-manager-certificate-sample.yaml
 // bindata/console/cert-manager-example-quickstart.yaml
 // bindata/console/cert-manager-issuer-sample.yaml
+// bindata/http01proxy/machineconfig.yaml.tmpl
+// bindata/http01proxy/nftables-rules.tmpl
 // bindata/istio-csr/cert-manager-istio-csr-clusterrole.yaml
 // bindata/istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml
 // bindata/istio-csr/cert-manager-istio-csr-deployment.yaml
@@ -3101,6 +3103,103 @@ func consoleCertManagerIssuerSampleYaml() (*asset, error) {
 	return a, nil
 }
 
+var _http01proxyMachineconfigYamlTmpl = []byte(`apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: master
+  name: {{ .Name }}
+spec:
+  config:
+    ignition:
+      version: 3.4.0
+    storage:
+      files:
+        - contents:
+            source: data:text/plain;charset=utf-8;base64,{{ .NFTRulesBase64 }}
+          mode: 384
+          overwrite: true
+          path: /etc/sysconfig/nftables-crtmgr-http01.conf
+    systemd:
+      units:
+        - contents: |
+            [Unit]
+            Description=cert-manager HTTP01 DNAT nftables rules
+            Wants=network-pre.target
+            Before=network-pre.target
+            [Service]
+            Type=oneshot
+            ProtectSystem=full
+            ProtectHome=true
+{{- range .Families }}
+            ExecStartPre=/sbin/sysctl -w {{ .ForwardSysctl }}=1
+{{- end }}
+            ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
+{{- range .Families }}
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardRequestRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardRequestRule }}'
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardReplyRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardReplyRule }}'
+{{- end }}
+            ExecReload=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
+            ExecStop=/sbin/nft 'add table inet crtmgr_http01_dnat; delete table inet crtmgr_http01_dnat'
+{{- range .Families }}
+            ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardRequestRule }} 2>/dev/null; true'
+            ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardReplyRule }} 2>/dev/null; true'
+{{- end }}
+            RemainAfterExit=yes
+            [Install]
+            WantedBy=multi-user.target
+          enabled: true
+          name: crtmgr-http01-dnat.service
+`)
+
+func http01proxyMachineconfigYamlTmplBytes() ([]byte, error) {
+	return _http01proxyMachineconfigYamlTmpl, nil
+}
+
+func http01proxyMachineconfigYamlTmpl() (*asset, error) {
+	bytes, err := http01proxyMachineconfigYamlTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01proxy/machineconfig.yaml.tmpl", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _http01proxyNftablesRulesTmpl = []byte(`table inet crtmgr_http01_dnat
+delete table inet crtmgr_http01_dnat
+table inet crtmgr_http01_dnat {
+    chain prerouting {
+        type nat hook prerouting priority 0;
+{{- range .Families }}
+        {{ .NFTFamily }} daddr {{ .APIVIP }} tcp dport 80 dnat {{ .NFTFamily }} to {{ .IngressDNATTarget }}
+{{- end }}
+    }
+    chain postrouting {
+        type nat hook postrouting priority 100;
+{{- range .Families }}
+        {{ .NFTFamily }} daddr {{ .IngressVIP }} tcp dport 80 masquerade
+{{- end }}
+    }
+}
+`)
+
+func http01proxyNftablesRulesTmplBytes() ([]byte, error) {
+	return _http01proxyNftablesRulesTmpl, nil
+}
+
+func http01proxyNftablesRulesTmpl() (*asset, error) {
+	bytes, err := http01proxyNftablesRulesTmplBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "http01proxy/nftables-rules.tmpl", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _istioCsrCertManagerIstioCsrClusterroleYaml = []byte(`kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -4628,6 +4727,8 @@ var _bindata = map[string]func() (*asset, error){
 	"console/cert-manager-certificate-sample.yaml":                                                     consoleCertManagerCertificateSampleYaml,
 	"console/cert-manager-example-quickstart.yaml":                                                     consoleCertManagerExampleQuickstartYaml,
 	"console/cert-manager-issuer-sample.yaml":                                                          consoleCertManagerIssuerSampleYaml,
+	"http01proxy/machineconfig.yaml.tmpl":                                                              http01proxyMachineconfigYamlTmpl,
+	"http01proxy/nftables-rules.tmpl":                                                                  http01proxyNftablesRulesTmpl,
 	"istio-csr/cert-manager-istio-csr-clusterrole.yaml":                                                istioCsrCertManagerIstioCsrClusterroleYaml,
 	"istio-csr/cert-manager-istio-csr-clusterrolebinding.yaml":                                         istioCsrCertManagerIstioCsrClusterrolebindingYaml,
 	"istio-csr/cert-manager-istio-csr-deployment.yaml":                                                 istioCsrCertManagerIstioCsrDeploymentYaml,
@@ -4781,6 +4882,10 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"cert-manager-certificate-sample.yaml": {consoleCertManagerCertificateSampleYaml, map[string]*bintree{}},
 		"cert-manager-example-quickstart.yaml": {consoleCertManagerExampleQuickstartYaml, map[string]*bintree{}},
 		"cert-manager-issuer-sample.yaml":      {consoleCertManagerIssuerSampleYaml, map[string]*bintree{}},
+	}},
+	"http01proxy": {nil, map[string]*bintree{
+		"machineconfig.yaml.tmpl": {http01proxyMachineconfigYamlTmpl, map[string]*bintree{}},
+		"nftables-rules.tmpl":     {http01proxyNftablesRulesTmpl, map[string]*bintree{}},
 	}},
 	"istio-csr": {nil, map[string]*bintree{
 		"cert-manager-istio-csr-clusterrole.yaml":        {istioCsrCertManagerIstioCsrClusterroleYaml, map[string]*bintree{}},
