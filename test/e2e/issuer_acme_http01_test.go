@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +30,19 @@ import (
 
 // acmeHTTP01OpenShiftIngressClass is required on OpenShift so HTTP-01 challenge Ingresses get Routes.
 const acmeHTTP01OpenShiftIngressClass = "openshift-default"
+
+func deploymentArgsContain(deployment *appsv1.Deployment, args []string) bool {
+	if deployment == nil || len(deployment.Spec.Template.Spec.Containers) == 0 {
+		return false
+	}
+	have := deployment.Spec.Template.Spec.Containers[0].Args
+	for _, arg := range args {
+		if !slices.Contains(have, arg) {
+			return false
+		}
+	}
+	return true
+}
 
 func acmeHTTP01OpenShiftIngress() *acmev1.ACMEChallengeSolverHTTP01Ingress {
 	ingressClass := acmeHTTP01OpenShiftIngressClass
@@ -54,14 +68,21 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 		appsDomain = "apps." + baseDomain
 
 		By("adding required args to cert-manager controller")
-		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
+		solverResourceArgs := []string{
 			// for http-01 solver ingress
 			"--acme-http01-solver-resource-limits-cpu=150m",
 			"--acme-http01-solver-resource-limits-memory=200Mi",
 			"--acme-http01-solver-resource-request-cpu=100m",
 			"--acme-http01-solver-resource-request-memory=100Mi",
-		})
+		}
+		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, solverResourceArgs)
 		Expect(err).NotTo(HaveOccurred())
+
+		By("waiting for the cert-manager controller to roll out with solver resource args")
+		err = waitForDeploymentConditionAndRollout(ctx, operandNamespace, certmanagerControllerDeployment, func(deployment *appsv1.Deployment) bool {
+			return deploymentArgsContain(deployment, solverResourceArgs)
+		}, highTimeout)
+		Expect(err).NotTo(HaveOccurred(), "timed out waiting for cert-manager controller to serve HTTP-01 solver resource overrides")
 
 		proxy, err := configClient.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
@@ -284,14 +305,17 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 					return false, nil // Keep waiting for pods to appear
 				}
 
-				// Check if any pod matches the expected resource configuration
+				// The solver pod is deleted once the challenge completes, so a
+				// resource mismatch must fail now rather than wait for a later pod.
+				var mismatch error
 				for _, pod := range pods.Items {
 					if err := VerifyContainerResources(pod, acmeSolverContainerName, expectedResources); err == nil {
 						return true, nil
+					} else if mismatch == nil {
+						mismatch = err
 					}
 				}
-
-				return false, nil // No matching pods yet, keep waiting
+				return false, mismatch
 			})
 			Expect(err).NotTo(HaveOccurred(), "should find ACME HTTP01 solver pods with expected resource configuration")
 		})
