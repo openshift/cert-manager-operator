@@ -23,13 +23,11 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
-	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
 var (
-	scheme                 = runtime.NewScheme()
-	codecs                 = serializer.NewCodecFactory(scheme)
-	cachedServiceAccountName string
+	scheme = runtime.NewScheme()
+	codecs = serializer.NewCodecFactory(scheme)
 )
 
 func init() {
@@ -48,8 +46,6 @@ func init() {
 	if err := certmanagerv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
-
-	cachedServiceAccountName = common.DecodeObjBytes[*corev1.ServiceAccount](codecs, corev1.SchemeGroupVersion, assets.MustAsset(serviceAccountAssetName)).GetName()
 }
 
 // updateStatus is for updating the status subresource of istiocsr.openshift.operator.io.
