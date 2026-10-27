@@ -1342,9 +1342,10 @@ func TestGetIssuerValidKinds(t *testing.T) {
 	tests := []struct {
 		name string
 		kind string
+		want client.Object
 	}{
-		{name: "issuer kind", kind: certmanagerv1.IssuerKind},
-		{name: "cluster issuer kind", kind: certmanagerv1.ClusterIssuerKind},
+		{name: "issuer kind", kind: certmanagerv1.IssuerKind, want: &certmanagerv1.Issuer{}},
+		{name: "cluster issuer kind", kind: certmanagerv1.ClusterIssuerKind, want: &certmanagerv1.ClusterIssuer{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1363,6 +1364,9 @@ func TestGetIssuerValidKinds(t *testing.T) {
 			}
 			if obj == nil {
 				t.Fatalf("expected non-nil object for kind %q", tt.kind)
+			}
+			if reflect.TypeOf(obj) != reflect.TypeOf(tt.want) {
+				t.Errorf("getIssuer() for kind %q returned %T, want %T", tt.kind, obj, tt.want)
 			}
 		})
 	}
