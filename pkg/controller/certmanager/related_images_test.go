@@ -68,6 +68,13 @@ func Test_certManagerImage(t *testing.T) {
 			envVarValue:  "registry.redhat.io/cert-manager/cert-manager-acmesolver-rhel-8:latest",
 			want:         "registry.redhat.io/cert-manager/cert-manager-acmesolver-rhel-8:latest",
 		},
+		{
+			name:         "unknown default image ignores override",
+			envVar:       "RELATED_IMAGE_CERT_MANAGER_CONTROLLER",
+			defaultImage: "quay.io/some-other/image:v1.0",
+			envVarValue:  "override:latest",
+			want:         "quay.io/some-other/image:v1.0",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,15 +83,5 @@ func Test_certManagerImage(t *testing.T) {
 				t.Errorf("certManagerImage() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func Test_certManagerImageUnknownImage(t *testing.T) {
-	t.Setenv("RELATED_IMAGE_CERT_MANAGER_CONTROLLER", "override:latest")
-
-	defaultImage := "quay.io/some-other/image:v1.0"
-	got := certManagerImage(defaultImage)
-	if got != defaultImage {
-		t.Errorf("certManagerImage() = %v, want %v", got, defaultImage)
 	}
 }

@@ -15,12 +15,32 @@ import (
 )
 
 func TestUpdateName(t *testing.T) {
-	cm := &corev1.ConfigMap{}
-	UpdateName(cm, "test-name")
-	assert.Equal(t, "test-name", cm.Name)
+	tests := []struct {
+		name    string
+		obj     client.Object
+		newName string
+	}{
+		{
+			name:    "sets name on empty object",
+			obj:     &corev1.ConfigMap{},
+			newName: "test-name",
+		},
+		{
+			name: "overwrites existing name",
+			obj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "old-name"},
+			},
+			newName: "test-name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			UpdateName(tt.obj, tt.newName)
+			assert.Equal(t, tt.newName, tt.obj.GetName())
+		})
+	}
 }
 
-// TestUpdateNamespace provides table-driven tests for UpdateNamespace(obj, newNamespace).
 func TestUpdateNamespace(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -302,35 +322,53 @@ func TestAddAnnotation(t *testing.T) {
 	}
 }
 
-func TestDecodeObjBytes_ValidConfigMap(t *testing.T) {
+func TestDecodeObjBytes(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 	codecs := serializer.NewCodecFactory(scheme)
 	gv := schema.GroupVersion{Group: "", Version: "v1"}
 
-	yamlBytes := []byte(`apiVersion: v1
+	tests := []struct {
+		name      string
+		objBytes  []byte
+		wantPanic bool
+		wantName  string
+		wantNs    string
+		wantData  map[string]string
+	}{
+		{
+			name: "valid ConfigMap is decoded",
+			objBytes: []byte(`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: decoded-cm
   namespace: test-ns
 data:
   key: value
-`)
-
-	cm := DecodeObjBytes[*corev1.ConfigMap](codecs, gv, yamlBytes)
-	require.NotNil(t, cm)
-	assert.Equal(t, "decoded-cm", cm.Name)
-	assert.Equal(t, "test-ns", cm.Namespace)
-	assert.Equal(t, "value", cm.Data["key"])
-}
-
-func TestDecodeObjBytes_InvalidBytes(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = corev1.AddToScheme(scheme)
-	codecs := serializer.NewCodecFactory(scheme)
-	gv := schema.GroupVersion{Group: "", Version: "v1"}
-
-	require.Panics(t, func() {
-		DecodeObjBytes[*corev1.ConfigMap](codecs, gv, []byte("not valid yaml or json {{{"))
-	})
+`),
+			wantName: "decoded-cm",
+			wantNs:   "test-ns",
+			wantData: map[string]string{"key": "value"},
+		},
+		{
+			name:      "invalid bytes panic",
+			objBytes:  []byte("not valid yaml or json {{{"),
+			wantPanic: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantPanic {
+				require.Panics(t, func() {
+					DecodeObjBytes[*corev1.ConfigMap](codecs, gv, tt.objBytes)
+				})
+				return
+			}
+			cm := DecodeObjBytes[*corev1.ConfigMap](codecs, gv, tt.objBytes)
+			require.NotNil(t, cm)
+			assert.Equal(t, tt.wantName, cm.Name)
+			assert.Equal(t, tt.wantNs, cm.Namespace)
+			assert.Equal(t, tt.wantData, cm.Data)
+		})
+	}
 }

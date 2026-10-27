@@ -243,10 +243,10 @@ func TestValidateNetworkPolicyConfig(t *testing.T) {
 
 func TestCreateUserNetworkPolicy(t *testing.T) {
 	tests := []struct {
-		name            string
-		userPolicy      v1alpha1.NetworkPolicy
-		expectedName    string
-		expectedLabels  map[string]string
+		name              string
+		userPolicy        v1alpha1.NetworkPolicy
+		expectedName      string
+		expectedLabels    map[string]string
 		expectedPodLabels map[string]string
 	}{
 		{

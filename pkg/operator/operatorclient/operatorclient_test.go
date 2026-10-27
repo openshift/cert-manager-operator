@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -127,243 +128,231 @@ func TestGetUnsupportedConfigOverrides(t *testing.T) {
 }
 
 func TestGetOperatorState(t *testing.T) {
-	t.Run("success returns spec, status, and resource version", func(t *testing.T) {
-		cm := newCertManager(func(cm *v1alpha1.CertManager) {
-			cm.ResourceVersion = "42"
-			cm.Spec.ManagementState = operatorv1.Unmanaged
+	tests := []struct {
+		name      string
+		objects   []runtime.Object
+		wantErr   bool
+		wantRV    string
+		wantState operatorv1.ManagementState
+	}{
+		{
+			name: "success returns spec, status, and resource version",
+			objects: []runtime.Object{newCertManager(func(cm *v1alpha1.CertManager) {
+				cm.ResourceVersion = "42"
+				cm.Spec.ManagementState = operatorv1.Unmanaged
+			})},
+			wantRV:    "42",
+			wantState: operatorv1.Unmanaged,
+		},
+		{
+			name:    "get error propagates when resource not in lister",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oc, _ := newTestOperatorClient(t, tt.objects...)
+
+			spec, status, rv, err := oc.GetOperatorState()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if rv != tt.wantRV {
+				t.Errorf("expected resource version %s, got %s", tt.wantRV, rv)
+			}
+			if spec.ManagementState != tt.wantState {
+				t.Errorf("expected ManagementState %v, got %v", tt.wantState, spec.ManagementState)
+			}
+			if status == nil {
+				t.Fatal("expected non-nil status")
+			}
 		})
-		oc, _ := newTestOperatorClient(t, cm)
+	}
+}
 
-		spec, status, rv, err := oc.GetOperatorState()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if rv != "42" {
-			t.Errorf("expected resource version 42, got %s", rv)
-		}
-		if spec.ManagementState != operatorv1.Unmanaged {
-			t.Errorf("expected ManagementState Unmanaged, got %v", spec.ManagementState)
-		}
-		if status == nil {
-			t.Fatal("expected non-nil status")
-		}
-	})
+// finalizerTestCase describes a single EnsureFinalizer or RemoveFinalizer case.
+type finalizerTestCase struct {
+	name              string
+	initialFinalizers []string
+	finalizer         string
+	updateErr         error
+	wantErr           string
+	wantFinalizers    []string
+	wantNoUpdate      bool
+}
 
-	t.Run("get error propagates when resource not in lister", func(t *testing.T) {
-		oc, _ := newTestOperatorClient(t)
+func runFinalizerTests(t *testing.T, tests []finalizerTestCase, op func(OperatorClient, context.Context, string) error) {
+	t.Helper()
+	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cm := newCertManager(func(cm *v1alpha1.CertManager) {
+				cm.SetFinalizers(tt.initialFinalizers)
+			})
+			oc, fakeClient := newTestOperatorClient(t, cm)
+			if tt.updateErr != nil {
+				fakeClient.PrependReactor("update", "certmanagers",
+					func(action ktesting.Action) (bool, runtime.Object, error) {
+						return true, nil, tt.updateErr
+					})
+			}
 
-		_, _, _, err := oc.GetOperatorState()
-		if err == nil {
-			t.Fatal("expected error when no resource exists, got nil")
-		}
-	})
+			err := op(oc, ctx, tt.finalizer)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatal("expected error from save, got nil")
+				}
+				if err.Error() != tt.wantErr {
+					t.Errorf("unexpected error message: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			updated, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("failed to get resource: %v", err)
+			}
+			if tt.wantNoUpdate && updated.ResourceVersion != "1" {
+				t.Errorf("expected no update (resource version 1), got %s", updated.ResourceVersion)
+			}
+			if !slices.Equal(updated.GetFinalizers(), tt.wantFinalizers) {
+				t.Errorf("expected finalizers %v, got %v", tt.wantFinalizers, updated.GetFinalizers())
+			}
+		})
+	}
 }
 
 func TestEnsureFinalizer(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("adds finalizer when not present", func(t *testing.T) {
-		cm := newCertManager()
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		if err := oc.EnsureFinalizer(ctx, "test-finalizer"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		updated, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-		if err != nil {
-			t.Fatalf("failed to get updated resource: %v", err)
-		}
-		found := false
-		for _, f := range updated.GetFinalizers() {
-			if f == "test-finalizer" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("expected finalizer 'test-finalizer' to be present on updated resource")
-		}
-	})
-
-	t.Run("no-op when finalizer already present", func(t *testing.T) {
-		cm := newCertManager(func(cm *v1alpha1.CertManager) {
-			cm.SetFinalizers([]string{"test-finalizer"})
-		})
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		if err := oc.EnsureFinalizer(ctx, "test-finalizer"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		updated, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-		if err != nil {
-			t.Fatalf("failed to get resource: %v", err)
-		}
-		if updated.ResourceVersion != "1" {
-			t.Errorf("expected no update (resource version 1), got %s", updated.ResourceVersion)
-		}
-	})
-
-	t.Run("save error propagates", func(t *testing.T) {
-		cm := newCertManager()
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		fakeClient.PrependReactor("update", "certmanagers",
-			func(action ktesting.Action) (bool, runtime.Object, error) {
-				return true, nil, fmt.Errorf("simulated update error")
-			})
-
-		err := oc.EnsureFinalizer(ctx, "new-finalizer")
-		if err == nil {
-			t.Fatal("expected error from save, got nil")
-		}
-		if err.Error() != "simulated update error" {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
+	runFinalizerTests(t, []finalizerTestCase{
+		{
+			name:           "adds finalizer when not present",
+			finalizer:      "test-finalizer",
+			wantFinalizers: []string{"test-finalizer"},
+		},
+		{
+			name:              "no-op when finalizer already present",
+			initialFinalizers: []string{"test-finalizer"},
+			finalizer:         "test-finalizer",
+			wantFinalizers:    []string{"test-finalizer"},
+			wantNoUpdate:      true,
+		},
+		{
+			name:      "save error propagates",
+			finalizer: "new-finalizer",
+			updateErr: fmt.Errorf("simulated update error"),
+			wantErr:   "simulated update error",
+		},
+	}, OperatorClient.EnsureFinalizer)
 }
 
 func TestRemoveFinalizer(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("removes finalizer when present", func(t *testing.T) {
-		cm := newCertManager(func(cm *v1alpha1.CertManager) {
-			cm.SetFinalizers([]string{"keep-me", "remove-me", "also-keep"})
-		})
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		if err := oc.RemoveFinalizer(ctx, "remove-me"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		updated, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-		if err != nil {
-			t.Fatalf("failed to get updated resource: %v", err)
-		}
-		for _, f := range updated.GetFinalizers() {
-			if f == "remove-me" {
-				t.Error("finalizer 'remove-me' should have been removed")
-			}
-		}
-		if len(updated.GetFinalizers()) != 2 {
-			t.Errorf("expected 2 remaining finalizers, got %d", len(updated.GetFinalizers()))
-		}
-	})
-
-	t.Run("no-op when finalizer not present", func(t *testing.T) {
-		cm := newCertManager(func(cm *v1alpha1.CertManager) {
-			cm.SetFinalizers([]string{"other-finalizer"})
-		})
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		if err := oc.RemoveFinalizer(ctx, "not-present"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		updated, err := fakeClient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
-		if err != nil {
-			t.Fatalf("failed to get resource: %v", err)
-		}
-		if updated.ResourceVersion != "1" {
-			t.Errorf("expected no update (resource version 1), got %s", updated.ResourceVersion)
-		}
-	})
-
-	t.Run("save error propagates", func(t *testing.T) {
-		cm := newCertManager(func(cm *v1alpha1.CertManager) {
-			cm.SetFinalizers([]string{"test-finalizer"})
-		})
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		fakeClient.PrependReactor("update", "certmanagers",
-			func(action ktesting.Action) (bool, runtime.Object, error) {
-				return true, nil, fmt.Errorf("simulated update error")
-			})
-
-		err := oc.RemoveFinalizer(ctx, "test-finalizer")
-		if err == nil {
-			t.Fatal("expected error from save, got nil")
-		}
-		if err.Error() != "simulated update error" {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
+	runFinalizerTests(t, []finalizerTestCase{
+		{
+			name:              "removes finalizer when present",
+			initialFinalizers: []string{"keep-me", "remove-me", "also-keep"},
+			finalizer:         "remove-me",
+			wantFinalizers:    []string{"keep-me", "also-keep"},
+		},
+		{
+			name:              "no-op when finalizer not present",
+			initialFinalizers: []string{"other-finalizer"},
+			finalizer:         "not-present",
+			wantFinalizers:    []string{"other-finalizer"},
+			wantNoUpdate:      true,
+		},
+		{
+			name:              "save error propagates",
+			initialFinalizers: []string{"test-finalizer"},
+			finalizer:         "test-finalizer",
+			updateErr:         fmt.Errorf("simulated update error"),
+			wantErr:           "simulated update error",
+		},
+	}, OperatorClient.RemoveFinalizer)
 }
 
 func TestApplyOperatorStatus(t *testing.T) {
-	ctx := context.Background()
+	tests := []struct {
+		name    string
+		objects []runtime.Object
+		desired *applyoperatorv1.OperatorStatusApplyConfiguration
+		getErr  error
+		// applyTwice applies desired once as a baseline, then asserts that
+		// applying it again does not patch the resource.
+		applyTwice bool
+		wantErr    string
+	}{
+		{
+			name:    "nil desiredConfiguration returns error",
+			objects: []runtime.Object{newCertManager()},
+			wantErr: "applyConfiguration must have a value",
+		},
+		{
+			name:    "not-found error creates new status",
+			desired: applyoperatorv1.OperatorStatus(),
+		},
+		{
+			name:    "get error (non-NotFound) propagates",
+			objects: []runtime.Object{newCertManager()},
+			desired: applyoperatorv1.OperatorStatus(),
+			getErr:  fmt.Errorf("simulated server error"),
+			wantErr: "unable to get operator configuration: simulated server error",
+		},
+		{
+			name:       "deep-equal status skips update",
+			objects:    []runtime.Object{newCertManager()},
+			desired:    applyoperatorv1.OperatorStatus(),
+			applyTwice: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			oc, fakeClient := newTestOperatorClient(t, tt.objects...)
+			if tt.getErr != nil {
+				fakeClient.PrependReactor("get", "certmanagers",
+					func(action ktesting.Action) (bool, runtime.Object, error) {
+						return true, nil, tt.getErr
+					})
+			}
 
-	t.Run("nil desiredConfiguration returns error", func(t *testing.T) {
-		cm := newCertManager()
-		oc, _ := newTestOperatorClient(t, cm)
+			err := oc.ApplyOperatorStatus(ctx, "test-manager", tt.desired)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if err.Error() != tt.wantErr {
+					t.Errorf("expected error %q, got %q", tt.wantErr, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !tt.applyTwice {
+				return
+			}
 
-		err := oc.ApplyOperatorStatus(ctx, "test-manager", nil)
-		if err == nil {
-			t.Fatal("expected error for nil desiredConfiguration, got nil")
-		}
-		expected := "applyConfiguration must have a value"
-		if err.Error() != expected {
-			t.Errorf("expected error %q, got %q", expected, err.Error())
-		}
-	})
-
-	t.Run("not-found error creates new status", func(t *testing.T) {
-		// No CertManager resource exists in the fake client.
-		oc, _ := newTestOperatorClient(t)
-
-		desired := applyoperatorv1.OperatorStatus()
-		err := oc.ApplyOperatorStatus(ctx, "test-manager", desired)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("get error (non-NotFound) propagates", func(t *testing.T) {
-		cm := newCertManager()
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		fakeClient.PrependReactor("get", "certmanagers",
-			func(action ktesting.Action) (bool, runtime.Object, error) {
-				return true, nil, fmt.Errorf("simulated server error")
-			})
-
-		desired := applyoperatorv1.OperatorStatus()
-		err := oc.ApplyOperatorStatus(ctx, "test-manager", desired)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if expected := "unable to get operator configuration: simulated server error"; err.Error() != expected {
-			t.Errorf("expected error %q, got %q", expected, err.Error())
-		}
-	})
-
-	t.Run("deep-equal status skips update", func(t *testing.T) {
-		cm := newCertManager()
-		oc, fakeClient := newTestOperatorClient(t, cm)
-
-		// Apply once to establish the baseline.
-		desired := applyoperatorv1.OperatorStatus()
-		if err := oc.ApplyOperatorStatus(ctx, "test-manager", desired); err != nil {
-			t.Fatalf("first apply failed: %v", err)
-		}
-
-		// Track whether a second apply-status call is made.
-		applyStatusCalled := false
-		fakeClient.PrependReactor("patch", "certmanagers",
-			func(action ktesting.Action) (bool, runtime.Object, error) {
-				applyStatusCalled = true
-				return false, nil, nil
-			})
-
-		// Apply the same status again -- should be a no-op.
-		desired2 := applyoperatorv1.OperatorStatus()
-		if err := oc.ApplyOperatorStatus(ctx, "test-manager", desired2); err != nil {
-			t.Fatalf("second apply failed: %v", err)
-		}
-
-		if applyStatusCalled {
-			t.Error("expected no apply-status call when status is unchanged")
-		}
-	})
+			applyStatusCalled := false
+			fakeClient.PrependReactor("patch", "certmanagers",
+				func(action ktesting.Action) (bool, runtime.Object, error) {
+					applyStatusCalled = true
+					return false, nil, nil
+				})
+			if err := oc.ApplyOperatorStatus(ctx, "test-manager", applyoperatorv1.OperatorStatus()); err != nil {
+				t.Fatalf("second apply failed: %v", err)
+			}
+			if applyStatusCalled {
+				t.Error("expected no apply-status call when status is unchanged")
+			}
+		})
+	}
 }

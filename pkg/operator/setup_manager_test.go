@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"reflect"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,202 +16,168 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/trustmanager"
 )
 
+// managedLabel returns the managed-resource label set for the given controller value.
+func managedLabel(value string) labels.Set {
+	return labels.Set{common.ManagedResourceLabelKey: value}
+}
+
 func TestBuildCacheObjectList(t *testing.T) {
-	t.Run("single controller enabled (IstioCSR)", func(t *testing.T) {
-		config := ControllerConfig{
-			EnableIstioCSR:     true,
-			EnableTrustManager: false,
-		}
-
-		objectList, err := buildCacheObjectList(config)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		// IstioCSR manages 9 resource types plus 1 CR type.
-		// Verify at least the Deployment entry exists with the correct label selector.
-		found := false
-		for key, byObj := range objectList {
-			if _, ok := key.(*appsv1.Deployment); ok {
-				found = true
-				sel := byObj.Label
-				if sel == nil {
-					t.Fatal("expected label selector for Deployment, got nil")
-				}
-				selectorStr := sel.String()
-				if selectorStr == "" {
-					t.Fatal("expected non-empty label selector for Deployment")
-				}
-				// Should match only the IstioCSR label value.
-				testLabels := map[string]string{common.ManagedResourceLabelKey: istiocsr.RequestEnqueueLabelValue}
-				if !sel.Matches(labels.Set(testLabels)) {
-					t.Errorf("expected selector to match IstioCSR label value %q, selector: %s",
-						istiocsr.RequestEnqueueLabelValue, selectorStr)
-				}
-				break
+	tests := []struct {
+		name   string
+		config ControllerConfig
+		// wantDeploymentMatches lists the label values the Deployment entry's
+		// selector must match. Empty means the object list must be empty.
+		wantDeploymentMatches []string
+	}{
+		{
+			name:                  "single controller enabled (IstioCSR)",
+			config:                ControllerConfig{EnableIstioCSR: true},
+			wantDeploymentMatches: []string{istiocsr.RequestEnqueueLabelValue},
+		},
+		{
+			name:                  "multiple controllers enabled (labels merge)",
+			config:                ControllerConfig{EnableIstioCSR: true, EnableTrustManager: true},
+			wantDeploymentMatches: []string{istiocsr.RequestEnqueueLabelValue, trustmanager.RequestEnqueueLabelValue},
+		},
+		{
+			name:   "no controllers enabled",
+			config: ControllerConfig{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objectList, err := buildCacheObjectList(tt.config)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
-		}
-		if !found {
-			t.Error("expected Deployment entry in cache object list")
-		}
-	})
 
-	t.Run("multiple controllers enabled (labels merge)", func(t *testing.T) {
-		config := ControllerConfig{
-			EnableIstioCSR:     true,
-			EnableTrustManager: true,
-		}
-
-		objectList, err := buildCacheObjectList(config)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		// Deployment is shared between IstioCSR and TrustManager.
-		// The label selector should match both values via the In operator.
-		for key, byObj := range objectList {
-			if _, ok := key.(*appsv1.Deployment); ok {
-				sel := byObj.Label
-				if sel == nil {
-					t.Fatal("expected label selector for Deployment, got nil")
+			if len(tt.wantDeploymentMatches) == 0 {
+				if len(objectList) != 0 {
+					t.Errorf("expected empty object list when no controllers enabled, got %d entries", len(objectList))
 				}
-
-				istioLabels := map[string]string{common.ManagedResourceLabelKey: istiocsr.RequestEnqueueLabelValue}
-				trustLabels := map[string]string{common.ManagedResourceLabelKey: trustmanager.RequestEnqueueLabelValue}
-
-				if !sel.Matches(labels.Set(istioLabels)) {
-					t.Errorf("expected merged selector to match IstioCSR label, selector: %s", sel.String())
-				}
-				if !sel.Matches(labels.Set(trustLabels)) {
-					t.Errorf("expected merged selector to match TrustManager label, selector: %s", sel.String())
-				}
-				break
+				return
 			}
-		}
-	})
 
-	t.Run("no controllers enabled", func(t *testing.T) {
-		config := ControllerConfig{
-			EnableIstioCSR:     false,
-			EnableTrustManager: false,
-		}
-
-		objectList, err := buildCacheObjectList(config)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if len(objectList) != 0 {
-			t.Errorf("expected empty object list when no controllers enabled, got %d entries", len(objectList))
-		}
-	})
+			_, byObj, found := findExistingCacheEntry(objectList, &appsv1.Deployment{})
+			if !found {
+				t.Fatal("expected Deployment entry in cache object list")
+			}
+			if byObj.Label == nil || byObj.Label.String() == "" {
+				t.Fatal("expected non-empty label selector for Deployment")
+			}
+			for _, value := range tt.wantDeploymentMatches {
+				if !byObj.Label.Matches(managedLabel(value)) {
+					t.Errorf("expected selector to match label value %q, selector: %s", value, byObj.Label.String())
+				}
+			}
+		})
+	}
 }
 
 func TestAddControllerCacheConfig(t *testing.T) {
-	t.Run("adds new resource type", func(t *testing.T) {
-		objectList := make(map[client.Object]cache.ByObject)
-		resources := []client.Object{&appsv1.Deployment{}, &corev1.Service{}}
+	type addCall struct {
+		controller string
+		resources  []client.Object
+	}
+	tests := []struct {
+		name         string
+		calls        []addCall
+		wantEntries  int
+		wantMatch    []string
+		wantNotMatch []string
+	}{
+		{
+			name: "adds new resource type",
+			calls: []addCall{
+				{controller: "test-controller", resources: []client.Object{&appsv1.Deployment{}, &corev1.Service{}}},
+			},
+			wantEntries: 2,
+			wantMatch:   []string{"test-controller"},
+		},
+		{
+			name: "merges existing resource type with In operator",
+			calls: []addCall{
+				{controller: "controller-a", resources: []client.Object{&appsv1.Deployment{}}},
+				{controller: "controller-b", resources: []client.Object{&appsv1.Deployment{}}},
+			},
+			wantEntries:  1,
+			wantMatch:    []string{"controller-a", "controller-b"},
+			wantNotMatch: []string{"controller-c"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objectList := make(map[client.Object]cache.ByObject)
+			for _, c := range tt.calls {
+				if err := addControllerCacheConfig(objectList, c.controller, c.resources); err != nil {
+					t.Fatalf("addControllerCacheConfig(%q) failed: %v", c.controller, err)
+				}
+			}
 
-		err := addControllerCacheConfig(objectList, "test-controller", resources)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+			if len(objectList) != tt.wantEntries {
+				t.Errorf("expected %d entries, got %d", tt.wantEntries, len(objectList))
+			}
 
-		if len(objectList) != 2 {
-			t.Errorf("expected 2 entries, got %d", len(objectList))
-		}
-
-		// Verify the Deployment entry has the correct label selector.
-		_, byObj, found := findExistingCacheEntry(objectList, &appsv1.Deployment{})
-		if !found {
-			t.Fatal("expected Deployment entry in object list")
-		}
-		testLabels := map[string]string{common.ManagedResourceLabelKey: "test-controller"}
-		if !byObj.Label.Matches(labels.Set(testLabels)) {
-			t.Errorf("expected selector to match label value %q, selector: %s", "test-controller", byObj.Label.String())
-		}
-	})
-
-	t.Run("merges existing resource type with In operator", func(t *testing.T) {
-		objectList := make(map[client.Object]cache.ByObject)
-		resources1 := []client.Object{&appsv1.Deployment{}}
-		resources2 := []client.Object{&appsv1.Deployment{}}
-
-		err := addControllerCacheConfig(objectList, "controller-a", resources1)
-		if err != nil {
-			t.Fatalf("first addControllerCacheConfig failed: %v", err)
-		}
-
-		err = addControllerCacheConfig(objectList, "controller-b", resources2)
-		if err != nil {
-			t.Fatalf("second addControllerCacheConfig failed: %v", err)
-		}
-
-		// Should still be 1 entry (merged), not 2.
-		if len(objectList) != 1 {
-			t.Errorf("expected 1 merged entry, got %d", len(objectList))
-		}
-
-		_, byObj, found := findExistingCacheEntry(objectList, &appsv1.Deployment{})
-		if !found {
-			t.Fatal("expected Deployment entry in object list")
-		}
-
-		// Selector should match both label values.
-		labelsA := map[string]string{common.ManagedResourceLabelKey: "controller-a"}
-		labelsB := map[string]string{common.ManagedResourceLabelKey: "controller-b"}
-		if !byObj.Label.Matches(labels.Set(labelsA)) {
-			t.Errorf("expected merged selector to match controller-a, selector: %s", byObj.Label.String())
-		}
-		if !byObj.Label.Matches(labels.Set(labelsB)) {
-			t.Errorf("expected merged selector to match controller-b, selector: %s", byObj.Label.String())
-		}
-
-		// Should NOT match a label value that was never added.
-		labelsC := map[string]string{common.ManagedResourceLabelKey: "controller-c"}
-		if byObj.Label.Matches(labels.Set(labelsC)) {
-			t.Errorf("expected merged selector NOT to match controller-c, selector: %s", byObj.Label.String())
-		}
-	})
+			_, byObj, found := findExistingCacheEntry(objectList, &appsv1.Deployment{})
+			if !found {
+				t.Fatal("expected Deployment entry in object list")
+			}
+			for _, value := range tt.wantMatch {
+				if !byObj.Label.Matches(managedLabel(value)) {
+					t.Errorf("expected selector to match %q, selector: %s", value, byObj.Label.String())
+				}
+			}
+			for _, value := range tt.wantNotMatch {
+				if byObj.Label.Matches(managedLabel(value)) {
+					t.Errorf("expected selector NOT to match %q, selector: %s", value, byObj.Label.String())
+				}
+			}
+		})
+	}
 }
 
 func TestFindExistingCacheEntry(t *testing.T) {
-	t.Run("returns entry when type found", func(t *testing.T) {
-		objectList := map[client.Object]cache.ByObject{
-			&appsv1.Deployment{}:  {},
-			&corev1.Service{}:     {},
-			&rbacv1.ClusterRole{}: {},
-		}
-
-		key, _, found := findExistingCacheEntry(objectList, &appsv1.Deployment{})
-		if !found {
-			t.Fatal("expected to find Deployment entry")
-		}
-		if _, ok := key.(*appsv1.Deployment); !ok {
-			t.Errorf("expected key to be *appsv1.Deployment, got %T", key)
-		}
-	})
-
-	t.Run("returns not-found when type absent", func(t *testing.T) {
-		objectList := map[client.Object]cache.ByObject{
-			&appsv1.Deployment{}: {},
-			&corev1.Service{}:    {},
-		}
-
-		_, _, found := findExistingCacheEntry(objectList, &rbacv1.ClusterRole{})
-		if found {
-			t.Error("expected not-found for ClusterRole, but it was found")
-		}
-	})
-
-	t.Run("distinguishes different pointer types of same kind", func(t *testing.T) {
-		objectList := map[client.Object]cache.ByObject{
-			&rbacv1.ClusterRole{}: {},
-		}
-
-		_, _, found := findExistingCacheEntry(objectList, &rbacv1.ClusterRoleBinding{})
-		if found {
-			t.Error("expected not-found for ClusterRoleBinding when only ClusterRole exists")
-		}
-	})
+	tests := []struct {
+		name       string
+		objectList map[client.Object]cache.ByObject
+		lookup     client.Object
+		wantFound  bool
+	}{
+		{
+			name: "returns entry when type found",
+			objectList: map[client.Object]cache.ByObject{
+				&appsv1.Deployment{}:  {},
+				&corev1.Service{}:     {},
+				&rbacv1.ClusterRole{}: {},
+			},
+			lookup:    &appsv1.Deployment{},
+			wantFound: true,
+		},
+		{
+			name: "returns not-found when type absent",
+			objectList: map[client.Object]cache.ByObject{
+				&appsv1.Deployment{}: {},
+				&corev1.Service{}:    {},
+			},
+			lookup: &rbacv1.ClusterRole{},
+		},
+		{
+			name: "distinguishes different pointer types of same kind",
+			objectList: map[client.Object]cache.ByObject{
+				&rbacv1.ClusterRole{}: {},
+			},
+			lookup: &rbacv1.ClusterRoleBinding{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, _, found := findExistingCacheEntry(tt.objectList, tt.lookup)
+			if found != tt.wantFound {
+				t.Fatalf("expected found=%v for %T, got %v", tt.wantFound, tt.lookup, found)
+			}
+			if found && reflect.TypeOf(key) != reflect.TypeOf(tt.lookup) {
+				t.Errorf("expected key to be %T, got %T", tt.lookup, key)
+			}
+		})
+	}
 }

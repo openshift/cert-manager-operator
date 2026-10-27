@@ -228,25 +228,41 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 	}
 }
 
-func TestWithUnsupportedArgsOverrideHookInvalidJSON(t *testing.T) {
-	deployment := newTestDeploymentWithArgs([]string{"--v=2"})
-	operatorSpec := &operatorv1.OperatorSpec{
-		UnsupportedConfigOverrides: runtime.RawExtension{
-			Raw: []byte(`{invalid-json`),
+func TestWithUnsupportedArgsOverrideHook(t *testing.T) {
+	tests := []struct {
+		name         string
+		operatorSpec *operatorv1.OperatorSpec
+		wantErr      bool
+		wantArgs     []string
+	}{
+		{
+			name: "invalid JSON in UnsupportedConfigOverrides returns error",
+			operatorSpec: &operatorv1.OperatorSpec{
+				UnsupportedConfigOverrides: runtime.RawExtension{
+					Raw: []byte(`{invalid-json`),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:         "empty UnsupportedConfigOverrides leaves args unchanged",
+			operatorSpec: &operatorv1.OperatorSpec{},
+			wantArgs:     []string{"--v=2"},
 		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := newTestDeploymentWithArgs([]string{"--v=2"})
 
-	err := withUnsupportedArgsOverrideHook(operatorSpec, deployment)
-	require.Error(t, err, "expected error for invalid JSON in UnsupportedConfigOverrides")
-}
-
-func TestWithUnsupportedArgsOverrideHookEmptyRaw(t *testing.T) {
-	deployment := newTestDeploymentWithArgs([]string{"--v=2"})
-	operatorSpec := &operatorv1.OperatorSpec{}
-
-	err := withUnsupportedArgsOverrideHook(operatorSpec, deployment)
-	require.NoError(t, err)
-	require.Equal(t, []string{"--v=2"}, deployment.Spec.Template.Spec.Containers[0].Args)
+			err := withUnsupportedArgsOverrideHook(tt.operatorSpec, deployment)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantArgs, deployment.Spec.Template.Spec.Containers[0].Args)
+		})
+	}
 }
 
 func TestParseEnvMap(t *testing.T) {

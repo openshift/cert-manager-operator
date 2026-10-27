@@ -340,7 +340,26 @@ func TestIsIstioCSRFeatureGateEnabled(t *testing.T) {
 	}
 }
 
-func TestSetupWithFlagValue_invalidFlag(t *testing.T) {
-	err := SetupWithFlagValue("InvalidFeature=true")
-	require.Error(t, err)
+func TestSetupWithFlagValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		flagValue string
+		wantErr   bool
+	}{
+		{
+			name:      "unknown feature gate is rejected",
+			flagValue: "InvalidFeature=true",
+			wantErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetupWithFlagValue(tt.flagValue)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
