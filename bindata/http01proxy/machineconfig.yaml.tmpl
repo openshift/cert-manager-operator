@@ -26,17 +26,13 @@ spec:
             Type=oneshot
             ProtectSystem=full
             ProtectHome=true
-{{- range .Families }}
-            ExecStartPre=/sbin/sysctl -w {{ .ForwardSysctl }}=1
-{{- end }}
             ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
-{{- range .Families }}
-            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardRequestRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardRequestRule }}'
-            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardReplyRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardReplyRule }}'
-{{- end }}
             ExecReload=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
             ExecStop=/sbin/nft 'add table inet crtmgr_http01_dnat; delete table inet crtmgr_http01_dnat'
 {{- range .Families }}
+            ExecStartPre=/sbin/sysctl -w {{ .ForwardSysctl }}=1
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardRequestRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardRequestRule }}'
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardReplyRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardReplyRule }}'
             ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardRequestRule }} 2>/dev/null; true'
             ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardReplyRule }} 2>/dev/null; true'
 {{- end }}

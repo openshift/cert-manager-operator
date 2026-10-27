@@ -335,7 +335,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "c5d19a4340266254b9521c0ab31a31f441de4f49f2c3de93d61042b720cd93e5"
+	const wantFingerprint = "029c90a5348d04dd0ce8d98ae2ce52d7771a002b6037890be28e0f647e49c668"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -733,7 +733,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "f760bf95e6ef9b76e1721547860a841fdd1d7920553036096903ef5819e7f145"
+	const wantFingerprint = "b3345862711a3dc6dfe0a5afa045e876c187242e83c97b41816e34a5efe46ecf"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -774,7 +774,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "c6893e93fa22b42dfbfdf782f8a82e939b1623ced1fbf50757f6458f13f6b749"
+	const wantFingerprint = "1c0c667c84b8825bf4f1de40c6e3cc57fca51a26efd8647106d15110129956cd"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -820,6 +820,34 @@ func TestRenderMachineConfigForwardRulesPairedPerFamily(t *testing.T) {
 		if strings.Contains(unitContents, wrongPrefix) {
 			t.Errorf("unit renders %q with the other family's prefix length:\n%s", wrongPrefix, unitContents)
 		}
+	}
+}
+
+// systemd runs ExecStart lines in order and stops at the first failure, and
+// ExecStop does not run after a failed start. Loading the nftables rules must
+// stay the first ExecStart so a failed load leaves no FORWARD rules behind.
+func TestRenderMachineConfigNFTLoadsBeforeForwardRules(t *testing.T) {
+	families, err := vipFamiliesFor([]string{"10.0.0.254", "fd00::254"}, []string{"10.0.0.1", "fd00::1"})
+	if err != nil {
+		t.Fatalf("vipFamiliesFor() error: %v", err)
+	}
+	mc, err := renderMachineConfig(families)
+	if err != nil {
+		t.Fatalf("renderMachineConfig() error: %v", err)
+	}
+
+	var execStarts []string
+	for _, line := range strings.Split(extractUnitContents(t, mc), "\n") {
+		if strings.HasPrefix(line, "ExecStart=") {
+			execStarts = append(execStarts, line)
+		}
+	}
+	// One nft load plus a request and a reply rule per family.
+	if want := 1 + 2*len(families); len(execStarts) != want {
+		t.Fatalf("got %d ExecStart lines, want %d:\n%s", len(execStarts), want, strings.Join(execStarts, "\n"))
+	}
+	if want := "ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf"; execStarts[0] != want {
+		t.Errorf("first ExecStart = %q, want %q", execStarts[0], want)
 	}
 }
 
