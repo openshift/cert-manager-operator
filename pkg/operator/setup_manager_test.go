@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -11,6 +10,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -191,59 +191,193 @@ func TestFindExistingCacheEntry(t *testing.T) {
 }
 
 func TestControllerConfigAndCacheCombinations(t *testing.T) {
-	for mask := 0; mask < 8; mask++ {
-		t.Run(fmt.Sprintf("controllers=%03b", mask), func(t *testing.T) {
-			config := ControllerConfig{EnableIstioCSR: mask&1 != 0, EnableTrustManager: mask&2 != 0, EnableApproverPolicyManager: mask&4 != 0}
-			assert.Equal(t, mask != 0, config.enabled(), "approver-only configuration must start the manager")
-			objects, err := buildCacheObjectList(config)
+	tests := []struct {
+		name               string
+		config             ControllerConfig
+		wantManagerEnabled bool
+	}{
+		{
+			name:               "all controllers disabled",
+			config:             ControllerConfig{},
+			wantManagerEnabled: false,
+		},
+		{
+			name:               "IstioCSR only",
+			config:             ControllerConfig{EnableIstioCSR: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name:               "TrustManager only",
+			config:             ControllerConfig{EnableTrustManager: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name:               "ApproverPolicyManager only",
+			config:             ControllerConfig{EnableApproverPolicyManager: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name:               "IstioCSR and TrustManager",
+			config:             ControllerConfig{EnableIstioCSR: true, EnableTrustManager: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name:               "IstioCSR and ApproverPolicyManager",
+			config:             ControllerConfig{EnableIstioCSR: true, EnableApproverPolicyManager: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name:               "TrustManager and ApproverPolicyManager",
+			config:             ControllerConfig{EnableTrustManager: true, EnableApproverPolicyManager: true},
+			wantManagerEnabled: true,
+		},
+		{
+			name: "all controllers enabled",
+			config: ControllerConfig{
+				EnableIstioCSR:              true,
+				EnableTrustManager:          true,
+				EnableApproverPolicyManager: true,
+			},
+			wantManagerEnabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The manager is needed whenever at least one controller is enabled.
+			assert.Equal(t, tt.wantManagerEnabled, tt.config.enabled())
+			objects, err := buildCacheObjectList(tt.config)
 			require.NoError(t, err)
+			if !tt.wantManagerEnabled {
+				assert.Empty(t, objects, "disabled controllers must not configure any cache entries")
+			}
+
+			// Controllers sharing a resource type must share its cache entry.
 			seen := map[reflect.Type]bool{}
 			for object := range objects {
-				typ := reflect.TypeOf(object)
-				assert.False(t, seen[typ], "duplicate cache entry for %s", typ)
-				seen[typ] = true
+				resourceType := reflect.TypeOf(object)
+				assert.False(t, seen[resourceType], "duplicate cache entry for %s", resourceType)
+				seen[resourceType] = true
 			}
-			for _, controller := range []struct {
-				enabled bool
-				object  client.Object
-				label   string
+
+			controllers := []struct {
+				enabled         bool
+				primaryResource client.Object
+				managedLabel    string
 			}{
-				{config.EnableIstioCSR, &v1alpha1.IstioCSR{}, istiocsr.RequestEnqueueLabelValue},
-				{config.EnableTrustManager, &v1alpha1.TrustManager{}, trustmanager.RequestEnqueueLabelValue},
-				{config.EnableApproverPolicyManager, &v1alpha1.ApproverPolicyManager{}, approverpolicy.RequestEnqueueLabelValue},
-			} {
-				_, entry, found := findExistingCacheEntry(objects, controller.object)
-				assert.Equal(t, controller.enabled, found)
-				if found {
-					assert.Nil(t, entry.Label, "primary CRs are unfiltered")
+				{
+					enabled:         tt.config.EnableIstioCSR,
+					primaryResource: &v1alpha1.IstioCSR{},
+					managedLabel:    istiocsr.RequestEnqueueLabelValue,
+				},
+				{
+					enabled:         tt.config.EnableTrustManager,
+					primaryResource: &v1alpha1.TrustManager{},
+					managedLabel:    trustmanager.RequestEnqueueLabelValue,
+				},
+				{
+					enabled:         tt.config.EnableApproverPolicyManager,
+					primaryResource: &v1alpha1.ApproverPolicyManager{},
+					managedLabel:    approverpolicy.RequestEnqueueLabelValue,
+				},
+			}
+
+			// Only enabled controllers get primary CR entries, without label filters.
+			expectedCacheEntries := 0
+			for _, controller := range controllers {
+				if controller.enabled {
+					expectedCacheEntries++
 				}
-				_, deployment, found := findExistingCacheEntry(objects, &appsv1.Deployment{})
-				if config.enabled() {
-					require.True(t, found)
-					assert.Equal(t, controller.enabled, deployment.Label.Matches(labels.Set{common.ManagedResourceLabelKey: controller.label}))
-					assert.False(t, deployment.Label.Matches(labels.Set{}))
-					assert.False(t, deployment.Label.Matches(labels.Set{common.ManagedResourceLabelKey: "unrelated"}))
-				} else {
-					assert.False(t, found)
+				_, entry, found := findExistingCacheEntry(objects, controller.primaryResource)
+				assert.Equal(t, controller.enabled, found, "cache entry for %T", controller.primaryResource)
+				if found {
+					assert.Nil(t, entry.Label, "%T must be unfiltered", controller.primaryResource)
 				}
 			}
-			for _, obj := range []client.Object{&corev1.ConfigMap{}, &certmanagerv1.Issuer{}, &certmanagerv1.ClusterIssuer{}, &corev1.Secret{}, &metav1.PartialObjectMetadata{}} {
+
+			// List the expected resources independently of the production resource lists.
+			// All three controllers share these types, so each selector must accept
+			// exactly the enabled controllers' labels.
+			sharedResources := []client.Object{
+				&appsv1.Deployment{},
+				&corev1.Service{},
+				&corev1.ServiceAccount{},
+				&rbacv1.ClusterRole{},
+				&rbacv1.ClusterRoleBinding{},
+				&rbacv1.Role{},
+				&rbacv1.RoleBinding{},
+			}
+			if tt.wantManagerEnabled {
+				expectedCacheEntries += len(sharedResources)
+			}
+			for _, obj := range sharedResources {
+				_, entry, found := findExistingCacheEntry(objects, obj)
+				assert.Equal(t, tt.wantManagerEnabled, found, "cache entry for %T", obj)
+				if found {
+					require.NotNil(t, entry.Label, "%T must have a label filter", obj)
+					for _, controller := range controllers {
+						matches := entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: controller.managedLabel})
+						assert.Equal(t, controller.enabled, matches, "%T selector for %T", obj, controller.primaryResource)
+					}
+					assert.False(t, entry.Label.Matches(labels.Set{}), "exclude unlabeled %T", obj)
+					assert.False(t, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: "unrelated"}), "exclude unrelated %T", obj)
+				}
+			}
+
+			// These resources must keep using the default, unfiltered shared informer.
+			unfilteredResources := []client.Object{
+				&corev1.ConfigMap{},
+				&certmanagerv1.Issuer{},
+				&certmanagerv1.ClusterIssuer{},
+				&corev1.Secret{},
+				&metav1.PartialObjectMetadata{},
+			}
+			for _, obj := range unfilteredResources {
 				_, _, found := findExistingCacheEntry(objects, obj)
 				assert.False(t, found, "%T must retain its unfiltered shared informer", obj)
 			}
-			if config.EnableApproverPolicyManager {
-				for _, obj := range approverPolicyManagedResources {
-					_, entry, found := findExistingCacheEntry(objects, obj)
-					require.True(t, found, "missing cache config for %T", obj)
-					assert.True(t, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: approverpolicy.RequestEnqueueLabelValue}))
+
+			// These types belong to a subset of controllers. Other controllers' labels
+			// must be rejected even when those controllers are enabled.
+			controllerSpecificResources := []struct {
+				object             client.Object
+				wantIstioCSR       bool
+				wantTrustManager   bool
+				wantApproverPolicy bool
+			}{
+				{
+					object:           &certmanagerv1.Certificate{},
+					wantIstioCSR:     tt.config.EnableIstioCSR,
+					wantTrustManager: tt.config.EnableTrustManager,
+				},
+				{
+					object:       &networkingv1.NetworkPolicy{},
+					wantIstioCSR: tt.config.EnableIstioCSR,
+				},
+				{
+					object:             &admissionregistrationv1.ValidatingWebhookConfiguration{},
+					wantTrustManager:   tt.config.EnableTrustManager,
+					wantApproverPolicy: tt.config.EnableApproverPolicyManager,
+				},
+			}
+			for _, resource := range controllerSpecificResources {
+				wantEntry := resource.wantIstioCSR || resource.wantTrustManager || resource.wantApproverPolicy
+				if wantEntry {
+					expectedCacheEntries++
+				}
+				_, entry, found := findExistingCacheEntry(objects, resource.object)
+				assert.Equal(t, wantEntry, found, "cache entry for %T", resource.object)
+				if found {
+					require.NotNil(t, entry.Label, "%T must have a label filter", resource.object)
+					assert.Equal(t, resource.wantIstioCSR, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: istiocsr.RequestEnqueueLabelValue}), "%T IstioCSR selector", resource.object)
+					assert.Equal(t, resource.wantTrustManager, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: trustmanager.RequestEnqueueLabelValue}), "%T TrustManager selector", resource.object)
+					assert.Equal(t, resource.wantApproverPolicy, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: approverpolicy.RequestEnqueueLabelValue}), "%T ApproverPolicyManager selector", resource.object)
+					assert.False(t, entry.Label.Matches(labels.Set{}), "exclude unlabeled %T", resource.object)
+					assert.False(t, entry.Label.Matches(labels.Set{common.ManagedResourceLabelKey: "unrelated"}), "exclude unrelated %T", resource.object)
 				}
 			}
-			_, webhook, found := findExistingCacheEntry(objects, &admissionregistrationv1.ValidatingWebhookConfiguration{})
-			assert.Equal(t, config.EnableTrustManager || config.EnableApproverPolicyManager, found)
-			if found {
-				assert.Equal(t, config.EnableTrustManager, webhook.Label.Matches(labels.Set{common.ManagedResourceLabelKey: trustmanager.RequestEnqueueLabelValue}))
-				assert.Equal(t, config.EnableApproverPolicyManager, webhook.Label.Matches(labels.Set{common.ManagedResourceLabelKey: approverpolicy.RequestEnqueueLabelValue}))
-			}
+
+			assert.Len(t, objects, expectedCacheEntries, "cache must contain only the expected resource types")
 		})
 	}
 }

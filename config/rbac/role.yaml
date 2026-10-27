@@ -91,6 +91,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - cert-manager.io
   resources:
   - certificaterequests
@@ -114,6 +120,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - signers
+  verbs:
+  - approve
 - apiGroups:
   - cert-manager.io
   resourceNames:
@@ -275,6 +287,19 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - policy.cert-manager.io
+  resources:
+  - certificaterequestpolicies
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - policy.cert-manager.io
+  resources:
+  - certificaterequestpolicies/status
+  verbs:
+  - patch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:

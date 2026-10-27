@@ -98,8 +98,6 @@ var trustManagerManagedResources = []client.Object{
 	&admissionregistrationv1.ValidatingWebhookConfiguration{},
 }
 
-// Secrets are excluded: IstioCSR watches unlabeled user Secrets via metadata.
-// Approver-policy filters its Secret events with a watch predicate instead.
 var approverPolicyManagedResources = []client.Object{
 	&appsv1.Deployment{},
 	&rbacv1.ClusterRole{},

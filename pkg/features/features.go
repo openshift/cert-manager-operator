@@ -160,8 +160,7 @@ func (f *FeatureGateState) IsTrustManagerFeatureGateEnabled() bool {
 }
 
 // IsApproverPolicyManagerFeatureGateEnabled reports whether the internal operator
-// gate is enabled. Like TrustManager, this TechPreview feature does not require
-// a cluster FeatureSet.
+// gate is enabled.
 func IsApproverPolicyManagerFeatureGateEnabled() bool {
 	return DefaultFeatureGate.Enabled(v1alpha1.FeatureApproverPolicyManager)
 }

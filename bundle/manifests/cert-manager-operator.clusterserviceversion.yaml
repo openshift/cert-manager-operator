@@ -542,6 +542,12 @@ spec:
           - update
           - watch
         - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        - apiGroups:
           - cert-manager.io
           resources:
           - certificaterequests
@@ -565,6 +571,12 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - cert-manager.io
+          resources:
+          - signers
+          verbs:
+          - approve
         - apiGroups:
           - cert-manager.io
           resourceNames:
@@ -726,6 +738,19 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - policy.cert-manager.io
+          resources:
+          - certificaterequestpolicies
+          verbs:
+          - list
+          - watch
+        - apiGroups:
+          - policy.cert-manager.io
+          resources:
+          - certificaterequestpolicies/status
+          verbs:
+          - patch
         - apiGroups:
           - rbac.authorization.k8s.io
           resources:
