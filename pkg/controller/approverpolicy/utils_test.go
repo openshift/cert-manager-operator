@@ -83,7 +83,7 @@ func TestStatusConflictPreservesOtherFields(t *testing.T) {
 	_, err := r.processReconcileRequest(t.Context(), stored.DeepCopy())
 	require.NoError(t, err)
 	assert.Equal(t, 2, c.StatusUpdateCallCount())
-	assert.Equal(t, "concurrent-image", stored.Status.ApproverPolicyImage)
+	assert.Equal(t, "example.test/approver-policy:test", stored.Status.ApproverPolicyImage)
 	assert.NotNil(t, stored.Status.GetCondition("Other"))
 }
 
@@ -95,4 +95,19 @@ func TestStatusRejectsStaleGeneration(t *testing.T) {
 	_, err := r.processReconcileRequest(t.Context(), initial)
 	require.True(t, apierrors.IsConflict(err))
 	assert.Zero(t, c.StatusUpdateCallCount())
+}
+
+func TestManagedMetadataRemoval(t *testing.T) {
+	instance := testInstance()
+	desired := getSecretObject(instance)
+	existing := desired.DeepCopy()
+	existing.Labels["removed"] = "old"
+	existing.Labels["foreign"] = "keep"
+	existing.ManagedFields = []metav1.ManagedFieldsEntry{{
+		Manager:  fieldOwner,
+		FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:labels":{"f:removed":{}}}}`)},
+	}}
+	assert.True(t, managedMetadataModified(desired, existing))
+	delete(existing.Labels, "removed")
+	assert.False(t, managedMetadataModified(desired, existing), "foreign metadata is not removed")
 }

@@ -12,4 +12,11 @@ const (
 	approverPolicyManagerObjectName = "cluster"
 	finalizer                       = "approverpolicymanager.operator.openshift.io/" + ControllerName
 	defaultRequeueTime              = 30 * time.Second
+	operandNamespace                = "cert-manager"
+	operandName                     = "cert-manager-approver-policy"
+	tlsSecretName                   = operandName + "-tls"
+	fieldOwner                      = "approver-policy-controller"
+	imageEnvVar                     = "RELATED_IMAGE_APPROVER_POLICY"
+	versionEnvVar                   = "APPROVERPOLICY_OPERAND_IMAGE_VERSION"
+	serviceAccountUIDAnnotation     = "operator.openshift.io/approver-policy-service-account-uid"
 )

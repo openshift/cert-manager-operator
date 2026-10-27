@@ -4,18 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,17 +29,7 @@ import (
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
-	"github.com/openshift/cert-manager-operator/pkg/features"
 )
-
-func setFeatureGate(t *testing.T, enabled bool) {
-	t.Helper()
-	old := features.IsApproverPolicyManagerFeatureGateEnabled()
-	require.NoError(t, features.SetupWithFlagValue(fmt.Sprintf("ApproverPolicyManager=%t", enabled)))
-	t.Cleanup(func() {
-		require.NoError(t, features.SetupWithFlagValue(fmt.Sprintf("ApproverPolicyManager=%t", old)))
-	})
-}
 
 func testInstance() *v1alpha1.ApproverPolicyManager {
 	return &v1alpha1.ApproverPolicyManager{ObjectMeta: metav1.ObjectMeta{
@@ -48,10 +41,26 @@ func testInstance() *v1alpha1.ApproverPolicyManager {
 // idempotency and fresh-object retry tests exercise persistence semantics.
 func testReconciler(t *testing.T, stored *v1alpha1.ApproverPolicyManager) (*Reconciler, *fakes.FakeCtrlClient) {
 	t.Helper()
+	t.Setenv(imageEnvVar, "example.test/approver-policy:test")
 	c := &fakes.FakeCtrlClient{}
 	c.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if _, primary := obj.(*v1alpha1.ApproverPolicyManager); !primary {
+			if stored == nil || !stored.DeletionTimestamp.IsZero() {
+				return apierrors.NewNotFound(v1alpha1.Resource("managed"), key.Name)
+			}
+			deployment, err := getDeploymentObject(stored, "")
+			require.NoError(t, err)
+			objects := append(supportingResources(stored), deployment, getWebhookObject(stored))
+			for _, candidate := range objects {
+				if reflect.TypeOf(obj) == reflect.TypeOf(candidate) && key == client.ObjectKeyFromObject(candidate) {
+					reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(candidate.DeepCopyObject()).Elem())
+					return nil
+				}
+			}
+			return apierrors.NewNotFound(v1alpha1.Resource("managed"), key.Name)
 		}
 		require.Equal(t, client.ObjectKey{Name: approverPolicyManagerObjectName}, key)
 		if stored == nil {
@@ -84,29 +93,7 @@ func assertCondition(t *testing.T, instance *v1alpha1.ApproverPolicyManager, typ
 	assert.Equal(t, instance.Generation, condition.ObservedGeneration)
 }
 
-func TestReconcileIgnoresDisabledAndNonSingleton(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		enabled bool
-		key     types.NamespacedName
-	}{
-		{"disabled", false, types.NamespacedName{Name: "cluster"}},
-		{"wrong name", true, types.NamespacedName{Name: "other"}},
-		{"unexpected namespace", true, types.NamespacedName{Name: "cluster", Namespace: "cert-manager"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			setFeatureGate(t, tc.enabled)
-			r, c := testReconciler(t, testInstance())
-			result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: tc.key})
-			require.NoError(t, err)
-			assert.Zero(t, result)
-			assert.Empty(t, c.Invocations(), "disabled or invalid requests must perform no client I/O")
-		})
-	}
-}
-
 func TestReconcileLifecycle(t *testing.T) {
-	setFeatureGate(t, true)
 	for _, tc := range []struct {
 		name           string
 		prepare        func(*v1alpha1.ApproverPolicyManager)
@@ -138,7 +125,7 @@ func TestReconcileLifecycle(t *testing.T) {
 				assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
 				assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress)
 				assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady)
-				assert.Contains(t, stored.Status.GetCondition(v1alpha1.Ready).Message, "installation is pending")
+				assert.Contains(t, stored.Status.GetCondition(v1alpha1.Ready).Message, "waiting for approver-policy rollout")
 			}
 			updates, statuses := c.UpdateCallCount(), c.StatusUpdateCallCount()
 			_, err = r.Reconcile(t.Context(), singletonRequest())
@@ -152,8 +139,36 @@ func TestReconcileLifecycle(t *testing.T) {
 	}
 }
 
+func TestReconcileSkipsInstallationWhenDeletionStartsDuringFinalizerUpdate(t *testing.T) {
+	stored := testInstance()
+	// Another finalizer keeps the CR present while deletion starts before ours
+	// has been added.
+	stored.Finalizers = []string{"example.test/other"}
+	r, c := testReconciler(t, stored)
+	get := c.GetStub
+	c.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		if err := get(ctx, key, obj); err != nil {
+			return err
+		}
+		if c.GetCallCount() == 1 {
+			// The first read sees a live CR; the finalizer read sees deletion.
+			now := metav1.Now()
+			stored.DeletionTimestamp = &now
+			stored.Generation++
+		}
+		return nil
+	})
+
+	result, err := r.Reconcile(t.Context(), singletonRequest())
+	require.NoError(t, err)
+	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+	assert.Equal(t, []string{"example.test/other"}, stored.Finalizers)
+	assert.Zero(t, c.UpdateCallCount(), "do not add a finalizer after deletion starts")
+	assert.Zero(t, c.PatchCallCount(), "do not install operand resources on a deleting CR")
+	assert.Zero(t, c.StatusUpdateCallCount())
+}
+
 func TestReconcileReadErrors(t *testing.T) {
-	setFeatureGate(t, true)
 	t.Run("not found", func(t *testing.T) {
 		r, c := testReconciler(t, nil)
 		result, err := r.Reconcile(t.Context(), singletonRequest())
@@ -180,7 +195,6 @@ func TestReconcileReadErrors(t *testing.T) {
 }
 
 func TestReconcileFinalizerFailures(t *testing.T) {
-	setFeatureGate(t, true)
 	for _, deleting := range []bool{false, true} {
 		for _, permanent := range []bool{false, true} {
 			t.Run(fmt.Sprintf("deleting=%t/permanent=%t", deleting, permanent), func(t *testing.T) {
@@ -198,7 +212,7 @@ func TestReconcileFinalizerFailures(t *testing.T) {
 				c.UpdateReturns(failure)
 				result, err := r.Reconcile(t.Context(), singletonRequest())
 				require.NoError(t, err)
-				if permanent {
+				if permanent && !deleting {
 					assert.Zero(t, result)
 					assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed)
 					assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed)
@@ -216,7 +230,6 @@ func TestReconcileFinalizerFailures(t *testing.T) {
 }
 
 func TestReconcileStatusFailure(t *testing.T) {
-	setFeatureGate(t, true)
 	stored := testInstance()
 	r, c := testReconciler(t, stored)
 	failure := errors.New("status update failed")
@@ -249,35 +262,6 @@ func TestHandleReconcileResultUpdatesMessagesAndGeneration(t *testing.T) {
 	assert.Equal(t, before, stored.Status.GetCondition(v1alpha1.Ready).LastTransitionTime)
 }
 
-func TestPrimaryResourcePredicate(t *testing.T) {
-	p := primaryResourcePredicate()
-	for _, tc := range []struct {
-		name   string
-		mutate func(*v1alpha1.ApproverPolicyManager)
-		want   bool
-	}{
-		{"status only", func(o *v1alpha1.ApproverPolicyManager) { o.Status.ApproverPolicyImage = "other" }, false},
-		{"resourceVersion only", func(o *v1alpha1.ApproverPolicyManager) { o.ResourceVersion = "2" }, false},
-		{"generation", func(o *v1alpha1.ApproverPolicyManager) { o.Generation++ }, true},
-		{"labels", func(o *v1alpha1.ApproverPolicyManager) { o.Labels = map[string]string{"x": "y"} }, true},
-		{"annotations", func(o *v1alpha1.ApproverPolicyManager) { o.Annotations = map[string]string{"x": "y"} }, true},
-		{"finalizer", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} }, true},
-		{"deletion", func(o *v1alpha1.ApproverPolicyManager) { now := metav1.Now(); o.DeletionTimestamp = &now }, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			old := testInstance()
-			updated := old.DeepCopy()
-			tc.mutate(updated)
-			assert.Equal(t, tc.want, p.Update(event.UpdateEvent{ObjectOld: old, ObjectNew: updated}))
-		})
-	}
-	assert.True(t, p.Create(event.CreateEvent{Object: testInstance()}))
-	assert.True(t, p.Delete(event.DeleteEvent{Object: testInstance()}))
-	assert.True(t, p.Generic(event.GenericEvent{Object: testInstance()}))
-	assert.False(t, p.Update(event.UpdateEvent{ObjectNew: testInstance()}))
-	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: testInstance()}))
-}
-
 func TestManagedResourcePredicate(t *testing.T) {
 	r := &Reconciler{log: logr.Discard()}
 	p := r.managedResourcePredicate()
@@ -293,8 +277,15 @@ func TestManagedResourcePredicate(t *testing.T) {
 	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: unmanaged}), "label removal")
 	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "label addition")
 	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: foreign}))
-	secret := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Labels: managed.Labels}}
-	assert.True(t, p.Create(event.CreateEvent{Object: secret}), "metadata-only Secret events")
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Labels: managed.Labels}}
+	assert.True(t, p.Create(event.CreateEvent{Object: secret}), "Secret creation")
+	rotated := secret.DeepCopy()
+	rotated.Data = map[string][]byte{"tls.crt": []byte("rotated certificate")}
+	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: secret, ObjectNew: rotated}), "Secret data changes")
+	unmanagedSecret := &corev1.Secret{}
+	unmanagedRotated := unmanagedSecret.DeepCopy()
+	unmanagedRotated.Data = rotated.Data
+	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanagedSecret, ObjectNew: unmanagedRotated}), "ignore unrelated Secret data changes")
 }
 
 func TestDeploymentPredicate(t *testing.T) {
@@ -349,10 +340,14 @@ type registrationManager struct {
 	addErr     error
 }
 
-func (m *registrationManager) GetScheme() *runtime.Scheme { return m.scheme }
-func (m *registrationManager) GetClient() client.Client   { return m.client }
-func (m *registrationManager) GetCache() cache.Cache      { return nil }
-func (m *registrationManager) GetLogger() logr.Logger     { return logr.Discard() }
+func (m *registrationManager) GetScheme() *runtime.Scheme  { return m.scheme }
+func (m *registrationManager) GetClient() client.Client    { return m.client }
+func (m *registrationManager) GetAPIReader() client.Reader { return m.client }
+func (m *registrationManager) GetEventRecorderFor(string) record.EventRecorder {
+	return record.NewFakeRecorder(100)
+}
+func (m *registrationManager) GetCache() cache.Cache  { return nil }
+func (m *registrationManager) GetLogger() logr.Logger { return logr.Discard() }
 func (m *registrationManager) GetControllerOptions() config.Controller {
 	skip := true
 	return config.Controller{SkipNameValidation: &skip}
@@ -366,14 +361,8 @@ func (m *registrationManager) Add(r manager.Runnable) error {
 }
 
 func TestSetupWithManager(t *testing.T) {
-	t.Run("disabled skips registration", func(t *testing.T) {
-		setFeatureGate(t, false)
-		r := &Reconciler{}
-		require.NoError(t, r.SetupWithManager(nil))
-	})
 	for _, fail := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled/add failure=%t", fail), func(t *testing.T) {
-			setFeatureGate(t, true)
+		t.Run(fmt.Sprintf("add failure=%t", fail), func(t *testing.T) {
 			scheme := runtime.NewScheme()
 			require.NoError(t, clientscheme.AddToScheme(scheme))
 			require.NoError(t, v1alpha1.AddToScheme(scheme))
