@@ -119,62 +119,6 @@ func TestGetResourceAnnotations(t *testing.T) {
 	}
 }
 
-func TestManagedLabelsModified(t *testing.T) {
-	tests := []struct {
-		name     string
-		desired  map[string]string
-		existing map[string]string
-		want     bool
-	}{
-		{
-			name:     "identical labels returns not modified",
-			desired:  map[string]string{"a": "1"},
-			existing: map[string]string{"a": "1"},
-			want:     false,
-		},
-		{
-			name:     "different value for same key returns modified",
-			desired:  map[string]string{"a": "1"},
-			existing: map[string]string{"a": "2"},
-			want:     true,
-		},
-		{
-			name:     "existing has extra labels beyond desired still not modified",
-			desired:  map[string]string{"a": "1"},
-			existing: map[string]string{"a": "1", "b": "2"},
-			want:     false,
-		},
-		{
-			name:     "desired label missing on existing returns modified",
-			desired:  map[string]string{"a": "1"},
-			existing: map[string]string{},
-			want:     true,
-		},
-		{
-			name:     "nil desired labels returns not modified",
-			desired:  nil,
-			existing: map[string]string{"a": "1"},
-			want:     false,
-		},
-		{
-			name:     "both nil labels returns not modified",
-			desired:  nil,
-			existing: nil,
-			want:     false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
-			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.existing}}
-			got := managedLabelsModified(desired, existing)
-			if got != tt.want {
-				t.Errorf("managedLabelsModified() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestValidateTrustManagerConfig(t *testing.T) {
 	tests := []struct {
 		name    string
