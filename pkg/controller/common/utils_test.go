@@ -8,10 +8,39 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// TestUpdateNamespace provides table-driven tests for UpdateNamespace(obj, newNamespace).
+func TestUpdateName(t *testing.T) {
+	tests := []struct {
+		name    string
+		obj     client.Object
+		newName string
+	}{
+		{
+			name:    "sets name on empty object",
+			obj:     &corev1.ConfigMap{},
+			newName: "test-name",
+		},
+		{
+			name: "overwrites existing name",
+			obj: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "old-name"},
+			},
+			newName: "test-name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			UpdateName(tt.obj, tt.newName)
+			assert.Equal(t, tt.newName, tt.obj.GetName())
+		})
+	}
+}
+
 func TestUpdateNamespace(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -289,6 +318,57 @@ func TestAddAnnotation(t *testing.T) {
 			added := AddAnnotation(tt.obj, tt.key, tt.value)
 			assert.Equal(t, tt.wantAdded, added)
 			assert.Equal(t, tt.wantVal, tt.obj.GetAnnotations()[tt.key])
+		})
+	}
+}
+
+func TestDecodeObjBytes(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	codecs := serializer.NewCodecFactory(scheme)
+	gv := schema.GroupVersion{Group: "", Version: "v1"}
+
+	tests := []struct {
+		name      string
+		objBytes  []byte
+		wantPanic bool
+		wantName  string
+		wantNs    string
+		wantData  map[string]string
+	}{
+		{
+			name: "valid ConfigMap is decoded",
+			objBytes: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: decoded-cm
+  namespace: test-ns
+data:
+  key: value
+`),
+			wantName: "decoded-cm",
+			wantNs:   "test-ns",
+			wantData: map[string]string{"key": "value"},
+		},
+		{
+			name:      "invalid bytes panic",
+			objBytes:  []byte("not valid yaml or json {{{"),
+			wantPanic: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantPanic {
+				require.Panics(t, func() {
+					DecodeObjBytes[*corev1.ConfigMap](codecs, gv, tt.objBytes)
+				})
+				return
+			}
+			cm := DecodeObjBytes[*corev1.ConfigMap](codecs, gv, tt.objBytes)
+			require.NotNil(t, cm)
+			assert.Equal(t, tt.wantName, cm.Name)
+			assert.Equal(t, tt.wantNs, cm.Namespace)
+			assert.Equal(t, tt.wantData, cm.Data)
 		})
 	}
 }

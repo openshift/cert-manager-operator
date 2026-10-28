@@ -4,12 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -222,6 +224,43 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 			t.Parallel()
 			newDeployment := unsupportedConfigOverrides(deployments[tcData.deploymentName].DeepCopy(), tcData.overrides)
 			require.Equal(t, tcData.wantArgs, newDeployment.Spec.Template.Spec.Containers[0].Args)
+		})
+	}
+}
+
+func TestWithUnsupportedArgsOverrideHook(t *testing.T) {
+	tests := []struct {
+		name         string
+		operatorSpec *operatorv1.OperatorSpec
+		wantErr      bool
+		wantArgs     []string
+	}{
+		{
+			name: "invalid JSON in UnsupportedConfigOverrides returns error",
+			operatorSpec: &operatorv1.OperatorSpec{
+				UnsupportedConfigOverrides: runtime.RawExtension{
+					Raw: []byte(`{invalid-json`),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:         "empty UnsupportedConfigOverrides leaves args unchanged",
+			operatorSpec: &operatorv1.OperatorSpec{},
+			wantArgs:     []string{"--v=2"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deployment := newTestDeploymentWithArgs([]string{"--v=2"})
+
+			err := withUnsupportedArgsOverrideHook(tt.operatorSpec, deployment)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantArgs, deployment.Spec.Template.Spec.Containers[0].Args)
 		})
 	}
 }

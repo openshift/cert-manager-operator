@@ -293,3 +293,73 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 		})
 	}
 }
+
+// TestIsIstioCSRFeatureGateEnabled covers the IstioCSR operator featuregate
+// (--unsupported-addon-features). IstioCSR is GA and enabled by default,
+// so it does not depend on cluster FeatureSet (unlike TrustManager).
+func TestIsIstioCSRFeatureGateEnabled(t *testing.T) {
+	defer func() {
+		// IstioCSR defaults to true; restore after test
+		_ = SetupWithFlagValue("IstioCSR=true")
+	}()
+
+	tests := []struct {
+		name   string
+		prep   func(t *testing.T)
+		assert func(t *testing.T)
+	}{
+		{
+			name: "returns true when operator featuregate is on",
+			prep: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, SetupWithFlagValue("IstioCSR=true"))
+			},
+			assert: func(t *testing.T) {
+				t.Helper()
+				assert.True(t, IsIstioCSRFeatureGateEnabled())
+			},
+		},
+		{
+			name: "returns false when operator featuregate is off",
+			prep: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, SetupWithFlagValue("IstioCSR=false"))
+			},
+			assert: func(t *testing.T) {
+				t.Helper()
+				assert.False(t, IsIstioCSRFeatureGateEnabled())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.prep(t)
+			tt.assert(t)
+		})
+	}
+}
+
+func TestSetupWithFlagValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		flagValue string
+		wantErr   bool
+	}{
+		{
+			name:      "unknown feature gate is rejected",
+			flagValue: "InvalidFeature=true",
+			wantErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := SetupWithFlagValue(tt.flagValue)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
