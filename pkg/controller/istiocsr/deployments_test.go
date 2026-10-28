@@ -1349,7 +1349,7 @@ func TestGetIssuerUnsupportedKind(t *testing.T) {
 	istiocsr := testIstioCSR()
 	istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "bogus"
 
-	obj, err := r.getIssuer(istiocsr)
+	obj, err := r.getIssuer(context.Background(), istiocsr)
 	if obj != nil {
 		t.Errorf("expected nil object for unsupported kind, got %T", obj)
 	}
@@ -1381,7 +1381,7 @@ func TestGetIssuerValidKinds(t *testing.T) {
 			istiocsr := testIstioCSR()
 			istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = tt.kind
 
-			obj, err := r.getIssuer(istiocsr)
+			obj, err := r.getIssuer(context.Background(), istiocsr)
 			if err != nil {
 				t.Fatalf("unexpected error for kind %q: %v", tt.kind, err)
 			}
