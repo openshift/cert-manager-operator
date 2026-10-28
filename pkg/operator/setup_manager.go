@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -25,13 +24,11 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
-	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/pkg/controller/trustmanager"
-	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 	"github.com/openshift/cert-manager-operator/pkg/version"
 )
 
@@ -158,17 +155,13 @@ func NewControllerManager(config ControllerConfig) (*Manager, error) {
 }
 
 // setupIstioCSRController creates and registers the IstioCSR controller with the manager.
-// It reads the cluster TLS profile once at startup; subsequent changes trigger an
-// operator restart via SecurityProfileWatcher.
+// Cluster TLS settings are read during reconcile, including the reconcile that runs
+// when the controller starts. The APIServer watch requeues the active IstioCSR when
+// the profile or adherence changes so the next reconcile reads the new value.
 func setupIstioCSRController(mgr ctrl.Manager) error {
 	setupLog.Info("setting up controller", "name", istiocsr.ControllerName)
 
-	tlsConfig, err := resolveIstioCSRTLSConfig(mgr.GetAPIReader())
-	if err != nil {
-		return fmt.Errorf("failed to resolve TLS config for %s: %w", istiocsr.ControllerName, err)
-	}
-
-	r, err := istiocsr.New(mgr, tlsConfig)
+	r, err := istiocsr.New(mgr)
 	if err != nil {
 		return fmt.Errorf("failed to create %s reconciler object: %w", istiocsr.ControllerName, err)
 	}
@@ -176,41 +169,6 @@ func setupIstioCSRController(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create %s controller: %w", istiocsr.ControllerName, err)
 	}
 	return nil
-}
-
-// resolveIstioCSRTLSConfig reads apiserver.config.openshift.io/cluster and returns
-// the TLS config for the IstioCSR controller. This is called once at controller
-// startup; subsequent changes to the cluster TLS profile trigger an operator restart.
-func resolveIstioCSRTLSConfig(reader client.Reader) (istiocsr.TLSConfig, error) {
-	ctx := context.Background()
-	apiServer := &configv1.APIServer{}
-	if err := reader.Get(ctx, client.ObjectKey{Name: "cluster"}, apiServer); err != nil {
-		if apierrors.IsNotFound(err) {
-			setupLog.V(4).Info("apiserver.config.openshift.io/cluster not found; using default TLS config")
-			return istiocsr.TLSConfig{}, nil
-		}
-		return istiocsr.TLSConfig{}, fmt.Errorf("failed to get apiserver.config.openshift.io/cluster: %w", err)
-	}
-
-	adherence := apiServer.Spec.TLSAdherence
-	honor := libgocrypto.ShouldHonorClusterTLSProfile(adherence)
-
-	if !honor {
-		setupLog.V(4).Info("cluster TLS profile not honored for istio-csr", "tlsAdherence", adherence)
-		return istiocsr.TLSConfig{Adherence: adherence, Honor: false}, nil
-	}
-
-	if adherence != configv1.TLSAdherencePolicyStrictAllComponents {
-		setupLog.Info("apiserver.config.openshift.io/cluster has unknown tlsAdherence; treating as StrictAllComponents for istio-csr", "tlsAdherence", adherence)
-	}
-
-	spec, err := tlsprofile.EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
-	if err != nil {
-		return istiocsr.TLSConfig{}, fmt.Errorf("failed to resolve effective TLS profile: %w", err)
-	}
-
-	setupLog.Info("resolved cluster TLS profile for istio-csr", "minTLSVersion", spec.MinTLSVersion, "ciphers", len(spec.Ciphers))
-	return istiocsr.TLSConfig{Adherence: adherence, Spec: spec, Honor: true}, nil
 }
 
 // setupTrustManagerController creates and registers the TrustManager controller with the manager.
