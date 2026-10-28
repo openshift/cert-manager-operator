@@ -1,0 +1,27 @@
+exclude: ^(vendor/|bindata/|bundle/|bin/|_output/|testbin/|pkg/operator/(assets|clientset|informers|listers|applyconfigurations)/)|zz_generated\.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+        # Go text/templates are not valid YAML.
+        exclude: |
+          (?x)^(
+            test/e2e/testdata/istio/grpcurl_job.*\.yaml|
+            test/e2e/testdata/istio/istio_csr_template\.yaml|
+            test/e2e/testdata/istio/istiocsr_with_ca_certificate_template\.yaml|
+            test/e2e/testdata/observe/servicemonitor\.yaml|
+            test/e2e/testdata/servicemesh/v3/
+          )
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
