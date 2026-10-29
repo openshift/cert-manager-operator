@@ -411,7 +411,7 @@ func TestReconcile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -753,7 +753,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -784,7 +784,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 func TestProcessReconcileRequest_oldTLSProfileSetsDegradedCondition(t *testing.T) {
 	t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", "registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9:latest")
 
-	r := testReconciler(t)
+	r := testReconciler()
 	r.tlsConfig = TLSConfig{
 		Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
 		Honor:     true,

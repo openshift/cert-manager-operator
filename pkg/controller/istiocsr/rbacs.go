@@ -162,7 +162,7 @@ func (r *Reconciler) updateClusterRoleNameInStatus(istiocsr *v1alpha1.IstioCSR, 
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()
 		} else {
-			r.log.Error(fmt.Errorf("error updating clusterrole name in status"), "istiocsr", istiocsr.GetNamespace())
+			r.log.V(1).Info("unable to determine clusterrole name for status update", "istiocsr", istiocsr.GetNamespace())
 		}
 	}
 	istiocsr.Status.ClusterRole = name
@@ -261,7 +261,7 @@ func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.Ist
 		if existing != nil && existing.GetName() != "" {
 			name = existing.GetName()
 		} else {
-			r.log.Error(fmt.Errorf("error updating clusterrolebinding name in status"), "istiocsr", istiocsr.GetNamespace())
+			r.log.V(1).Info("unable to determine clusterrolebinding name for status update", "istiocsr", istiocsr.GetNamespace())
 		}
 	}
 	istiocsr.Status.ClusterRoleBinding = name
