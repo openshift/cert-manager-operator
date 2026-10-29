@@ -100,7 +100,7 @@ func TestDeploymentObject(t *testing.T) {
 			r := testReconciler(t)
 			useServiceAccountForDeploymentRender(r)
 			tm := tt.tm.Build()
-			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
+			dep, err := r.getDeploymentObject(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -130,7 +130,7 @@ func TestDeploymentSpec(t *testing.T) {
 	r := testReconciler(t)
 	useServiceAccountForDeploymentRender(r)
 	tm := testTrustManager().Build()
-	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
+	dep, err := r.getDeploymentObject(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			}
 			tm := tmBuilder.Build()
 
-			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
+			dep, err := r.getDeploymentObject(context.Background(), tm, testResourceLabels(), testResourceAnnotations(), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -293,7 +293,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 		r := testReconciler(t)
 		useServiceAccountForDeploymentRender(r)
 		tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
-		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+		dep, err := r.getDeploymentObject(context.Background(), tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -341,7 +341,7 @@ func TestDeploymentDefaultCAPackage(t *testing.T) {
 		r := testReconciler(t)
 		useServiceAccountForDeploymentRender(r)
 		tm := testTrustManager().Build()
-		dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
+		dep, err := r.getDeploymentObject(context.Background(), tm, testResourceLabels(), testResourceAnnotations(), "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -435,7 +435,7 @@ func TestDeploymentOverrides(t *testing.T) {
 			tm := testTrustManager().Build()
 			tt.configure(tm)
 
-			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
+			dep, err := r.getDeploymentObject(context.Background(), tm, testResourceLabels(), testResourceAnnotations(), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -494,7 +494,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error building desired deployment: %v", err)
 					}
@@ -511,7 +511,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -543,7 +543,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -563,7 +563,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
-					dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
+					dep, err := r.getDeploymentObject(ctx, tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -582,7 +582,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
-					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+					dep, err := r.getDeploymentObject(ctx, tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -602,7 +602,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					tm := testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).Build()
-					dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
+					dep, err := r.getDeploymentObject(ctx, tm, testResourceLabels(), testResourceAnnotations(), "abc123hash")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -620,7 +620,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -638,7 +638,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -656,7 +656,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
-					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					dep, err := r.getDeploymentObject(ctx, testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
 					if err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
@@ -789,7 +789,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), tt.caBundleHash)
+			err := r.createOrApplyDeployment(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), tt.caBundleHash)
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {

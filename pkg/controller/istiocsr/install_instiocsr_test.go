@@ -121,7 +121,7 @@ func TestReconcileIstioCSRDeployment(t *testing.T) {
 				tt.preReq(r, mock)
 			}
 			r.CtrlClient = mock
-			err := r.reconcileIstioCSRDeployment(istiocsr, true)
+			err := r.reconcileIstioCSRDeployment(context.Background(), istiocsr, true)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("reconcileIstioCSRDeployment() err: %v, wantErr: %v", err, tt.wantErr)
 			}
