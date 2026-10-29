@@ -61,9 +61,9 @@ if effective.MinTLSVersion == configv1.VersionTLS13 {
 - library-go (CertManager) RBAC is not marker-driven — its ClusterRole comes from
   `bindata/cert-manager-deployment/**`/`config/rbac/*`. Don't add `+kubebuilder:rbac` markers expecting
   them to affect the CertManager controller set.
-- Apply methods differ per controller (library-go `resourceapply`, IstioCSR `Create+UpdateWithRetry`,
-  TrustManager SSA `client.Apply` + field owner `trust-manager-controller`) — when adding a new RBAC
-  object for TrustManager, follow the `*Modified` diff-then-`Patch(client.Apply, ForceOwnership)`
+- Apply methods differ per controller (library-go `resourceapply`, IstioCSR mixed SSA +
+  `Create+UpdateWithRetry`, TrustManager SSA + field owner `trust-manager-controller`) — when adding a new RBAC
+  object for TrustManager, follow the `*Modified` diff-then-`common.ApplyResource` (SSA, `ForceOwnership`)
   pattern in `rbacs.go`, not a blind re-apply.
 
 ## Secrets Handling (TrustManager `secretTargets`)

@@ -155,7 +155,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 		wantHash        bool
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "skips when policy is Disabled",
@@ -163,7 +163,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 			},
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "skips when policy is unset (defaults to Disabled)",
@@ -171,7 +171,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 			},
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "returns error when injection ConfigMap is not found",
@@ -225,7 +225,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			},
 			wantHash:        true,
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skips patch when existing ConfigMap matches desired",
@@ -247,7 +247,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			},
 			wantHash:        true,
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patches when existing ConfigMap data differs",
@@ -267,7 +267,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			},
 			wantHash:        true,
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "propagates Exists error",
@@ -287,7 +287,7 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			wantExistsCount: 1,
 		},
 		{
-			name: "propagates Patch error",
+			name: "propagates Apply error",
 			tm:   testTrustManager().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
@@ -299,13 +299,13 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
 			wantErr:         "failed to apply ConfigMap",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -331,8 +331,8 @@ func TestDefaultCAPackageConfigMapReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}

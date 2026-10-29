@@ -51,13 +51,13 @@ Note: Informers start **before** library-go controllers run — do not assume fi
 |-----------|-------------|----------|--------------|
 | Framework | library-go | controller-runtime | controller-runtime |
 | CR | Cluster `cluster` | Namespaced `default` | Cluster `cluster` |
-| Apply | `resourceapply` / DeploymentController | Create + `UpdateWithRetry` | **SSA** `client.Apply` + `ForceOwnership` |
-| Field owner | n/a (library-go) | n/a | `trust-manager-controller` |
+| Apply | `resourceapply` / DeploymentController | SSA (`common.ApplyResource`) for most resources; Create + `UpdateWithRetry` for Deployment, CA ConfigMap, ClusterRole/Binding | **SSA** `common.ApplyResource` → `CtrlClient.Apply` + `ForceOwnership` |
+| Field owner | n/a (library-go) | `istio-csr-controller` | `trust-manager-controller` |
 | Status | `operatorv1.OperatorStatus` | `ConditionalStatus` | `ConditionalStatus` |
 | Gate | Always on | `IstioCSR` GA default true | `TrustManager` TP default false |
 | Finalizer cleanup | library-go | TODO warn-only | TODO warn-only |
 
-Evidence: TrustManager `services.go` / `deployments.go` (`Patch` + `client.Apply`); IstioCSR `services.go` / `deployments.go` (`UpdateWithRetry`); CertManager `cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`).
+Evidence: `common/applier.go` (`ApplyResource`); TrustManager `services.go` / `deployments.go` (`ApplyResource`); IstioCSR `services.go` (`ApplyResource`) / `deployments.go` (`UpdateWithRetry`); CertManager `cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`).
 
 **Greenfield rule**: New controller-runtime operands → copy **TrustManager**, not IstioCSR.
 
@@ -174,7 +174,7 @@ TrustManager/cluster ──ctrl-runtime SSA──► trust-manager Deployment (+
 ## SME Review Recommended
 
 - Exact uninstall / finalizer cleanup design intent for IstioCSR & TrustManager.  
-- Whether IstioCSR will be migrated to SSA.  
+- Whether IstioCSR Deployment, CA ConfigMap and ClusterRole/Binding will move to SSA.  
 - Operational gotchas not visible in code (Slack/Jira) — Phase 5.5 chai-bot skipped.  
 - Recipe nuances for adding a fourth operand controller (CSV env, RBAC, relatedImages checklist).
 

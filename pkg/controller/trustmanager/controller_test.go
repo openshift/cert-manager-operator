@@ -164,7 +164,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					return nil
 				})
 				// Namespace exists; all other resources return not-found so they
-				// are created via SSA Patch (which succeeds by default).
+				// are created via SSA Apply (which succeeds by default).
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
@@ -255,7 +255,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Reason: v1alpha1.ReasonInProgress,
 				},
 			},
-			wantErr: "failed to check if serviceaccount",
+			wantErr: "failed to check if ServiceAccount",
 		},
 		{
 			name: "trust namespace does not exist sets degraded true",
@@ -314,7 +314,7 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return nil
 				})
-				// Custom namespace exists; so SSA Patch will create or update all resources successfully.
+				// Custom namespace exists; so SSA Apply will create or update all resources successfully.
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
