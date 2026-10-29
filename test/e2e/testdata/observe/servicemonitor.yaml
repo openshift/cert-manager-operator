@@ -14,6 +14,13 @@ spec:
     interval: 60s
     scrapeTimeout: 30s
     honorLabels: false
+    scheme: https
+    tlsConfig:
+      serverName: {{ .ServerName }}
+      ca:
+        secret:
+          name: cert-manager-metrics-ca
+          key: ca.crt
   namespaceSelector:
     matchNames:
     - {{ .Namespace }}
