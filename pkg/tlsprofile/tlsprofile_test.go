@@ -292,6 +292,47 @@ func TestIstioCSRServingTLSArgs_tls13OmitsCipherAndCurveFlags(t *testing.T) {
 	}
 }
 
+func TestIstioCSRServingTLSArgs_emptyCiphersOmitsCipherFlags(t *testing.T) {
+	args, err := IstioCSRServingTLSArgs(&configv1.TLSProfileSpec{
+		MinTLSVersion: configv1.VersionTLS12,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(args) != 1 || args[0] != "--serving-tls-min-version=VersionTLS12" {
+		t.Fatalf("expected only the min-version flag, got %#v", args)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_unmappableCiphersReturnsError(t *testing.T) {
+	args, err := IstioCSRServingTLSArgs(&configv1.TLSProfileSpec{
+		MinTLSVersion: configv1.VersionTLS12,
+		Ciphers:       []string{"not-a-real-openssl-cipher-name-xyz"},
+	})
+	if err == nil {
+		t.Fatal("expected error when listed ciphers map to no IANA names")
+	}
+	if !strings.Contains(err.Error(), "no cipher suites after OpenSSL→IANA mapping") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if args != nil {
+		t.Fatalf("expected no args, got %#v", args)
+	}
+}
+
+func TestIstioCSRServingTLSArgs_tls13SkipsUnmappableCipherCheck(t *testing.T) {
+	args, err := IstioCSRServingTLSArgs(&configv1.TLSProfileSpec{
+		MinTLSVersion: configv1.VersionTLS13,
+		Ciphers:       []string{"not-a-real-openssl-cipher-name-xyz"},
+	})
+	if err != nil {
+		t.Fatalf("TLS 1.3 must omit cipher mapping, got %v", err)
+	}
+	if len(args) != 1 || args[0] != "--serving-tls-min-version=VersionTLS13" {
+		t.Fatalf("expected only the min-version flag, got %#v", args)
+	}
+}
+
 func TestIstioCSRServingTLSArgs_rejectsMinVersionBelowTLS12(t *testing.T) {
 	for _, version := range []configv1.TLSProtocolVersion{configv1.VersionTLS10, configv1.VersionTLS11} {
 		t.Run(string(version), func(t *testing.T) {
@@ -301,6 +342,9 @@ func TestIstioCSRServingTLSArgs_rejectsMinVersionBelowTLS12(t *testing.T) {
 			})
 			if err == nil {
 				t.Fatal("expected error for minimum TLS version below 1.2")
+			}
+			if !strings.Contains(err.Error(), "Old/TLS 1.0-1.1 profiles are not supported by istio-csr") {
+				t.Fatalf("unexpected error: %v", err)
 			}
 			if args != nil {
 				t.Fatalf("expected no args, got %#v", args)

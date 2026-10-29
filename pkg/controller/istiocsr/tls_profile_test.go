@@ -6,6 +6,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
@@ -20,11 +21,12 @@ func mustEffectiveSpec(t *testing.T, profile *configv1.TLSSecurityProfile) *conf
 
 func TestClusterTLSProfileArgs(t *testing.T) {
 	tests := []struct {
-		name         string
-		tlsConfig    func(t *testing.T) TLSConfig
-		wantErr      bool
-		wantArgsNil  bool
-		wantContains []string
+		name            string
+		tlsConfig       func(t *testing.T) TLSConfig
+		wantErr         bool
+		wantErrContains string
+		wantArgsNil     bool
+		wantContains    []string
 	}{
 		{
 			name: "Honor false skips cluster TLS profile",
@@ -92,7 +94,8 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 					Spec:      mustEffectiveSpec(t, &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType}),
 				}
 			},
-			wantErr: true,
+			wantErr:         true,
+			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
 		},
 		{
 			name: "Custom TLS 1.0 is rejected before rollout",
@@ -103,6 +106,21 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 					Spec: &configv1.TLSProfileSpec{
 						MinTLSVersion: configv1.VersionTLS10,
 						Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+					},
+				}
+			},
+			wantErr:         true,
+			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
+		},
+		{
+			name: "Custom TLS 1.2 with unmappable ciphers is rejected before rollout",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec: &configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS12,
+						Ciphers:       []string{"not-a-real-openssl-cipher-name-xyz"},
 					},
 				}
 			},
@@ -119,6 +137,12 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
+				}
+				if !common.IsIrrecoverableError(err) {
+					t.Fatalf("expected irrecoverable error, got %v", err)
+				}
+				if tt.wantErrContains != "" && !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErrContains)
 				}
 				return
 			}

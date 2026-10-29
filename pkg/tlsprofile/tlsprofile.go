@@ -168,17 +168,24 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 // VersionTLS10 and VersionTLS11, including the built-in Old profile and Custom
 // profiles that set those versions, return an error so the caller does not
 // roll out a deployment the operand cannot start.
+//
+// For TLS 1.2, a non-empty cipher list that maps to no IANA names returns an
+// error so the operand is not left on Go's default (broader) suites.
 func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) ([]string, error) {
 	if spec == nil {
 		return []string{}, nil
 	}
 	switch spec.MinTLSVersion {
 	case configv1.VersionTLS10, configv1.VersionTLS11:
-		return nil, fmt.Errorf("cert-manager-istio-csr does not support minimum TLS version %s; VersionTLS12 or higher is required", spec.MinTLSVersion)
+		return nil, fmt.Errorf("Old/TLS 1.0-1.1 profiles are not supported by istio-csr; VersionTLS12 or higher is required")
 	}
 	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
 	if spec.MinTLSVersion != configv1.VersionTLS13 {
-		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
+		iana := libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
+		if len(spec.Ciphers) > 0 && len(iana) == 0 {
+			return nil, fmt.Errorf("no cipher suites after OpenSSL→IANA mapping")
+		}
+		for _, cipher := range iana {
 			args = append(args, "--serving-tls-cipher-suites="+cipher)
 		}
 	}
