@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
@@ -25,7 +26,11 @@ func (r *Reconciler) clusterTLSProfileArgs() ([]string, error) {
 
 	args, err := tlsprofile.IstioCSRServingTLSArgs(r.tlsConfig.Spec)
 	if err != nil {
-		return nil, err
+		// Snapshot TLS cannot be applied to the operand. Treat as irrecoverable so
+		// Ready/Degraded surface a user-actionable message instead of a generic
+		// retry. A later APIServer profile change restarts the operator and
+		// re-reads the snapshot.
+		return nil, common.NewIrrecoverableError(err, "cluster TLS profile cannot be applied to istio-csr")
 	}
 	return args, nil
 }
