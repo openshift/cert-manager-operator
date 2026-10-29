@@ -108,7 +108,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				key := strings.Split(value, "_")
 				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+					r.log.V(2).Info("label value not in expected format",
+						"labelName", IstiocsrResourceWatchLabelName,
+						"labelValue", value,
+						"resource", obj.GetName())
 					return false
 				}
 				namespace = key[0]
