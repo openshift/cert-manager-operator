@@ -175,8 +175,9 @@ types and run `make manifests` for operator CRDs; bump upstream versions and run
   checking its markers (`+kubebuilder:validation:*`, `+kubebuilder:default`,
   `XValidation`) directly.
 - Don't assume all three CRs share apply/reconcile semantics — CertManager uses
-  library-go `resourceapply` (not SSA), IstioCSR uses Create+`UpdateWithRetry`, only
-  TrustManager uses controller-runtime SSA with field owner `trust-manager-controller`.
+  library-go `resourceapply` (not SSA), IstioCSR mixes SSA (field owner `istio-csr-controller`)
+  with Create+`UpdateWithRetry`, and TrustManager uses controller-runtime SSA throughout with
+  field owner `trust-manager-controller`.
   Field-ownership/conflict behavior described in docs must match the actual controller.
 - Don't document `UnsupportedConfigOverrides.{Controller,Webhook,CAInjector}` as
   first-class `Spec` fields — they're helper types for parsing

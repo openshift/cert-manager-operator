@@ -6,6 +6,8 @@ import (
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,6 +32,7 @@ type CtrlClient interface {
 	Create(context.Context, client.Object, ...client.CreateOption) error
 	Delete(context.Context, client.Object, ...client.DeleteOption) error
 	Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error
+	Apply(context.Context, client.Object, ...client.ApplyOption) error
 	Exists(context.Context, client.ObjectKey, client.Object) (bool, error)
 }
 
@@ -133,6 +136,32 @@ func (c *ctrlClientImpl) Patch(
 	key := client.ObjectKeyFromObject(obj)
 	if err := c.Client.Patch(ctx, obj, patch, opts...); err != nil {
 		return fmt.Errorf("failed to patch object %q: %w", key, err)
+	}
+	return nil
+}
+
+// Apply server-side applies obj. It converts the typed object to an
+// unstructured apply configuration, since client.Client.Apply only accepts
+// apply configurations, and copies the server's response back into obj.
+func (c *ctrlClientImpl) Apply(
+	ctx context.Context, obj client.Object, opts ...client.ApplyOption,
+) error {
+	key := client.ObjectKeyFromObject(obj)
+	gvk, err := c.GroupVersionKindFor(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get GroupVersionKind for object %q: %w", key, err)
+	}
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		return fmt.Errorf("failed to convert object %q to unstructured: %w", key, err)
+	}
+	u := &unstructured.Unstructured{Object: content}
+	u.SetGroupVersionKind(gvk)
+	if err := c.Client.Apply(ctx, client.ApplyConfigurationFromUnstructured(u), opts...); err != nil {
+		return fmt.Errorf("failed to apply object %q: %w", key, err)
+	}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, obj); err != nil {
+		return fmt.Errorf("failed to convert applied object %q from unstructured: %w", key, err)
 	}
 	return nil
 }

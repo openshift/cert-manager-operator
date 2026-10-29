@@ -2,6 +2,7 @@
 
 **Status**: Accepted  
 **Date**: 2026-03-11 (TrustManager SSA; IstioCSR remains Create+Update)  
+**Amended**: CM-1040 — shared `common.ApplyResource` helper; IstioCSR namespaced resources migrated to SSA  
 **Deciders**: cert-manager-operator maintainers
 
 ## Context
@@ -13,8 +14,8 @@ Documenting a single “we use SSA everywhere” claim is a known hallucination 
 ## Decision
 
 1. CertManager continues with library-go apply helpers.  
-2. IstioCSR keeps Create+Update until explicitly migrated.  
-3. **New controller-runtime operand reconcilers must follow TrustManager SSA** (`Patch` + `client.Apply` + `FieldOwner` + `ForceOwnership`).  
+2. IstioCSR uses SSA via `common.ApplyResource` for Service, ServiceAccount, Certificate, Role/RoleBinding and NetworkPolicy. Deployment, CA ConfigMap and ClusterRole/ClusterRoleBinding (generated names tracked in status) keep Create+Update until explicitly migrated.  
+3. **New controller-runtime operand reconcilers must follow TrustManager SSA** (`common.ApplyResource` → `CtrlClient.Apply` + `FieldOwner` + `ForceOwnership`, with a JSON merge-patch fallback when a drift-correcting apply fails).  
 4. Status updates for IstioCSR/TrustManager may still use `UpdateWithRetry` on the CR object.
 
 ## Consequences
@@ -34,10 +35,11 @@ Documenting a single “we use SSA everywhere” claim is a known hallucination 
 
 ## References
 
+- Shared helper: `pkg/controller/common/applier.go` (`ApplyResource`), `client.go` (`CtrlClient.Apply`)
 - TrustManager: `pkg/controller/trustmanager/services.go`, `deployments.go`, `constants.go` (`fieldOwner`)
-- IstioCSR: `pkg/controller/istiocsr/services.go`, `deployments.go`
+- IstioCSR: `pkg/controller/istiocsr/services.go` (SSA), `deployments.go` (Create+Update), `constants.go` (`fieldOwner`)
 - CertManager: `pkg/controller/certmanager/cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`)
 
 ## SME Review Recommended
 
-Whether/when IstioCSR migrates to SSA; field-owner naming convention for future operands.
+Whether/when the remaining IstioCSR Create+Update resources migrate to SSA; field-owner naming convention for future operands.

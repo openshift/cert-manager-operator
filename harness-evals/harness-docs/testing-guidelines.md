@@ -54,10 +54,10 @@ Apply strategy differs **per controller stack** — assert the call that actuall
 | Controller | Stack | Apply call to assert | Fake |
 |------------|-------|----------------------|------|
 | `pkg/controller/certmanager` | library-go `resourceapply` | `resourceapply.ApplyDeployment`/equivalent return values and `ExpectedGeneration`/`forceRollout` diffs | plain `library-go` fake clientset (no counterfeiter) |
-| `pkg/controller/istiocsr` | ctrl-runtime, imperative | `Create` then `UpdateWithRetry` (see `services.go`, `deployments.go`) | `fakes.FakeCtrlClient` — assert `CreateCallCount`/`UpdateWithRetryCallCount`, **not** `PatchCallCount` |
-| `pkg/controller/trustmanager` | ctrl-runtime **SSA** | `Patch(ctx, obj, client.Apply, client.FieldOwner("trust-manager-controller"), client.ForceOwnership)` | `fakes.FakeCtrlClient` — assert `PatchCallCount`, **not** `Update`/`Create` |
+| `pkg/controller/istiocsr` | ctrl-runtime, mixed | SSA `Apply` via `common.ApplyResource` (Service, SA, Certificate, Role/RoleBinding, NetworkPolicy); `Create` then `UpdateWithRetry` (Deployment, CA ConfigMap, ClusterRole/Binding) | `fakes.FakeCtrlClient` — assert `ApplyCallCount` or `CreateCallCount`/`UpdateWithRetryCallCount` to match the resource |
+| `pkg/controller/trustmanager` | ctrl-runtime **SSA** | `Apply(ctx, obj, client.FieldOwner("trust-manager-controller"), client.ForceOwnership)` via `common.ApplyResource` | `fakes.FakeCtrlClient` — assert `ApplyCallCount`, **not** `Update`/`Create` |
 
-A TrustManager test asserting `UpdateCallCount` (or an IstioCSR test asserting `PatchCallCount`) is testing the wrong call path even if it happens to pass — verify against the controller's actual client method before trusting a green test.
+A test asserting `UpdateCallCount` for an SSA resource (or `ApplyCallCount` for a Create/Update resource) is testing the wrong call path even if it happens to pass — verify against the controller's actual client method before trusting a green test.
 
 Common shape for TrustManager/IstioCSR unit tests (table-driven, one `Reconciler` + fresh fake per case):
 
@@ -69,7 +69,7 @@ mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Obje
 r := testReconciler(t)
 err := r.createOrApplyDeployment(cr, labels, annotations, hash)
 assertError(t, err, tt.wantErr)
-if got := mock.PatchCallCount(); got != tt.wantPatchCount { ... } // trustmanager
+if got := mock.ApplyCallCount(); got != tt.wantApplyCount { ... } // trustmanager
 ```
 
 CertManager tests are library-go-oriented and live beside the controllers (`*_test.go` in `pkg/controller/certmanager/`); they don't use the counterfeiter fake at all — use the existing `test_constants_test.go` / `deployment_helper_test.go` fixtures instead of inventing a new fake client for that package.
@@ -90,6 +90,7 @@ type CtrlClient interface {
 	Create(context.Context, client.Object, ...client.CreateOption) error
 	Delete(context.Context, client.Object, ...client.DeleteOption) error
 	Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error
+	Apply(context.Context, client.Object, ...client.ApplyOption) error
 	Exists(context.Context, client.ObjectKey, client.Object) (bool, error)
 }
 ```

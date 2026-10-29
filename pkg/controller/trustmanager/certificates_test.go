@@ -186,7 +186,7 @@ func TestIssuerReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply when not found",
@@ -196,7 +196,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing matches desired",
@@ -208,7 +208,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -221,7 +221,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -236,7 +236,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates",
@@ -245,9 +245,9 @@ func TestIssuerReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if issuer",
+			wantErr:         "failed to check if Issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patch error propagates",
@@ -255,13 +255,13 @@ func TestIssuerReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply issuer",
+			wantErr:         "failed to apply Issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -285,8 +285,8 @@ func TestIssuerReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}
@@ -299,7 +299,7 @@ func TestCertificateReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply when not found",
@@ -309,7 +309,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing matches desired",
@@ -321,7 +321,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -334,7 +334,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -349,7 +349,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has secret name drift",
@@ -362,7 +362,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has issuer ref drift",
@@ -379,7 +379,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing is missing privateKey",
@@ -392,7 +392,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has privateKey rotation policy drift",
@@ -407,7 +407,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing privateKey has extra defaulted fields",
@@ -424,7 +424,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "exists error propagates",
@@ -433,9 +433,9 @@ func TestCertificateReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if certificate",
+			wantErr:         "failed to check if Certificate",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patch error propagates",
@@ -443,13 +443,13 @@ func TestCertificateReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply certificate",
+			wantErr:         "failed to apply Certificate",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -473,8 +473,8 @@ func TestCertificateReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}

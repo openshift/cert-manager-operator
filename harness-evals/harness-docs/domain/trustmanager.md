@@ -64,7 +64,7 @@ Same `Ready` / `Degraded` condition types as IstioCSR (`conditions.go`).
 | Concern | Behavior | Code |
 |---------|----------|------|
 | Image | `RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER` | `trustmanager/constants.go` |
-| Apply | `Patch(..., client.Apply, FieldOwner("trust-manager-controller"), ForceOwnership)` | `services.go:41`, `deployments.go:40`, … |
+| Apply | `common.ApplyResource` → `CtrlClient.Apply(..., FieldOwner("trust-manager-controller"), ForceOwnership)` | `services.go`, `deployments.go`, `common/applier.go` |
 | Skip when unchanged | Managed-field-aware `*Modified` helpers before apply | `utils.go` / resource files |
 | Trusted CA | Watches CNO-injected ConfigMap `cert-manager-operator-trusted-ca-bundle` (separate from CertManager `--trusted-ca-configmap`) | `controller.go`, `configmaps.go` |
 | SecretTargets | `Disabled` (default) or `Custom`. Custom requires non-empty `authorizedSecrets`; write RBAC scoped via `ResourceNames` (cluster-wide read is intentional). Sort secrets before ClusterRole apply for deterministic diffs. | `rbacs.go` `appendSecretTargetRules` |
@@ -75,7 +75,7 @@ Same `Ready` / `Degraded` condition types as IstioCSR (`conditions.go`).
 
 ## Common Mistakes
 
-1. Documenting “all controllers use SSA” — false; only TrustManager among the three.
+1. Documenting “all controllers use SSA” — false; CertManager uses library-go, and IstioCSR still uses Create+Update for some resources.
 2. Expecting Bundle reconciliation in the operator — operator deploys trust-manager; Bundle is operand API.
 3. Hand-editing `bindata/trust-manager` YAML without `make update-manifests`.
 4. Granting wildcard Secret **write** for SecretTargets — keep write limited to `authorizedSecrets` ResourceNames.
