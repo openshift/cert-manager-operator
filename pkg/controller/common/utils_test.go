@@ -355,6 +355,15 @@ data:
 			objBytes:  []byte("not valid yaml or json {{{"),
 			wantPanic: true,
 		},
+		{
+			name: "type mismatch panics",
+			objBytes: []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-sa
+`),
+			wantPanic: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
