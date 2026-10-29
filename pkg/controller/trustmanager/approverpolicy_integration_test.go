@@ -89,7 +89,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 		})
 	}
 
-	r := testReconciler(t)
+	r := testReconciler()
 	c := &fakes.FakeCtrlClient{}
 	c.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		return operator.Get(ctx, key, obj)
@@ -299,7 +299,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			// A fresh reconciler proves recovery does not depend on remembering
 			// a Managed/Unmanaged transition in memory.
 			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
-			fresh := testReconciler(t)
+			fresh := testReconciler()
 			fresh.CtrlClient = c
 			require.NoError(t, fresh.createOrApplyApproverPolicyResources(tm, labels, annotations))
 			require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(policy), policy))

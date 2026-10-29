@@ -693,7 +693,7 @@ func TestUpdateCondition(t *testing.T) {
 				fakeClient.StatusUpdateReturns(nil)
 			}
 
-			r := testReconciler(t)
+			r := testReconciler()
 			r.CtrlClient = fakeClient
 
 			istiocsr := testIstioCSR()
