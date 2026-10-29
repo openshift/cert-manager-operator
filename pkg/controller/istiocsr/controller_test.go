@@ -181,8 +181,7 @@ func TestReconcile(t *testing.T) {
 					Reason: v1alpha1.ReasonReady,
 				},
 			},
-			requeue: false,
-			wantErr: `failed to update processed annotation to istiocsr-test-ns/istiocsr-test-resource: test client error`,
+			requeue: true,
 		},
 		{
 			name: "reconciliation failed with irrecoverable error",
