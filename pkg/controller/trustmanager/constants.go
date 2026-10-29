@@ -121,6 +121,23 @@ var (
 		"app.kubernetes.io/managed-by": "cert-manager-operator",
 		"app.kubernetes.io/part-of":    "cert-manager-operator",
 	}
+
+	// reservedLabelKeys are label keys managed by the controller that users
+	// must not configure via ControllerConfig to avoid conflicts.
+	// Derived from controllerDefaultResourceLabels so it stays in sync automatically.
+	reservedLabelKeys = func() map[string]struct{} {
+		reserved := make(map[string]struct{}, len(controllerDefaultResourceLabels))
+		for k := range controllerDefaultResourceLabels {
+			reserved[k] = struct{}{}
+		}
+		return reserved
+	}()
+
+	// reservedAnnotationKeys are annotation keys managed by the controller
+	// for specific resources. Users must not configure these via ControllerConfig.
+	reservedAnnotationKeys = map[string]struct{}{
+		"cert-manager.io/inject-ca-from-secret": {},
+	}
 )
 
 // asset names are the files present in the root bindata/ dir. Which are then loaded
