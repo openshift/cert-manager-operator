@@ -280,7 +280,7 @@ func TestApplyClusterTLSProfile_adherence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(trustManagerImageNameEnvVarName, testImage)
-			r := testReconciler(t)
+			r := testReconciler()
 			r.CtrlClient = fakeCtrlClientWithAPIServer(tt.apiServer)
 
 			tm := testTrustManager().Build()
@@ -322,7 +322,7 @@ func TestApplyClusterTLSProfile_invalidCustomPropagates(t *testing.T) {
 			},
 		},
 	}
-	r := testReconciler(t)
+	r := testReconciler()
 	r.CtrlClient = fakeCtrlClientWithAPIServer(apiServer)
 
 	dep := &appsv1.Deployment{
@@ -342,7 +342,7 @@ func TestApplyClusterTLSProfile_invalidCustomPropagates(t *testing.T) {
 
 func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
-	r := testReconciler(t)
+	r := testReconciler()
 	mock := &fakes.FakeCtrlClient{}
 	mock.GetCalls(func(_ context.Context, key client.ObjectKey, _ client.Object) error {
 		return apierrors.NewForbidden(schema.GroupResource{Group: configv1.GroupName, Resource: "apiservers"}, key.Name, errors.New("denied"))
@@ -365,7 +365,7 @@ func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 }
 
 func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 	r.CtrlClient = nil
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
@@ -419,7 +419,7 @@ func TestApplyClusterTLSProfile_intermediateCiphers(t *testing.T) {
 			},
 		},
 	}
-	r := testReconciler(t)
+	r := testReconciler()
 	r.CtrlClient = fakeCtrlClientWithAPIServer(apiServer)
 
 	tm := testTrustManager().Build()

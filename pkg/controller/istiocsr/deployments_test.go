@@ -1069,7 +1069,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -1344,7 +1344,7 @@ func TestUpdateVolumeWithIssuerCA(t *testing.T) {
 }
 
 func TestGetIssuerUnsupportedKind(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 
 	istiocsr := testIstioCSR()
 	istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "bogus"
@@ -1375,7 +1375,7 @@ func TestGetIssuerValidKinds(t *testing.T) {
 			fakeClient := &fakes.FakeCtrlClient{}
 			fakeClient.GetReturns(nil)
 
-			r := testReconciler(t)
+			r := testReconciler()
 			r.CtrlClient = fakeClient
 
 			istiocsr := testIstioCSR()
