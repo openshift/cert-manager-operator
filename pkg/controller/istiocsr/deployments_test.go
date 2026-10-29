@@ -13,28 +13,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
-	configv1 "github.com/openshift/api/config/v1"
-
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
-
-// missingClusterAPIServer reports whether obj is the cluster APIServer. Deployment
-// tests that do not set a profile must treat that read as NotFound so an empty
-// object is not honored as StrictAllComponents with the Intermediate profile.
-func missingClusterAPIServer(obj client.Object, name string) (bool, error) {
-	if _, ok := obj.(*configv1.APIServer); !ok {
-		return false, nil
-	}
-	return true, apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, name)
-}
 
 func TestCreateOrApplyDeployments(t *testing.T) {
 	tests := []struct {
@@ -60,9 +47,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -90,9 +74,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						return apierrors.NewNotFound(certmanagerv1.Resource("issuers"), testResourcesName)
@@ -141,9 +122,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -172,9 +150,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -201,9 +176,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -233,9 +205,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -271,9 +240,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -374,9 +340,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -463,9 +426,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testACMEIssuer()
@@ -491,9 +451,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch obj.(type) {
 					case *certmanagerv1.Issuer:
 						return apierrors.NewUnauthorized("no access")
@@ -515,9 +472,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.Secret:
 						return apierrors.NewUnauthorized("no access")
@@ -552,9 +506,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						configmap := testConfigMap()
@@ -582,9 +533,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -621,9 +569,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -651,9 +596,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.Issuer:
 						issuer := testIssuer()
@@ -681,9 +623,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -719,9 +658,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -753,9 +689,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -833,9 +766,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *certmanagerv1.ClusterIssuer:
 						issuer := testClusterIssuer()
@@ -875,9 +805,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -910,9 +837,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" && ns.Namespace == "custom-namespace" {
@@ -946,9 +870,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -979,9 +900,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -1015,9 +933,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-cert-test" {
@@ -1055,9 +970,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "watch-label-fail-test" {
@@ -1102,9 +1014,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "non-ca-cert-test" {
@@ -1137,9 +1046,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return true, nil
 				})
 				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, ns.Name); missing {
-						return err
-					}
 					switch o := obj.(type) {
 					case *corev1.ConfigMap:
 						if ns.Name == "ca-without-certsign-test" {
@@ -1167,14 +1073,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
-			}
-			if mock.GetStub == nil {
-				mock.GetCalls(func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
-					if missing, err := missingClusterAPIServer(obj, key.Name); missing {
-						return err
-					}
-					return nil
-				})
 			}
 			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
