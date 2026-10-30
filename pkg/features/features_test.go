@@ -65,6 +65,7 @@ var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 	// list of features which are expected to be disabled at runtime.
 	false: {
 		featuregate.Feature("TrustManager"),
+		featuregate.Feature("ApproverPolicyManager"),
 	},
 }
 
@@ -119,6 +120,11 @@ func TestFeatureGates(t *testing.T) {
 	t.Run("runtime should allow enabling all operator featuregates that default to off", func(t *testing.T) {
 		// enable all disabled features
 		defaultDisabledFeatures := expectedDefaultFeatureState[false]
+		t.Cleanup(func() {
+			for _, feature := range defaultDisabledFeatures {
+				require.NoError(t, mutableFeatureGate.Set(fmt.Sprintf("%s=false", feature)))
+			}
+		})
 
 		featVals := make([]string, len(defaultDisabledFeatures))
 		for i := range featVals {
@@ -361,5 +367,20 @@ func TestSetupWithFlagValue(t *testing.T) {
 			}
 			require.NoError(t, err)
 		})
+	}
+}
+
+func TestIsApproverPolicyManagerFeatureGateEnabled(t *testing.T) {
+	originalMutable, originalDefault := mutableFeatureGate, DefaultFeatureGate
+	mutableFeatureGate = featuregate.NewFeatureGate()
+	require.NoError(t, mutableFeatureGate.Add(v1alpha1.OperatorFeatureGates))
+	DefaultFeatureGate = mutableFeatureGate
+	t.Cleanup(func() {
+		mutableFeatureGate, DefaultFeatureGate = originalMutable, originalDefault
+	})
+	require.False(t, IsApproverPolicyManagerFeatureGateEnabled())
+	for _, enabled := range []bool{true, false} {
+		require.NoError(t, SetupWithFlagValue(fmt.Sprintf("ApproverPolicyManager=%t", enabled)))
+		assert.Equal(t, enabled, IsApproverPolicyManagerFeatureGateEnabled())
 	}
 }
