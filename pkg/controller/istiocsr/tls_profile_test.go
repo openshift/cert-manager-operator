@@ -1,14 +1,15 @@
 package istiocsr
 
 import (
+	"strings"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
-// mustEffectiveSpec is a test helper that calls tlsprofile.EffectiveSpec and panics on error.
 func mustEffectiveSpec(t *testing.T, profile *configv1.TLSSecurityProfile) *configv1.TLSProfileSpec {
 	t.Helper()
 	spec, err := tlsprofile.EffectiveSpec(profile)
@@ -20,10 +21,12 @@ func mustEffectiveSpec(t *testing.T, profile *configv1.TLSSecurityProfile) *conf
 
 func TestClusterTLSProfileArgs(t *testing.T) {
 	tests := []struct {
-		name         string
-		tlsConfig    func(t *testing.T) TLSConfig
-		wantArgsNil  bool
-		wantContains []string
+		name            string
+		tlsConfig       func(t *testing.T) TLSConfig
+		wantErr         bool
+		wantErrContains string
+		wantArgsNil     bool
+		wantContains    []string
 	}{
 		{
 			name: "Honor false skips cluster TLS profile",
@@ -67,7 +70,6 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			},
 			wantContains: []string{
 				"--serving-tls-min-version=VersionTLS13",
-				"--serving-tls-curve-preferences=X25519",
 			},
 		},
 		{
@@ -83,6 +85,47 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 				"--serving-tls-min-version=VersionTLS12",
 			},
 		},
+		{
+			name: "Old profile is rejected before rollout",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec:      mustEffectiveSpec(t, &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType}),
+				}
+			},
+			wantErr:         true,
+			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
+		},
+		{
+			name: "Custom TLS 1.0 is rejected before rollout",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec: &configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS10,
+						Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+					},
+				}
+			},
+			wantErr:         true,
+			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
+		},
+		{
+			name: "Custom TLS 1.2 with unmappable ciphers is rejected before rollout",
+			tlsConfig: func(t *testing.T) TLSConfig {
+				return TLSConfig{
+					Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					Honor:     true,
+					Spec: &configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS12,
+						Ciphers:       []string{"not-a-real-openssl-cipher-name-xyz"},
+					},
+				}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -90,7 +133,22 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			r := testReconciler(t)
 			r.tlsConfig = tt.tlsConfig(t)
 
-			args := r.clusterTLSProfileArgs()
+			args, err := r.clusterTLSProfileArgs()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !common.IsIrrecoverableError(err) {
+					t.Fatalf("expected irrecoverable error, got %v", err)
+				}
+				if tt.wantErrContains != "" && !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErrContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
 			if tt.wantArgsNil {
 				if args != nil {
@@ -102,6 +160,11 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 			for _, want := range tt.wantContains {
 				if !containsArg(args, want) {
 					t.Errorf("expected to find %q in args, got %#v", want, args)
+				}
+			}
+			for _, arg := range args {
+				if strings.HasPrefix(arg, "--serving-tls-curve-preferences=") {
+					t.Errorf("curve preferences must be left unset, got %q", arg)
 				}
 			}
 		})

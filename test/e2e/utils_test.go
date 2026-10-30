@@ -11,6 +11,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -1904,14 +1905,45 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// tlsAdherenceUnknownField is the strict-decoding phrase the generic Update
+// handler places in a BadRequest status message. That response has no field cause.
+const tlsAdherenceUnknownField = `unknown field "spec.tlsAdherence"`
+
+// isTLSAdherenceUnsupported reports whether err is an API status that says
+// spec.tlsAdherence is not supported on this cluster. A status cause for that
+// field matches, as does an Update BadRequest whose message contains
+// tlsAdherenceUnknownField. Other Invalid, BadRequest, and Forbidden errors,
+// including RBAC denials and validation of unrelated fields, return false so
+// the caller fails the test.
 func isTLSAdherenceUnsupported(err error) bool {
-	if err == nil {
+	var status apierrors.APIStatus
+	if err == nil || !stderrors.As(err, &status) {
 		return false
 	}
-	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+	st := status.Status()
+	if st.Reason == metav1.StatusReasonBadRequest && strings.Contains(st.Message, tlsAdherenceUnknownField) {
 		return true
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "tlsadherence")
+	if st.Details == nil {
+		return false
+	}
+	for _, cause := range st.Details.Causes {
+		if tlsAdherenceCauseUnsupported(cause) {
+			return true
+		}
+	}
+	return false
+}
+
+func tlsAdherenceCauseUnsupported(cause metav1.StatusCause) bool {
+	if cause.Field != "spec.tlsAdherence" {
+		return false
+	}
+	if cause.Type == metav1.CauseTypeFieldValueNotSupported {
+		return true
+	}
+	msg := strings.ToLower(cause.Message)
+	return strings.Contains(msg, "unknown field") || strings.Contains(msg, "unrecognized field")
 }
 
 func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
@@ -2064,12 +2096,16 @@ func verifyOperandMetricsHTTPS(deploymentName string) error {
 // given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
 // same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
 func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
-	expected := tlsprofile.IstioCSRServingTLSArgs(spec)
+	expected, err := tlsprofile.IstioCSRServingTLSArgs(spec)
+	if err != nil {
+		return fmt.Errorf("istio-csr serving TLS args: %w", err)
+	}
 	if len(expected) == 0 {
 		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
 	}
 
-	// highTimeout covers one in-flight kube-apiserver rollout after the profile patch.
+	// highTimeout covers one in-flight kube-apiserver rollout. The profile patch
+	// itself does not wait for that rollout, so this poll must outlast a 504.
 	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
 	}
@@ -2078,10 +2114,10 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err

@@ -156,36 +156,38 @@ func ApplyToHTTPServingInfo(serving *configv1.HTTPServingInfo, spec *configv1.TL
 	return nil
 }
 
-// istioCSRServingCurvePreferences is the fixed key-exchange curve preference order applied
-// to the cert-manager-istio-csr gRPC serving listener. apiserver.config.openshift.io's
-// TLSProfileSpec does not expose curve preferences today, so this mirrors the default
-// ECDHE/TLS 1.3 group order Go and OpenShift components generally prefer (X25519 first,
-// followed by the NIST P-curves). Revisit if TLSProfileSpec grows explicit curve settings.
-var istioCSRServingCurvePreferences = []string{"X25519", "CurveP256", "CurveP384", "CurveP521"}
-
 // IstioCSRServingTLSArgs returns cert-manager-istio-csr flags for the gRPC serving
-// listener: --serving-tls-min-version, --serving-tls-cipher-suites, and
-// --serving-tls-curve-preferences (see cert-manager/istio-csr#787, released in
-// cert-manager-istio-csr v0.18.0+). Unlike the cert-manager operand flags, istio-csr
-// expects cipher-suites and curve-preferences as a repeated flag (one value per
-// occurrence) rather than a single comma-separated value.
+// listener: --serving-tls-min-version and repeated --serving-tls-cipher-suites
+// (cert-manager-istio-csr v0.18.0+).
 //
-// TLS 1.3 cipher suites are not configurable in Go, so cipher flags are omitted when
-// the effective minimum version is 1.3. Curve preferences are always included because
-// Go uses them for both TLS 1.2 ECDHE key exchange and TLS 1.3 group selection.
-func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) []string {
+// TLS 1.3 omits cipher flags. Curve flags are omitted so the operand keeps Go's
+// default curve preferences, including hybrid post-quantum exchanges. spec.groups
+// is not mapped here.
+//
+// cert-manager-istio-csr rejects a serving minimum below TLS 1.2 at startup.
+// VersionTLS10 and VersionTLS11, including the built-in Old profile and Custom
+// profiles that set those versions, return an error so the caller does not
+// roll out a deployment the operand cannot start.
+//
+// For TLS 1.2, a non-empty cipher list that maps to no IANA names returns an
+// error so the operand is not left on Go's default (broader) suites.
+func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) ([]string, error) {
 	if spec == nil {
-		return []string{}
+		return []string{}, nil
 	}
-	minVersion := string(spec.MinTLSVersion)
-	args := []string{"--serving-tls-min-version=" + minVersion}
+	switch spec.MinTLSVersion {
+	case configv1.VersionTLS10, configv1.VersionTLS11:
+		return nil, fmt.Errorf("Old/TLS 1.0-1.1 profiles are not supported by istio-csr; VersionTLS12 or higher is required")
+	}
+	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
 	if spec.MinTLSVersion != configv1.VersionTLS13 {
-		for _, cipher := range libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers) {
+		iana := libgocrypto.OpenSSLToIANACipherSuites(spec.Ciphers)
+		if len(spec.Ciphers) > 0 && len(iana) == 0 {
+			return nil, fmt.Errorf("no cipher suites after OpenSSL→IANA mapping")
+		}
+		for _, cipher := range iana {
 			args = append(args, "--serving-tls-cipher-suites="+cipher)
 		}
 	}
-	for _, curve := range istioCSRServingCurvePreferences {
-		args = append(args, "--serving-tls-curve-preferences="+curve)
-	}
-	return args
+	return args, nil
 }

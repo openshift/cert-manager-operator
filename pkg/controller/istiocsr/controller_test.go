@@ -18,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
@@ -777,5 +779,79 @@ func TestProcessReconcileRequest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProcessReconcileRequest_oldTLSProfileSetsDegradedCondition(t *testing.T) {
+	t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", "registry.redhat.io/cert-manager/cert-manager-istio-csr-rhel9:latest")
+
+	r := testReconciler(t)
+	r.tlsConfig = TLSConfig{
+		Adherence: configv1.TLSAdherencePolicyStrictAllComponents,
+		Honor:     true,
+		Spec:      mustEffectiveSpec(t, &configv1.TLSSecurityProfile{Type: configv1.TLSProfileOldType}),
+	}
+
+	mock := &fakes.FakeCtrlClient{}
+	mock.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+		switch o := obj.(type) {
+		case *appsv1.Deployment:
+			testDeployment().DeepCopyInto(o)
+		case *certmanagerv1.Issuer:
+			testIssuer().DeepCopyInto(o)
+		case *corev1.Secret:
+			testSecret().DeepCopyInto(o)
+		}
+		return nil
+	})
+	mock.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+		switch o := obj.(type) {
+		case *appsv1.Deployment:
+			testDeployment().DeepCopyInto(o)
+		case *corev1.ConfigMap:
+			testConfigMap().DeepCopyInto(o)
+		}
+		return true, nil
+	})
+	mock.CreateCalls(func(ctx context.Context, obj client.Object, option ...client.CreateOption) error {
+		switch o := obj.(type) {
+		case *rbacv1.ClusterRoleBinding:
+			testClusterRoleBinding().DeepCopyInto(o)
+		}
+		return nil
+	})
+	r.CtrlClient = mock
+
+	istiocsr := testIstioCSR()
+	_, err := r.processReconcileRequest(istiocsr, types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()})
+	if err != nil {
+		t.Fatalf("processReconcileRequest() unexpected error: %v", err)
+	}
+
+	const wantMsg = "Old/TLS 1.0-1.1 profiles are not supported by istio-csr"
+	var degraded, ready *metav1.Condition
+	for i := range istiocsr.Status.Conditions {
+		c := &istiocsr.Status.Conditions[i]
+		switch c.Type {
+		case v1alpha1.Degraded:
+			degraded = c
+		case v1alpha1.Ready:
+			ready = c
+		}
+	}
+	if degraded == nil || ready == nil {
+		t.Fatalf("expected Ready and Degraded conditions, got %#v", istiocsr.Status.Conditions)
+	}
+	if degraded.Status != metav1.ConditionTrue || degraded.Reason != v1alpha1.ReasonFailed {
+		t.Errorf("Degraded: status=%s reason=%s, want True/%s", degraded.Status, degraded.Reason, v1alpha1.ReasonFailed)
+	}
+	if ready.Status != metav1.ConditionFalse || ready.Reason != v1alpha1.ReasonFailed {
+		t.Errorf("Ready: status=%s reason=%s, want False/%s", ready.Status, ready.Reason, v1alpha1.ReasonFailed)
+	}
+	if !strings.Contains(degraded.Message, wantMsg) {
+		t.Errorf("Degraded message %q does not contain %q", degraded.Message, wantMsg)
+	}
+	if ready.Message != "" {
+		t.Errorf("Ready message %q, want empty (detail is on Degraded)", ready.Message)
 	}
 }
