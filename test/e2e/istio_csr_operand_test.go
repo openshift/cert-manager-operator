@@ -684,7 +684,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			err := pollTillConfigMapAvailable(ctx, clientset, meshMemberNS.Name, "istio-ca-root-cert")
 			Expect(err).NotTo(HaveOccurred())
 
-			cm, err := clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Get(ctx, "istio-ca-root-cert", metav1.GetOptions{})
+			cm, err := getConfigMapRetrying(ctx, clientset, meshMemberNS.Name, "istio-ca-root-cert")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cm.Data).To(HaveKey("root-cert.pem"))
 			Expect(cm.Data["root-cert.pem"]).NotTo(BeEmpty())
