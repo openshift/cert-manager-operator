@@ -969,6 +969,56 @@ func waitForDeploymentEnvVarRemovedAndRollout(ctx context.Context, namespace, de
 	}, timeout)
 }
 
+// enableOperatorFeatureGateForSuite patches the operator Subscription's UNSUPPORTED_ADDON_FEATURES
+// to set featureGate=enabled, preserving any other feature gates already present, and waits for
+// the operator deployment to roll out with the new value. When enabled and bumpLogLevel are both
+// true, it also raises OPERATOR_LOG_LEVEL to 4 for the suite's duration, for easier diagnosis of
+// CI failures. The Subscription's pre-existing UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL
+// values are written to originalGates/originalOperatorLogLevel so a later call to
+// restoreOperatorFeatureGateForSuite can restore them.
+func enableOperatorFeatureGateForSuite(ctx context.Context, loader library.DynamicResourceLoader, featureGate string, enabled, bumpLogLevel bool, originalGates, originalOperatorLogLevel *string) {
+	By("capturing the Subscription's current UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL")
+	var err error
+	*originalGates, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+	Expect(err).NotTo(HaveOccurred())
+	*originalOperatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
+	Expect(err).NotTo(HaveOccurred())
+
+	var gates []string
+	for _, gate := range strings.Split(*originalGates, ",") {
+		if gate = strings.TrimSpace(gate); gate != "" && !strings.HasPrefix(gate, featureGate+"=") {
+			gates = append(gates, gate)
+		}
+	}
+	gates = append(gates, fmt.Sprintf("%s=%t", featureGate, enabled))
+	value := strings.Join(gates, ",")
+
+	envVars := map[string]string{"UNSUPPORTED_ADDON_FEATURES": value}
+	if enabled && bumpLogLevel {
+		envVars["OPERATOR_LOG_LEVEL"] = "4"
+	}
+
+	By(fmt.Sprintf("setting %s=%t via the operator Subscription, preserving other feature gates", featureGate, enabled))
+	Expect(patchSubscriptionWithEnvVars(ctx, loader, envVars)).To(Succeed())
+	Expect(waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", value, lowTimeout)).To(Succeed())
+}
+
+// restoreOperatorFeatureGateForSuite restores the Subscription's UNSUPPORTED_ADDON_FEATURES and
+// OPERATOR_LOG_LEVEL to the values captured by a prior enableOperatorFeatureGateForSuite call.
+// Intended for use from a feature's e2e suite AfterAll.
+func restoreOperatorFeatureGateForSuite(ctx context.Context, loader library.DynamicResourceLoader, originalGates, originalOperatorLogLevel *string) {
+	By("restoring the Subscription's original UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL")
+	Expect(patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		"UNSUPPORTED_ADDON_FEATURES": *originalGates,
+		"OPERATOR_LOG_LEVEL":         *originalOperatorLogLevel,
+	})).To(Succeed())
+	if *originalGates == "" {
+		Expect(waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)).To(Succeed())
+	} else {
+		Expect(waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", *originalGates, lowTimeout)).To(Succeed())
+	}
+}
+
 // waitForDeploymentArgAndRollout waits for a deployment to have a specific
 // argument in any container and for the rollout to complete. This is useful when
 // waiting for operator-driven changes to propagate to operand deployments,
@@ -1557,6 +1607,18 @@ func VerifyContainerResources(pod corev1.Pod, containerName string, expectedReso
 		}
 	}
 	return nil
+}
+
+// verifyManagedResourceLabels asserts the standard set of labels the operator's library-go/SSA
+// resource builders stamp onto every resource they manage for a given operand, keyed by the
+// operand's common name (e.g. "cert-manager-approver-policy", "trust-manager").
+func verifyManagedResourceLabels(labels map[string]string, name string) {
+	Expect(labels).Should(HaveKeyWithValue("app", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/name", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/instance", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/managed-by", "cert-manager-operator"))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/part-of", "cert-manager-operator"))
+	Expect(labels).Should(HaveKey("app.kubernetes.io/version"))
 }
 
 // resetCertManagerNetworkPolicyState resets the CertManager to have defaultNetworkPolicy="true"
