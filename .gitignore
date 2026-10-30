@@ -12,6 +12,7 @@
 *.out
 
 /cert-manager-operator
+/http01-proxy
 
 # Log output from telepresence
 telepresence.log
