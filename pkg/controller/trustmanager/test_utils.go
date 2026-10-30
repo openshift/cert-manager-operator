@@ -118,6 +118,11 @@ func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustMan
 	return b
 }
 
+func (b *trustManagerBuilder) WithCertificateRequestPolicyStatus(name string) *trustManagerBuilder {
+	b.Status.CertificateRequestPolicy = name
+	return b
+}
+
 func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 	return b.TrustManager
 }

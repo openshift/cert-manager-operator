@@ -222,6 +222,7 @@ type WebhookTLSConfig struct {
 // TrustManagerCertConfig configures the cert-manager Certificate used for the
 // trust-manager webhook serving certificate.
 // +kubebuilder:validation:XValidation:rule="!has(self.privateKeySize) || self.privateKeySize == 0 || !has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm == \"Ed25519\" || (self.privateKeyAlgorithm == \"RSA\" && self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm == \"ECDSA\" && self.privateKeySize in [256, 384, 521])",message="privateKeySize must match privateKeyAlgorithm"
+// +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || !has(self.certificateDuration) || duration(self.certificateRenewBefore) < duration(self.certificateDuration)",message="certificateRenewBefore must be less than certificateDuration"
 type TrustManagerCertConfig struct {
 	// certificateDuration is the requested validity period of the webhook TLS certificate.
 	// When unset, cert-manager's default certificate duration is used.
@@ -243,6 +244,9 @@ type TrustManagerCertConfig struct {
 	// issuerRef overrides the Issuer used for the webhook certificate.
 	// When unset, the operator uses the self-signed Issuer it creates.
 	// kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
+	// inject-ca-from-secret cannot populate the webhook caBundle.
 	// +kubebuilder:validation:XValidation:rule="self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii() == 'clusterissuer'",message="kind must be either 'Issuer' or 'ClusterIssuer'"
 	// +kubebuilder:validation:XValidation:rule="self.group.lowerAscii() == 'cert-manager.io'",message="group must be 'cert-manager.io'"
 	// +kubebuilder:validation:Optional
@@ -275,14 +279,6 @@ type TrustManagerCertConfig struct {
 	// +kubebuilder:validation:Optional
 	// +optional
 	CertificateSignatureAlgorithm string `json:"certificateSignatureAlgorithm,omitempty"`
-
-	// propagateMetadataToSecret copies the labels and annotations the operator
-	// sets on the webhook Certificate onto that Certificate's Secret.
-	// "Enabled" copies them. "Disabled" does not (default).
-	// +kubebuilder:validation:Enum=Enabled;Disabled
-	// +kubebuilder:validation:Optional
-	// +optional
-	PropagateMetadataToSecret Mode `json:"propagateMetadataToSecret,omitempty"`
 }
 
 // ApproverPolicyConfig controls creation and removal of a CertificateRequestPolicy for the

@@ -22,9 +22,10 @@ import (
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
 // Helm app.webhook.tls.approverPolicy. Resources are created when bootstrapResources
-// is Enabled and deleted when it is not. If Enabled and the CertificateRequestPolicy
-// CRD is missing (approver-policy not installed), reconciliation fails with a
-// CRD-missing error. A missing CRD is ignored while bootstrapResources is Disabled.
+// is Enabled. They are deleted when it is not only if status records them and the
+// live objects carry this operator's managed-by label. If Enabled and the
+// CertificateRequestPolicy CRD is missing, reconciliation fails with a CRD-missing
+// error. A missing CRD is ignored while bootstrapResources is Disabled.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	if !approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
 		return r.deleteApproverPolicyResources(trustManager)
@@ -42,11 +43,15 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	return nil
 }
 
-// deleteApproverPolicyResources removes the operator-created CertificateRequestPolicy
-// and the RBAC that grants use of it. NotFound is success. A missing
-// CertificateRequestPolicy CRD is ignored so Disabled remains valid when
-// approver-policy is not installed.
+// deleteApproverPolicyResources removes the CertificateRequestPolicy and RBAC
+// recorded in status.certificateRequestPolicy. An empty status means this
+// controller did not create them, so a same-named policy is left alone and
+// Disabled does not call the API. An existing object is deleted only when it
+// carries app.kubernetes.io/managed-by=cert-manager-operator.
 func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustManager) error {
+	if trustManager.Status.CertificateRequestPolicy == "" {
+		return nil
+	}
 	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
@@ -77,6 +82,21 @@ func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustM
 func (r *Reconciler) deleteApproverPolicyObject(trustManager *v1alpha1.TrustManager, obj client.Object, resourceKind string, ignoreNoMatch bool) error {
 	resourceName := obj.GetName()
 	r.log.V(4).Info("ensuring approver-policy resource is absent", "kind", resourceKind, "name", resourceName)
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(obj), obj)
+	if err != nil {
+		if ignoreNoMatch && meta.IsNoMatchError(err) {
+			return nil
+		}
+		return common.FromClientError(err, "failed to check if %s %q exists", resourceKind, resourceName)
+	}
+	if !exists {
+		return nil
+	}
+	// A same-named object without this label was not created by this controller.
+	if !operatorManagesObject(obj) {
+		r.log.V(2).Info("leaving approver-policy resource that this operator does not manage", "kind", resourceKind, "name", resourceName)
+		return nil
+	}
 	if err := r.Delete(r.ctx, obj); err != nil {
 		if apierrors.IsNotFound(err) || (ignoreNoMatch && meta.IsNoMatchError(err)) {
 			return nil
@@ -88,12 +108,16 @@ func (r *Reconciler) deleteApproverPolicyObject(trustManager *v1alpha1.TrustMana
 	return nil
 }
 
+func operatorManagesObject(obj client.Object) bool {
+	return obj.GetLabels()["app.kubernetes.io/managed-by"] == controllerDefaultResourceLabels["app.kubernetes.io/managed-by"]
+}
+
 // createOrApplyCertificateRequestPolicy applies CertificateRequestPolicy
 // trust-manager-policy so approver-policy can auto-approve the webhook cert.
 // A missing CRP CRD is treated as a reconcile error (install approver-policy
 // or set bootstrapResources to Disabled).
 func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired := getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations)
+	desired := getCertificateRequestPolicyObject(trustManager.Spec.TrustManagerConfig.WebhookTLS.CertManager, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling certificaterequestpolicy resource", "name", resourceName)
 
@@ -122,8 +146,11 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	return nil
 }
 
-func getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations map[string]string) *policyv1alpha1.CertificateRequestPolicy {
+func getCertificateRequestPolicyObject(certConfig v1alpha1.TrustManagerCertConfig, resourceLabels, resourceAnnotations map[string]string) *policyv1alpha1.CertificateRequestPolicy {
 	dnsName := fmt.Sprintf("%s.%s.svc", trustManagerServiceName, operandNamespace)
+	// Same issuer as the webhook Certificate. A fixed self-signed selector would
+	// never match a custom issuerRef, so the CertificateRequest would stay unapproved.
+	issuerRef := webhookCertificateIssuerRef(certConfig)
 	// cert-manager defaults an unset Certificate spec.usages to these two values.
 	// approver-policy treats an omitted allowed.usages list as permitting none.
 	usages := []certmanagerv1.KeyUsage{certmanagerv1.UsageDigitalSignature, certmanagerv1.UsageKeyEncipherment}
@@ -149,9 +176,9 @@ func getCertificateRequestPolicyObject(resourceLabels, resourceAnnotations map[s
 			},
 			Selector: policyv1alpha1.CertificateRequestPolicySelector{
 				IssuerRef: &policyv1alpha1.CertificateRequestPolicySelectorIssuerRef{
-					Name:  ptr.To(trustManagerIssuerName),
-					Kind:  ptr.To("Issuer"),
-					Group: ptr.To("cert-manager.io"),
+					Name:  ptr.To(issuerRef.Name),
+					Kind:  ptr.To(issuerRef.Kind),
+					Group: ptr.To(issuerRef.Group),
 				},
 			},
 		},

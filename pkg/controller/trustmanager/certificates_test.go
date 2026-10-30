@@ -200,6 +200,7 @@ func TestWebhookCertConfig(t *testing.T) {
 	tm := testTrustManager().Build()
 	labels := getResourceLabels(tm)
 	annotations := getResourceAnnotations(tm)
+	annotations["user-annotation"] = "kept"
 	tm.Spec.TrustManagerConfig.WebhookTLS.CertManager = v1alpha1.TrustManagerCertConfig{
 		CertificateDuration:           &metav1.Duration{Duration: 8760 * time.Hour},
 		CertificateRenewBefore:        &metav1.Duration{Duration: 360 * time.Hour},
@@ -208,7 +209,6 @@ func TestWebhookCertConfig(t *testing.T) {
 		PrivateKeyRotationPolicy:      "Always",
 		PrivateKeySize:                256,
 		CertificateSignatureAlgorithm: "ECDSAWithSHA256",
-		PropagateMetadataToSecret:     v1alpha1.Enabled,
 	}
 
 	cert := getCertificateObject(tm.Spec.TrustManagerConfig, labels, annotations)
@@ -224,12 +224,15 @@ func TestWebhookCertConfig(t *testing.T) {
 	if cert.Spec.SignatureAlgorithm != certmanagerv1.ECDSAWithSHA256 {
 		t.Errorf("expected signature algorithm ECDSAWithSHA256, got %q", cert.Spec.SignatureAlgorithm)
 	}
-	if cert.Spec.SecretTemplate == nil || cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"] != labels["app.kubernetes.io/instance"] {
-		t.Errorf("expected secret template labels copied, got %+v", cert.Spec.SecretTemplate)
+	// Controller labels and annotations stay off secretTemplate. CM-1025 copies them.
+	if cert.Spec.SecretTemplate == nil || cert.Spec.SecretTemplate.Annotations[certmanagerv1.AllowsInjectionFromSecretAnnotation] != "true" {
+		t.Errorf("expected secretTemplate annotation %s=true, got %+v", certmanagerv1.AllowsInjectionFromSecretAnnotation, cert.Spec.SecretTemplate)
 	}
-	labels["app.kubernetes.io/instance"] = "changed-after-copy"
-	if cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"] == "changed-after-copy" {
-		t.Errorf("secret template labels share the operator label map")
+	if _, ok := cert.Spec.SecretTemplate.Annotations["user-annotation"]; ok {
+		t.Errorf("controller annotations must not be copied onto secretTemplate, got %+v", cert.Spec.SecretTemplate.Annotations)
+	}
+	if _, ok := cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"]; ok {
+		t.Errorf("controller labels must not be copied onto secretTemplate, got %+v", cert.Spec.SecretTemplate.Labels)
 	}
 }
 

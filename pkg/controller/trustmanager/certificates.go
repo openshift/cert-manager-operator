@@ -3,7 +3,6 @@ package trustmanager
 import (
 	"bytes"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 
@@ -90,22 +89,18 @@ func getCertificateObject(config v1alpha1.TrustManagerConfig, resourceLabels, re
 	certificate.Spec.CommonName = dnsName
 	certificate.Spec.DNSNames = []string{dnsName}
 	certificate.Spec.SecretName = trustManagerTLSSecretName
-	applyWebhookCertConfig(certificate, config.WebhookTLS.CertManager, resourceLabels, resourceAnnotations)
+	// secretTemplate stays as decoded from the manifest, including
+	// cert-manager.io/allow-direct-injection. Copying controller labels and
+	// annotations onto that template is CM-1025, not webhookTLS.certManager.
+	applyWebhookCertConfig(certificate, config.WebhookTLS.CertManager)
 
 	return certificate
 }
 
 // applyWebhookCertConfig copies webhookTLS.certManager onto the Certificate.
 // Unset fields keep the operator default (self-signed Issuer) or are left for cert-manager to default.
-func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig, resourceLabels, resourceAnnotations map[string]string) {
-	certificate.Spec.IssuerRef = certmanagermetav1.IssuerReference{
-		Name:  trustManagerIssuerName,
-		Kind:  "Issuer",
-		Group: "cert-manager.io",
-	}
-	if certConfig.IssuerRef != nil {
-		certificate.Spec.IssuerRef = *certConfig.IssuerRef
-	}
+func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig) {
+	certificate.Spec.IssuerRef = webhookCertificateIssuerRef(certConfig)
 	if certConfig.CertificateDuration != nil {
 		certificate.Spec.Duration = certConfig.CertificateDuration
 	}
@@ -118,11 +113,19 @@ func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v
 	if privateKey := privateKeyFromCertConfig(certConfig); privateKey != nil {
 		certificate.Spec.PrivateKey = privateKey
 	}
-	if certConfig.PropagateMetadataToSecret == v1alpha1.Enabled {
-		certificate.Spec.SecretTemplate = &certmanagerv1.CertificateSecretTemplate{
-			Labels:      maps.Clone(resourceLabels),
-			Annotations: maps.Clone(resourceAnnotations),
-		}
+}
+
+// webhookCertificateIssuerRef is the issuer for the webhook Certificate and for
+// the CertificateRequestPolicy selector. An unset issuerRef uses the operator's
+// self-signed Issuer. Both must match or approver-policy never approves the request.
+func webhookCertificateIssuerRef(certConfig v1alpha1.TrustManagerCertConfig) certmanagermetav1.IssuerReference {
+	if certConfig.IssuerRef != nil {
+		return *certConfig.IssuerRef
+	}
+	return certmanagermetav1.IssuerReference{
+		Name:  trustManagerIssuerName,
+		Kind:  "Issuer",
+		Group: "cert-manager.io",
 	}
 }
 
