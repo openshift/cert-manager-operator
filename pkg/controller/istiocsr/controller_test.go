@@ -851,7 +851,7 @@ func TestProcessReconcileRequest_oldTLSProfileSetsDegradedCondition(t *testing.T
 	if !strings.Contains(degraded.Message, wantMsg) {
 		t.Errorf("Degraded message %q does not contain %q", degraded.Message, wantMsg)
 	}
-	if !strings.Contains(ready.Message, wantMsg) {
-		t.Errorf("Ready message %q does not contain %q", ready.Message, wantMsg)
+	if ready.Message != "" {
+		t.Errorf("Ready message %q, want empty (detail is on Degraded)", ready.Message)
 	}
 }
