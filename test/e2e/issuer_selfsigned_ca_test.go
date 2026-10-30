@@ -56,11 +56,11 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 		ctx = context.Background()
 
 		By("creating a test namespace")
-		ns, err = loader.CreateTestingNS("e2e-selfsigned-ca", false)
+		ns, err = loader.CreateTestingNS(ctx, "e2e-selfsigned-ca", false)
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			By("cleaning up test namespace")
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		By("creating a self-signed ClusterIssuer")
@@ -146,7 +146,7 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 
@@ -321,8 +321,8 @@ var _ = Describe("Self-signed Issuer", Label("Platform:Generic"), Ordered, func(
 
 			By("deploying hello-openshift application")
 			appName := "hello-openshift"
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
 			By("waiting for hello-openshift deployment to be ready")
 			err := pollTillDeploymentAvailable(ctx, k8sClientSet, ns.Name, appName)

@@ -64,7 +64,7 @@ var _ = Describe("Console Resources", Label("Platform:Generic"), Ordered, func()
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 	})
 

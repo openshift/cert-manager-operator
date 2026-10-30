@@ -1720,10 +1720,10 @@ func trustManagerAfterAll(ctx context.Context, unsupportedAddonFeatures, operato
 	}
 }
 
-func trustManagerBeforeEach() func() {
-	return func() {
+func trustManagerBeforeEach() func(SpecContext) {
+	return func(ctx SpecContext) {
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	}
 }

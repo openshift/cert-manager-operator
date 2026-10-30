@@ -145,14 +145,14 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 		BeforeAll(func() {
 			var err error
 
-			istioNS, err = loader.CreateTestingNS("multi-operand-istio", false)
+			istioNS, err = loader.CreateTestingNS(ctx, "multi-operand-istio", false)
 			Expect(err).NotTo(HaveOccurred())
 
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), istioNS.Name)
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), istioNS.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), istioNS.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), istioNS.Name)
 			err = waitForCertificateReadiness(ctx, "my-selfsigned-ca", istioNS.Name)
 			Expect(err).NotTo(HaveOccurred())
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), istioNS.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), istioNS.Name)
 
 			ensureMultiOperandCRsAbsent(ctx, istioNS.Name)
 
@@ -164,7 +164,7 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 
 			waitForOperandsReadyConcurrently(ctx, clientset, istioNS.Name)
 
-			err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+			err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -176,10 +176,10 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 				fmt.Sprintf("Bundle %s", multiOperandBundleName))
 			expectDeleteClean(k8sClientSet.CoreV1().ConfigMaps(trustManagerNamespace).Delete(ctx, multiOperandBundleSourceCM, metav1.DeleteOptions{}),
 				fmt.Sprintf("ConfigMap %s/%s", trustManagerNamespace, multiOperandBundleSourceCM))
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), istioNS.Name)
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), istioNS.Name)
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), istioNS.Name)
-			loader.DeleteTestingNS(istioNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), istioNS.Name)
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), istioNS.Name)
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "cluster_issuer.yaml"), istioNS.Name)
+			loader.DeleteTestingNS(ctx, istioNS.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		It("should have TrustManager and IstioCSR CRs ready after concurrent creation", func() {
@@ -415,10 +415,10 @@ func verifyWebhookServiceHasEndpoints(ctx context.Context, clientset *kubernetes
 }
 
 func runMultiOperandSelfSignedCertificateTest(ctx context.Context) {
-	ns, err := loader.CreateTestingNS("multi-operand-selfsigned", false)
+	ns, err := loader.CreateTestingNS(ctx, "multi-operand-selfsigned", false)
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
-		loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+	DeferCleanup(func(ctx SpecContext) {
+		loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 	})
 
 	const (
@@ -434,7 +434,7 @@ func runMultiOperandSelfSignedCertificateTest(ctx context.Context) {
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 	})
 
@@ -461,10 +461,10 @@ func runMultiOperandSelfSignedCertificateTest(ctx context.Context) {
 }
 
 func runMultiOperandBogusIssuerCertificateTest(ctx context.Context, clientset *kubernetes.Clientset, istioNamespace string) {
-	ns, err := loader.CreateTestingNS("multi-operand-bogus-issuer", false)
+	ns, err := loader.CreateTestingNS(ctx, "multi-operand-bogus-issuer", false)
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
-		loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+	DeferCleanup(func(ctx SpecContext) {
+		loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 	})
 
 	const (
@@ -504,7 +504,7 @@ func runMultiOperandBogusIssuerCertificateTest(ctx context.Context, clientset *k
 	Expect(apierrors.IsNotFound(err)).To(BeTrue())
 
 	Expect(allOperandPodsHealthy(ctx, clientset, istioNamespace)).To(Succeed())
-	Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+	Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 	verifyAllOperandDeploymentsReady(ctx, clientset, istioNamespace)
 }
 
@@ -567,7 +567,7 @@ func runMultiOperandBundleSecretTargetTest(ctx context.Context, sourcePEM string
 		},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = k8sClientSet.CoreV1().Namespaces().Delete(ctx, targetNS.Name, metav1.DeleteOptions{})
 	})
 
@@ -627,7 +627,7 @@ func runMultiOperandManagedClusterRoleRecreationTest(ctx context.Context, client
 		})
 	}
 
-	Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+	Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 
 	tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
@@ -673,7 +673,7 @@ func runMultiOperandUpdateAllOperatorCRsTest(ctx context.Context, clientset *kub
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+	Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 	verifyAllOperandDeploymentsReady(ctx, clientset, istioNamespace)
 	waitForOperandsReadyConcurrently(ctx, clientset, istioNamespace)
 }
@@ -721,18 +721,18 @@ func runMultiOperandIstioCSRGRPCCertificateTest(ctx context.Context, clientset *
 		Data:       map[string]string{"ca.proto": string(protoBytes)},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = clientset.CoreV1().ConfigMaps(ns.Name).Delete(ctx, "proto-cm", metav1.DeleteOptions{})
 	})
 
 	csr := generateMultiOperandIstioCSRCSR(ns.Name)
-	loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+	loader.CreateFromFile(ctx, AssetFunc(testassets.ReadFile).WithTemplateValues(
 		IstioCSRGRPCurlJobConfig{
 			CertificateSigningRequest: csr,
 			IstioCSRStatus:            istioCSRStatus,
 		},
 	), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), ns.Name)
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		policy := metav1.DeletePropagationBackground
 		_ = clientset.BatchV1().Jobs(ns.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
 	})
