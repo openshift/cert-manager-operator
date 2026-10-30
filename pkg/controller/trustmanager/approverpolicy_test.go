@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
@@ -14,6 +13,7 @@ import (
 
 	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
@@ -22,7 +22,7 @@ import (
 func TestCertificateRequestPolicyObject(t *testing.T) {
 	labels := testResourceLabels()
 	annotations := map[string]string{"user-annotation": "test-value"}
-	obj := getCertificateRequestPolicyObject(labels, annotations)
+	obj := getCertificateRequestPolicyObject(v1alpha1.TrustManagerCertConfig{}, labels, annotations)
 
 	if obj.GetName() != trustManagerCertificateRequestPolicyName {
 		t.Errorf("expected name %q, got %q", trustManagerCertificateRequestPolicyName, obj.GetName())
@@ -47,6 +47,47 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 		(*obj.Spec.Allowed.Usages)[1] != certmanagerv1.UsageKeyEncipherment {
 		t.Errorf("expected usages [digital signature, key encipherment], got %#v", obj.Spec.Allowed.Usages)
 	}
+	assertPolicyIssuerRef(t, obj, certmanagermetav1.ObjectReference{
+		Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io",
+	})
+}
+
+func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
+	tests := []struct {
+		name string
+		ref  *certmanagermetav1.ObjectReference
+		want certmanagermetav1.ObjectReference
+	}{
+		{
+			name: "defaults to the operator self-signed issuer",
+			want: certmanagermetav1.ObjectReference{Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io"},
+		},
+		{
+			name: "uses a custom issuer",
+			ref:  &certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+		},
+		{
+			name: "uses a custom cluster issuer",
+			ref:  &certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := getCertificateRequestPolicyObject(v1alpha1.TrustManagerCertConfig{IssuerRef: tt.ref}, nil, nil)
+			assertPolicyIssuerRef(t, obj, tt.want)
+		})
+	}
+}
+
+func assertPolicyIssuerRef(t *testing.T, obj *policyv1alpha1.CertificateRequestPolicy, want certmanagermetav1.ObjectReference) {
+	t.Helper()
+	got := obj.Spec.Selector.IssuerRef
+	if got == nil || got.Name == nil || got.Kind == nil || got.Group == nil ||
+		*got.Name != want.Name || *got.Kind != want.Kind || *got.Group != want.Group {
+		t.Errorf("selector issuerRef = %#v, want %#v", got, want)
+	}
 }
 
 func TestPolicyClusterRoleBindingSubjects(t *testing.T) {
@@ -65,8 +106,16 @@ func TestPolicyClusterRoleBindingSubjects(t *testing.T) {
 	}
 }
 
+func markOperatorManaged(obj client.Object) {
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels["app.kubernetes.io/managed-by"] = controllerDefaultResourceLabels["app.kubernetes.io/managed-by"]
+	obj.SetLabels(labels)
+}
+
 func TestApproverPolicyReconciliation(t *testing.T) {
-	notFound := apierrors.NewNotFound(schema.GroupResource{Group: "policy.cert-manager.io", Resource: "certificaterequestpolicies"}, trustManagerCertificateRequestPolicyName)
 	tests := []struct {
 		name            string
 		tmBuilder       *trustManagerBuilder
@@ -78,21 +127,20 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		wantDeleted     []string
 	}{
 		{
-			name:            "deletes approver policy resources when disabled",
-			wantDeleteCount: 3,
-			wantDeleted: []string{
-				trustManagerPolicyClusterRoleBindingName,
-				trustManagerPolicyClusterRoleName,
-				trustManagerCertificateRequestPolicyName,
-			},
+			name:            "skips approver policy cleanup when status does not record a policy",
+			wantExistsCount: 0,
+			wantDeleteCount: 0,
 		},
 		{
-			name: "treats already-absent approver policy resources as success",
+			name:      "deletes managed approver policy resources recorded in status",
+			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-					return notFound
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					markOperatorManaged(obj)
+					return true, nil
 				})
 			},
+			wantExistsCount: 3,
 			wantDeleteCount: 3,
 			wantDeleted: []string{
 				trustManagerPolicyClusterRoleBindingName,
@@ -101,27 +149,45 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			},
 		},
 		{
-			name: "ignores missing CertificateRequestPolicy CRD when disabled",
+			name:            "skips delete when recorded approver policy resources are already absent",
+			tmBuilder:       testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			wantExistsCount: 3,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "leaves an existing policy that this operator does not manage",
+			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-					switch obj.(type) {
-					case *policyv1alpha1.CertificateRequestPolicy:
-						return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "policy.cert-manager.io", Kind: "CertificateRequestPolicy"}}
-					default:
-						return notFound
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					obj.SetLabels(map[string]string{"app.kubernetes.io/managed-by": "helm"})
+					return true, nil
+				})
+			},
+			wantExistsCount: 3,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "ignores missing CertificateRequestPolicy CRD when disabled",
+			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					if _, ok := obj.(*policyv1alpha1.CertificateRequestPolicy); ok {
+						return false, &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "policy.cert-manager.io", Kind: "CertificateRequestPolicy"}}
 					}
+					return false, nil
 				})
 			},
-			wantDeleteCount: 3,
-			wantDeleted: []string{
-				trustManagerPolicyClusterRoleBindingName,
-				trustManagerPolicyClusterRoleName,
-				trustManagerCertificateRequestPolicyName,
-			},
+			wantExistsCount: 3,
+			wantDeleteCount: 0,
 		},
 		{
-			name: "returns error when deleting approver policy RBAC fails",
+			name:      "returns error when deleting approver policy RBAC fails",
+			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					markOperatorManaged(obj)
+					return true, nil
+				})
 				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 					if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
 						return fmt.Errorf("delete failed")
@@ -130,6 +196,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 				})
 			},
 			wantErr:         "failed to delete clusterrolebinding",
+			wantExistsCount: 1,
 			wantDeleteCount: 1,
 			wantDeleted:     []string{trustManagerPolicyClusterRoleBindingName},
 		},
@@ -151,7 +218,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
 					case *policyv1alpha1.CertificateRequestPolicy:
-						getCertificateRequestPolicyObject(testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
+						getCertificateRequestPolicyObject(v1alpha1.TrustManagerCertConfig{}, testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
 					case *rbacv1.ClusterRole:
 						getPolicyClusterRoleObject(testResourceLabels(), testResourceAnnotations()).DeepCopyInto(dst)
 					case *rbacv1.ClusterRoleBinding:
@@ -170,7 +237,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
 					case *policyv1alpha1.CertificateRequestPolicy:
-						existing := getCertificateRequestPolicyObject(testResourceLabels(), testResourceAnnotations())
+						existing := getCertificateRequestPolicyObject(v1alpha1.TrustManagerCertConfig{}, testResourceLabels(), testResourceAnnotations())
 						existing.Spec.Selector.IssuerRef.Name = ptr.To("wrong")
 						existing.DeepCopyInto(dst)
 					case *rbacv1.ClusterRole:

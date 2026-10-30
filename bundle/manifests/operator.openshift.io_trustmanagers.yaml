@@ -1298,6 +1298,9 @@ spec:
                               issuerRef overrides the Issuer used for the webhook certificate.
                               When unset, the operator uses the self-signed Issuer it creates.
                               kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+                              When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+                              An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
+                              inject-ca-from-secret cannot populate the webhook caBundle.
                             properties:
                               group:
                                 description: |-
@@ -1351,15 +1354,6 @@ spec:
                             - 8192
                             format: int32
                             type: integer
-                          propagateMetadataToSecret:
-                            description: |-
-                              propagateMetadataToSecret copies the labels and annotations the operator
-                              sets on the webhook Certificate onto that Certificate's Secret.
-                              "Enabled" copies them. "Disabled" does not (default).
-                            enum:
-                            - Enabled
-                            - Disabled
-                            type: string
                         type: object
                         x-kubernetes-validations:
                         - message: privateKeySize must match privateKeyAlgorithm
@@ -1368,6 +1362,9 @@ spec:
                             == "Ed25519" || (self.privateKeyAlgorithm == "RSA" &&
                             self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm
                             == "ECDSA" && self.privateKeySize in [256, 384, 521])'
+                        - message: certificateRenewBefore must be less than certificateDuration
+                          rule: '!has(self.certificateRenewBefore) || !has(self.certificateDuration)
+                            || duration(self.certificateRenewBefore) < duration(self.certificateDuration)'
                     type: object
                 type: object
             required:
