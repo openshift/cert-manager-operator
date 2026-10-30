@@ -20,6 +20,7 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
@@ -1317,5 +1318,153 @@ func TestUpdateVolumeWithIssuerCA(t *testing.T) {
 				t.Errorf("volume mounts mismatch:\ngot: %+v\nwant: %+v", containerMounts, tt.expectedMounts)
 			}
 		})
+	}
+}
+
+func TestUpdateWatchLabel(t *testing.T) {
+	istiocsr := testIstioCSR()
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "user-ca",
+			Namespace: "cert-manager",
+		},
+	}
+
+	fakeClient := &fakes.FakeCtrlClient{}
+	fakeClient.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+		return nil
+	})
+
+	r := testReconciler(t)
+	r.CtrlClient = fakeClient
+
+	if err := r.updateWatchLabel(cm, istiocsr); err != nil {
+		t.Fatalf("updateWatchLabel: %v", err)
+	}
+
+	wantWatch := fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
+	if got := cm.GetLabels()[IstiocsrResourceWatchLabelName]; got != wantWatch {
+		t.Errorf("watched-by label = %q, want %q", got, wantWatch)
+	}
+	if got := cm.GetLabels()[common.ManagedResourceLabelKey]; got != RequestEnqueueLabelValue {
+		t.Errorf("app label = %q, want %q", got, RequestEnqueueLabelValue)
+	}
+	if fakeClient.UpdateWithRetryCallCount() != 1 {
+		t.Errorf("UpdateWithRetry calls = %d, want 1", fakeClient.UpdateWithRetryCallCount())
+	}
+}
+
+func TestFetchUserCAConfigMapUsesAPIReader(t *testing.T) {
+	cached := &fakes.FakeCtrlClient{}
+	cached.GetReturns(fmt.Errorf("should not use cached client"))
+
+	api := &testAPIReader{
+		get: func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			cm := testCACertificateConfigMap()
+			cm.DeepCopyInto(obj.(*corev1.ConfigMap))
+			return nil
+		},
+	}
+
+	r := testReconciler(t)
+	r.CtrlClient = cached
+	r.apiReader = api
+
+	key := types.NamespacedName{Name: "ca-cert-test", Namespace: testIstioCSRNamespace}
+	got, err := r.fetchUserCAConfigMap(key)
+	if err != nil {
+		t.Fatalf("fetchUserCAConfigMap: %v", err)
+	}
+	if got.GetName() != "ca-cert-test" {
+		t.Errorf("name = %q, want ca-cert-test", got.GetName())
+	}
+	if cached.GetCallCount() != 0 {
+		t.Errorf("cached Get calls = %d, want 0", cached.GetCallCount())
+	}
+	if api.GetCallCount() != 1 {
+		t.Errorf("api Get calls = %d, want 1", api.GetCallCount())
+	}
+}
+
+type testAPIReader struct {
+	get func(context.Context, types.NamespacedName, client.Object) error
+	calls int
+}
+
+func (t *testAPIReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+	t.calls++
+	return t.get(ctx, types.NamespacedName{Namespace: key.Namespace, Name: key.Name}, obj)
+}
+
+func (t *testAPIReader) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (t *testAPIReader) GetCallCount() int {
+	return t.calls
+}
+
+func TestRemoveWatchLabel(t *testing.T) {
+	istiocsr := testIstioCSR()
+	wantWatch := fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "user-ca",
+			Namespace: testIstioCSRNamespace,
+			Labels: map[string]string{
+				IstiocsrResourceWatchLabelName: wantWatch,
+				common.ManagedResourceLabelKey:   RequestEnqueueLabelValue,
+				"keep":                           "yes",
+			},
+		},
+	}
+
+	fakeClient := &fakes.FakeCtrlClient{}
+	fakeClient.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+		return nil
+	})
+
+	r := testReconciler(t)
+	r.CtrlClient = fakeClient
+
+	if err := r.removeWatchLabel(cm, istiocsr); err != nil {
+		t.Fatalf("removeWatchLabel: %v", err)
+	}
+	if _, ok := cm.GetLabels()[IstiocsrResourceWatchLabelName]; ok {
+		t.Error("watched-by label should be removed")
+	}
+	if _, ok := cm.GetLabels()[common.ManagedResourceLabelKey]; ok {
+		t.Error("app label should be removed")
+	}
+	if cm.GetLabels()["keep"] != "yes" {
+		t.Error("unrelated labels should remain")
+	}
+}
+
+func TestUpdateWatchLabelOverwritesConflictingAppLabel(t *testing.T) {
+	istiocsr := testIstioCSR()
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "user-ca",
+			Namespace: testIstioCSRNamespace,
+			Labels: map[string]string{
+				common.ManagedResourceLabelKey: "user-app",
+			},
+		},
+	}
+
+	fakeClient := &fakes.FakeCtrlClient{}
+	fakeClient.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+		return nil
+	})
+
+	r := testReconciler(t)
+	r.CtrlClient = fakeClient
+
+	if err := r.updateWatchLabel(cm, istiocsr); err != nil {
+		t.Fatalf("updateWatchLabel: %v", err)
+	}
+	if got := cm.GetLabels()[common.ManagedResourceLabelKey]; got != RequestEnqueueLabelValue {
+		t.Errorf("app label = %q, want %q", got, RequestEnqueueLabelValue)
 	}
 }

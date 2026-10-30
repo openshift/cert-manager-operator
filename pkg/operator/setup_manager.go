@@ -36,29 +36,12 @@ var (
 	setupLog = ctrl.Log.WithName("setup-manager")
 )
 
-// ConfigMap is intentionally excluded from both istioCSRManagedResources and
-// trustManagerManagedResources. Multiple controllers need to watch ConfigMaps
-// that do not carry the managed-resource label:
-//
-//  1. TrustManager watches both its managed ConfigMaps (e.g., the default CA
-//     package ConfigMap, which carries the managed-resource label) and the
-//     cert-manager-operator-trusted-ca-bundle ConfigMap (added in the OLM bundle manifest).
-//     The latter does not carry the managed-resource label.
-//
-//  2. IstioCSR watches both its managed ConfigMaps (with the managed-resource
-//     label) and user-created ConfigMaps identified by the
-//     istiocsr.openshift.operator.io/watched-by label — a different label key
-//     entirely from the managed-resource label (app).
-//
-// The cache uses a single labels.Selector per GVK. The In operator can match
-// multiple values for the same key (e.g., app in (value1, value2)), but
-// requirements on different keys are always ANDed. There is no way to express
-// "app in (...) OR watched-by exists" in a single selector. A shared app label
-// value could solve case 1, but case 2 requires matching across different label
-// keys, which the Kubernetes label selector spec does not support.
-//
-// ConfigMaps therefore use the default unfiltered informer, and each controller
-// applies predicate-level filtering to select only the events it cares about.
+// ConfigMap uses the shared label-filtered cache with app In (...) across controller
+// label values plus common.OperatorTrustedCABundleAppLabelValue for the CNO-injected
+// trusted CA bundle. IstioCSR user ConfigMaps identified only by
+// istiocsr.openshift.operator.io/watched-by are labeled with app at runtime (see IstioCSR
+// updateWatchLabel) so they can enter the filtered cache. Predicates remain the
+// authoritative filter for reconciliation routing.
 
 // istioCSRManagedResources defines the resources managed by the IstioCSR controller.
 // These resources will be watched with a label selector filter.
@@ -72,6 +55,7 @@ var istioCSRManagedResources = []client.Object{
 	&corev1.Service{},
 	&corev1.ServiceAccount{},
 	&networkingv1.NetworkPolicy{},
+	&corev1.ConfigMap{},
 }
 
 // trustManagerManagedResources defines the resources managed by the TrustManager controller.
@@ -91,6 +75,7 @@ var trustManagerManagedResources = []client.Object{
 	&corev1.Service{},
 	&corev1.ServiceAccount{},
 	&admissionregistrationv1.ValidatingWebhookConfiguration{},
+	&corev1.ConfigMap{},
 }
 
 func init() {
@@ -210,6 +195,9 @@ func buildCacheObjectList(config ControllerConfig) (map[client.Object]cache.ByOb
 		if err := addControllerCacheConfig(objectList, trustmanager.RequestEnqueueLabelValue, trustManagerManagedResources); err != nil {
 			return nil, fmt.Errorf("failed to configure TrustManager cache: %w", err)
 		}
+		if err := appendConfigMapLabelValues(objectList, common.OperatorTrustedCABundleAppLabelValue); err != nil {
+			return nil, fmt.Errorf("failed to configure trusted CA bundle ConfigMap cache: %w", err)
+		}
 		// TrustManager CR - no label filter needed
 		objectList[&v1alpha1.TrustManager{}] = cache.ByObject{}
 	}
@@ -270,6 +258,48 @@ func findExistingCacheEntry(objectList map[client.Object]cache.ByObject, target 
 		}
 	}
 	return nil, cache.ByObject{}, false
+}
+
+// appendConfigMapLabelValues adds additional app label values to the ConfigMap cache selector.
+func appendConfigMapLabelValues(objectList map[client.Object]cache.ByObject, values ...string) error {
+	configMap := &corev1.ConfigMap{}
+	existingKey, existing, found := findExistingCacheEntry(objectList, configMap)
+	if !found {
+		return fmt.Errorf("configmap cache entry not found")
+	}
+
+	labelKey := common.ManagedResourceLabelKey
+	existingReqs, _ := existing.Label.Requirements()
+	var existingValues []string
+	for _, req := range existingReqs {
+		if req.Key() == labelKey {
+			existingValues = req.Values().List()
+			break
+		}
+	}
+
+	mergedValues := append([]string(nil), existingValues...)
+	for _, v := range values {
+		if !containsString(mergedValues, v) {
+			mergedValues = append(mergedValues, v)
+		}
+	}
+
+	mergedReq, err := labels.NewRequirement(labelKey, selection.In, mergedValues)
+	if err != nil {
+		return fmt.Errorf("failed to create merged label requirement for ConfigMap: %w", err)
+	}
+	objectList[existingKey] = cache.ByObject{Label: labels.NewSelector().Add(*mergedReq)}
+	return nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, v := range values {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }
 
 // Start starts the unified controller manager synchronously until ctx is cancelled.

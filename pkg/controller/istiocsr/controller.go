@@ -39,6 +39,7 @@ const RequestEnqueueLabelValue = "cert-manager-istio-csr"
 type Reconciler struct {
 	common.CtrlClient
 
+	apiReader     client.Reader
 	ctx           context.Context
 	eventRecorder record.EventRecorder
 	log           logr.Logger
@@ -58,6 +59,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
+		apiReader:     mgr.GetAPIReader(),
 		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
@@ -124,19 +126,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
-	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetLabels() == nil {
-			return false
-		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
-			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
 	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
 	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
-	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
@@ -149,7 +141,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerManagedResources)).
 		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
@@ -232,9 +224,10 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
-//
-//nolint:unparam // error return is kept for future implementation
 func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
+	if err := r.cleanupUserProvidedCAWatchLabels(istiocsr); err != nil {
+		return true, err
+	}
 	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
 	// This might require a validation webhook to check for usage of service as GRPC endpoint in
 	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.

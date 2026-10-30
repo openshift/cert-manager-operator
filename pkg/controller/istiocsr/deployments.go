@@ -10,6 +10,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -321,9 +322,9 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 		Namespace: namespace,
 	}
 
-	sourceConfigMap := &corev1.ConfigMap{}
-	if err := r.Get(r.ctx, sourceConfigMapKey, sourceConfigMap); err != nil {
-		return common.NewIrrecoverableError(err, "failed to fetch CA certificate ConfigMap %s/%s", sourceConfigMapKey.Namespace, sourceConfigMapKey.Name)
+	sourceConfigMap, err := r.fetchUserCAConfigMap(sourceConfigMapKey)
+	if err != nil {
+		return err
 	}
 
 	// Add watch label to the source ConfigMap to trigger reconciliation on changes.
@@ -630,6 +631,72 @@ func (r *Reconciler) validatePEMData(pemData string) error {
 	return nil
 }
 
+// fetchUserCAConfigMap loads a user-referenced CA ConfigMap via the API reader so the first
+// reconcile succeeds before the ConfigMap carries cache membership labels.
+func (r *Reconciler) fetchUserCAConfigMap(key types.NamespacedName) (*corev1.ConfigMap, error) {
+	sourceConfigMap := &corev1.ConfigMap{}
+	var err error
+	if r.apiReader != nil {
+		err = r.apiReader.Get(r.ctx, key, sourceConfigMap)
+	} else {
+		err = r.Get(r.ctx, key, sourceConfigMap)
+	}
+	if err != nil {
+		return nil, common.NewIrrecoverableError(err, "failed to fetch CA certificate ConfigMap %s/%s", key.Namespace, key.Name)
+	}
+	return sourceConfigMap, nil
+}
+
+// cleanupUserProvidedCAWatchLabels removes operator watch markers from the user CA ConfigMap.
+func (r *Reconciler) cleanupUserProvidedCAWatchLabels(istiocsr *v1alpha1.IstioCSR) error {
+	caCertConfig := istiocsr.Spec.IstioCSRConfig.CertManager.IstioCACertificate
+	if caCertConfig == nil {
+		return nil
+	}
+	namespace := caCertConfig.Namespace
+	if namespace == "" {
+		namespace = istiocsr.GetNamespace()
+	}
+	key := types.NamespacedName{Name: caCertConfig.Name, Namespace: namespace}
+	cm := &corev1.ConfigMap{}
+	var err error
+	if r.apiReader != nil {
+		err = r.apiReader.Get(r.ctx, key, cm)
+	} else {
+		err = r.Get(r.ctx, key, cm)
+	}
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return common.FromClientError(err, "failed to fetch CA certificate ConfigMap %s/%s for watch label cleanup", key.Namespace, key.Name)
+	}
+	return r.removeWatchLabel(cm, istiocsr)
+}
+
+// removeWatchLabel strips operator-applied watch labels when they belong to this IstioCSR instance.
+func (r *Reconciler) removeWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
+	labels := obj.GetLabels()
+	if labels == nil {
+		return nil
+	}
+	wantWatch := fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
+	if labels[IstiocsrResourceWatchLabelName] != wantWatch {
+		return nil
+	}
+	delete(labels, IstiocsrResourceWatchLabelName)
+	delete(labels, common.ManagedResourceLabelKey)
+	if len(labels) == 0 {
+		obj.SetLabels(nil)
+	} else {
+		obj.SetLabels(labels)
+	}
+	if err := r.UpdateWithRetry(r.ctx, obj); err != nil {
+		return common.FromClientError(err, "failed to remove watch labels from CA certificate ConfigMap %s/%s", obj.GetNamespace(), obj.GetName())
+	}
+	return nil
+}
+
 // updateWatchLabel adds a watch label to any Kubernetes object that supports labels.
 func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
 	labels := obj.GetLabels()
@@ -637,6 +704,9 @@ func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 		labels = make(map[string]string)
 	}
 	labels[IstiocsrResourceWatchLabelName] = fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
+	if labels[common.ManagedResourceLabelKey] != RequestEnqueueLabelValue {
+		labels[common.ManagedResourceLabelKey] = RequestEnqueueLabelValue
+	}
 	obj.SetLabels(labels)
 
 	if err := r.UpdateWithRetry(r.ctx, obj); err != nil {

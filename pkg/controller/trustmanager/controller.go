@@ -89,7 +89,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	isManagedResource := func(object client.Object) bool {
 		labels := object.GetLabels()
-		matches := labels != nil && labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		if labels == nil {
+			return false
+		}
+		matches := labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		if !matches {
+			if cm, ok := object.(*corev1.ConfigMap); ok {
+				matches = cm.GetNamespace() == common.OperatorNamespace &&
+					cm.GetName() == common.TrustedCABundleConfigMapName &&
+					labels[common.ManagedResourceLabelKey] == common.OperatorTrustedCABundleAppLabelValue
+			}
+		}
 		r.log.V(4).Info("predicate evaluation", "object", fmt.Sprintf("%T", object), "name", object.GetName(), "namespace", object.GetNamespace(), "labels", labels, "matches", matches)
 		return matches
 	}
@@ -126,11 +136,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 
 	// Predicate that matches the CNO-injected CA bundle ConfigMap in the operator namespace.
-	// This ConfigMap is NOT managed by trust-manager-controller (no managed label) but we need to detect
-	// when CNO updates the trusted CA bundle so we can reformat and propagate it.
+	// The bundle carries app=common.OperatorTrustedCABundleAppLabelValue and is covered by
+	// isManagedResource for ConfigMaps; keep name/namespace fallback for clusters not yet upgraded.
 	injectedCABundleConfigMapPredicate := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetNamespace() == common.OperatorNamespace &&
-			object.GetName() == common.TrustedCABundleConfigMapName
+		if object.GetNamespace() == common.OperatorNamespace &&
+			object.GetName() == common.TrustedCABundleConfigMapName {
+			labels := object.GetLabels()
+			if labels != nil && labels[common.ManagedResourceLabelKey] == common.OperatorTrustedCABundleAppLabelValue {
+				return false
+			}
+			return true
+		}
+		return false
 	})
 
 	// Reconcile when the cluster APIServer is created/deleted, or when TLS
