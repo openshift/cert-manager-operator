@@ -274,7 +274,8 @@ test: manifests generate vet test-apis test-unit ## Run tests.
 
 .PHONY: test-unit
 test-unit: $(SETUP_ENVTEST) ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(BIN_DIR) -p path)" \
+	assets="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(BIN_DIR) -p path)" && \
+	KUBEBUILDER_ASSETS="$${assets}" \
 		go test $$(go list ./... | grep -vE 'test/(e2e|apis|utils)(/|$$)') -coverprofile cover.out
 
 # Utilize controller-runtime provided envtest for API integration test

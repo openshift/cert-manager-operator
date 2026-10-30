@@ -7,11 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
 func TestFinalizerConflictPreservesConcurrentChanges(t *testing.T) {
@@ -95,6 +97,150 @@ func TestStatusRejectsStaleGeneration(t *testing.T) {
 	_, err := r.processReconcileRequest(t.Context(), initial)
 	require.True(t, apierrors.IsConflict(err))
 	assert.Zero(t, c.StatusUpdateCallCount())
+}
+
+func TestFinalizerReadFailure(t *testing.T) {
+	instance := testInstance()
+	r, c := testReconciler(t, instance)
+	readErr := apierrors.NewTimeoutError("read timed out", 1)
+	c.GetReturns(readErr)
+	require.ErrorIs(t, r.updateFinalizer(t.Context(), instance.DeepCopy(), true), readErr)
+	assert.Zero(t, c.UpdateCallCount())
+}
+
+func TestStatusReadFailure(t *testing.T) {
+	instance := testInstance()
+	r, c := testReconciler(t, instance)
+	readErr := apierrors.NewTimeoutError("read timed out", 1)
+	c.GetReturns(readErr)
+	err := r.updateStatus(t.Context(), instance.DeepCopy(), v1alpha1.ConditionalStatus{})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, readErr)
+	assert.Zero(t, c.StatusUpdateCallCount())
+}
+
+func TestPrepareResource(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		version string
+	}{
+		{name: "no RELATED_IMAGE version pin"},
+		{name: "version pin adds the version label", version: "v1.2.3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.version != "" {
+				t.Setenv(versionEnvVar, tc.version)
+			}
+			instance := testInstance()
+			instance.Spec.ControllerConfig.Labels = map[string]string{"team": "security"}
+			instance.Spec.ControllerConfig.Annotations = map[string]string{"example.test/note": "value"}
+			obj := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Labels:      map[string]string{"component": "asset-default"},
+				Annotations: map[string]string{"asset.example/injected": "keep"},
+			}}
+
+			prepareResource(instance, obj)
+
+			// Asset-provided labels/annotations win over operator-configured ones.
+			assert.Equal(t, "asset-default", obj.Labels["component"])
+			assert.Equal(t, "security", obj.Labels["team"])
+			// The managed-resource marker label always wins so cache/watch filtering works.
+			assert.Equal(t, RequestEnqueueLabelValue, obj.Labels[common.ManagedResourceLabelKey])
+			assert.Equal(t, "keep", obj.Annotations["asset.example/injected"])
+			assert.Equal(t, "value", obj.Annotations["example.test/note"])
+			if tc.version != "" {
+				assert.Equal(t, tc.version, obj.Labels["app.kubernetes.io/version"])
+			} else {
+				assert.NotContains(t, obj.Labels, "app.kubernetes.io/version")
+			}
+			require.Len(t, obj.OwnerReferences, 1)
+			assert.Equal(t, instance.UID, obj.OwnerReferences[0].UID)
+			assert.True(t, *obj.OwnerReferences[0].Controller)
+		})
+	}
+}
+
+func TestManagedMapModified(t *testing.T) {
+	ownedFields := func(raw string) []metav1.ManagedFieldsEntry {
+		return []metav1.ManagedFieldsEntry{{Manager: fieldOwner, FieldsV1: &metav1.FieldsV1{Raw: []byte(raw)}}}
+	}
+	for _, tc := range []struct {
+		name          string
+		desired       map[string]string
+		existing      map[string]string
+		managedFields []metav1.ManagedFieldsEntry
+		want          bool
+	}{
+		{
+			name:     "desired key missing from existing",
+			desired:  map[string]string{"team": "security"},
+			existing: map[string]string{},
+			want:     true,
+		},
+		{
+			name:     "desired key present with a different value",
+			desired:  map[string]string{"team": "security"},
+			existing: map[string]string{"team": "other"},
+			want:     true,
+		},
+		{
+			name:     "a foreign key with no managed fields is not drift",
+			desired:  map[string]string{"team": "security"},
+			existing: map[string]string{"team": "security", "foreign": "keep"},
+			want:     false,
+		},
+		{
+			name:          "a key we previously owned and dropped is removed",
+			desired:       map[string]string{},
+			existing:      map[string]string{"removed": "old"},
+			managedFields: ownedFields(`{"f:metadata":{"f:labels":{"f:removed":{}}}}`),
+			want:          true,
+		},
+		{
+			name:          "a managed fields entry from another manager is ignored",
+			desired:       map[string]string{},
+			existing:      map[string]string{"removed": "old"},
+			managedFields: []metav1.ManagedFieldsEntry{{Manager: "other-controller", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:labels":{"f:removed":{}}}}`)}}},
+			want:          false,
+		},
+		{
+			name:          "a managed fields entry for a subresource is ignored",
+			desired:       map[string]string{},
+			existing:      map[string]string{"removed": "old"},
+			managedFields: []metav1.ManagedFieldsEntry{{Manager: fieldOwner, Subresource: "status", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:labels":{"f:removed":{}}}}`)}}},
+			want:          false,
+		},
+		{
+			name:          "a managed fields entry without FieldsV1 is ignored",
+			desired:       map[string]string{},
+			existing:      map[string]string{"removed": "old"},
+			managedFields: []metav1.ManagedFieldsEntry{{Manager: fieldOwner}},
+			want:          false,
+		},
+		{
+			name:          "unparsable FieldsV1 is treated as drift",
+			desired:       map[string]string{},
+			existing:      map[string]string{"removed": "old"},
+			managedFields: ownedFields(`not-json`),
+			want:          true,
+		},
+		{
+			// Real FieldsV1 payloads include a "." marker key alongside "f:" keys
+			// (e.g. to record ownership of the map itself); it must not be
+			// mistaken for an owned field. Only the "." key is present here so
+			// the assertion does not depend on Go's random map iteration order.
+			name:          "a non f: prefixed field path segment (e.g. '.') is skipped",
+			desired:       map[string]string{},
+			existing:      map[string]string{},
+			managedFields: ownedFields(`{"f:metadata":{"f:labels":{".":{}}}}`),
+			want:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{ManagedFields: tc.managedFields}}
+			assert.Equal(t, tc.want, managedMapModified(tc.desired, tc.existing, existing, "f:metadata", "f:labels"))
+		})
+	}
 }
 
 func TestManagedMetadataRemoval(t *testing.T) {
