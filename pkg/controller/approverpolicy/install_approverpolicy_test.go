@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -51,33 +52,43 @@ func TestApplyResources(t *testing.T) {
 			c.GetReturns(apierrors.NewNotFound(v1alpha1.Resource("managed"), obj.GetName()))
 			recorder := record.NewFakeRecorder(10)
 			r := &Reconciler{CtrlClient: c, log: logr.Discard(), eventRecorder: recorder}
-			require.NoError(t, r.applyResource(t.Context(), instance, obj))
-			require.Equal(t, 1, c.PatchCallCount())
-			_, applied, patch, opts := c.PatchArgsForCall(0)
-			assert.Equal(t, types.ApplyPatchType, patch.Type())
-			options := &client.PatchOptions{}
-			options.ApplyOptions(opts)
-			assert.Equal(t, fieldOwner, options.FieldManager)
-			require.NotNil(t, options.Force)
-			assert.True(t, *options.Force)
-			assert.True(t, metav1.IsControlledBy(applied, instance))
-			assert.Equal(t, operandName, applied.GetLabels()["app"])
-			assert.Equal(t, "security", applied.GetLabels()["team"])
-			assert.Equal(t, "value", applied.GetAnnotations()["example.test/note"])
-			assert.Zero(t, c.CreateCallCount())
-			assert.Zero(t, c.UpdateCallCount())
-			assert.Len(t, recorder.Events, 1)
 
-			// A persisted object with unrelated metadata is already desired.
-			existing := applied.DeepCopyObject().(client.Object)
-			existing.GetAnnotations()["external.example/note"] = "keep"
-			c.GetCalls(func(_ context.Context, _ client.ObjectKey, target client.Object) error {
-				copyObject(target, existing)
-				return nil
+			var applied client.Object
+			t.Run("creates the resource via a forced SSA Patch", func(t *testing.T) {
+				require.NoError(t, r.applyResource(t.Context(), instance, obj))
+				require.Equal(t, 1, c.PatchCallCount())
+				var patch client.Patch
+				var opts []client.PatchOption
+				_, applied, patch, opts = c.PatchArgsForCall(0)
+				assert.Equal(t, types.ApplyPatchType, patch.Type())
+				options := &client.PatchOptions{}
+				options.ApplyOptions(opts)
+				assert.Equal(t, fieldOwner, options.FieldManager)
+				require.NotNil(t, options.Force)
+				assert.True(t, *options.Force)
+				assert.True(t, metav1.IsControlledBy(applied, instance))
+				assert.Equal(t, operandName, applied.GetLabels()["app"])
+				assert.Equal(t, "security", applied.GetLabels()["team"])
+				assert.Equal(t, "value", applied.GetAnnotations()["example.test/note"])
+				assert.Zero(t, c.CreateCallCount())
+				assert.Zero(t, c.UpdateCallCount())
+				assert.Len(t, recorder.Events, 1)
 			})
-			require.NoError(t, r.applyResource(t.Context(), instance, obj))
-			assert.Equal(t, 1, c.PatchCallCount(), "no write on an unchanged resource")
-			assert.Len(t, recorder.Events, 1)
+
+			t.Run("re-applying an already-desired resource is a no-op", func(t *testing.T) {
+				// A persisted object with unrelated metadata is already desired.
+				existing := applied.DeepCopyObject().(client.Object)
+				existing.GetAnnotations()["external.example/note"] = "keep"
+				c.GetCalls(func(_ context.Context, _ client.ObjectKey, target client.Object) error {
+					copyObject(target, existing)
+					return nil
+				})
+
+				require.NoError(t, r.applyResource(t.Context(), instance, obj))
+
+				assert.Equal(t, 1, c.PatchCallCount(), "no write on an unchanged resource")
+				assert.Len(t, recorder.Events, 1, "no new event either")
+			})
 		})
 	}
 }
@@ -85,10 +96,12 @@ func TestApplyResources(t *testing.T) {
 func TestApplyResourceFailures(t *testing.T) {
 	instance := testInstance()
 	for _, tc := range []struct {
-		name                 string
-		readErr, patchErr    error
-		foreign, terminating bool
-		permanent            bool
+		name        string
+		readErr     error
+		patchErr    error
+		foreign     bool
+		terminating bool
+		permanent   bool
 	}{
 		{name: "read forbidden", readErr: apierrors.NewForbidden(v1alpha1.Resource("managed"), "x", errors.New("denied")), permanent: true},
 		{name: "read timeout", readErr: apierrors.NewTimeoutError("timeout", 1)},
@@ -319,4 +332,72 @@ func availableDeploymentStatus(generation int64) appsv1.DeploymentStatus {
 	return appsv1.DeploymentStatus{ObservedGeneration: generation, Replicas: 1,
 		UpdatedReplicas: 1, ReadyReplicas: 1, AvailableReplicas: 1,
 		Conditions: []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}}
+}
+
+// TestReconcileApproverPolicyFailurePaths exercises the three distinct ways
+// reconcileApproverPolicy can fail before the rollout is even observed:
+// a supporting resource rejected by the apply, an unbuildable Deployment, and
+// the Deployment apply itself being rejected. Each must stop installation
+// immediately and surface the underlying error.
+func TestReconcileApproverPolicyFailurePaths(t *testing.T) {
+	applyErr := errors.New("apply denied")
+	for _, tc := range []struct {
+		name          string
+		mutate        func(*v1alpha1.ApproverPolicyManager)
+		failOnKind    reflect.Type
+		wantPermanent bool
+	}{
+		{
+			name:       "a supporting resource apply is rejected",
+			failOnKind: reflect.TypeOf(&corev1.ServiceAccount{}),
+		},
+		{
+			name: "the Deployment cannot be built from an invalid configuration",
+			mutate: func(o *v1alpha1.ApproverPolicyManager) {
+				o.Spec.ApproverPolicyConfig.NodeSelector = map[string]string{"invalid!": "x"}
+			},
+			wantPermanent: true,
+		},
+		{
+			name:       "the Deployment apply is rejected",
+			failOnKind: reflect.TypeOf(&appsv1.Deployment{}),
+		},
+		{
+			name:       "the ValidatingWebhookConfiguration apply is rejected",
+			failOnKind: reflect.TypeOf(&admissionregistrationv1.ValidatingWebhookConfiguration{}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := testInstance()
+			if tc.mutate != nil {
+				tc.mutate(instance)
+			}
+			r, c := testReconciler(t, instance)
+			// Every managed resource is reported absent so every apply in the
+			// install path issues a Patch and the failure injected below is
+			// actually reached. The one exception is the bare, unlabeled
+			// ServiceAccount struct reconcileApproverPolicy reads back purely
+			// for its UID, which must still resolve successfully.
+			c.GetCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) error {
+				if sa, ok := obj.(*corev1.ServiceAccount); ok && len(sa.GetLabels()) == 0 {
+					sa.UID = "sa-uid"
+					return nil
+				}
+				return apierrors.NewNotFound(v1alpha1.Resource("managed"), key.Name)
+			})
+			c.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
+				if tc.failOnKind != nil && reflect.TypeOf(obj) == tc.failOnKind {
+					return applyErr
+				}
+				return nil
+			})
+
+			err := r.reconcileApproverPolicy(t.Context(), instance)
+			require.Error(t, err)
+			assert.Equal(t, tc.wantPermanent, common.IsIrrecoverableError(err))
+			if tc.failOnKind != nil {
+				assert.ErrorIs(t, err, applyErr, "the original apply error must still be reachable")
+			}
+		})
+	}
 }

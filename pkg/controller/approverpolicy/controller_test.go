@@ -95,21 +95,48 @@ func assertCondition(t *testing.T, instance *v1alpha1.ApproverPolicyManager, typ
 
 func TestReconcileLifecycle(t *testing.T) {
 	for _, tc := range []struct {
-		name           string
-		prepare        func(*v1alpha1.ApproverPolicyManager)
-		deleting       bool
-		wantFinalizers []string
+		name              string
+		prepareFinalizers func(*v1alpha1.ApproverPolicyManager)
+		deleting          bool
+		wantFinalizers    []string
 	}{
-		{"new singleton", func(*v1alpha1.ApproverPolicyManager) {}, false, []string{finalizer}},
-		{"foreign finalizer", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{"other.example/finalizer"} }, false, []string{"other.example/finalizer", finalizer}},
-		{"existing finalizer", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} }, false, []string{finalizer}},
-		{"deleting", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} }, true, []string{}},
-		{"deleting with foreign finalizer", func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer, "other.example/finalizer"} }, true, []string{"other.example/finalizer"}},
-		{"deleting without our finalizer", func(*v1alpha1.ApproverPolicyManager) {}, true, nil},
+		{
+			name:              "new singleton",
+			prepareFinalizers: func(*v1alpha1.ApproverPolicyManager) {},
+			wantFinalizers:    []string{finalizer},
+		},
+		{
+			name:              "foreign finalizer",
+			prepareFinalizers: func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{"other.example/finalizer"} },
+			wantFinalizers:    []string{"other.example/finalizer", finalizer},
+		},
+		{
+			name:              "existing finalizer",
+			prepareFinalizers: func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} },
+			wantFinalizers:    []string{finalizer},
+		},
+		{
+			name:              "deleting",
+			prepareFinalizers: func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer} },
+			deleting:          true,
+			wantFinalizers:    []string{},
+		},
+		{
+			name:              "deleting with foreign finalizer",
+			prepareFinalizers: func(o *v1alpha1.ApproverPolicyManager) { o.Finalizers = []string{finalizer, "other.example/finalizer"} },
+			deleting:          true,
+			wantFinalizers:    []string{"other.example/finalizer"},
+		},
+		{
+			name:              "deleting without our finalizer",
+			prepareFinalizers: func(*v1alpha1.ApproverPolicyManager) {},
+			deleting:          true,
+			wantFinalizers:    nil,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			stored := testInstance()
-			tc.prepare(stored)
+			tc.prepareFinalizers(stored)
 			if tc.deleting {
 				now := metav1.Now()
 				stored.DeletionTimestamp = &now
@@ -194,38 +221,52 @@ func TestReconcileReadErrors(t *testing.T) {
 	})
 }
 
+// TestReconcileFinalizerFailures checks how a failure to add/remove the
+// finalizer is reported. Only a *permanent* failure while *adding* the
+// finalizer (i.e. before installation has even started) is degrading;
+// every other combination - a transient failure, or any failure while
+// removing the finalizer during deletion - is just requeued.
 func TestReconcileFinalizerFailures(t *testing.T) {
-	for _, deleting := range []bool{false, true} {
-		for _, permanent := range []bool{false, true} {
-			t.Run(fmt.Sprintf("deleting=%t/permanent=%t", deleting, permanent), func(t *testing.T) {
-				stored := testInstance()
-				if deleting {
-					now := metav1.Now()
-					stored.DeletionTimestamp = &now
-					stored.Finalizers = []string{finalizer}
-				}
-				r, c := testReconciler(t, stored)
-				failure := errors.New("temporary failure")
-				if permanent {
-					failure = apierrors.NewForbidden(v1alpha1.Resource("approverpolicymanagers"), "cluster", failure)
-				}
-				c.UpdateReturns(failure)
-				result, err := r.Reconcile(t.Context(), singletonRequest())
-				require.NoError(t, err)
-				if permanent && !deleting {
-					assert.Zero(t, result)
-					assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed)
-					assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed)
-				} else {
-					assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
-					assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady)
-					assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress)
-				}
-				if deleting {
-					assert.Contains(t, stored.Finalizers, finalizer)
-				}
-			})
-		}
+	permanentFailure := func() error {
+		return apierrors.NewForbidden(v1alpha1.Resource("approverpolicymanagers"), "cluster", errors.New("temporary failure"))
+	}
+	for _, tc := range []struct {
+		name         string
+		deleting     bool
+		failure      error
+		wantDegraded bool
+	}{
+		{name: "transient failure while adding the finalizer", failure: errors.New("temporary failure")},
+		{name: "permanent failure while adding the finalizer", failure: permanentFailure(), wantDegraded: true},
+		{name: "transient failure while removing the finalizer", deleting: true, failure: errors.New("temporary failure")},
+		{name: "permanent failure while removing the finalizer", deleting: true, failure: permanentFailure()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stored := testInstance()
+			if tc.deleting {
+				now := metav1.Now()
+				stored.DeletionTimestamp = &now
+				stored.Finalizers = []string{finalizer}
+			}
+			r, c := testReconciler(t, stored)
+			c.UpdateReturns(tc.failure)
+
+			result, err := r.Reconcile(t.Context(), singletonRequest())
+
+			require.NoError(t, err)
+			if tc.wantDegraded {
+				assert.Zero(t, result)
+				assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed)
+				assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed)
+			} else {
+				assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+				assertCondition(t, stored, v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady)
+				assertCondition(t, stored, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress)
+			}
+			if tc.deleting {
+				assert.Contains(t, stored.Finalizers, finalizer, "the finalizer is not removed until cleanup succeeds")
+			}
+		})
 	}
 }
 
@@ -268,24 +309,34 @@ func TestManagedResourcePredicate(t *testing.T) {
 	managed := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}}}
 	unmanaged := &appsv1.Deployment{}
 	foreign := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{common.ManagedResourceLabelKey: "cert-manager-trust-manager"}}}
-	for _, obj := range []client.Object{managed, unmanaged, foreign, nil} {
-		want := obj == managed
-		assert.Equal(t, want, p.Create(event.CreateEvent{Object: obj}))
-		assert.Equal(t, want, p.Delete(event.DeleteEvent{Object: obj}))
-		assert.Equal(t, want, p.Generic(event.GenericEvent{Object: obj}))
-	}
-	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: unmanaged}), "label removal")
-	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "label addition")
-	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: foreign}))
-	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Labels: managed.Labels}}
-	assert.True(t, p.Create(event.CreateEvent{Object: secret}), "Secret creation")
-	rotated := secret.DeepCopy()
-	rotated.Data = map[string][]byte{"tls.crt": []byte("rotated certificate")}
-	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: secret, ObjectNew: rotated}), "Secret data changes")
-	unmanagedSecret := &corev1.Secret{}
-	unmanagedRotated := unmanagedSecret.DeepCopy()
-	unmanagedRotated.Data = rotated.Data
-	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanagedSecret, ObjectNew: unmanagedRotated}), "ignore unrelated Secret data changes")
+
+	t.Run("Create/Delete/Generic enqueue only objects carrying our managed label", func(t *testing.T) {
+		for _, obj := range []client.Object{managed, unmanaged, foreign, nil} {
+			want := obj == managed
+			assert.Equal(t, want, p.Create(event.CreateEvent{Object: obj}))
+			assert.Equal(t, want, p.Delete(event.DeleteEvent{Object: obj}))
+			assert.Equal(t, want, p.Generic(event.GenericEvent{Object: obj}))
+		}
+	})
+
+	t.Run("Update enqueues when the managed label is gained or lost, not for another resource's label", func(t *testing.T) {
+		assert.True(t, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: unmanaged}), "label removal")
+		assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "label addition")
+		assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: foreign}))
+	})
+
+	t.Run("a managed Secret's data changes always enqueue, since labels alone don't change", func(t *testing.T) {
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Labels: managed.Labels}}
+		assert.True(t, p.Create(event.CreateEvent{Object: secret}), "Secret creation")
+		rotated := secret.DeepCopy()
+		rotated.Data = map[string][]byte{"tls.crt": []byte("rotated certificate")}
+		assert.True(t, p.Update(event.UpdateEvent{ObjectOld: secret, ObjectNew: rotated}), "Secret data changes")
+
+		unmanagedSecret := &corev1.Secret{}
+		unmanagedRotated := unmanagedSecret.DeepCopy()
+		unmanagedRotated.Data = rotated.Data
+		assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanagedSecret, ObjectNew: unmanagedRotated}), "ignore unrelated Secret data changes")
+	})
 }
 
 func TestDeploymentPredicate(t *testing.T) {
@@ -295,39 +346,48 @@ func TestDeploymentPredicate(t *testing.T) {
 		Name: "approver-policy", Namespace: "cert-manager", Generation: 1,
 		Labels: map[string]string{common.ManagedResourceLabelKey: RequestEnqueueLabelValue},
 	}}
-	for _, tc := range []struct {
-		name   string
-		mutate func(*appsv1.Deployment)
-		want   bool
-	}{
-		{"unchanged", func(*appsv1.Deployment) {}, false},
-		{"status only", func(o *appsv1.Deployment) { o.Status.ReadyReplicas = 1; o.Status.AvailableReplicas = 1 }, false},
-		{"resourceVersion only", func(o *appsv1.Deployment) { o.ResourceVersion = "2" }, false},
-		{"spec generation", func(o *appsv1.Deployment) { o.Generation++ }, true},
-		{"labels", func(o *appsv1.Deployment) { o.Labels["x"] = "y" }, true},
-		{"annotations", func(o *appsv1.Deployment) { o.Annotations = map[string]string{"x": "y"} }, true},
-		{"managed label removed", func(o *appsv1.Deployment) { o.Labels = nil }, true},
-		{"managed label replaced", func(o *appsv1.Deployment) { o.Labels[common.ManagedResourceLabelKey] = "cert-manager-trust-manager" }, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			updated := managed.DeepCopy()
-			tc.mutate(updated)
-			assert.Equal(t, tc.want, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: updated}))
-		})
-	}
+	t.Run("Update enqueues only for spec-affecting drift on an already-managed Deployment", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			mutate func(*appsv1.Deployment)
+			want   bool
+		}{
+			{"unchanged", func(*appsv1.Deployment) {}, false},
+			{"status only", func(o *appsv1.Deployment) { o.Status.ReadyReplicas = 1; o.Status.AvailableReplicas = 1 }, false},
+			{"resourceVersion only", func(o *appsv1.Deployment) { o.ResourceVersion = "2" }, false},
+			{"spec generation", func(o *appsv1.Deployment) { o.Generation++ }, true},
+			{"labels", func(o *appsv1.Deployment) { o.Labels["x"] = "y" }, true},
+			{"annotations", func(o *appsv1.Deployment) { o.Annotations = map[string]string{"x": "y"} }, true},
+			{"managed label removed", func(o *appsv1.Deployment) { o.Labels = nil }, true},
+			{"managed label replaced", func(o *appsv1.Deployment) { o.Labels[common.ManagedResourceLabelKey] = "cert-manager-trust-manager" }, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				updated := managed.DeepCopy()
+				tc.mutate(updated)
+				assert.Equal(t, tc.want, p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: updated}))
+			})
+		}
+	})
+
 	unmanaged := managed.DeepCopy()
 	unmanaged.Labels = nil
-	assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "managed label added")
-	updated := unmanaged.DeepCopy()
-	updated.Generation++
-	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: updated}), "unrelated spec update")
-	assert.False(t, p.Update(event.UpdateEvent{ObjectNew: managed}))
-	assert.False(t, p.Update(event.UpdateEvent{ObjectOld: managed}))
-	for _, obj := range []client.Object{managed, unmanaged} {
-		assert.Equal(t, obj == managed, p.Create(event.CreateEvent{Object: obj}))
-		assert.Equal(t, obj == managed, p.Delete(event.DeleteEvent{Object: obj}))
-		assert.Equal(t, obj == managed, p.Generic(event.GenericEvent{Object: obj}))
-	}
+
+	t.Run("Update also enqueues when the managed label is newly added, but not unrelated updates to an unmanaged Deployment", func(t *testing.T) {
+		assert.True(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: managed}), "managed label added")
+		updated := unmanaged.DeepCopy()
+		updated.Generation++
+		assert.False(t, p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: updated}), "unrelated spec update")
+		assert.False(t, p.Update(event.UpdateEvent{ObjectNew: managed}), "missing old object")
+		assert.False(t, p.Update(event.UpdateEvent{ObjectOld: managed}), "missing new object")
+	})
+
+	t.Run("Create/Delete/Generic enqueue only managed Deployments", func(t *testing.T) {
+		for _, obj := range []client.Object{managed, unmanaged} {
+			assert.Equal(t, obj == managed, p.Create(event.CreateEvent{Object: obj}))
+			assert.Equal(t, obj == managed, p.Delete(event.DeleteEvent{Object: obj}))
+			assert.Equal(t, obj == managed, p.Generic(event.GenericEvent{Object: obj}))
+		}
+	})
 }
 
 // registrationManager captures registration without starting informers or a
