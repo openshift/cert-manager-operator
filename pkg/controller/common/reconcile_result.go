@@ -27,9 +27,8 @@ func HandleReconcileResult(
 			// Permanent failure - don't retry
 			// Set Degraded=True, Ready=False
 			// Set both conditions atomically before updating status
-			failedMsg := fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", reconcileErr)
-			degradedChanged := status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, failedMsg)
-			readyChanged := status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, failedMsg)
+			degradedChanged := status.SetCondition(v1alpha1.Degraded, metav1.ConditionTrue, v1alpha1.ReasonFailed, fmt.Sprintf("reconciliation failed with irrecoverable error not retrying: %v", reconcileErr))
+			readyChanged := status.SetCondition(v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonFailed, "")
 
 			if degradedChanged || readyChanged {
 				log.V(2).Info("updating conditions on irrecoverable error",
