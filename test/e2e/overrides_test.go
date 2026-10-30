@@ -25,17 +25,17 @@ const (
 
 var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
-	BeforeEach(func() {
+	BeforeEach(func(ctx SpecContext) {
 		By("Reset cert-manager state")
 		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be healthy and available")
 
 		By("Wait for non-empty generations status")
-		err = verifyDeploymentGenerationIsNotEmpty(certmanageroperatorclient, []metav1.ObjectMeta{
+		err = verifyDeploymentGenerationIsNotEmpty(ctx, certmanageroperatorclient, []metav1.ObjectMeta{
 			{Name: certmanagerControllerDeployment, Namespace: operandNamespace},
 			{Name: certmanagerWebhookDeployment, Namespace: operandNamespace},
 			{Name: certmanagerCAinjectorDeployment, Namespace: operandNamespace},
@@ -45,7 +45,7 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 	Context("When adding valid cert-manager controller override args", func() {
 
-		It("should add the args to the cert-manager controller deployment", func() {
+		It("should add the args to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override args to the cert-manager operator object")
 			args := []string{
@@ -74,172 +74,172 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 				"--kube-api-burst=300",
 				"--max-concurrent-challenges=300",
 			}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager controller deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, true)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerControllerDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager webhook override args", func() {
 
-		It("should add the args to the cert-manager webhook deployment", func() {
+		It("should add the args to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override args to the cert-manager operator object")
 			args := []string{"--v=3"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerWebhookDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager webhook deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, true)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager cainjector override args", func() {
 
-		It("should add the args to the cert-manager cainjector deployment", func() {
+		It("should add the args to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override args to the cert-manager operator object")
 			args := []string{"--v=3"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(),
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(),
 				GenerateConditionMatchers(
 					[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
 				))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager cainjector deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, true)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerCAinjectorDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager controller override args", func() {
 
-		It("should not add the args to the cert-manager controller deployment", func() {
+		It("should not add the args to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override args to the cert-manager operator object")
 			args := []string{"--invalid-args=foo"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager controller deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, false)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerControllerDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid performance tuning args with kube-api-burst >= kube-api-qps", func() {
 
-		It("should add the performance args to the cert-manager controller deployment", func() {
+		It("should add the performance args to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding valid performance tuning args to the cert-manager operator object")
 			args := []string{"--concurrent-workers=10", "--kube-api-qps=50", "--kube-api-burst=100", "--max-concurrent-challenges=120"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the args to be added to the cert-manager controller deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, true)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerControllerDeployment, args, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding kube-api-burst less than kube-api-qps", func() {
 
-		It("should reject the config and degrade the controller", func() {
+		It("should reject the config and degrade the controller", func(ctx SpecContext) {
 
 			By("Adding burst < qps args to the cert-manager operator object")
 			args := []string{"--kube-api-qps=100", "--kube-api-burst=50"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager controller deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment, args, false)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerControllerDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager webhook override args", func() {
 
-		It("should not add the args to the cert-manager webhook deployment", func() {
+		It("should not add the args to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override args to the cert-manager operator object")
 			args := []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerWebhookDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager webhook deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment, args, false)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager cainjector override args", func() {
 
-		It("should not add the args to the cert-manager cainjector deployment", func() {
+		It("should not add the args to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override args to the cert-manager operator object")
 			args := []string{"--dns01-recursive-nameservers=10.10.10.10:53", "--dns01-recursive-nameservers-only", "--enable-certificate-owner-ref"}
-			err := addOverrideArgs(certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
+			err := addOverrideArgs(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, args)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the args are not added to the cert-manager cainjector deployment")
-			err = verifyDeploymentArgs(k8sClientSet, certmanagerCAinjectorDeployment, args, false)
+			err = verifyDeploymentArgs(ctx, k8sClientSet, certmanagerCAinjectorDeployment, args, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager controller override resources", func() {
 
-		It("should add the resources to the cert-manager controller deployment", func() {
+		It("should add the resources to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -252,24 +252,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerControllerDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager controller deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerControllerDeployment, res, true)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerControllerDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager webhook override resources", func() {
 
-		It("should add the resources to the cert-manager webhook deployment", func() {
+		It("should add the resources to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -282,24 +282,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager webhook deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerWebhookDeployment, res, true)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerWebhookDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager cainjector override resources", func() {
 
-		It("should add the resources to the cert-manager cainjector deployment", func() {
+		It("should add the resources to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -312,24 +312,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceMemory: k8sresource.MustParse("64Mi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the resources to be added to the cert-manager cainjector deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerCAinjectorDeployment, res, true)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerCAinjectorDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager controller override resources", func() {
 
-		It("should not add the resources to the cert-manager controller deployment", func() {
+		It("should not add the resources to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -340,24 +340,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerControllerDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager controller deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerControllerDeployment, res, false)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerControllerDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager webhook override resources", func() {
 
-		It("should not add the resources to the cert-manager webhook deployment", func() {
+		It("should not add the resources to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -368,24 +368,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager webhook deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerWebhookDeployment, res, false)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerWebhookDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager cainjector override resources", func() {
 
-		It("should not add the resources to the cert-manager cainjector deployment", func() {
+		It("should not add the resources to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override resources to the certmanager.operator object")
 			res := v1alpha1.CertManagerResourceRequirements{
@@ -396,24 +396,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					corev1.ResourceEphemeralStorage: k8sresource.MustParse("1Gi"),
 				},
 			}
-			err := addOverrideResources(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			err := addOverrideResources(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the resources are not added to the cert-manager cainjector deployment")
-			err = verifyDeploymentResources(k8sClientSet, certmanagerCAinjectorDeployment, res, false)
+			err = verifyDeploymentResources(ctx, k8sClientSet, certmanagerCAinjectorDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager controller override scheduling", func() {
 
-		It("should add the scheduling to the cert-manager controller deployment", func() {
+		It("should add the scheduling to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -428,24 +428,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerControllerDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager controller deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerControllerDeployment, res, true)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerControllerDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager webhook override scheduling", func() {
 
-		It("should add the scheduling to the cert-manager webhook deployment", func() {
+		It("should add the scheduling to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -460,24 +460,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager webhook deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerWebhookDeployment, res, true)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerWebhookDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager cainjector override scheduling", func() {
 
-		It("should add the scheduling to the cert-manager cainjector deployment", func() {
+		It("should add the scheduling to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -492,24 +492,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the scheduling to be added to the cert-manager cainjector deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerCAinjectorDeployment, res, true)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerCAinjectorDeployment, res, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager controller override scheduling", func() {
 
-		It("should not add the scheduling to the cert-manager controller deployment", func() {
+		It("should not add the scheduling to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -525,24 +525,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerControllerDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerControllerDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager controller deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerControllerDeployment, res, false)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerControllerDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager webhook override scheduling", func() {
 
-		It("should not add the scheduling to the cert-manager webhook deployment", func() {
+		It("should not add the scheduling to the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -558,24 +558,24 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerWebhookDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAnyCondition}}, invalidOperatorStatusConditions),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager webhook deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerWebhookDeployment, res, false)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerWebhookDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager cainjector override scheduling", func() {
 
-		It("should not add the scheduling to the cert-manager cainjector deployment", func() {
+		It("should not add the scheduling to the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override scheduling to the certmanager.operator object")
 			res := v1alpha1.CertManagerScheduling{
@@ -591,80 +591,80 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 					},
 				},
 			}
-			err := addOverrideScheduling(certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
+			err := addOverrideScheduling(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, res)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the scheduling are not added to the cert-manager cainjector deployment")
-			err = verifyDeploymentScheduling(k8sClientSet, certmanagerCAinjectorDeployment, res, false)
+			err = verifyDeploymentScheduling(ctx, k8sClientSet, certmanagerCAinjectorDeployment, res, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager controller override env", func() {
 
-		It("should add the env to the cert-manager controller deployment", func() {
+		It("should add the env to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override env to the cert-manager operator object")
 			env := []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy.example.com:8080"}, {Name: "HTTPS_PROXY", Value: "http://proxy.example.com:8088"}, {Name: "NO_PROXY", Value: "localhost"}}
-			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
+			err := addOverrideEnv(ctx, certmanageroperatorclient, certmanagerControllerDeployment, env)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the env to be added to the cert-manager controller deployment")
-			err = verifyDeploymentEnv(k8sClientSet, certmanagerControllerDeployment, env, true)
+			err = verifyDeploymentEnv(ctx, k8sClientSet, certmanagerControllerDeployment, env, true)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding invalid cert-manager controller override env", func() {
 
-		It("should not add the env to the cert-manager controller deployment", func() {
+		It("should not add the env to the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override env to the cert-manager operator object")
 			env := []corev1.EnvVar{{Name: "FOO", Value: "BAR"}}
-			err := addOverrideEnv(certmanageroperatorclient, certmanagerControllerDeployment, env)
+			err := addOverrideEnv(ctx, certmanageroperatorclient, certmanagerControllerDeployment, env)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become degraded")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAnyCondition}}, invalidOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking if the env are not added to the cert-manager controller deployment")
-			err = verifyDeploymentEnv(k8sClientSet, certmanagerControllerDeployment, env, false)
+			err = verifyDeploymentEnv(ctx, k8sClientSet, certmanagerControllerDeployment, env, false)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Context("When adding valid cert-manager controller override replicas", func() {
 
-		It("should set the replicas for the cert-manager controller deployment", func() {
+		It("should set the replicas for the cert-manager controller deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager controller override replicas to the cert-manager operator object")
 			replicas := ptr.To(int32(2))
-			err := addOverrideReplicas(certmanageroperatorclient, certmanagerControllerDeployment, replicas)
+			err := addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerControllerDeployment, replicas)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the replicas to be set on the cert-manager controller deployment")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerControllerDeployment, replicas, true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerControllerDeployment, replicas, true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager controller deployment to be Available")
@@ -672,17 +672,17 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager controller")
-			err = addOverrideReplicas(certmanageroperatorclient, certmanagerControllerDeployment, nil)
+			err = addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerControllerDeployment, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager controller status to become available after removing override")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerController, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying cert-manager controller rollback to default replica count")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerControllerDeployment, ptr.To(int32(defaultControllerReplicasCount)), true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerControllerDeployment, ptr.To(int32(defaultControllerReplicasCount)), true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager controller deployment to be Available after rollback")
@@ -693,21 +693,21 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 	Context("When adding valid cert-manager webhook override replicas", func() {
 
-		It("should set the replicas for the cert-manager webhook deployment", func() {
+		It("should set the replicas for the cert-manager webhook deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager webhook override replicas to the cert-manager operator object")
 			replicas := ptr.To(int32(3))
-			err := addOverrideReplicas(certmanageroperatorclient, certmanagerWebhookDeployment, replicas)
+			err := addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, replicas)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the replicas to be set on the cert-manager webhook deployment")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerWebhookDeployment, replicas, true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerWebhookDeployment, replicas, true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager webhook deployment to be Available")
@@ -715,17 +715,17 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager webhook")
-			err = addOverrideReplicas(certmanageroperatorclient, certmanagerWebhookDeployment, nil)
+			err = addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerWebhookDeployment, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager webhook status to become available after removing override")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerWebhook, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying cert-manager webhook rollback to default replica count")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerWebhookDeployment, ptr.To(int32(defaultWebhookReplicasCount)), true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerWebhookDeployment, ptr.To(int32(defaultWebhookReplicasCount)), true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager webhook deployment to be Available after rollback")
@@ -736,21 +736,21 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 
 	Context("When adding valid cert-manager cainjector override replicas", func() {
 
-		It("should set the replicas for the cert-manager cainjector deployment", func() {
+		It("should set the replicas for the cert-manager cainjector deployment", func(ctx SpecContext) {
 
 			By("Adding cert-manager cainjector override replicas to the cert-manager operator object")
 			replicas := ptr.To(int32(2))
-			err := addOverrideReplicas(certmanageroperatorclient, certmanagerCAinjectorDeployment, replicas)
+			err := addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, replicas)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector status to become available")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the replicas to be set on the cert-manager cainjector deployment")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerCAinjectorDeployment, replicas, true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerCAinjectorDeployment, replicas, true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager cainjector deployment to be Available")
@@ -758,17 +758,17 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Removing override replicas for cert-manager cainjector")
-			err = addOverrideReplicas(certmanageroperatorclient, certmanagerCAinjectorDeployment, nil)
+			err = addOverrideReplicas(ctx, certmanageroperatorclient, certmanagerCAinjectorDeployment, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for cert-manager cainjector status to become available after removing override")
-			err = verifyOperatorStatusCondition(certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
+			err = verifyOperatorStatusCondition(ctx, certmanageroperatorclient.OperatorV1alpha1(), GenerateConditionMatchers(
 				[]PrefixAndMatchTypeTuple{{certManagerCAInjector, MatchAllConditions}}, validOperatorStatusConditions,
 			))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Verifying cert-manager cainjector rollback to default replica count")
-			err = verifyDeploymentReplicas(k8sClientSet, certmanagerCAinjectorDeployment, ptr.To(int32(defaultCAInjectorReplicasCount)), true)
+			err = verifyDeploymentReplicas(ctx, k8sClientSet, certmanagerCAinjectorDeployment, ptr.To(int32(defaultCAInjectorReplicasCount)), true)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting for the cert-manager cainjector deployment to be Available after rollback")
@@ -777,13 +777,13 @@ var _ = Describe("Overrides test", Ordered, Label("Platform:Generic"), func() {
 		})
 	})
 
-	AfterAll(func() {
+	AfterAll(func(ctx SpecContext) {
 		By("Reset cert-manager state")
 		err := resetCertManagerState(context.Background(), certmanageroperatorclient, loader)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Waiting for operator status to become available")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 })

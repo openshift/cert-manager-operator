@@ -4,7 +4,6 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -119,7 +118,7 @@ func TestAll(t *testing.T) {
 	RunSpecs(t, "Cert Manager Suite", suiteConfig, reportConfig)
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(func(ctx SpecContext) {
 	var err error
 	cfg, err = config.GetConfig()
 	Expect(err).NotTo(HaveOccurred())
@@ -137,11 +136,11 @@ var _ = BeforeSuite(func() {
 	Expect(certmanageroperatorclient).NotTo(BeNil())
 
 	By("verifying operator and cert-manager deployments status is available")
-	err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+	err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 	Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 
 	By("creating dynamic resources client")
-	loader = library.NewDynamicResourceLoader(context.TODO(), &testing.T{})
+	loader = library.NewDynamicResourceLoader(&testing.T{})
 
 	By("creating config.openshift.io/v1 client")
 	configClient, err = configv1.NewForConfig(cfg)
@@ -167,6 +166,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	By("setting defaultNetworkPolicy to true")
-	err = resetCertManagerNetworkPolicyState(context.TODO(), certmanageroperatorclient)
+	err = resetCertManagerNetworkPolicyState(ctx, certmanageroperatorclient)
 	Expect(err).NotTo(HaveOccurred())
 })

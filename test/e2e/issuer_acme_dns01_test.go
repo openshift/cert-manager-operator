@@ -81,7 +81,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		appsDomain = "apps." + baseDomain
 
 		By("adding required args to cert-manager controller")
-		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, []string{
+		err = addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, []string{
 			// for Issuer to use ambient credentials
 			"--issuer-ambient-credentials",
 			// only query the configured DNS resolvers to perform the DNS01 self-checks
@@ -148,15 +148,15 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		ns, err = loader.CreateTestingNS("e2e-acme-dns01", false)
+		ns, err = loader.CreateTestingNS(ctx, "e2e-acme-dns01", false)
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			By("cleaning up test namespace")
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 	})
 
@@ -277,13 +277,13 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 	// setupAmbientAWSCredentials sets up ambient AWS credentials via CredentialsRequest and subscription patch
 	setupAmbientAWSCredentials := func(ctx context.Context) {
 		By("creating CredentialsRequest object for AWS")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_aws.yaml"), "")
 		})
 
 		By("waiting for cloud secret to be available")
-		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 			_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "aws-creds", metav1.GetOptions{})
 			return err == nil, nil
 		})
@@ -347,13 +347,13 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 	// setupAmbientGCPCredentials sets up ambient GCP credentials via CredentialsRequest and subscription patch
 	setupAmbientGCPCredentials := func(ctx context.Context) {
 		By("creating CredentialsRequest object for GCP")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_gcp.yaml"), "")
 		})
 
 		By("waiting for cloud secret to be available")
-		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 			_, err := loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "gcp-credentials", metav1.GetOptions{})
 			return err == nil, nil
 		})
@@ -414,7 +414,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 
 	// updateGCPIamPolicyBinding adds or removes an IAM policy binding for a GCP project
 	updateGCPIamPolicyBinding := func(crmService *gcpcrm.Service, projectID, role, member string, add bool) error {
-		return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
 			policy, err := crmService.Projects.GetIamPolicy(projectID, &gcpcrm.GetIamPolicyRequest{}).Do()
 			if err != nil {
 				log.Printf("Error getting IAM policy: %v", err)
@@ -492,14 +492,14 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 	// 'withCloudCredentials' in credentials_request.go, it can be adapted to follow the AWS/GCP pattern.
 	setupCCOAzureCredentials := func(ctx context.Context) (clientID, clientSecret, tenantID []byte) {
 		By("creating CredentialsRequest object for Azure")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "credentials", "credentialsrequest_azure.yaml"), "")
 		})
 
 		By("waiting for cloud secret to be available")
 		var ccoSecret *corev1.Secret
-		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 			var getErr error
 			ccoSecret, getErr = loader.KubeClient.CoreV1().Secrets("cert-manager").Get(ctx, "azure-credentials", metav1.GetOptions{})
 			return getErr == nil, nil
@@ -593,7 +593,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			clusterIssuer := createACMEClusterIssuer(clusterIssuerName, solver)
 			_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 			})
 
@@ -646,7 +646,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			secretName := "aws-secret-overlapped"
 			secretKey := "aws_secret_access_key"
 			copyAWSSecretToNamespace(ctx, "cert-manager", secretName, secretKey, secretAccessKey)
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, secretName, metav1.DeleteOptions{})
 			})
 
@@ -684,7 +684,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			clusterIssuer := createACMEClusterIssuer(clusterIssuerName, solver)
 			_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 			})
 
@@ -708,7 +708,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			secretName := "aws-secret-doh"
 			secretKey := "aws_secret_access_key"
 			copyAWSSecretToNamespace(ctx, "cert-manager", secretName, secretKey, secretAccessKey)
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				loader.KubeClient.CoreV1().Secrets("cert-manager").Delete(ctx, secretName, metav1.DeleteOptions{})
 			})
 
@@ -731,7 +731,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			clusterIssuer := createACMEClusterIssuer(clusterIssuerName, solver)
 			_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, clusterIssuer, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create ClusterIssuer")
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, clusterIssuerName, metav1.DeleteOptions{})
 			})
 
@@ -1174,7 +1174,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			}, iamService, serviceAccount.Name)
 
 			By("waiting for GCP service account to be fully created and available")
-			err = wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true,
+			err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true,
 				func(context.Context) (bool, error) {
 					_, err := iamService.Projects.ServiceAccounts.Get(serviceAccount.Name).Do()
 					if err != nil {
@@ -1494,7 +1494,7 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create authorization client")
 			roleAssignmentName := uuid.New().String()
 
-			err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
 				_, assignErr := authClient.Create(ctx, dnsZoneScope, roleAssignmentName, armauthorization.RoleAssignmentCreateParameters{
 					Properties: &armauthorization.RoleAssignmentProperties{
 						RoleDefinitionID: &dnsZoneContributorRoleID,
@@ -1548,14 +1548,14 @@ var _ = Describe("ACME Issuer DNS01 solver", Ordered, func() {
 		It("should obtain a valid certificate using ambient credentials through AAD Workload Identity", func() {
 
 			By("adding 'azure.workload.identity/use' label to cert-manager controller pods")
-			err := addOverrideLabels(certmanageroperatorclient, certmanagerControllerDeployment, map[string]string{
+			err := addOverrideLabels(ctx, certmanageroperatorclient, certmanagerControllerDeployment, map[string]string{
 				"azure.workload.identity/use": "true",
 			})
 			Expect(err).NotTo(HaveOccurred(), "failed to add workload identity label to cert-manager controller")
 
 			DeferCleanup(func(ctx context.Context) {
 				By("Removing workload identity label from cert-manager controller pods")
-				if err := addOverrideLabels(certmanageroperatorclient, certmanagerControllerDeployment, nil); err != nil {
+				if err := addOverrideLabels(ctx, certmanageroperatorclient, certmanagerControllerDeployment, nil); err != nil {
 					fmt.Fprintf(GinkgoWriter, "failed to remove workload identity label during cleanup: %v\n", err)
 				}
 			})

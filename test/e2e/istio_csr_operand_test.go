@@ -101,10 +101,9 @@ func copySecretToNamespace(ctx context.Context, clientset *kubernetes.Clientset,
 }
 
 var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() {
-	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 
-	ensureClusterIssuerReady := func() {
+	ensureClusterIssuerReady := func(ctx context.Context) {
 		By("ensuring self-signed ClusterIssuer exists")
 		clusterIssuer := &certmanagerv1.ClusterIssuer{
 			ObjectMeta: metav1.ObjectMeta{
@@ -122,19 +121,19 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(waitForClusterIssuerReadiness(ctx, istioCSRClusterIssuerName)).NotTo(HaveOccurred())
 	}
 
-	createIssuerPrerequisites := func(namespace string) {
+	createIssuerPrerequisites := func(ctx context.Context, namespace string) {
 		By("creating a CA certificate in test namespace")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), namespace)
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), namespace)
 
 		By("waiting for CA certificate readiness")
 		Expect(waitForCertificateReadiness(ctx, "my-selfsigned-ca", namespace)).NotTo(HaveOccurred())
 
 		By("creating Istio CA issuer")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), namespace)
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), namespace)
 
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), namespace)
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), namespace)
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "istio", "istio_ca_issuer.yaml"), namespace)
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), namespace)
 		})
 	}
 
@@ -201,10 +200,10 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		return istioCSR
 	}
 
-	createIstioCSR := func(namespace string, istioCSR *unstructured.Unstructured) {
+	createIstioCSR := func(ctx context.Context, namespace string, istioCSR *unstructured.Unstructured) {
 		_, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Create(ctx, istioCSR, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			err := retryDeleteIgnoringNotFound(ctx, func(pollCtx context.Context) error {
 				return loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace).Delete(pollCtx, istioCSR.GetName(), metav1.DeleteOptions{})
 			})
@@ -221,18 +220,18 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		return int32(port)
 	}
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx SpecContext) {
 		var err error
 		clientset, err = kubernetes.NewForConfig(cfg)
 		Expect(err).NotTo(HaveOccurred())
-		ensureClusterIssuerReady()
+		ensureClusterIssuerReady(ctx)
 	})
 
-	It("should reject IstioCSR with name other than default", Label("ISTIOCSR-001"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-invalid-name", true)
+	It("should reject IstioCSR with name other than default", Label("ISTIOCSR-001"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-invalid-name", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		invalid := newIstioCSR(ns.Name, istioCSRBuildConfig{})
@@ -243,23 +242,23 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(err.Error()).To(ContainSubstring("metadata.name"))
 	})
 
-	It("should reject processing of second IstioCSR instance across namespaces", Label("ISTIOCSR-002"), func() {
-		firstNS, err := loader.CreateTestingNS("istiocsr-first", true)
+	It("should reject processing of second IstioCSR instance across namespaces", Label("ISTIOCSR-002"), func(ctx SpecContext) {
+		firstNS, err := loader.CreateTestingNS(ctx, "istiocsr-first", true)
 		Expect(err).NotTo(HaveOccurred())
-		secondNS, err := loader.CreateTestingNS("istiocsr-second", true)
+		secondNS, err := loader.CreateTestingNS(ctx, "istiocsr-second", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(secondNS.Name, func() bool { return CurrentSpecReport().Failed() })
-			loader.DeleteTestingNS(firstNS.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, secondNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			loader.DeleteTestingNS(ctx, firstNS.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
-		createIssuerPrerequisites(firstNS.Name)
-		createIssuerPrerequisites(secondNS.Name)
+		createIssuerPrerequisites(ctx, firstNS.Name)
+		createIssuerPrerequisites(ctx, secondNS.Name)
 
-		createIstioCSR(firstNS.Name, newIstioCSR(firstNS.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, firstNS.Name, newIstioCSR(firstNS.Name, istioCSRBuildConfig{}))
 		expectIstioCSROperandReady(ctx, clientset, loader, firstNS.Name)
 
-		createIstioCSR(secondNS.Name, newIstioCSR(secondNS.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, secondNS.Name, newIstioCSR(secondNS.Name, istioCSRBuildConfig{}))
 		By("waiting for IstioCSR Ready=False with multiple-instance rejection message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, secondNS.Name, istioCSRResourceName, v1alpha1.Ready, metav1.ConditionFalse, "multiple instances of istiocsr exists", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 
@@ -276,23 +275,23 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, "30s", "5s").Should(BeTrue())
 	})
 
-	It("should support ClusterIssuer for IstioCSR reconciliation", Label("ISTIOCSR-003"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-clusterissuer", true)
+	It("should support ClusterIssuer for IstioCSR reconciliation", Label("ISTIOCSR-003"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-clusterissuer", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		By("creating CA certificate in test namespace using self-signed ClusterIssuer")
-		loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "self_signed", "certificate.yaml"), ns.Name)
 		})
 		Expect(waitForCertificateReadiness(ctx, istioCSRCACertificateName, ns.Name)).NotTo(HaveOccurred())
 
 		By("copying CA secret to cert-manager namespace for CA ClusterIssuer readiness")
 		Expect(copySecretToNamespace(ctx, clientset, ns.Name, operandNamespace, istioCSRCASecretName)).NotTo(HaveOccurred())
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			_ = clientset.CoreV1().Secrets(operandNamespace).Delete(ctx, istioCSRCASecretName, metav1.DeleteOptions{})
 		})
 
@@ -311,7 +310,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}
 		_, err = certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, caClusterIssuer, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(ctx, istioCSRCAClusterIssuerName, metav1.DeleteOptions{})
 		})
 		Expect(waitForClusterIssuerReadiness(ctx, istioCSRCAClusterIssuerName)).NotTo(HaveOccurred())
@@ -320,16 +319,16 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			issuerRefKind: "ClusterIssuer",
 			issuerRefName: istioCSRCAClusterIssuerName,
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 		Expect(status.IstioCSRGRPCEndpoint).NotTo(BeEmpty())
 	})
 
-	It("should report degraded state for unsupported ACME issuer", Label("ISTIOCSR-004"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-acme", true)
+	It("should report degraded state for unsupported ACME issuer", Label("ISTIOCSR-004"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-acme", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		acmeIssuer := &certmanagerv1.Issuer{
@@ -355,24 +354,24 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			issuerRefName: "acme-issuer",
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with unsupported ACME issuer message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "unsupported ACME issuer", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-005"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-port", true)
+	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-005"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-port", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			addServerBlock: true,
 			serverPort:     7443,
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 		Expect(status.IstioCSRGRPCEndpoint).To(ContainSubstring(":7443"))
 
@@ -387,19 +386,19 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(grpcPort).To(Equal(int32(7443)))
 	})
 
-	It("should reconcile custom log arguments after deployment drift", Label("ISTIOCSR-006"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-log", true)
+	It("should reconcile custom log arguments after deployment drift", Label("ISTIOCSR-006"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-log", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			logLevel:  5,
 			logFormat: "json",
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 		deployment, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
@@ -420,28 +419,28 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should configure gRPC serving TLS args from apiserver cluster profile", Label("ISTIOCSR-028"), func() {
+	It("should configure gRPC serving TLS args from apiserver cluster profile", Label("ISTIOCSR-028"), func(ctx SpecContext) {
 		original, err := getClusterAPIServerTLSConfig(ctx)
 		if apierrors.IsNotFound(err) {
 			Skip("apiserver.config.openshift.io/cluster is not available on this cluster")
 		}
 		Expect(err).NotTo(HaveOccurred(), "failed to read apiserver TLS configuration")
 
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			By("[cleanup] restoring original apiserver TLS configuration")
 			Eventually(func() error {
 				return restoreClusterAPIServerTLSConfig(ctx, original)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		ns, err := loader.CreateTestingNS("istiocsr-tls-profile", true)
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-tls-profile", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 		testProfile := &configapiv1.TLSSecurityProfile{
@@ -468,32 +467,32 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve expected TLS profile spec")
 
 		By("verifying cert-manager-istio-csr deployment exposes cluster TLS flags")
-		Expect(verifyIstioCSRServingTLSArgsMatchClusterProfile(clientset, ns.Name, expectedSpec)).NotTo(HaveOccurred())
+		Expect(verifyIstioCSRServingTLSArgsMatchClusterProfile(ctx, clientset, ns.Name, expectedSpec)).NotTo(HaveOccurred())
 	})
 
-	It("should recreate ServiceAccount when deleted", Label("ISTIOCSR-017"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-sa", true)
+	It("should recreate ServiceAccount when deleted", Label("ISTIOCSR-017"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-sa", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
 		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 		Expect(clientset.CoreV1().ServiceAccounts(ns.Name).Delete(ctx, status.ServiceAccount, metav1.DeleteOptions{})).NotTo(HaveOccurred())
 		Expect(pollTillServiceAccountAvailable(ctx, clientset, ns.Name, status.ServiceAccount)).NotTo(HaveOccurred())
 	})
 
-	It("should reconcile gRPC service drift", Label("ISTIOCSR-018"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-service", true)
+	It("should reconcile gRPC service drift", Label("ISTIOCSR-018"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-service", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
 		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 		expectedPort := getGRPCPortFromEndpoint(status.IstioCSRGRPCEndpoint)
 
@@ -520,15 +519,15 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should recreate deleted network policy", Label("ISTIOCSR-019"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-netpol", true)
+	It("should recreate deleted network policy", Label("ISTIOCSR-019"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-netpol", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 		networkPolicies, err := clientset.NetworkingV1().NetworkPolicies(ns.Name).List(ctx, metav1.ListOptions{
@@ -546,15 +545,15 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
-	It("should publish complete IstioCSR status contract", Label("ISTIOCSR-020"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-status", true)
+	It("should publish complete IstioCSR status contract", Label("ISTIOCSR-020"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-status", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
-		createIstioCSR(ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
+		createIstioCSR(ctx, ns.Name, newIstioCSR(ns.Name, istioCSRBuildConfig{}))
 		status := expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 		Expect(status.IstioCSRImage).NotTo(BeEmpty(), "status.istioCSRImage should be populated")
 		Expect(status.IstioCSRGRPCEndpoint).NotTo(BeEmpty(), "status.istioCSRGRPCEndpoint should be populated")
@@ -573,13 +572,13 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("should report degraded when referenced CA ConfigMap key is missing", Label("ISTIOCSR-023"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-missing-key", true)
+	It("should report degraded when referenced CA ConfigMap key is missing", Label("ISTIOCSR-023"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-missing-key", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -598,18 +597,18 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			customCAConfigMapNamespace: "",
 			customCAConfigMapKey:       "ca-cert.pem",
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with missing ConfigMap key message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, istioCSRMissingConfigMapKeyMessage, highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	It("should report degraded when referenced CA ConfigMap namespace does not exist", Label("ISTIOCSR-027"), func() {
-		ns, err := loader.CreateTestingNS("istiocsr-missing-ns", true)
+	It("should report degraded when referenced CA ConfigMap namespace does not exist", Label("ISTIOCSR-027"), func(ctx SpecContext) {
+		ns, err := loader.CreateTestingNS(ctx, "istiocsr-missing-ns", true)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
-		createIssuerPrerequisites(ns.Name)
+		createIssuerPrerequisites(ctx, ns.Name)
 
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			addCustomCAConfigMap:       true,
@@ -617,7 +616,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			customCAConfigMapNamespace: "non-existent-istiocsr-ca-ns",
 			customCAConfigMapKey:       "ca.crt",
 		})
-		createIstioCSR(ns.Name, istioCSR)
+		createIstioCSR(ctx, ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with missing CA ConfigMap namespace message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "failed to fetch CA certificate ConfigMap", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
@@ -632,10 +631,10 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			istioCSRStatus   v1alpha1.IstioCSRStatus
 		)
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			clusterID = deriveClusterID(cfg)
 
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				_ = cleanupOSSMIstioCSROperand(ctx, loader)
 			})
 
@@ -658,28 +657,28 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			}
 			istioCPNamespace = cpNamespace
 
-			meshMemberNS, err = loader.CreateTestingNS("osm-apps-1", true)
+			meshMemberNS, err = loader.CreateTestingNS(ctx, "osm-apps-1", true)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(labelNamespaceForIstioInjection(ctx, clientset, meshMemberNS.Name)).NotTo(HaveOccurred())
-			DeferCleanup(func() {
-				loader.DeleteTestingNS(meshMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			DeferCleanup(func(ctx SpecContext) {
+				loader.DeleteTestingNS(ctx, meshMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
 			})
 
-			meshPeerNS, err = loader.CreateTestingNS("osm-apps-2", true)
+			meshPeerNS, err = loader.CreateTestingNS(ctx, "osm-apps-2", true)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(labelNamespaceForIstioInjection(ctx, clientset, meshPeerNS.Name)).NotTo(HaveOccurred())
-			DeferCleanup(func() {
-				loader.DeleteTestingNS(meshPeerNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			DeferCleanup(func(ctx SpecContext) {
+				loader.DeleteTestingNS(ctx, meshPeerNS.Name, func() bool { return CurrentSpecReport().Failed() })
 			})
 
-			nonMemberNS, err = loader.CreateTestingNS("osm-non-member", true)
+			nonMemberNS, err = loader.CreateTestingNS(ctx, "osm-non-member", true)
 			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(func() {
-				loader.DeleteTestingNS(nonMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
+			DeferCleanup(func(ctx SpecContext) {
+				loader.DeleteTestingNS(ctx, nonMemberNS.Name, func() bool { return CurrentSpecReport().Failed() })
 			})
 		})
 
-		It("should create istio-ca-root-cert in istio-injection=enabled namespace", Label("OSM-SMOKE-TC-001"), func() {
+		It("should create istio-ca-root-cert in istio-injection=enabled namespace", Label("OSM-SMOKE-TC-001"), func(ctx SpecContext) {
 			By("waiting for root CA ConfigMap in istio-injection=enabled member namespace")
 			err := pollTillConfigMapAvailable(ctx, clientset, meshMemberNS.Name, "istio-ca-root-cert")
 			Expect(err).NotTo(HaveOccurred())
@@ -694,7 +693,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should return cert-chain for mesh workload SPIFFE identity via gRPC [Skipped:Disconnected]", Label("OSM-SMOKE-TC-002"), func() {
+		It("should return cert-chain for mesh workload SPIFFE identity via gRPC [Skipped:Disconnected]", Label("OSM-SMOKE-TC-002"), func(ctx SpecContext) {
 			const (
 				grpcAppName    = "grpcurl-istio-csr-osm"
 				meshWorkloadSA = "mesh-workload"
@@ -708,7 +707,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				_ = clientset.CoreV1().ServiceAccounts(meshMemberNS.Name).Delete(ctx, meshWorkloadSA, metav1.DeleteOptions{})
 			})
 
@@ -725,7 +724,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 				},
 			}
 			Expect(library.UpsertConfigMap(ctx, clientset, protoCM)).NotTo(HaveOccurred())
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				_ = clientset.CoreV1().ConfigMaps(meshMemberNS.Name).Delete(ctx, protoCM.Name, metav1.DeleteOptions{})
 			})
 
@@ -741,7 +740,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 
 			csr := generateMeshWorkloadCSR(meshMemberNS.Name, meshWorkloadSA)
 
-			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(
+			loader.CreateFromFile(ctx, AssetFunc(testassets.ReadFile).WithTemplateValues(
 				IstioCSRGRPCurlJobConfig{
 					CertificateSigningRequest: csr,
 					IstioCSRStatus:            istioCSRStatus,
@@ -750,7 +749,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 					ServiceAccountName:        meshWorkloadSA,
 				},
 			), filepath.Join("testdata", "istio", "grpcurl_job.yaml"), meshMemberNS.Name)
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				policy := metav1.DeletePropagationBackground
 				_ = clientset.BatchV1().Jobs(meshMemberNS.Name).Delete(ctx, grpcAppName, metav1.DeleteOptions{PropagationPolicy: &policy})
 			})
@@ -786,7 +785,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			}
 		})
 
-		It("should create istio-csr CertificateRequests when mesh workloads start", Label("OSM-SMOKE-TC-003"), func() {
+		It("should create istio-csr CertificateRequests when mesh workloads start", Label("OSM-SMOKE-TC-003"), func(ctx SpecContext) {
 			By("deploying sample mesh workloads in injected namespaces")
 			deployMeshSampleWorkloads(ctx, loader, meshMemberNS.Name)
 			deployMeshSampleWorkloads(ctx, loader, meshPeerNS.Name)
@@ -801,7 +800,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			Expect(waitForCertificateRequestsFromIstioCSR(ctx, istioCPNamespace, 1)).NotTo(HaveOccurred())
 		})
 
-		It("should allow cross-namespace mesh traffic between injected namespaces", Label("OSM-SMOKE-TC-004"), func() {
+		It("should allow cross-namespace mesh traffic between injected namespaces", Label("OSM-SMOKE-TC-004"), func(ctx SpecContext) {
 			By("ensuring sample workloads are present in both injected namespaces")
 			if _, err := clientset.AppsV1().Deployments(meshMemberNS.Name).Get(ctx, "sleep", metav1.GetOptions{}); err != nil {
 				deployMeshSampleWorkloads(ctx, loader, meshMemberNS.Name)

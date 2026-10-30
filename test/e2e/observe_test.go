@@ -30,7 +30,7 @@ var _ = Describe("Logging Configuration", Label("Platform:Generic"), Ordered, fu
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 	})
 
@@ -183,7 +183,7 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 	// testComponentMetrics creates a ServiceMonitor and verifies metrics are scraped.
 	testComponentMetrics := func(serviceMonitorName, appName, componentName, jobLabel string) {
 		By(fmt.Sprintf("creating ServiceMonitor for cert-manager %s", componentName))
-		loader.CreateFromFile(
+		loader.CreateFromFile(ctx,
 			AssetFunc(testassets.ReadFile).WithTemplateValues(ServiceMonitorConfig{
 				Name:          serviceMonitorName,
 				Namespace:     operandNamespace,
@@ -271,7 +271,7 @@ var _ = Describe("Monitoring and Metrics", Label("Platform:Generic"), Ordered, f
 		ctx = context.Background()
 
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("ensuring user workload monitoring is enabled")

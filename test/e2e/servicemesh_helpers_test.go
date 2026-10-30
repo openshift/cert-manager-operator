@@ -503,7 +503,7 @@ func ensureOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResour
 	}
 
 	By("creating IstioCSR operand for OSSM v3 smoke")
-	loader.CreateFromFile(
+	loader.CreateFromFile(ctx, 
 		AssetFunc(testassets.ReadFile).WithTemplateValues(IstioCSRConfig{
 			Namespace: ossmIstioCSRNamespace,
 			ClusterID: clusterID,
@@ -570,8 +570,8 @@ func labelNamespaceForIstioInjection(ctx context.Context, clientset *kubernetes.
 }
 
 func deployMeshSampleWorkloads(ctx context.Context, loader library.DynamicResourceLoader, namespace string) {
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "servicemesh", "httpbin.yaml"), namespace)
-	loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "servicemesh", "sleep.yaml"), namespace)
+	loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "servicemesh", "httpbin.yaml"), namespace)
+	loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "servicemesh", "sleep.yaml"), namespace)
 }
 
 func waitForInjectedDeploymentReady(ctx context.Context, clientset *kubernetes.Clientset, namespace, deploymentName string) error {

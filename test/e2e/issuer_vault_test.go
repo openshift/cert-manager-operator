@@ -103,15 +103,15 @@ var _ = Describe("Vault Issuer", Ordered, Label("Platform:Generic"), func() {
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		ns, err = loader.CreateTestingNS("e2e-vault", false)
+		ns, err = loader.CreateTestingNS(ctx, "e2e-vault", false)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
+		DeferCleanup(func(ctx SpecContext) {
 			By("cleaning up test namespace")
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
 		By("setting up Vault server in cluster with PKI secrets engine enabled")
@@ -483,7 +483,7 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 				}
 				createdClusterRole, err := loader.KubeClient.RbacV1().ClusterRoles().Create(ctx, clusterRole, metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred(), "failed to create ClusterRole for JWKS access")
-				DeferCleanup(func() {
+				DeferCleanup(func(ctx SpecContext) {
 					loader.KubeClient.RbacV1().ClusterRoles().Delete(ctx, createdClusterRole.Name, metav1.DeleteOptions{})
 				})
 
@@ -506,7 +506,7 @@ vault write auth/kubernetes/role/issuer bound_service_account_names=%s bound_ser
 				}
 				createdClusterRoleBinding, err := loader.KubeClient.RbacV1().ClusterRoleBindings().Create(ctx, clusterRoleBinding, metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred(), "failed to create ClusterRoleBinding for JWKS access")
-				DeferCleanup(func() {
+				DeferCleanup(func(ctx SpecContext) {
 					loader.KubeClient.RbacV1().ClusterRoleBindings().Delete(ctx, createdClusterRoleBinding.Name, metav1.DeleteOptions{})
 				})
 
