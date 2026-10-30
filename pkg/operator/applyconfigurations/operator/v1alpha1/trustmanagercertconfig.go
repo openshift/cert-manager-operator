@@ -4,7 +4,6 @@ package v1alpha1
 
 import (
 	metav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,6 +23,9 @@ type TrustManagerCertConfigApplyConfiguration struct {
 	// issuerRef overrides the Issuer used for the webhook certificate.
 	// When unset, the operator uses the self-signed Issuer it creates.
 	// kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
+	// inject-ca-from-secret cannot populate the webhook caBundle.
 	IssuerRef *metav1.IssuerReference `json:"issuerRef,omitempty"`
 	// privateKeyAlgorithm is the private key algorithm for the webhook certificate.
 	// Allowed values are RSA, ECDSA, and Ed25519.
@@ -36,10 +38,6 @@ type TrustManagerCertConfigApplyConfiguration struct {
 	PrivateKeySize *int32 `json:"privateKeySize,omitempty"`
 	// certificateSignatureAlgorithm is the signature algorithm for the webhook certificate.
 	CertificateSignatureAlgorithm *string `json:"certificateSignatureAlgorithm,omitempty"`
-	// propagateMetadataToSecret copies the labels and annotations the operator
-	// sets on the webhook Certificate onto that Certificate's Secret.
-	// "Enabled" copies them. "Disabled" does not (default).
-	PropagateMetadataToSecret *operatorv1alpha1.Mode `json:"propagateMetadataToSecret,omitempty"`
 }
 
 // TrustManagerCertConfigApplyConfiguration constructs a declarative configuration of the TrustManagerCertConfig type for use with
@@ -101,13 +99,5 @@ func (b *TrustManagerCertConfigApplyConfiguration) WithPrivateKeySize(value int3
 // If called multiple times, the CertificateSignatureAlgorithm field is set to the value of the last call.
 func (b *TrustManagerCertConfigApplyConfiguration) WithCertificateSignatureAlgorithm(value string) *TrustManagerCertConfigApplyConfiguration {
 	b.CertificateSignatureAlgorithm = &value
-	return b
-}
-
-// WithPropagateMetadataToSecret sets the PropagateMetadataToSecret field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PropagateMetadataToSecret field is set to the value of the last call.
-func (b *TrustManagerCertConfigApplyConfiguration) WithPropagateMetadataToSecret(value operatorv1alpha1.Mode) *TrustManagerCertConfigApplyConfiguration {
-	b.PropagateMetadataToSecret = &value
 	return b
 }
