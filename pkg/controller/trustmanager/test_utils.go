@@ -113,6 +113,13 @@ func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *t
 	return b
 }
 
+func (b *trustManagerBuilder) WithWebhookPrivateKey(algorithm, rotationPolicy string, size int32) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeyAlgorithm = algorithm
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeyRotationPolicy = rotationPolicy
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeySize = size
+	return b
+}
+
 func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
 	return b

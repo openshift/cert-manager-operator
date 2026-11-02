@@ -110,9 +110,7 @@ func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v
 	if certConfig.CertificateSignatureAlgorithm != "" {
 		certificate.Spec.SignatureAlgorithm = certmanagerv1.SignatureAlgorithm(certConfig.CertificateSignatureAlgorithm)
 	}
-	if privateKey := privateKeyFromCertConfig(certConfig); privateKey != nil {
-		certificate.Spec.PrivateKey = privateKey
-	}
+	overlayPrivateKeyFromCertConfig(certificate, certConfig)
 }
 
 // webhookCertificateIssuerRef is the issuer for the webhook Certificate and for
@@ -130,21 +128,25 @@ func webhookCertificateIssuerRef(certConfig v1alpha1.TrustManagerCertConfig) cer
 	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 }
 
-func privateKeyFromCertConfig(certConfig v1alpha1.TrustManagerCertConfig) *certmanagerv1.CertificatePrivateKey {
+// overlayPrivateKeyFromCertConfig copies configured private-key fields onto the
+// Certificate decoded from bindata. Unset fields keep the operator default
+// (rotationPolicy Always) instead of replacing the whole struct.
+func overlayPrivateKeyFromCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig) {
 	if certConfig.PrivateKeyAlgorithm == "" && certConfig.PrivateKeyRotationPolicy == "" && certConfig.PrivateKeySize == 0 {
-		return nil
+		return
 	}
-	privateKey := &certmanagerv1.CertificatePrivateKey{}
+	if certificate.Spec.PrivateKey == nil {
+		certificate.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{}
+	}
 	if certConfig.PrivateKeyAlgorithm != "" {
-		privateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(certConfig.PrivateKeyAlgorithm)
+		certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(certConfig.PrivateKeyAlgorithm)
 	}
 	if certConfig.PrivateKeyRotationPolicy != "" {
-		privateKey.RotationPolicy = certmanagerv1.PrivateKeyRotationPolicy(certConfig.PrivateKeyRotationPolicy)
+		certificate.Spec.PrivateKey.RotationPolicy = certmanagerv1.PrivateKeyRotationPolicy(certConfig.PrivateKeyRotationPolicy)
 	}
 	if certConfig.PrivateKeySize != 0 {
-		privateKey.Size = int(certConfig.PrivateKeySize)
+		certificate.Spec.PrivateKey.Size = int(certConfig.PrivateKeySize)
 	}
-	return privateKey
 }
 
 // certificateSecretTemplate copies operator-managed labels and annotations onto
@@ -205,13 +207,13 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if certificateFieldDrift(desired.Spec.RenewBefore != nil, ptr.Equal(desired.Spec.RenewBefore, existing.Spec.RenewBefore), existing, "spec", "renewBefore") {
 		return true
 	}
-	// Note: PrivateKey is NOT checked here via certificateFieldDrift because we only manage
-	// the RotationPolicy field (already checked above). Other PrivateKey fields (algorithm, size)
-	// may be defaulted by cert-manager and should not trigger a patch.
-	if certificateFieldDrift(desired.Spec.SignatureAlgorithm != "", desired.Spec.SignatureAlgorithm == existing.Spec.SignatureAlgorithm, existing, "spec", "signatureAlgorithm") {
+	if certificateFieldDrift(certificatePrivateKeyAlgorithm(desired.Spec.PrivateKey) != "", certificatePrivateKeyAlgorithm(desired.Spec.PrivateKey) == certificatePrivateKeyAlgorithm(existing.Spec.PrivateKey), existing, "spec", "privateKey", "algorithm") {
 		return true
 	}
-	if certificateFieldDrift(desired.Spec.SecretTemplate != nil, reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate), existing, "spec", "secretTemplate") {
+	if certificateFieldDrift(certificatePrivateKeySize(desired.Spec.PrivateKey) != 0, certificatePrivateKeySize(desired.Spec.PrivateKey) == certificatePrivateKeySize(existing.Spec.PrivateKey), existing, "spec", "privateKey", "size") {
+		return true
+	}
+	if certificateFieldDrift(desired.Spec.SignatureAlgorithm != "", desired.Spec.SignatureAlgorithm == existing.Spec.SignatureAlgorithm, existing, "spec", "signatureAlgorithm") {
 		return true
 	}
 	return false
@@ -260,8 +262,9 @@ func controllerOwnsField(cert *certmanagerv1.Certificate, parts ...string) bool 
 }
 
 // certificatePrivateKeyRotationPolicy returns the rotation policy we manage on
-// the webhook Certificate. Other PrivateKey fields (algorithm, encoding, size)
-// are omitted from the comparison because cert-manager may default them.
+// the webhook Certificate. Bindata always sets RotationPolicy, so it is compared
+// directly. Algorithm and size use certificateFieldDrift so webhook defaults are
+// left alone until the user sets them.
 func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyRotationPolicy {
 	if pk == nil {
 		return ""
@@ -349,4 +352,18 @@ func controllerOwnedFields(obj *certmanagerv1.Certificate) *fieldpath.Set {
 		owned = owned.Union(&fields)
 	}
 	return owned
+}
+
+func certificatePrivateKeyAlgorithm(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyAlgorithm {
+	if pk == nil {
+		return ""
+	}
+	return pk.Algorithm
+}
+
+func certificatePrivateKeySize(pk *certmanagerv1.CertificatePrivateKey) int {
+	if pk == nil {
+		return 0
+	}
+	return pk.Size
 }
