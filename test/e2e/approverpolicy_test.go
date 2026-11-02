@@ -224,12 +224,17 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 			})
 
 			It("should merge a custom nodeSelector with the default kubernetes.io/os selector", func() {
-				createApproverPolicyManager(ctx, newApproverPolicyManagerCR().WithNodeSelector(map[string]string{"disktype": "ssd"}))
+				// This synthetic label need not exist on any cluster node. Verify the
+				// rendered Pod template without requiring the operand to schedule.
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithNodeSelector(map[string]string{"disktype": "ssd"}).Build(), metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
 
 				deployment := &appsv1.Deployment{}
-				Expect(client.Get(ctx, deploymentKey, deployment)).To(Succeed())
-				Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("disktype", "ssd"))
-				Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/os", "linux"))
+				Eventually(func(g Gomega) {
+					g.Expect(client.Get(ctx, deploymentKey, deployment)).To(Succeed())
+					g.Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("disktype", "ssd"))
+					g.Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/os", "linux"))
+				}, lowTimeout, fastPollInterval).Should(Succeed())
 			})
 
 			It("should apply custom affinity to the pod spec", func() {
