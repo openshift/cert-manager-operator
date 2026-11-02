@@ -506,6 +506,129 @@ tests:
               certificateDuration: not-a-duration
     expectedError: "certificateDuration"
 
+  - name: Should create with the minimum webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+
+  - name: Should not allow a webhookTLS certificateDuration below 1h
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 30m
+    expectedError: "certificateDuration must be at least 1h"
+
+  - name: Should create with the minimum webhookTLS certificateRenewBefore
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 5m
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 5m
+
+  - name: Should not allow a webhookTLS certificateRenewBefore below 5m
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 4m
+    expectedError: "certificateRenewBefore must be at least 5m"
+
+  - name: Should not allow webhookTLS certificateRenewBefore at the default duration when certificateDuration is unset
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 2160h
+    expectedError: "certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
+
+  - name: Should not allow webhookTLS certificateRenewBefore greater than or equal to certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+              certificateRenewBefore: 2h
+    expectedError: "certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
+
+  - name: Should create when webhookTLS certificateRenewBefore is less than certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+              certificateRenewBefore: 30m
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+              certificateRenewBefore: 30m
+
   - name: Should create with a name-only webhookTLS issuerRef
     resourceName: cluster
     initial: |
