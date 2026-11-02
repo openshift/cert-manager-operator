@@ -2060,17 +2060,17 @@ func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 }
 
 // waitForOperandProfileTLSArgKeysAbsent polls until profile-managed TLS flags are gone.
+// Transient read failures keep polling. A timeout includes the last verification error.
 func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		err := verifyOperandProfileTLSArgKeysAbsent(deploymentName)
-		if err == nil {
-			return true, nil
-		}
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, nil
+	var lastErr error
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+		lastErr = verifyOperandProfileTLSArgKeysAbsent(deploymentName)
+		return lastErr == nil, nil
 	})
+	if err != nil && lastErr != nil {
+		return fmt.Errorf("%w: last verification error: %v", err, lastErr)
+	}
+	return err
 }
 
 // verifyOperandMetricsHTTPS waits until cert-manager operand deployments expose
