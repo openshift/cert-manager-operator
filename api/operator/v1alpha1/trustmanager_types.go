@@ -222,10 +222,13 @@ type WebhookTLSConfig struct {
 // TrustManagerCertConfig configures the cert-manager Certificate used for the
 // trust-manager webhook serving certificate.
 // +kubebuilder:validation:XValidation:rule="!has(self.privateKeySize) || self.privateKeySize == 0 || !has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm == \"Ed25519\" || (self.privateKeyAlgorithm == \"RSA\" && self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm == \"ECDSA\" && self.privateKeySize in [256, 384, 521])",message="privateKeySize must match privateKeyAlgorithm"
-// +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || !has(self.certificateDuration) || duration(self.certificateRenewBefore) < duration(self.certificateDuration)",message="certificateRenewBefore must be less than certificateDuration"
+// +kubebuilder:validation:XValidation:rule="!has(self.certificateDuration) || duration(self.certificateDuration) >= duration('1h')",message="certificateDuration must be at least 1h"
+// +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || duration(self.certificateRenewBefore) >= duration('5m')",message="certificateRenewBefore must be at least 5m"
+// +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || duration(self.certificateRenewBefore) < (has(self.certificateDuration) ? duration(self.certificateDuration) : duration('2160h'))",message="certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
 type TrustManagerCertConfig struct {
 	// certificateDuration is the requested validity period of the webhook TLS certificate.
 	// When unset, cert-manager's default certificate duration is used.
+	// Minimum accepted value is 1h.
 	// Example: "8760h" for one year.
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Pattern=`^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$`
@@ -235,6 +238,8 @@ type TrustManagerCertConfig struct {
 
 	// certificateRenewBefore is how long before expiry cert-manager renews the webhook certificate.
 	// When unset, cert-manager renews at one third of the certificate lifetime.
+	// Minimum accepted value is 5m. It must be less than certificateDuration, or less
+	// than 2160h (cert-manager's 90-day default) when certificateDuration is unset.
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Pattern=`^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$`
 	// +kubebuilder:validation:Optional
