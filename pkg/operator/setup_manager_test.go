@@ -183,6 +183,7 @@ func TestFindExistingCacheEntry(t *testing.T) {
 	}
 }
 
+// TestBuildCacheObjectList_ConfigMapLabelMerge verifies merged ConfigMap cache selectors when both controllers are enabled.
 func TestBuildCacheObjectList_ConfigMapLabelMerge(t *testing.T) {
 	objectList, err := buildCacheObjectList(ControllerConfig{
 		EnableIstioCSR:     true,
@@ -222,6 +223,7 @@ func TestBuildCacheObjectList_ConfigMapLabelMerge(t *testing.T) {
 	}
 }
 
+// TestBuildCacheObjectList_IstioCSROnly verifies ConfigMap cache labels when only IstioCSR is enabled.
 func TestBuildCacheObjectList_IstioCSROnly(t *testing.T) {
 	objectList, err := buildCacheObjectList(ControllerConfig{
 		EnableIstioCSR:     true,
@@ -252,6 +254,7 @@ func TestBuildCacheObjectList_IstioCSROnly(t *testing.T) {
 	}
 }
 
+// TestBuildCacheObjectList_TrustManagerOnly verifies ConfigMap cache labels include the operator bundle value.
 func TestBuildCacheObjectList_TrustManagerOnly(t *testing.T) {
 	objectList, err := buildCacheObjectList(ControllerConfig{
 		EnableIstioCSR:     false,
@@ -280,6 +283,7 @@ func TestBuildCacheObjectList_TrustManagerOnly(t *testing.T) {
 	}
 }
 
+// TestAppendConfigMapLabelValues verifies label values are merged and the selector uses In.
 func TestAppendConfigMapLabelValues(t *testing.T) {
 	objectList := make(map[client.Object]cache.ByObject)
 	labelReq, err := labels.NewRequirement(common.ManagedResourceLabelKey, selection.Equals, []string{"a"})

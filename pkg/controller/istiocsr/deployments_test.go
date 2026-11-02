@@ -1396,6 +1396,7 @@ func TestGetIssuerValidKinds(t *testing.T) {
 	}
 }
 
+// TestUpdateWatchLabel verifies watched-by and app labels are applied to a user CA ConfigMap.
 func TestUpdateWatchLabel(t *testing.T) {
 	istiocsr := testIstioCSR()
 	cm := &corev1.ConfigMap{
@@ -1426,6 +1427,7 @@ func TestUpdateWatchLabel(t *testing.T) {
 	}
 }
 
+// TestUpdateWatchLabelOverwritesConflictingAppLabel verifies user app labels are replaced via the uncached update path.
 func TestUpdateWatchLabelOverwritesConflictingAppLabel(t *testing.T) {
 	istiocsr := testIstioCSR()
 	cm := &corev1.ConfigMap{
@@ -1464,6 +1466,7 @@ func TestUpdateWatchLabelOverwritesConflictingAppLabel(t *testing.T) {
 	}
 }
 
+// TestFetchUserCAConfigMapUsesAPIReader verifies the first user CA ConfigMap read bypasses the filtered cache.
 func TestFetchUserCAConfigMapUsesAPIReader(t *testing.T) {
 	cached := &fakes.FakeCtrlClient{}
 	cached.GetReturns(fmt.Errorf("should not use cached client"))
@@ -1496,24 +1499,29 @@ func TestFetchUserCAConfigMapUsesAPIReader(t *testing.T) {
 	}
 }
 
+// testAPIReader implements client.Reader for unit tests that exercise the uncached API read path.
 type testAPIReader struct {
 	get   func(context.Context, types.NamespacedName, client.Object) error
 	calls int
 }
 
+// Get fetches an object through the test double and records the call count.
 func (t *testAPIReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 	t.calls++
 	return t.get(ctx, types.NamespacedName{Namespace: key.Namespace, Name: key.Name}, obj)
 }
 
+// List is not implemented for testAPIReader.
 func (t *testAPIReader) List(context.Context, client.ObjectList, ...client.ListOption) error {
 	return fmt.Errorf("not implemented")
 }
 
+// GetCallCount returns how many Get invocations the test double recorded.
 func (t *testAPIReader) GetCallCount() int {
 	return t.calls
 }
 
+// TestRemoveWatchLabel verifies operator watch and app labels are stripped via the API reader update path.
 func TestRemoveWatchLabel(t *testing.T) {
 	istiocsr := testIstioCSR()
 	wantWatch := fmt.Sprintf(istiocsrResourceWatchLabelValueFmt, istiocsr.GetNamespace(), istiocsr.GetName())
@@ -1561,6 +1569,7 @@ func TestRemoveWatchLabel(t *testing.T) {
 	}
 }
 
+// TestRemoveWatchLabel_MismatchedInstance verifies labels owned by another IstioCSR instance are not modified.
 func TestRemoveWatchLabel_MismatchedInstance(t *testing.T) {
 	istiocsr := testIstioCSR()
 	cm := &corev1.ConfigMap{
@@ -1589,6 +1598,7 @@ func TestRemoveWatchLabel_MismatchedInstance(t *testing.T) {
 	}
 }
 
+// TestCleanupUserProvidedCAWatchLabels_NilSpec verifies cleanup is a no-op when no user CA ConfigMap is configured.
 func TestCleanupUserProvidedCAWatchLabels_NilSpec(t *testing.T) {
 	r := testReconciler(t)
 	if err := r.cleanupUserProvidedCAWatchLabels(testIstioCSR()); err != nil {
@@ -1596,6 +1606,7 @@ func TestCleanupUserProvidedCAWatchLabels_NilSpec(t *testing.T) {
 	}
 }
 
+// TestCleanupUserProvidedCAWatchLabels verifies deletion cleanup removes labels through updateWithAPIReader.
 func TestCleanupUserProvidedCAWatchLabels(t *testing.T) {
 	istiocsr := testIstioCSR()
 	istiocsr.Spec.IstioCSRConfig.CertManager.IstioCACertificate = &v1alpha1.ConfigMapReference{
@@ -1635,6 +1646,7 @@ func TestCleanupUserProvidedCAWatchLabels(t *testing.T) {
 	}
 }
 
+// TestUpdateWithAPIReader verifies conflict retries read through the API reader and persist with Update.
 func TestUpdateWithAPIReader(t *testing.T) {
 	cm := testCACertificateConfigMap()
 	cm.SetLabels(map[string]string{

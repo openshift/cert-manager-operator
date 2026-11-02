@@ -225,7 +225,8 @@ func newUnifiedCacheBuilder(config ControllerConfig) cache.NewCacheFunc {
 }
 
 // buildCacheObjectList creates the cache configuration with label selectors
-// for managed resources based on enabled controllers.
+// for managed resources based on enabled controllers. When TrustManager is enabled,
+// the shared ConfigMap selector also includes common.OperatorResourceLabelValue.
 // All controllers use common.ManagedResourceLabelKey as the label key.
 func buildCacheObjectList(config ControllerConfig) (map[client.Object]cache.ByObject, error) {
 	objectList := make(map[client.Object]cache.ByObject)
@@ -307,7 +308,8 @@ func findExistingCacheEntry(objectList map[client.Object]cache.ByObject, target 
 	return nil, cache.ByObject{}, false
 }
 
-// appendConfigMapLabelValues adds additional app label values to the ConfigMap cache selector.
+// appendConfigMapLabelValues merges additional app label values into the shared ConfigMap
+// cache ByObject entry, upgrading an Equals selector to In when needed.
 func appendConfigMapLabelValues(objectList map[client.Object]cache.ByObject, values ...string) error {
 	configMap := &corev1.ConfigMap{}
 	existingKey, existing, found := findExistingCacheEntry(objectList, configMap)
@@ -340,6 +342,7 @@ func appendConfigMapLabelValues(objectList map[client.Object]cache.ByObject, val
 	return nil
 }
 
+// containsString reports whether target appears in values.
 func containsString(values []string, target string) bool {
 	for _, v := range values {
 		if v == target {

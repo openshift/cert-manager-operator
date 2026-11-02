@@ -681,7 +681,8 @@ func (r *Reconciler) updateWithAPIReader(ctx context.Context, obj client.Object)
 	})
 }
 
-// cleanupUserProvidedCAWatchLabels removes operator watch markers from the user CA ConfigMap.
+// cleanupUserProvidedCAWatchLabels removes operator watch markers from the user CA ConfigMap
+// referenced by the IstioCSR spec during CR deletion.
 func (r *Reconciler) cleanupUserProvidedCAWatchLabels(istiocsr *v1alpha1.IstioCSR) error {
 	caCertConfig := istiocsr.Spec.IstioCSRConfig.CertManager.IstioCACertificate
 	if caCertConfig == nil {
@@ -709,6 +710,8 @@ func (r *Reconciler) cleanupUserProvidedCAWatchLabels(istiocsr *v1alpha1.IstioCS
 }
 
 // removeWatchLabel strips operator-applied watch labels when they belong to this IstioCSR instance.
+// ConfigMap updates use the API reader when available so objects leaving the filtered cache
+// can still be updated during IstioCSR deletion cleanup.
 func (r *Reconciler) removeWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
 	labels := obj.GetLabels()
 	if labels == nil {
@@ -737,7 +740,9 @@ func (r *Reconciler) removeWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	return nil
 }
 
-// updateWatchLabel adds a watch label to any Kubernetes object that supports labels.
+// updateWatchLabel adds watched-by and, for ConfigMaps, app cache membership labels so IstioCSR
+// receives reconcile events for user-provided CA ConfigMaps. The first ConfigMap write uses the
+// API reader when the object is not yet in the filtered cache.
 func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.IstioCSR) error {
 	labels := obj.GetLabels()
 	if labels == nil {

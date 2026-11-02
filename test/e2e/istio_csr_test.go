@@ -877,7 +877,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				},
 			}
 			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred(), "failed to upsert user CA ConfigMap %s/%s for delete-cleanup test", ns.Name, configMapRefName)
 
 			templateData := istioCSRTemplateData{
 				IstioNamespace:  ns.Name,
@@ -897,12 +897,14 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			By("verifying operator watch labels are removed from the user ConfigMap")
 			Eventually(func(g Gomega) {
 				cm, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, configMapRefName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get user CA ConfigMap %s/%s after IstioCSR delete", ns.Name, configMapRefName)
 				if cm.Labels != nil {
-					g.Expect(cm.Labels).ShouldNot(HaveKey(testutils.IstiocsrResourceWatchLabelName))
-					g.Expect(cm.Labels).ShouldNot(HaveKey(common.ManagedResourceLabelKey))
+					g.Expect(cm.Labels).ShouldNot(HaveKey(testutils.IstiocsrResourceWatchLabelName),
+						"watched-by label should be removed from %s/%s after IstioCSR delete", ns.Name, configMapRefName)
+					g.Expect(cm.Labels).ShouldNot(HaveKey(common.ManagedResourceLabelKey),
+						"app label should be removed from %s/%s after IstioCSR delete", ns.Name, configMapRefName)
 				}
-			}, "2m", "5s").Should(Succeed())
+			}, "2m", "5s").Should(Succeed(), "watch labels should be removed from user CA ConfigMap %s/%s", ns.Name, configMapRefName)
 		})
 
 		It("should not update managed CA copy when an unrelated ConfigMap changes", func() {
@@ -920,7 +922,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				},
 			}
 			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred(), "failed to upsert user CA ConfigMap %s/%s for unrelated-ConfigMap test", ns.Name, configMapRefName)
 
 			templateData := istioCSRTemplateData{
 				IstioNamespace:  ns.Name,
@@ -936,7 +938,7 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 			_ = expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
 			copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get operator-managed CA copy ConfigMap %s/%s", ns.Name, testutils.IstiocsrCAConfigMapName)
 			stableCopy := copiedConfigMap.Data[testutils.IstiocsrCAKeyName]
 
 			unrelated := &corev1.ConfigMap{
@@ -946,10 +948,10 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 				},
 				Data: map[string]string{"noise": "v1"},
 			}
-			Expect(library.UpsertConfigMap(ctx, clientset, unrelated)).Should(Succeed())
+			Expect(library.UpsertConfigMap(ctx, clientset, unrelated)).Should(Succeed(), "failed to create unrelated ConfigMap in %s", ns.Name)
 			unrelated.Data["noise"] = "v2"
 			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Update(ctx, unrelated, metav1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred(), "failed to update unrelated ConfigMap %s/unrelated-configmap-cm972", ns.Name)
 
 			Consistently(func() string {
 				cm, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
