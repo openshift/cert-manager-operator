@@ -21,6 +21,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 )
 
@@ -128,6 +129,42 @@ func waitForApproverPolicyReady(ctx context.Context) {
 	}, highTimeout, fastPollInterval).Should(Succeed())
 }
 
+func waitForApproverPolicyNotReady(ctx context.Context) {
+	Eventually(func(g Gomega) {
+		current, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		ready := meta.FindStatusCondition(current.Status.Conditions, v1alpha1.Ready)
+		g.Expect(ready).NotTo(BeNil())
+		g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(ready.ObservedGeneration).To(Equal(current.Generation))
+	}, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+func verifyAutoApproverState(ctx context.Context, g Gomega, disabled bool) {
+	cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cm.Status.AutoApproverDisabled).To(Equal(disabled))
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	args := map[string]string{}
+	common.ParseArgMap(args, deployment.Spec.Template.Spec.Containers[0].Args)
+	if disabled {
+		g.Expect(args["--controllers"]).To(Equal("*,-certificaterequests-approver"))
+	} else {
+		g.Expect(args).NotTo(HaveKey("--controllers"))
+	}
+	const roleName = "cert-manager-controller-approve:cert-manager-io"
+	_, roleErr := k8sClientSet.RbacV1().ClusterRoles().Get(ctx, roleName, metav1.GetOptions{})
+	_, bindingErr := k8sClientSet.RbacV1().ClusterRoleBindings().Get(ctx, roleName, metav1.GetOptions{})
+	if disabled {
+		g.Expect(apierrors.IsNotFound(roleErr)).To(BeTrue())
+		g.Expect(apierrors.IsNotFound(bindingErr)).To(BeTrue())
+	} else {
+		g.Expect(roleErr).NotTo(HaveOccurred())
+		g.Expect(bindingErr).NotTo(HaveOccurred())
+	}
+}
+
 // updateApproverPolicyManager retries on update conflicts: it re-fetches the current CR,
 // applies mutate to it, and attempts the update until it succeeds.
 func updateApproverPolicyManager(ctx context.Context, mutate func(*v1alpha1.ApproverPolicyManager)) {
@@ -180,6 +217,7 @@ func approverPolicyManagerAfterEach(ctx context.Context, client crclient.Client)
 		_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
 		return apierrors.IsNotFound(err)
 	}, highTimeout, fastPollInterval).Should(BeTrue())
+	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
 }
 
 // releaseApproverPolicyTLSSecretHold removes approverPolicyHoldFinalizer from the TLS Secret, if

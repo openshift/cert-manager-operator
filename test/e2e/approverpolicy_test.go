@@ -4,8 +4,14 @@ package e2e
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
+	"strings"
 	"time"
+
+	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,9 +25,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/rest"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/test/library"
 )
 
 const approverPolicyName = "cert-manager-approver-policy"
@@ -59,6 +67,54 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 		AfterEach(func() {
 			approverPolicyManagerAfterEach(ctx, client)
+		})
+
+		Context("CertManager auto-approver linkage", func() {
+			It("should wait for readiness, reject built-in approval, and stay disabled through a later failure", func() {
+				By("creating an operand that cannot yet be scheduled")
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithNodeSelector(map[string]string{"e2e.example/no-such-node": string(uuid.NewUUID())}).Build(), metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				waitForApproverPolicyNotReady(ctx)
+				Consistently(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, 5*time.Second, fastPollInterval).Should(Succeed())
+
+				By("allowing rollout and waiting for the automatic handoff")
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) { current.Spec.ApproverPolicyConfig.NodeSelector = nil })
+				waitForApproverPolicyReady(ctx)
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
+
+				By("attempting an actual approval as the cert-manager ServiceAccount")
+				ns, err := loader.CreateTestingNS("auto-approver-rejection", false)
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+				csr, err := library.GenerateCSR(&x509.CertificateRequest{DNSNames: []string{"handoff.example.com"}})
+				Expect(err).NotTo(HaveOccurred())
+				request, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Create(ctx, &cmv1.CertificateRequest{
+					ObjectMeta: metav1.ObjectMeta{Name: "approval-rejection"},
+					// GenerateCSR escapes newlines for CLI use; the API needs PEM bytes.
+					Spec: cmv1.CertificateRequestSpec{Request: []byte(strings.ReplaceAll(csr, "\\n", "\n")), IssuerRef: cmmeta.IssuerReference{Name: "unconfigured-issuer", Kind: "Issuer", Group: "cert-manager.io"}},
+				}, metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				impersonated := rest.CopyConfig(cfg)
+				impersonated.Impersonate = rest.ImpersonationConfig{UserName: "system:serviceaccount:cert-manager:cert-manager", Groups: []string{"system:serviceaccounts", "system:serviceaccounts:cert-manager", "system:authenticated"}}
+				operandClient, err := cmclient.NewForConfig(impersonated)
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(func(g Gomega) {
+					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					now := metav1.Now()
+					current.Status.Conditions = append(current.Status.Conditions, cmv1.CertificateRequestCondition{Type: cmv1.CertificateRequestConditionApproved, Status: cmmeta.ConditionTrue, Reason: "TestApproval", Message: "attempt approval with removed signer permission", LastTransitionTime: &now})
+					_, err = operandClient.CertmanagerV1().CertificateRequests(ns.Name).UpdateStatus(ctx, current, metav1.UpdateOptions{})
+					g.Expect(err).To(HaveOccurred())
+					g.Expect(err.Error()).To(ContainSubstring("does not have permissions to set approved/denied conditions"))
+				}, lowTimeout, fastPollInterval).Should(Succeed())
+
+				By("making the operand unavailable after the latch is established")
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) {
+					current.Spec.ApproverPolicyConfig.NodeSelector = map[string]string{"e2e.example/no-such-node": string(uuid.NewUUID())}
+				})
+				waitForApproverPolicyNotReady(ctx)
+				Consistently(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, 5*time.Second, fastPollInterval).Should(Succeed())
+			})
 		})
 
 		// ---------------------------------------------------------------------
@@ -447,6 +503,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		Context("finalizer-gated cleanup", func() {
 			It("should wait for a held managed resource before completing cleanup, leaving unrelated resources untouched", func() {
 				instance := createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
 
 				By("creating a user CertificateRequestPolicy unrelated to the operator's own managed resources")
 				policy := &unstructured.Unstructured{Object: map[string]interface{}{
@@ -485,11 +542,13 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				}, highTimeout, fastPollInterval).Should(Succeed())
 
 				By("releasing the held Secret and letting cleanup complete")
+				Consistently(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, 5*time.Second, fastPollInterval).Should(Succeed())
 				releaseApproverPolicyTLSSecretHold(ctx, client)
 				Eventually(func() bool {
 					_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
 					return apierrors.IsNotFound(err)
 				}, highTimeout, fastPollInterval).Should(BeTrue())
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
 
 				By("verifying all managed resources were removed")
 				for _, obj := range approverPolicyResources() {
