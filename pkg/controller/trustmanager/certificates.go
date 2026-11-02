@@ -93,6 +93,7 @@ func getCertificateObject(config v1alpha1.TrustManagerConfig, resourceLabels, re
 	// cert-manager.io/allow-direct-injection. Copying controller labels and
 	// annotations onto that template is CM-1025, not webhookTLS.certManager.
 	applyWebhookCertConfig(certificate, config.WebhookTLS.CertManager)
+	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
 	return certificate
 }
@@ -117,15 +118,21 @@ func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v
 // the CertificateRequestPolicy selector. An unset issuerRef uses the operator's
 // self-signed Issuer. Both must match or approver-policy never approves the request.
 func webhookCertificateIssuerRef(certConfig v1alpha1.TrustManagerCertConfig) certmanagermetav1.IssuerReference {
-	if certConfig.IssuerRef != nil {
-		return *certConfig.IssuerRef
+	if certConfig.IssuerRef == nil {
+		return certmanagermetav1.IssuerReference{
+			Name:  trustManagerIssuerName,
+			Kind:  "Issuer",
+			Group: "cert-manager.io",
+		}
 	}
-	return certmanagermetav1.IssuerReference{
-		Name:  trustManagerIssuerName,
-		Kind:  "Issuer",
-		Group: "cert-manager.io",
+	ref := *certConfig.IssuerRef
+	if ref.Kind == "" {
+		ref.Kind = "Issuer"
 	}
-	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
+	if ref.Group == "" {
+		ref.Group = "cert-manager.io"
+	}
+	return ref
 }
 
 // overlayPrivateKeyFromCertConfig copies configured private-key fields onto the

@@ -13,6 +13,8 @@ import (
 
 	"github.com/go-logr/logr/testr"
 
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/testutil"
 )
@@ -110,6 +112,15 @@ func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPol
 
 func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.CertificateDuration = &metav1.Duration{Duration: d}
+	return b
+}
+
+func (b *trustManagerBuilder) WithWebhookIssuerRef(name, kind, group string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.IssuerRef = &certmanagermetav1.ObjectReference{
+		Name:  name,
+		Kind:  kind,
+		Group: group,
+	}
 	return b
 }
 
