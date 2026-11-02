@@ -3,6 +3,7 @@ package trustmanager
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -151,6 +152,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(r.targetNamespaceWatchPredicate())).
 		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
@@ -230,6 +232,45 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 
 func isClusterAPIServer(obj client.Object) bool {
 	return obj != nil && obj.GetName() == tlsprofile.APIServerClusterName
+}
+
+// targetNamespaceWatchPredicate enqueues TrustManager when a namespace listed
+// in targetNamespaces is created or deleted. The Role for that namespace is
+// applied on create. Updates are ignored: namespace metadata changes do not
+// affect target RBAC, and a namespace entering Terminating deletes its Role,
+// which the Role watch already enqueues.
+//
+// Namespaces are not labeled by this controller, so this watch uses the
+// default cache informer and selects names here.
+func (r *Reconciler) targetNamespaceWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return r.isListedTargetNamespace(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return r.isListedTargetNamespace(e.Object)
+		},
+		UpdateFunc: func(event.UpdateEvent) bool {
+			return false
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+// isListedTargetNamespace reports whether obj is named in the current
+// TrustManager targetNamespaces list.
+func (r *Reconciler) isListedTargetNamespace(obj client.Object) bool {
+	if obj == nil || obj.GetName() == "" {
+		return false
+	}
+	trustManager := &v1alpha1.TrustManager{}
+	if err := r.Get(r.ctx, types.NamespacedName{Name: trustManagerObjectName}, trustManager); err != nil {
+		r.log.V(4).Info("target namespace watch skipped", "namespace", obj.GetName(), "error", err)
+		return false
+	}
+	return slices.Contains(trustManager.Spec.TrustManagerConfig.TargetNamespaces, obj.GetName())
 }
 
 func clusterAPIServerWatchPredicate() predicate.Funcs {

@@ -85,6 +85,10 @@ var istioCSRManagedResources = []client.Object{
 // managed-resource label selector: IstioCSR reconciles user-created Issuers referenced
 // from the spec, which are not labeled by the operator. Those types are left out of
 // ByObject so they use the manager cache’s default unfiltered informer per GVK.
+//
+// corev1.Namespace is also absent. TrustManager watches namespaces named in
+// targetNamespaces, and those namespaces are not labeled by the operator. The
+// watch predicate filters the default informer.
 var trustManagerManagedResources = []client.Object{
 	&certmanagerv1.Certificate{},
 	&appsv1.Deployment{},

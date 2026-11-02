@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -445,5 +446,65 @@ func TestClusterAPIServerWatchPredicate(t *testing.T) {
 	}
 	if p.Update(event.UpdateEvent{ObjectOld: &corev1.ConfigMap{}, ObjectNew: cluster}) {
 		t.Fatal("update with wrong old type should not match")
+	}
+}
+
+func TestTargetNamespaceWatchPredicate(t *testing.T) {
+	listed := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "app-ns"}}
+	unlisted := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kube-system"}}
+
+	newPredicate := func(t *testing.T, get func(context.Context, client.ObjectKey, client.Object) error) predicate.Funcs {
+		t.Helper()
+		r := testReconciler(t)
+		mock := &fakes.FakeCtrlClient{}
+		mock.GetCalls(get)
+		r.CtrlClient = mock
+		return r.targetNamespaceWatchPredicate()
+	}
+
+	withTrustManager := func(namespaces ...string) func(context.Context, client.ObjectKey, client.Object) error {
+		tm := testTrustManager().WithTargetNamespaces(namespaces...).Build()
+		return func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+			if key.Name != trustManagerObjectName {
+				return errTestClient
+			}
+			tm.DeepCopyInto(obj.(*v1alpha1.TrustManager))
+			return nil
+		}
+	}
+
+	p := newPredicate(t, withTrustManager("app-ns", "other-ns"))
+	if !p.Create(event.CreateEvent{Object: listed}) {
+		t.Fatal("create of a listed target namespace should match")
+	}
+	if p.Create(event.CreateEvent{Object: unlisted}) {
+		t.Fatal("create of an unlisted namespace should not match")
+	}
+	if p.Create(event.CreateEvent{}) {
+		t.Fatal("create with no object should not match")
+	}
+	if !p.Delete(event.DeleteEvent{Object: listed}) {
+		t.Fatal("delete of a listed target namespace should match")
+	}
+	if p.Delete(event.DeleteEvent{Object: unlisted}) {
+		t.Fatal("delete of an unlisted namespace should not match")
+	}
+	if p.Update(event.UpdateEvent{ObjectOld: listed, ObjectNew: listed}) {
+		t.Fatal("namespace update should not match")
+	}
+	if p.Generic(event.GenericEvent{Object: listed}) {
+		t.Fatal("generic namespace event should not match")
+	}
+
+	empty := newPredicate(t, withTrustManager())
+	if empty.Create(event.CreateEvent{Object: listed}) {
+		t.Fatal("create should not match when targetNamespaces is empty")
+	}
+
+	unreadable := newPredicate(t, func(context.Context, client.ObjectKey, client.Object) error {
+		return errTestClient
+	})
+	if unreadable.Create(event.CreateEvent{Object: listed}) {
+		t.Fatal("create should not match when the TrustManager cannot be read")
 	}
 }
