@@ -52,6 +52,7 @@ type TLSConfig struct {
 type Reconciler struct {
 	common.CtrlClient
 
+	apiReader     client.Reader
 	ctx           context.Context
 	eventRecorder record.EventRecorder
 	log           logr.Logger
@@ -75,6 +76,7 @@ func New(mgr ctrl.Manager, tlsConfig TLSConfig) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
+		apiReader:     mgr.GetAPIReader(),
 		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
@@ -250,9 +252,10 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 }
 
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
-//
-//nolint:unparam // error return is kept for future implementation
 func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
+	if err := r.cleanupUserProvidedCAWatchLabels(istiocsr); err != nil {
+		return true, err
+	}
 	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
 	// This might require a validation webhook to check for usage of service as GRPC endpoint in
 	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.
