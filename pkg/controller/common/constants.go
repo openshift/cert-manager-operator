@@ -9,6 +9,11 @@ const (
 	// OperatorNamespace is the namespace where cert-manager-operator runs.
 	OperatorNamespace = "cert-manager-operator"
 
+	// OperatorResourceLabelValue is the app label on operator-level shared ConfigMaps
+	// (e.g. the CNO-injected trusted CA bundle) so they participate in the shared
+	// label-filtered ConfigMap cache.
+	OperatorResourceLabelValue = "cert-manager-operator"
+
 	// TrustedCABundleConfigMapName is the ConfigMap in the operator namespace
 	// where CNO injects the cluster's trusted CA bundle.
 	TrustedCABundleConfigMapName = "cert-manager-operator-trusted-ca-bundle"
