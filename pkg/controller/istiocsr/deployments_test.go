@@ -1530,12 +1530,19 @@ func TestRemoveWatchLabel(t *testing.T) {
 	}
 
 	fakeClient := &fakes.FakeCtrlClient{}
-	fakeClient.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+	fakeClient.UpdateCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 		return nil
 	})
+	api := &testAPIReader{
+		get: func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+			cm.DeepCopyInto(obj.(*corev1.ConfigMap))
+			return nil
+		},
+	}
 
 	r := testReconciler(t)
 	r.CtrlClient = fakeClient
+	r.apiReader = api
 
 	if err := r.removeWatchLabel(cm, istiocsr); err != nil {
 		t.Fatalf("removeWatchLabel: %v", err)
@@ -1548,6 +1555,9 @@ func TestRemoveWatchLabel(t *testing.T) {
 	}
 	if cm.GetLabels()["keep"] != "yes" {
 		t.Error("unrelated labels should remain")
+	}
+	if fakeClient.UpdateCallCount() != 1 {
+		t.Errorf("Update calls = %d, want 1", fakeClient.UpdateCallCount())
 	}
 }
 
@@ -1570,6 +1580,9 @@ func TestRemoveWatchLabel_MismatchedInstance(t *testing.T) {
 
 	if err := r.removeWatchLabel(cm, istiocsr); err != nil {
 		t.Fatalf("removeWatchLabel: %v", err)
+	}
+	if fakeClient.UpdateCallCount() != 0 {
+		t.Errorf("Update calls = %d, want 0", fakeClient.UpdateCallCount())
 	}
 	if fakeClient.UpdateWithRetryCallCount() != 0 {
 		t.Errorf("UpdateWithRetry calls = %d, want 0", fakeClient.UpdateWithRetryCallCount())
@@ -1603,7 +1616,7 @@ func TestCleanupUserProvidedCAWatchLabels(t *testing.T) {
 		},
 	}
 	fakeClient := &fakes.FakeCtrlClient{}
-	fakeClient.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
+	fakeClient.UpdateCalls(func(ctx context.Context, obj client.Object, _ ...client.UpdateOption) error {
 		return nil
 	})
 
@@ -1614,8 +1627,11 @@ func TestCleanupUserProvidedCAWatchLabels(t *testing.T) {
 	if err := r.cleanupUserProvidedCAWatchLabels(istiocsr); err != nil {
 		t.Fatalf("cleanupUserProvidedCAWatchLabels: %v", err)
 	}
-	if fakeClient.UpdateWithRetryCallCount() != 1 {
-		t.Errorf("UpdateWithRetry calls = %d, want 1", fakeClient.UpdateWithRetryCallCount())
+	if fakeClient.UpdateCallCount() != 1 {
+		t.Errorf("Update calls = %d, want 1", fakeClient.UpdateCallCount())
+	}
+	if fakeClient.UpdateWithRetryCallCount() != 0 {
+		t.Errorf("UpdateWithRetry calls = %d, want 0", fakeClient.UpdateWithRetryCallCount())
 	}
 }
 

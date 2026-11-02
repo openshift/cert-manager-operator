@@ -95,6 +95,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 		matches := labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
 		if !matches {
+			// CNO-injected trusted CA bundle: must carry app=cert-manager-operator (operator
+			// manifest / OLM upgrade) to enter the shared filtered ConfigMap cache.
 			if cm, ok := object.(*corev1.ConfigMap); ok {
 				matches = cm.GetNamespace() == common.OperatorNamespace &&
 					cm.GetName() == common.TrustedCABundleConfigMapName &&
@@ -136,21 +138,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		controllerManagedResources,
 	)
 
-	// Predicate that matches the CNO-injected CA bundle ConfigMap in the operator namespace.
-	// The bundle carries app=common.OperatorResourceLabelValue and is covered by
-	// isManagedResource for ConfigMaps; keep name/namespace fallback for clusters not yet upgraded.
-	injectedCABundleConfigMapPredicate := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetNamespace() == common.OperatorNamespace &&
-			object.GetName() == common.TrustedCABundleConfigMapName {
-			labels := object.GetLabels()
-			if labels != nil && labels[common.ManagedResourceLabelKey] == common.OperatorResourceLabelValue {
-				return false
-			}
-			return true
-		}
-		return false
-	})
-
 	// Reconcile when the cluster APIServer is created/deleted, or when TLS
 	// profile / adherence actually change. Status and unrelated spec updates
 	// (encryption, namedCertificates, etc.) are ignored.
@@ -163,7 +150,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(injectedCABundleConfigMapPredicate)).
 		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).

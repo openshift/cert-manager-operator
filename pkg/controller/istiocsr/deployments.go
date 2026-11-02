@@ -725,6 +725,12 @@ func (r *Reconciler) removeWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	} else {
 		obj.SetLabels(labels)
 	}
+	if r.apiReader != nil {
+		if err := r.updateWithAPIReader(r.ctx, obj); err != nil {
+			return common.FromClientError(err, "failed to remove watch labels from CA certificate ConfigMap %s/%s", obj.GetNamespace(), obj.GetName())
+		}
+		return nil
+	}
 	if err := r.UpdateWithRetry(r.ctx, obj); err != nil {
 		return common.FromClientError(err, "failed to remove watch labels from CA certificate ConfigMap %s/%s", obj.GetNamespace(), obj.GetName())
 	}
