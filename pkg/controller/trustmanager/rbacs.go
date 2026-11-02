@@ -3,6 +3,7 @@ package trustmanager
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -14,7 +15,20 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
+// targetNamespaceSkippedReason is recorded when a targetNamespaces entry is
+// missing or terminating. The Role is applied on a later reconcile once the
+// namespace is active.
+const targetNamespaceSkippedReason = "TargetNamespaceSkipped"
+
 func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+	// Create per-namespace target Roles before the ClusterRole drops its
+	// cluster-wide ConfigMap and Event rules. The running pod keeps those
+	// writes allowed in the listed namespaces across that update.
+	if err := r.createOrApplyTargetNamespaceRBAC(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+		r.log.Error(err, "failed to reconcile target namespace RBAC resources")
+		return err
+	}
+
 	if err := r.createOrApplyClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile clusterrole resource")
 		return err
@@ -47,11 +61,6 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 
 	if err := r.createOrApplyClusterViewClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile cluster-view clusterrole resource")
-		return err
-	}
-
-	if err := r.createOrApplyTargetNamespaceRBAC(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
-		r.log.Error(err, "failed to reconcile target namespace RBAC resources")
 		return err
 	}
 
@@ -178,6 +187,8 @@ func getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations map[str
 
 // namespacedTargetRules is the ConfigMap write (+ Events, optional Secrets)
 // granted in each target namespace when targetNamespaces is set.
+// Event rules mirror the upstream ClusterRole: core v1 and events.k8s.io.
+// trust-manager records Bundle events with the events.k8s.io/v1 recorder.
 func namespacedTargetRules(secretTargets v1alpha1.SecretTargetsConfig) []rbacv1.PolicyRule {
 	rules := []rbacv1.PolicyRule{
 		{
@@ -186,7 +197,7 @@ func namespacedTargetRules(secretTargets v1alpha1.SecretTargetsConfig) []rbacv1.
 			Verbs:     []string{"get", "list", "create", "patch", "watch", "delete"},
 		},
 		{
-			APIGroups: []string{""},
+			APIGroups: []string{"", "events.k8s.io"},
 			Resources: []string{"events"},
 			Verbs:     []string{"create", "patch"},
 		},
@@ -376,7 +387,30 @@ func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[
 }
 
 func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+	var skipped []string
+	defer func() {
+		if len(skipped) == 0 {
+			return
+		}
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, targetNamespaceSkippedReason,
+			"skipping target namespace RBAC until these namespaces exist and are active: %s", strings.Join(skipped, ", "))
+	}()
+
 	for _, ns := range targetRBACNamespaces(trustManager, trustNamespace) {
+		// trustNamespace is required for the operand and is validated before
+		// RBAC. Other targetNamespaces entries may be missing or terminating.
+		// Skip those so one namespace does not block the Deployment.
+		if ns != trustNamespace {
+			accepts, err := r.targetNamespaceAcceptsRBAC(ns)
+			if err != nil {
+				return common.FromClientError(err, "failed to check if target namespace %q is active", ns)
+			}
+			if !accepts {
+				skipped = append(skipped, ns)
+				r.log.V(2).Info("skipping target namespace RBAC because the namespace is missing or terminating", "namespace", ns)
+				continue
+			}
+		}
 		if err := r.createOrApplyTargetNamespaceRole(trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
 			return err
 		}
@@ -385,6 +419,23 @@ func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.Tru
 		}
 	}
 	return nil
+}
+
+// targetNamespaceAcceptsRBAC reports whether a Role can be created in namespace.
+// A missing namespace and a namespace that is terminating both reject the apply.
+func (r *Reconciler) targetNamespaceAcceptsRBAC(namespace string) (bool, error) {
+	ns := &corev1.Namespace{}
+	exists, err := r.Exists(r.ctx, client.ObjectKey{Name: namespace}, ns)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+	if !ns.DeletionTimestamp.IsZero() || ns.Status.Phase == corev1.NamespaceTerminating {
+		return false, nil
+	}
+	return true, nil
 }
 
 // targetRBACNamespaces is the unique, sorted set of namespaces that receive
