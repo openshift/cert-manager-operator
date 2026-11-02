@@ -101,20 +101,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 
 			labelOk := func() bool {
+				value := objLabels[IstiocsrResourceWatchLabelName]
+				if value != "" {
+					key := strings.Split(value, "_")
+					if len(key) != 2 {
+						r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
+						return false
+					}
+					namespace = key[0]
+					return true
+				}
 				if objLabels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue {
 					return true
 				}
-				value := objLabels[IstiocsrResourceWatchLabelName]
-				if value == "" {
-					return false
-				}
-				key := strings.Split(value, "_")
-				if len(key) != 2 {
-					r.log.Error(fmt.Errorf("invalid label format"), "%s label value(%s) not in expected format on %s resource", IstiocsrResourceWatchLabelName, value, obj.GetName())
-					return false
-				}
-				namespace = key[0]
-				return true
+				return false
 			}
 
 			if labelOk() && namespace != "" {
@@ -144,19 +144,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return object.GetLabels() != nil && object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
 	})
 
-	controllerConfigMapPredicates := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		if object.GetLabels() == nil {
-			return false
-		}
-		// Accept if it's a managed ConfigMap OR a watched ConfigMap
-		return object.GetLabels()[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue ||
-			object.GetLabels()[IstiocsrResourceWatchLabelName] != ""
-	})
-
 	withIgnoreStatusUpdatePredicates := builder.WithPredicates(predicate.GenerationChangedPredicate{}, controllerManagedResources)
 	controllerWatchResourcePredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerWatchResources)
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
-	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerConfigMapPredicates)
+	controllerConfigMapWatchPredicates := builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}, controllerManagedResources)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.IstioCSR{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
