@@ -257,6 +257,23 @@ func TestWebhookCertConfig(t *testing.T) {
 	}
 }
 
+func TestPartialPrivateKeyConfigPreservesRotationPolicy(t *testing.T) {
+	tm := testTrustManager().WithWebhookPrivateKey("ECDSA", "", 0).Build()
+	cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+	if cert.Spec.PrivateKey == nil {
+		t.Fatal("expected privateKey to be set")
+	}
+	if cert.Spec.PrivateKey.Algorithm != certmanagerv1.ECDSAKeyAlgorithm {
+		t.Errorf("expected algorithm ECDSA, got %q", cert.Spec.PrivateKey.Algorithm)
+	}
+	if cert.Spec.PrivateKey.RotationPolicy != certmanagerv1.RotationPolicyAlways {
+		t.Errorf("expected rotationPolicy Always from bindata, got %q", cert.Spec.PrivateKey.RotationPolicy)
+	}
+	if cert.Spec.PrivateKey.Size != 0 {
+		t.Errorf("expected size to stay unset, got %d", cert.Spec.PrivateKey.Size)
+	}
+}
+
 func TestIssuerReconciliation(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -510,6 +527,49 @@ func TestCertificateReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
 					cert.Spec.SecretTemplate.Labels["app"] = "tampered"
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:      "skip apply when partial privateKey config matches existing",
+			tmBuilder: testTrustManager().WithWebhookPrivateKey("ECDSA", "", 0),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookPrivateKey("ECDSA", "", 0).Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.Spec.PrivateKey.Size = 256
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
+			name:      "apply when existing privateKey algorithm differs from configured algorithm",
+			tmBuilder: testTrustManager().WithWebhookPrivateKey("RSA", "", 0),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookPrivateKey("ECDSA", "", 0).Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name:      "apply when existing privateKey size differs from configured size",
+			tmBuilder: testTrustManager().WithWebhookPrivateKey("ECDSA", "", 384),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookPrivateKey("ECDSA", "", 256).Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
 					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
 					return true, nil
 				})
