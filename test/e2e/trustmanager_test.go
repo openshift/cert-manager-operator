@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -681,6 +682,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(cm.Data).Should(HaveKey(trustedCABundleKey))
 				g.Expect(cm.Data[trustedCABundleKey]).ShouldNot(BeEmpty())
+				g.Expect(cm.Labels).Should(HaveKeyWithValue(common.ManagedResourceLabelKey, common.OperatorResourceLabelValue))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			By("verifying the default CA package ConfigMap is created in operand namespace")
