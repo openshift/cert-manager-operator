@@ -100,6 +100,11 @@ const (
 	trustManagerRoleName        = trustManagerCommonResourceName
 	trustManagerRoleBindingName = trustManagerCommonResourceName
 
+	// Namespaced RBAC used when targetNamespaces is set. Distinct from
+	// trustManagerRoleName, which is the trust-namespace source-secret Role.
+	trustManagerTargetRoleName        = trustManagerCommonResourceName + "-target"
+	trustManagerTargetRoleBindingName = trustManagerCommonResourceName + "-target"
+
 	trustManagerLeaderElectionRoleName        = trustManagerCommonResourceName + ":leaderelection"
 	trustManagerLeaderElectionRoleBindingName = trustManagerCommonResourceName + ":leaderelection"
 

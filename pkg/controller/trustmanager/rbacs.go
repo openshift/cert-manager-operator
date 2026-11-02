@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -14,7 +16,20 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
+// targetNamespaceSkippedReason is recorded when a targetNamespaces entry is
+// missing or terminating. The Role is applied on a later reconcile once the
+// namespace is active.
+const targetNamespaceSkippedReason = "TargetNamespaceSkipped"
+
 func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+	// Create per-namespace target Roles before the ClusterRole drops its
+	// cluster-wide ConfigMap and Event rules. The running pod keeps those
+	// writes allowed in the listed namespaces across that update.
+	if err := r.createOrApplyTargetNamespaceRBAC(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+		r.log.Error(err, "failed to reconcile target namespace RBAC resources")
+		return err
+	}
+
 	if err := r.createOrApplyClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile clusterrole resource")
 		return err
@@ -50,13 +65,18 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 		return err
 	}
 
+	if err := r.cleanupStaleTargetNamespaceRBAC(trustManager, trustNamespace); err != nil {
+		r.log.Error(err, "failed to clean up stale target namespace RBAC resources")
+		return err
+	}
+
 	return nil
 }
 
 // ClusterRole
 
 func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired := getClusterRoleObject(trustManager.Spec.TrustManagerConfig.SecretTargets, resourceLabels, resourceAnnotations)
+	desired := getClusterRoleObject(trustManager.Spec.TrustManagerConfig, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling clusterrole resource", "name", resourceName)
 
@@ -79,24 +99,39 @@ func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManage
 	return nil
 }
 
-func getClusterRoleObject(secretTargets v1alpha1.SecretTargetsConfig, resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
+func getClusterRoleObject(config v1alpha1.TrustManagerConfig, resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
 	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(clusterRoleAssetName))
 	common.UpdateName(clusterRole, trustManagerClusterRoleName)
 	common.UpdateResourceLabels(clusterRole, resourceLabels)
 	updateResourceAnnotations(clusterRole, resourceAnnotations)
-	appendSecretTargetRules(clusterRole, secretTargets)
+	if len(config.TargetNamespaces) > 0 {
+		// Use namespace-scoped Roles for ConfigMap and Event permissions when
+		// TargetNamespaces is set, defaults to ClusterRole when not configured.
+		clusterRole.Rules = slices.DeleteFunc(clusterRole.Rules, isNamespacedTargetRule)
+	} else {
+		appendSecretTargetRules(&clusterRole.Rules, config.SecretTargets)
+	}
 	return clusterRole
 }
 
-// appendSecretTargetRules adds cluster-wide secret read and scoped write rules
-// to the ClusterRole when the secretTargets policy is Custom. The authorizedSecrets
-// list is sorted to ensure deterministic rule ordering for comparison.
-func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1alpha1.SecretTargetsConfig) {
+// isNamespacedTargetRule reports whether the given rule targets core ConfigMaps or Events.
+// These rules are scoped to per-namespace Roles whenever targetNamespaces is set.
+func isNamespacedTargetRule(rule rbacv1.PolicyRule) bool {
+	if !slices.Contains(rule.APIGroups, "") {
+		return false
+	}
+	return slices.Contains(rule.Resources, "configmaps") || slices.Contains(rule.Resources, "events")
+}
+
+// appendSecretTargetRules adds secret read and scoped write rules when the
+// secretTargets policy is Custom. The authorizedSecrets list is sorted to
+// ensure deterministic rule ordering for comparison.
+func appendSecretTargetRules(rules *[]rbacv1.PolicyRule, secretTargets v1alpha1.SecretTargetsConfig) {
 	if !secretTargetsEnabled(secretTargets) {
 		return
 	}
 
-	clusterRole.Rules = append(clusterRole.Rules, rbacv1.PolicyRule{
+	*rules = append(*rules, rbacv1.PolicyRule{
 		APIGroups: []string{""},
 		Resources: []string{"secrets"},
 		Verbs:     []string{"get", "list", "watch"},
@@ -105,7 +140,7 @@ func appendSecretTargetRules(clusterRole *rbacv1.ClusterRole, secretTargets v1al
 	sortedSecrets := slices.Clone(secretTargets.AuthorizedSecrets)
 	slices.Sort(sortedSecrets)
 
-	clusterRole.Rules = append(clusterRole.Rules, rbacv1.PolicyRule{
+	*rules = append(*rules, rbacv1.PolicyRule{
 		APIGroups:     []string{""},
 		Resources:     []string{"secrets"},
 		ResourceNames: sortedSecrets,
@@ -149,6 +184,27 @@ func getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations map[str
 	clusterRole.Labels[clusterReaderAggregateLabel] = "true"
 	updateResourceAnnotations(clusterRole, resourceAnnotations)
 	return clusterRole
+}
+
+// namespacedTargetRules is the ConfigMap write (+ Events, optional Secrets)
+// granted in each target namespace when targetNamespaces is set.
+// Event rules mirror the upstream ClusterRole: core v1 and events.k8s.io.
+// trust-manager records Bundle events with the events.k8s.io/v1 recorder.
+func namespacedTargetRules(secretTargets v1alpha1.SecretTargetsConfig) []rbacv1.PolicyRule {
+	rules := []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"configmaps"},
+			Verbs:     []string{"get", "list", "create", "patch", "watch", "delete"},
+		},
+		{
+			APIGroups: []string{"", "events.k8s.io"},
+			Resources: []string{"events"},
+			Verbs:     []string{"create", "patch"},
+		},
+	}
+	appendSecretTargetRules(&rules, secretTargets)
+	return rules
 }
 
 // ClusterRoleBinding
@@ -329,6 +385,200 @@ func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[
 	roleBinding.RoleRef.Name = trustManagerLeaderElectionRoleName
 	updateBindingSubjects(roleBinding.Subjects, trustManagerServiceAccountName, operandNamespace)
 	return roleBinding
+}
+
+func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+	var skipped []string
+	defer func() {
+		if len(skipped) == 0 {
+			return
+		}
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, targetNamespaceSkippedReason,
+			"skipping target namespace RBAC until these namespaces exist and are active: %s", strings.Join(skipped, ", "))
+	}()
+
+	for _, ns := range targetRBACNamespaces(trustManager, trustNamespace) {
+		// trustNamespace is required for the operand and is validated before
+		// RBAC. Other targetNamespaces entries may be missing or terminating.
+		// Skip those so one namespace does not block the Deployment.
+		if ns != trustNamespace {
+			accepts, err := r.targetNamespaceAcceptsRBAC(ns)
+			if err != nil {
+				return common.FromClientError(err, "failed to check if target namespace %q is active", ns)
+			}
+			if !accepts {
+				skipped = append(skipped, ns)
+				r.log.V(2).Info("skipping target namespace RBAC because the namespace is missing or terminating", "namespace", ns)
+				continue
+			}
+		}
+		if err := r.createOrApplyTargetNamespaceRole(trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
+			return err
+		}
+		if err := r.createOrApplyTargetNamespaceRoleBinding(trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// targetNamespaceAcceptsRBAC reports whether a Role can be created in namespace.
+// A missing namespace and a namespace that is terminating both reject the apply.
+func (r *Reconciler) targetNamespaceAcceptsRBAC(namespace string) (bool, error) {
+	ns := &corev1.Namespace{}
+	exists, err := r.Exists(r.ctx, client.ObjectKey{Name: namespace}, ns)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+	if !ns.DeletionTimestamp.IsZero() || ns.Status.Phase == corev1.NamespaceTerminating {
+		return false, nil
+	}
+	return true, nil
+}
+
+// targetRBACNamespaces is the unique, sorted set of namespaces that receive
+// namespaced target write Roles: listed targetNamespaces plus trustNamespace
+// (upstream cache always includes the trust namespace).
+func targetRBACNamespaces(trustManager *v1alpha1.TrustManager, trustNamespace string) []string {
+	if len(trustManager.Spec.TrustManagerConfig.TargetNamespaces) == 0 {
+		return nil
+	}
+	ns := slices.Clone(trustManager.Spec.TrustManagerConfig.TargetNamespaces)
+	ns = append(ns, trustNamespace)
+	slices.Sort(ns)
+	return slices.Compact(ns)
+}
+
+func (r *Reconciler) createOrApplyTargetNamespaceRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
+	desired := getTargetNamespaceRoleObject(namespace, trustManager.Spec.TrustManagerConfig.SecretTargets, resourceLabels, resourceAnnotations)
+	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+	r.log.V(4).Info("reconciling target namespace role resource", "name", resourceName)
+
+	existing := &rbacv1.Role{}
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	if err != nil {
+		return common.FromClientError(err, "failed to check if target namespace role %q exists", resourceName)
+	}
+	if exists && !roleModified(desired, existing) {
+		r.log.V(4).Info("target namespace role resource exists and is in desired state", "name", resourceName)
+		return nil
+	}
+
+	r.log.V(2).Info("target namespace role resource has been modified, updating to desired state", "name", resourceName)
+	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+		return common.FromClientError(err, "failed to apply target namespace role %q", resourceName)
+	}
+
+	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "target namespace role resource %s applied", resourceName)
+	return nil
+}
+
+func getTargetNamespaceRoleObject(namespace string, secretTargets v1alpha1.SecretTargetsConfig, resourceLabels, resourceAnnotations map[string]string) *rbacv1.Role {
+	role := common.DecodeObjBytes[*rbacv1.Role](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleAssetName))
+	common.UpdateName(role, trustManagerTargetRoleName)
+	common.UpdateNamespace(role, namespace)
+	common.UpdateResourceLabels(role, resourceLabels)
+	updateResourceAnnotations(role, resourceAnnotations)
+	role.Rules = namespacedTargetRules(secretTargets)
+	return role
+}
+
+func (r *Reconciler) createOrApplyTargetNamespaceRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
+	desired := getTargetNamespaceRoleBindingObject(namespace, resourceLabels, resourceAnnotations)
+	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
+	r.log.V(4).Info("reconciling target namespace rolebinding resource", "name", resourceName)
+
+	existing := &rbacv1.RoleBinding{}
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	if err != nil {
+		return common.FromClientError(err, "failed to check if target namespace rolebinding %q exists", resourceName)
+	}
+	if exists && !roleBindingModified(desired, existing) {
+		r.log.V(4).Info("target namespace rolebinding resource exists and is in desired state", "name", resourceName)
+		return nil
+	}
+
+	r.log.V(2).Info("target namespace rolebinding resource has been modified, updating to desired state", "name", resourceName)
+	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+		return common.FromClientError(err, "failed to apply target namespace rolebinding %q", resourceName)
+	}
+
+	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "target namespace rolebinding resource %s applied", resourceName)
+	return nil
+}
+
+func getTargetNamespaceRoleBindingObject(namespace string, resourceLabels, resourceAnnotations map[string]string) *rbacv1.RoleBinding {
+	roleBinding := common.DecodeObjBytes[*rbacv1.RoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(roleBindingAssetName))
+	common.UpdateName(roleBinding, trustManagerTargetRoleBindingName)
+	common.UpdateNamespace(roleBinding, namespace)
+	common.UpdateResourceLabels(roleBinding, resourceLabels)
+	updateResourceAnnotations(roleBinding, resourceAnnotations)
+	roleBinding.RoleRef.Name = trustManagerTargetRoleName
+	updateBindingSubjects(roleBinding.Subjects, trustManagerServiceAccountName, operandNamespace)
+	return roleBinding
+}
+
+// cleanupStaleTargetNamespaceRBAC deletes leftover trust-manager-target Roles
+// and RoleBindings in namespaces that are no longer in the desired set.
+// Shrinking targetNamespaces does not delete leftover target ConfigMaps/Secrets;
+// leftover write permission would, so the Roles must go.
+func (r *Reconciler) cleanupStaleTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, trustNamespace string) error {
+	desired := make(map[string]struct{})
+	for _, ns := range targetRBACNamespaces(trustManager, trustNamespace) {
+		desired[ns] = struct{}{}
+	}
+
+	if err := r.deleteStaleTargetRoles(trustManager, desired); err != nil {
+		return err
+	}
+	return r.deleteStaleTargetRoleBindings(trustManager, desired)
+}
+
+func (r *Reconciler) deleteStaleTargetRoles(trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
+	var roles rbacv1.RoleList
+	if err := r.List(r.ctx, &roles, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
+		return common.FromClientError(err, "failed to list target namespace roles")
+	}
+	for i := range roles.Items {
+		role := &roles.Items[i]
+		if role.Name != trustManagerTargetRoleName {
+			continue
+		}
+		if _, keep := desired[role.Namespace]; keep {
+			continue
+		}
+		if err := r.Delete(r.ctx, role); err != nil && !apierrors.IsNotFound(err) {
+			return common.FromClientError(err, "failed to delete target namespace role %s/%s", role.Namespace, role.Name)
+		}
+		r.log.V(2).Info("deleted stale target namespace role", "namespace", role.Namespace, "name", role.Name)
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "stale target namespace role %s/%s deleted", role.Namespace, role.Name)
+	}
+	return nil
+}
+
+func (r *Reconciler) deleteStaleTargetRoleBindings(trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
+	var roleBindings rbacv1.RoleBindingList
+	if err := r.List(r.ctx, &roleBindings, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
+		return common.FromClientError(err, "failed to list target namespace rolebindings")
+	}
+	for i := range roleBindings.Items {
+		rb := &roleBindings.Items[i]
+		if rb.Name != trustManagerTargetRoleBindingName {
+			continue
+		}
+		if _, keep := desired[rb.Namespace]; keep {
+			continue
+		}
+		if err := r.Delete(r.ctx, rb); err != nil && !apierrors.IsNotFound(err) {
+			return common.FromClientError(err, "failed to delete target namespace rolebinding %s/%s", rb.Namespace, rb.Name)
+		}
+		r.log.V(2).Info("deleted stale target namespace rolebinding", "namespace", rb.Namespace, "name", rb.Name)
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "stale target namespace rolebinding %s/%s deleted", rb.Namespace, rb.Name)
+	}
+	return nil
 }
 
 // updateBindingSubjects sets the ServiceAccount name and namespace on RBAC binding subjects.
