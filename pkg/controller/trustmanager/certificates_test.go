@@ -6,7 +6,9 @@ import (
 	"maps"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -470,6 +472,34 @@ func TestCertificateReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
+			name: "apply when a controller-owned secretTemplate label was removed",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.SecretTemplate.Labels["removed"] = "stale"
+					addOwnedSecretTemplateKey(cert, fieldOwner, "labels", "removed")
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "skip apply when an extra secretTemplate label is owned by another manager",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					cert := getCertificateObject(testResourceLabels(), testResourceAnnotations())
+					cert.Spec.SecretTemplate.Labels["extra"] = "yes"
+					addOwnedSecretTemplateKey(cert, "kubectl", "labels", "extra")
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
 			name: "apply when existing secretTemplate drops the direct-injection annotation",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
@@ -541,6 +571,7 @@ func TestSecretTemplateModified(t *testing.T) {
 		name     string
 		desired  *certmanagerv1.CertificateSecretTemplate
 		existing *certmanagerv1.CertificateSecretTemplate
+		owned    []ownedSecretTemplateKey
 		want     bool
 	}{
 		{
@@ -596,10 +627,47 @@ func TestSecretTemplateModified(t *testing.T) {
 			existing: &certmanagerv1.CertificateSecretTemplate{},
 			want:     true,
 		},
+		{
+			name:     "removed label owned by the controller is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm", "stale": "yes"}},
+			owned:    []ownedSecretTemplateKey{{field: "labels", key: "stale"}},
+			want:     true,
+		},
+		{
+			name:     "removed annotation owned by the controller is modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"keep": "yes"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Annotations: map[string]string{"keep": "yes", "stale": "yes"}},
+			owned:    []ownedSecretTemplateKey{{field: "annotations", key: "stale"}},
+			want:     true,
+		},
+		{
+			name:     "removed label owned by another manager is not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm", "extra": "yes"}},
+			owned:    []ownedSecretTemplateKey{{manager: "kubectl", field: "labels", key: "extra"}},
+		},
+		{
+			name:     "owned label that is still requested is not modified",
+			desired:  &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			existing: &certmanagerv1.CertificateSecretTemplate{Labels: map[string]string{"app": "tm"}},
+			owned:    []ownedSecretTemplateKey{{field: "labels", key: "app"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := secretTemplateModified(tt.desired, tt.existing)
+			var existingCert *certmanagerv1.Certificate
+			if len(tt.owned) > 0 {
+				existingCert = &certmanagerv1.Certificate{}
+				for _, owned := range tt.owned {
+					manager := owned.manager
+					if manager == "" {
+						manager = fieldOwner
+					}
+					addOwnedSecretTemplateKey(existingCert, manager, owned.field, owned.key)
+				}
+			}
+			got := secretTemplateModified(tt.desired, tt.existing, existingCert)
 			if got != tt.want {
 				t.Errorf("secretTemplateModified() = %v, want %v", got, tt.want)
 			}
@@ -607,13 +675,33 @@ func TestSecretTemplateModified(t *testing.T) {
 	}
 }
 
+type ownedSecretTemplateKey struct {
+	manager string
+	field   string
+	key     string
+}
+
+func addOwnedSecretTemplateKey(cert *certmanagerv1.Certificate, manager, mapField, key string) {
+	set := fieldpath.NewSet()
+	set.Insert(fieldpath.MakePathOrDie("spec", "secretTemplate", mapField, key))
+	raw, err := set.ToJSON()
+	if err != nil {
+		panic(err)
+	}
+	cert.SetManagedFields(append(cert.GetManagedFields(), metav1.ManagedFieldsEntry{
+		Manager:  manager,
+		FieldsV1: &metav1.FieldsV1{Raw: raw},
+	}))
+}
+
 // assertMapEntries checks that every expected key is present in got with the same value.
 // Extra keys in got are ignored.
 func assertMapEntries(t *testing.T, field string, got, want map[string]string) {
 	t.Helper()
 	for key, val := range want {
-		if got[key] != val {
-			t.Errorf("expected %s %s=%q, got %q", field, key, val, got[key])
+		gotVal, ok := got[key]
+		if !ok || gotVal != val {
+			t.Errorf("expected %s %s=%q, got %q (present=%t)", field, key, val, gotVal, ok)
 		}
 	}
 }

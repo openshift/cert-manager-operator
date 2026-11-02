@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"bytes"
 	"fmt"
 	"maps"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -140,7 +142,7 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		desired.Spec.SecretName != existing.Spec.SecretName ||
 		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
 		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
-		secretTemplateModified(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
+		secretTemplateModified(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate, existing) ||
 		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
 		return true
 	}
@@ -158,11 +160,12 @@ func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey
 }
 
 // secretTemplateModified reports whether managed secretTemplate labels or
-// annotations have drifted. Extra keys on the existing template are allowed,
-// matching how other managed metadata is compared. Nil and empty maps are
-// treated as equivalent so cert-manager omitting an empty annotations field
-// does not force a re-apply.
-func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTemplate) bool {
+// annotations have drifted. Keys still requested are compared by value. A key
+// that is no longer requested is drift only when trust-manager-controller owns
+// it in managedFields, so the next server-side apply drops it. Keys owned by
+// another manager are left alone. Nil and empty maps are treated as equivalent
+// so cert-manager omitting an empty annotations field does not force a re-apply.
+func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTemplate, existingCert *certmanagerv1.Certificate) bool {
 	if desired == nil && existing == nil {
 		return false
 	}
@@ -175,7 +178,15 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 		existingLabels = existing.Labels
 		existingAnnotations = existing.Annotations
 	}
-	return managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations)
+	if managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations) {
+		return true
+	}
+	if existingCert == nil || (!mapHasKeyAbsentFrom(existingLabels, desiredLabels) && !mapHasKeyAbsentFrom(existingAnnotations, desiredAnnotations)) {
+		return false
+	}
+	owned := controllerOwnedFields(existingCert)
+	return ownedSecretTemplateKeyRemoved(owned, "labels", desiredLabels, existingLabels) ||
+		ownedSecretTemplateKeyRemoved(owned, "annotations", desiredAnnotations, existingAnnotations)
 }
 
 func managedMapModified(desired, existing map[string]string) bool {
@@ -186,4 +197,46 @@ func managedMapModified(desired, existing map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func mapHasKeyAbsentFrom(live, desired map[string]string) bool {
+	for key := range live {
+		if _, ok := desired[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func ownedSecretTemplateKeyRemoved(owned *fieldpath.Set, mapField string, desired, live map[string]string) bool {
+	for key := range live {
+		if _, kept := desired[key]; kept {
+			continue
+		}
+		if owned.Has(fieldpath.MakePathOrDie("spec", "secretTemplate", mapField, key)) {
+			return true
+		}
+	}
+	return false
+}
+
+// controllerOwnedFields returns the fields trust-manager-controller owns on the
+// main resource. Status and other subresources are ignored. An unreadable
+// managedFields entry is skipped.
+func controllerOwnedFields(obj *certmanagerv1.Certificate) *fieldpath.Set {
+	owned := fieldpath.NewSet()
+	if obj == nil {
+		return owned
+	}
+	for _, entry := range obj.GetManagedFields() {
+		if entry.Manager != fieldOwner || entry.Subresource != "" || entry.FieldsV1 == nil || len(entry.FieldsV1.Raw) == 0 {
+			continue
+		}
+		var fields fieldpath.Set
+		if err := fields.FromJSON(bytes.NewReader(entry.FieldsV1.Raw)); err != nil {
+			continue
+		}
+		owned = owned.Union(&fields)
+	}
+	return owned
 }
