@@ -506,6 +506,62 @@ tests:
               certificateDuration: not-a-duration
     expectedError: "certificateDuration"
 
+  - name: Should create with a name-only webhookTLS issuerRef
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+
+  - name: Should not allow webhookTLS issuerRef kind other than Issuer or ClusterIssuer
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+                kind: InvalidKind
+                group: cert-manager.io
+    expectedError: "kind must be either 'Issuer' or 'ClusterIssuer'"
+
+  - name: Should not allow webhookTLS issuerRef group other than cert-manager.io
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+                kind: Issuer
+                group: invalid-group.io
+    expectedError: "group must be 'cert-manager.io'"
+
   - name: Should not allow an RSA private key with an ECDSA size
     resourceName: cluster
     initial: |

@@ -257,6 +257,20 @@ func TestWebhookCertConfig(t *testing.T) {
 	}
 }
 
+func TestNameOnlyIssuerRefDefaultsKindAndGroup(t *testing.T) {
+	tm := testTrustManager().WithWebhookIssuerRef("corp-ca", "", "").Build()
+	cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+	if cert.Spec.IssuerRef.Name != "corp-ca" {
+		t.Errorf("expected issuerRef.name corp-ca, got %q", cert.Spec.IssuerRef.Name)
+	}
+	if cert.Spec.IssuerRef.Kind != "Issuer" {
+		t.Errorf("expected issuerRef.kind Issuer, got %q", cert.Spec.IssuerRef.Kind)
+	}
+	if cert.Spec.IssuerRef.Group != "cert-manager.io" {
+		t.Errorf("expected issuerRef.group cert-manager.io, got %q", cert.Spec.IssuerRef.Group)
+	}
+}
+
 func TestPartialPrivateKeyConfigPreservesRotationPolicy(t *testing.T) {
 	tm := testTrustManager().WithWebhookPrivateKey("ECDSA", "", 0).Build()
 	cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
@@ -475,6 +489,20 @@ func TestCertificateReconciliation(t *testing.T) {
 			},
 			wantExistsCount: 1,
 			wantPatchCount:  1,
+		},
+		{
+			name:      "skip apply when name-only issuerRef matches defaulted kind and group",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef("corp-ca", "", ""),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					tm := testTrustManager().WithWebhookIssuerRef("corp-ca", "", "").Build()
+					cert := getCertificateObject(tm.Spec.TrustManagerConfig, getResourceLabels(tm), getResourceAnnotations(tm))
+					cert.DeepCopyInto(obj.(*certmanagerv1.Certificate))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
 		},
 		{
 			name: "apply when existing is missing privateKey",
