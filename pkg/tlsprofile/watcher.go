@@ -6,6 +6,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 )
@@ -14,9 +15,11 @@ import (
 // tlsSecurityProfile and tlsAdherence changes and invokes OnChange so the
 // operator can restart and pick up the new configuration.
 //
-// Initial values must be seeded from the profile that was applied (or skipped)
-// at process start, including when adherence is Legacy, so a profile change and
-// a Strict↔Legacy transition each trigger a restart.
+// Initial values must be seeded from the profile applied at process start.
+// A profile change restarts the process only when that profile is honored.
+// A change in whether the profile is honored also restarts it. A profile edit
+// that stays on Legacy does not: the metrics listener ignores the profile, so
+// a restart would only hand off leader election.
 //
 // OnChange is invoked at most once per process lifetime. The operator HTTPS
 // metrics server cannot be reconfigured in place; a single graceful restart
@@ -31,10 +34,10 @@ type SecurityProfileWatcher struct {
 	// require honoring it. Spec is ignored while this is true.
 	InitialUnresolvable bool
 
-	// OnChange is invoked when either the resolved TLS profile spec or the
-	// adherence policy differs from the seeded initial values, or when the
-	// live APIServer TLS settings become unresolvable (fail-hard, consistent
-	// with bootstrap when adherence requires honoring the profile).
+	// OnChange is invoked when the honored TLS profile differs from the seeded
+	// spec, or when whether the profile is honored changes. It is also invoked
+	// when live settings become unresolvable while they must be honored
+	// (fail-hard, consistent with bootstrap).
 	OnChange func()
 
 	fired bool
@@ -81,7 +84,7 @@ func (w *SecurityProfileWatcher) Start(apiServerInformer configinformersv1.APISe
 	return err
 }
 
-// handle restarts once when the resolved profile or tlsAdherence differs from the values applied at startup.
+// handle restarts once when the honored profile changes, or when whether that profile is honored changes.
 func (w *SecurityProfileWatcher) handle(apiServer *configv1.APIServer) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -91,36 +94,31 @@ func (w *SecurityProfileWatcher) handle(apiServer *configv1.APIServer) {
 	}
 
 	resolved, err := ResolveFromAPIServer(apiServer)
+	initialHonor := libgocrypto.ShouldHonorClusterTLSProfile(w.InitialTLSAdherencePolicy)
+	honorFlipped := initialHonor != resolved.Honor
 	if err != nil {
-		// Same unresolvable profile and adherence as startup: serving is still
-		// the Controllercmd default, so a resync must not restart.
-		if w.InitialUnresolvable && w.InitialTLSAdherencePolicy == resolved.Adherence {
+		// The profile is still not applied. A resync must not restart.
+		if !honorFlipped && !resolved.Honor {
 			return
 		}
-		// Consistent with bootstrap fail-hard: an unresolvable live config
-		// means we can no longer vouch for serving TLS settings.
+		// Honored settings are unresolvable, or honor flipped. Restart so startup
+		// can fail hard or drop a profile that is no longer applied.
 		klog.Errorf("failed to resolve APIServer TLS settings, restarting to re-resolve: %v", err)
 		w.fireLocked()
 		return
 	}
 
-	if w.InitialUnresolvable {
-		klog.Info("APIServer TLS settings became resolvable; triggering operator restart")
-		w.fireLocked()
+	// Startup spec is not meaningful when the profile could not be resolved.
+	profileChanged := !w.InitialUnresolvable && !reflect.DeepEqual(w.InitialTLSProfileSpec, resolved.Spec)
+	if !honorFlipped && !(profileChanged && resolved.Honor) {
 		return
 	}
 
-	profileChanged := !reflect.DeepEqual(w.InitialTLSProfileSpec, resolved.Spec)
-	adherenceChanged := w.InitialTLSAdherencePolicy != resolved.Adherence
-	if !profileChanged && !adherenceChanged {
-		return
-	}
-
-	if profileChanged {
+	if profileChanged && resolved.Honor {
 		klog.Infof("TLS security profile changed from %#v to %#v; triggering operator restart",
 			w.InitialTLSProfileSpec, resolved.Spec)
 	}
-	if adherenceChanged {
+	if honorFlipped {
 		klog.Infof("TLS adherence policy changed from %q to %q; triggering operator restart",
 			w.InitialTLSAdherencePolicy, resolved.Adherence)
 	}

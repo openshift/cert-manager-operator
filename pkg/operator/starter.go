@@ -55,7 +55,7 @@ type OperatorTLSWatch struct {
 	Enabled  bool
 }
 
-// RunOperator starts the cert-manager controllers and restarts the process when the cluster TLS profile or adherence changes.
+// RunOperator starts the cert-manager controllers and restarts the process when the honored cluster TLS profile changes, or when whether that profile is honored changes.
 func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWatch OperatorTLSWatch) error {
 	// Set controller-runtime logger before any ctrl.Log usage (e.g. NewControllerManager).
 	// Uses klog so --v flag controls verbosity for both library-go and controller-runtime.
@@ -201,9 +201,10 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWa
 	return nil
 }
 
-// startTLSSecurityProfileWatcher restarts the process when the cluster TLS
-// profile or tlsAdherence changes. The metrics HTTPS server is configured only
-// at process start, so it cannot pick up either change in place.
+// startTLSSecurityProfileWatcher restarts the process when the honored cluster
+// TLS profile changes, or when whether that profile is honored changes. The
+// metrics HTTPS server is configured only at process start, so it cannot pick
+// up either change in place. A profile edit that stays on Legacy does not restart.
 func startTLSSecurityProfileWatcher(ctx context.Context, configClient configv1client.Interface, tlsWatch OperatorTLSWatch) error {
 	if !tlsWatch.Enabled {
 		return nil

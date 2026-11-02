@@ -15,8 +15,8 @@ import (
 // ApplyClusterProfileToHTTPServingInfo reads apiserver.config.openshift.io/cluster
 // and, when tlsAdherence requires enforcement, applies the effective TLS profile
 // to serving. The returned profile is the baseline SecurityProfileWatcher compares
-// against, including when adherence does not honor the profile (serving is then
-// left unchanged).
+// against when the profile is honored. When adherence does not honor the profile,
+// serving is left unchanged and a later profile-only edit does not restart the process.
 //
 // A missing APIServer (NotFound) is treated as empty: Intermediate spec, empty
 // adherence, serving unchanged. Other lookup failures are returned. An

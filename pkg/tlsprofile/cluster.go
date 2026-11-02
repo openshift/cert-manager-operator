@@ -99,9 +99,9 @@ func ResolveHonoredTLSProfile(ctx context.Context, fetch FetchAPIServerFunc, com
 }
 
 // ResolvedProfile is the cluster TLS state used to configure the operator
-// metrics server and to seed SecurityProfileWatcher. Spec is resolved even
-// when Honor is false so a later profile change and a later adherence change
-// can each trigger a restart.
+// metrics server and to seed SecurityProfileWatcher. Spec is the effective
+// profile even when Honor is false. The watcher restarts on a profile change
+// only when Honor is true, and whenever Honor flips.
 type ResolvedProfile struct {
 	// Adherence is the raw tlsAdherence value (may be empty).
 	Adherence configv1.TLSAdherencePolicy

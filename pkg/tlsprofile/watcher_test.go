@@ -59,6 +59,8 @@ func TestSecurityProfileWatcherHandle(t *testing.T) {
 			},
 		},
 	}
+	unknownHonorAPI := strictIntermediateAPI.DeepCopy()
+	unknownHonorAPI.Spec.TLSAdherence = configv1.TLSAdherencePolicy("FutureStrict")
 	unresolvableCustomAPI := &configv1.APIServer{
 		Spec: configv1.APIServerSpec{
 			TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
@@ -109,11 +111,25 @@ func TestSecurityProfileWatcherHandle(t *testing.T) {
 			wantOnChangeCount: 1,
 		},
 		{
-			name:              "profile change under legacy adherence fires OnChange",
+			name:              "profile change under legacy adherence does not fire OnChange",
 			initialSpec:       intermediate,
 			initialAdherence:  configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
 			handles:           []*configv1.APIServer{legacyModernAPI},
-			wantOnChangeCount: 1,
+			wantOnChangeCount: 0,
+		},
+		{
+			name:              "adherence change that keeps honor false does not fire OnChange",
+			initialSpec:       intermediate,
+			initialAdherence:  configv1.TLSAdherencePolicyNoOpinion,
+			handles:           []*configv1.APIServer{legacyIntermediateAPI},
+			wantOnChangeCount: 0,
+		},
+		{
+			name:              "adherence change that keeps honor true does not fire OnChange",
+			initialSpec:       intermediate,
+			initialAdherence:  configv1.TLSAdherencePolicyStrictAllComponents,
+			handles:           []*configv1.APIServer{unknownHonorAPI},
+			wantOnChangeCount: 0,
 		},
 		{
 			name:              "adherence change with the same profile fires OnChange",
@@ -151,11 +167,25 @@ func TestSecurityProfileWatcherHandle(t *testing.T) {
 			wantOnChangeCount:   0,
 		},
 		{
-			name:                "unresolvable seed becomes resolvable and fires OnChange",
+			name:                "unresolvable seed stays unhonored when it becomes resolvable",
 			initialAdherence:    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
 			initialUnresolvable: true,
 			handles:             []*configv1.APIServer{legacyIntermediateAPI},
+			wantOnChangeCount:   0,
+		},
+		{
+			name:                "unresolvable seed becomes honored and fires OnChange",
+			initialAdherence:    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			initialUnresolvable: true,
+			handles:             []*configv1.APIServer{strictIntermediateAPI},
 			wantOnChangeCount:   1,
+		},
+		{
+			name:              "unresolvable live config under legacy does not fire OnChange",
+			initialSpec:       intermediate,
+			initialAdherence:  configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			handles:           []*configv1.APIServer{legacyUnresolvableAPI},
+			wantOnChangeCount: 0,
 		},
 		{
 			name:                "adherence change while still unresolvable fires OnChange",

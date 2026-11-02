@@ -43,8 +43,9 @@ architecture. Rules below are enforced by code, CRD validation, or CI unless not
   Keep it `"true"`: operands and the operator metrics server honor the cluster profile when
   `tlsAdherence` requires it.
 - The operator metrics HTTPS listener (`:8443`) is configured only at process start. A later change
-  to the resolved TLS profile or to raw `tlsAdherence` restarts the operator process
-  (`pkg/tlsprofile.SecurityProfileWatcher`). Do not try to reconfigure that listener in place.
+  to the honored TLS profile, or a change in whether that profile is honored, restarts the operator
+  process (`pkg/tlsprofile.SecurityProfileWatcher`). A profile edit that stays on Legacy does not.
+  Do not try to reconfigure that listener in place.
 
 ```go
 // Correct pattern for a new TLS-aware arg (pkg/controller/common/tls_profile_hook.go)

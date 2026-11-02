@@ -491,8 +491,10 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 	})
 
 	// The operator metrics listener is fixed at process start, so a profile
-	// change and an adherence change each exit the container. Kubelet restarts
-	// it in place: the Pod UID stays the same and only the container ID changes.
+	// change under Strict and an adherence change that flips honor each exit
+	// the container. Kubelet restarts it in place: the Pod UID stays the same
+	// and only the container ID changes. A profile edit that stays on Legacy
+	// does not restart the container.
 	It("should restart the operator container when the cluster TLS profile changes", func() {
 		original := requireAPIServerTLSConfig(ctx)
 		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
