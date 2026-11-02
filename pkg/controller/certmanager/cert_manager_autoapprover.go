@@ -1,0 +1,343 @@
+package certmanager
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/controller/factory"
+	"github.com/openshift/library-go/pkg/operator/deploymentcontroller"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
+	operatorconfigclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
+	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
+)
+
+const (
+	autoApproverControllerName   = "CertManagerAutoApprover"
+	autoApproverRBACName         = "cert-manager-controller-approve:cert-manager-io"
+	autoApproverRoleAsset        = "cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-cr.yaml"
+	autoApproverBindingAsset     = "cert-manager-deployment/cert-manager/cert-manager-controller-approve-cert-manager-io-crb.yaml"
+	certificateRequestApprover   = "certificaterequests-approver"
+	autoApproverDisableRequested = "AutoApproverDisableRequested"
+)
+
+// CertManagerAutoApproverController owns the built-in approver's RBAC and records
+// disable intent separately from the completed handoff. The existing Deployment
+// controller remains the only writer of the Deployment.
+// This loop runs independently of the operand feature gate: turning that gate off
+// must not release an established latch while ApproverPolicyManager still exists.
+type CertManagerAutoApproverController struct {
+	configClient operatorconfigclient.OperatorV1alpha1Interface
+	kubeClient   kubernetes.Interface
+}
+
+func NewCertManagerAutoApproverController(
+	operatorClient v1helpers.OperatorClient,
+	configClient operatorconfigclient.OperatorV1alpha1Interface,
+	operatorInformers certmanoperatorinformers.SharedInformerFactory,
+	kubeClient kubernetes.Interface,
+	kubeInformers v1helpers.KubeInformersForNamespaces,
+	recorder events.Recorder,
+) factory.Controller {
+	policies := operatorInformers.Operator().V1alpha1().ApproverPolicyManagers()
+	c := &CertManagerAutoApproverController{
+		configClient: configClient,
+		kubeClient:   kubeClient,
+	}
+	return factory.New().WithInformers(
+		operatorClient.Informer(),
+		// Status-only updates must enqueue the handoff, not just spec changes.
+		policies.Informer(),
+		kubeInformers.InformersFor(operatorclient.TargetNamespace).Apps().V1().Deployments().Informer(),
+		kubeInformers.InformersFor(operatorclient.TargetNamespace).Core().V1().Pods().Informer(),
+		kubeInformers.InformersFor("").Rbac().V1().ClusterRoles().Informer(),
+		kubeInformers.InformersFor("").Rbac().V1().ClusterRoleBindings().Informer(),
+	).ResyncEvery(time.Minute).WithSync(c.sync).WithSyncDegradedOnError(operatorClient).
+		ToController(autoApproverControllerName, recorder.WithComponentSuffix("auto-approver"))
+}
+
+// autoApproverState holds the intent through readiness failures and finalization.
+// A nil policy means the API server has confirmed NotFound.
+func autoApproverState(cm *v1alpha1.CertManager, policy *v1alpha1.ApproverPolicyManager) (disabled, waiting bool) {
+	if policy == nil {
+		return false, false
+	}
+	ready := meta.FindStatusCondition(policy.Status.Conditions, v1alpha1.Ready)
+	disabled = disableIntentPersisted(cm) || (ready != nil && ready.Status == metav1.ConditionTrue && ready.ObservedGeneration == policy.Generation)
+	return disabled, !disabled
+}
+
+func disableIntentPersisted(cm *v1alpha1.CertManager) bool {
+	if condition := v1helpers.FindOperatorCondition(cm.Status.Conditions, autoApproverDisableRequested); condition != nil {
+		return condition.Status == operatorv1.ConditionTrue
+	}
+	// Preserve a completed handoff recorded before the intent condition existed.
+	return cm.Status.AutoApproverDisabled
+}
+
+// approverControllerSelection injects the disabling selection only when needed.
+// Compatible explicit controller selections are preserved unchanged.
+func approverControllerSelection(args []string, disabled bool) string {
+	argMap := map[string]string{}
+	common.ParseArgMap(argMap, args)
+	selection, found := argMap["--controllers"]
+	if !found {
+		selection = "*"
+	}
+	if !disabled || !autoApproverEnabled(selection) {
+		return selection
+	}
+	return selection + ",-" + certificateRequestApprover
+}
+
+// Match cert-manager's selection rules: exclusions win regardless of ordering,
+// and a list containing only exclusions implicitly enables the default set.
+func autoApproverEnabled(selection string) bool {
+	controllers := strings.Split(selection, ",")
+	if slices.Contains(controllers, "-"+certificateRequestApprover) {
+		return false
+	}
+	if slices.Contains(controllers, "*") || slices.Contains(controllers, certificateRequestApprover) {
+		return true
+	}
+	for _, controller := range controllers {
+		if !strings.HasPrefix(controller, "-") {
+			return false
+		}
+	}
+	return true
+}
+
+func desiredAutoApproverSelection(cm *v1alpha1.CertManager, disabled bool) (string, error) {
+	var args []string
+	if cm.Spec.ControllerConfig != nil {
+		args = cm.Spec.ControllerConfig.OverrideArgs
+	}
+	overrides, err := operatorclient.GetUnsupportedConfigOverrides(&cm.Spec.OperatorSpec)
+	if err != nil {
+		return "", err
+	}
+	if overrides != nil {
+		args = common.MergeContainerArgs(args, overrides.Controller.Args)
+	}
+	argMap := map[string]string{}
+	common.ParseArgMap(argMap, args)
+	if selection, overridden := argMap["--controllers"]; disabled && overridden && autoApproverEnabled(selection) {
+		return "", fmt.Errorf("AutoApproverOverrideConflict: --controllers=%s enables %s while ApproverPolicyManager disable intent is active; remove the controller selection override or exclude %s", selection, certificateRequestApprover, certificateRequestApprover)
+	}
+	return approverControllerSelection(args, disabled), nil
+}
+
+func withAutoApprover(informers certmanoperatorinformers.SharedInformerFactory, kubeClient kubernetes.Interface) deploymentcontroller.DeploymentHookFunc {
+	return func(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+		cm, err := informers.Operator().V1alpha1().CertManagers().Lister().Get("cluster")
+		if err != nil {
+			return err
+		}
+		// Only durable intent may change the Deployment; live Ready can flicker
+		// before the coordinator records completion.
+		if !disableIntentPersisted(cm) {
+			return nil
+		}
+		selection, err := desiredAutoApproverSelection(cm, true)
+		if err != nil {
+			return err
+		}
+		// Intent is published before RBAC deletion. This independent writer must
+		// not advance the handoff until both approval resources are actually gone.
+		if err := checkApprovalRBACAbsent(context.TODO(), kubeClient); err != nil {
+			return err
+		}
+		container := &deployment.Spec.Template.Spec.Containers[0]
+		container.Args = common.MergeContainerArgs(container.Args, []string{"--controllers=" + selection})
+		return nil
+	}
+}
+
+func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	// Read the complete status directly so other library-go writers' conditions,
+	// generations and versions survive the typed UpdateStatus below.
+	cm, err := c.configClient.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if cm.Spec.ManagementState != operatorv1.Managed || !cm.DeletionTimestamp.IsZero() {
+		return nil
+	}
+	// A cache miss must not release persisted intent. Only an API-server
+	// NotFound confirms that ApproverPolicyManager and its finalization are gone.
+	policy, err := c.configClient.ApproverPolicyManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		policy = nil
+	} else if err != nil {
+		return err
+	}
+	disabled, waiting := autoApproverState(cm, policy)
+	cm, err = c.persistDisableIntent(ctx, cm, disabled)
+	if err != nil {
+		return err
+	}
+	if err := c.reconcileRBAC(ctx, syncCtx.Recorder(), disabled); err != nil {
+		return err
+	}
+
+	expected, err := desiredAutoApproverSelection(cm, disabled)
+	if err != nil {
+		return err
+	}
+	deployment, err := c.kubeClient.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	actual := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	if actual != expected {
+		// Deployment apply errors are retried by its existing controller. Wait for
+		// its successful write before publishing the completed transition.
+		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), time.Second)
+		return nil
+	}
+	if waiting {
+		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), 30*time.Second)
+	}
+	if cm.Status.AutoApproverDisabled == disabled {
+		return nil
+	}
+	if disabled {
+		complete, err := c.disableRolloutComplete(ctx, deployment)
+		if err != nil {
+			return err
+		}
+		if !complete {
+			syncCtx.Queue().AddAfter(syncCtx.QueueKey(), time.Second)
+			return nil
+		}
+		// Recheck after observing rollout and Pods; approval resources may have
+		// reappeared since the initial deletion earlier in this reconciliation.
+		if err := checkApprovalRBACAbsent(ctx, c.kubeClient); err != nil {
+			return err
+		}
+	}
+	cm.Status.AutoApproverDisabled = disabled
+	if _, err := c.configClient.CertManagers().UpdateStatus(ctx, cm, metav1.UpdateOptions{}); err != nil {
+		return err
+	}
+	// Emit only after the status transition succeeds, and attach the Event to
+	// CertManager rather than the operator Pod used by the shared recorder.
+	// Events for cluster-scoped objects are stored in the default namespace.
+	recorder := events.NewRecorder(c.kubeClient.CoreV1().Events(metav1.NamespaceDefault), autoApproverControllerName, &corev1.ObjectReference{
+		APIVersion: v1alpha1.SchemeGroupVersion.String(), Kind: "CertManager", Name: cm.Name, UID: cm.UID,
+	}, clock.RealClock{}).WithContext(ctx)
+	if disabled {
+		recorder.Event("AutoApproverDisabled", "built-in CertificateRequest auto-approver has been disabled; approver-policy is now responsible for approvals")
+	} else {
+		recorder.Event("AutoApproverEnabled", "built-in CertificateRequest auto-approver has been re-enabled")
+	}
+	return nil
+}
+
+func (c *CertManagerAutoApproverController) disableRolloutComplete(ctx context.Context, deployment *appsv1.Deployment) (bool, error) {
+	replicas := ptr.Deref(deployment.Spec.Replicas, 1)
+	if !deployment.DeletionTimestamp.IsZero() || deployment.Status.ObservedGeneration < deployment.Generation ||
+		deployment.Status.UpdatedReplicas != replicas || deployment.Status.Replicas != replicas || deployment.Status.AvailableReplicas < replicas {
+		return false, nil
+	}
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+	if err != nil {
+		return false, fmt.Errorf("invalid cert-manager Deployment Pod selector: %w", err)
+	}
+	pods, err := c.kubeClient.CoreV1().Pods(deployment.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return false, err
+	}
+	for _, pod := range pods.Items {
+		// Do not skip terminating Pods: they may still be running the approver.
+		for _, container := range pod.Spec.Containers {
+			if container.Name == deployment.Spec.Template.Spec.Containers[0].Name && autoApproverEnabled(approverControllerSelection(container.Args, false)) {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
+}
+
+func (c *CertManagerAutoApproverController) persistDisableIntent(ctx context.Context, cm *v1alpha1.CertManager, disabled bool) (*v1alpha1.CertManager, error) {
+	condition := v1helpers.FindOperatorCondition(cm.Status.Conditions, autoApproverDisableRequested)
+	if condition == nil && !disabled && !cm.Status.AutoApproverDisabled {
+		return cm, nil
+	}
+	desired := operatorv1.OperatorCondition{
+		Type: autoApproverDisableRequested, Status: operatorv1.ConditionTrue,
+		Reason: "ApproverPolicyHandoff", Message: "Disable built-in approval until ApproverPolicyManager is deleted",
+	}
+	if !disabled {
+		// Keep an explicit False while restoration is in progress: the completion
+		// field can still be True until RBAC and the Deployment are restored.
+		desired.Status = operatorv1.ConditionFalse
+		desired.Reason = "ApproverPolicyNotFound"
+		desired.Message = "ApproverPolicyManager deletion confirmed; restore built-in approval"
+	}
+	if condition != nil && condition.Status == desired.Status {
+		return cm, nil
+	}
+	v1helpers.SetOperatorCondition(&cm.Status.Conditions, desired)
+	return c.configClient.CertManagers().UpdateStatus(ctx, cm, metav1.UpdateOptions{})
+}
+
+func (c *CertManagerAutoApproverController) reconcileRBAC(ctx context.Context, recorder events.Recorder, disabled bool) error {
+	rbac := c.kubeClient.RbacV1()
+	if !disabled {
+		_, _, roleErr := resourceapply.ApplyClusterRole(ctx, rbac, recorder, resourceread.ReadClusterRoleV1OrDie(assets.MustAsset(autoApproverRoleAsset)))
+		_, _, bindingErr := resourceapply.ApplyClusterRoleBinding(ctx, rbac, recorder, resourceread.ReadClusterRoleBindingV1OrDie(assets.MustAsset(autoApproverBindingAsset)))
+		return errors.Join(roleErr, bindingErr)
+	}
+	// Delete the binding first, then the role. Try both even if one fails, and
+	// confirm absence since finalizers can delay deletion.
+	bindingErr := rbac.ClusterRoleBindings().Delete(ctx, autoApproverRBACName, metav1.DeleteOptions{})
+	roleErr := rbac.ClusterRoles().Delete(ctx, autoApproverRBACName, metav1.DeleteOptions{})
+	if err := errors.Join(ignoreNotFound(bindingErr), ignoreNotFound(roleErr)); err != nil {
+		return err
+	}
+	return checkApprovalRBACAbsent(ctx, c.kubeClient)
+}
+
+func checkApprovalRBACAbsent(ctx context.Context, kubeClient kubernetes.Interface) error {
+	_, bindingErr := kubeClient.RbacV1().ClusterRoleBindings().Get(ctx, autoApproverRBACName, metav1.GetOptions{})
+	if bindingErr == nil {
+		bindingErr = fmt.Errorf("waiting for auto-approver ClusterRoleBinding deletion")
+	}
+	_, roleErr := kubeClient.RbacV1().ClusterRoles().Get(ctx, autoApproverRBACName, metav1.GetOptions{})
+	if roleErr == nil {
+		roleErr = fmt.Errorf("waiting for auto-approver ClusterRole deletion")
+	}
+	return errors.Join(ignoreNotFound(bindingErr), ignoreNotFound(roleErr))
+}
+
+func ignoreNotFound(err error) error {
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
