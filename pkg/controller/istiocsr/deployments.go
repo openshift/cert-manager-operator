@@ -15,8 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
@@ -137,6 +135,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 
 func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, clusterTLSArgs []string) {
 	istiocsrConfigs := istiocsr.Spec.IstioCSRConfig
+	issuerRef := issuerRefForIstioCSR(istiocsr)
 	// Default clusterID to "Kubernetes" if not provided.
 	clusterID := defaultClusterID
 	if istiocsrConfigs.Server != nil && istiocsrConfigs.Server.ClusterID != "" {
@@ -148,9 +147,9 @@ func updateArgList(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, c
 		"--metrics-port=9402", "--readiness-probe-port=6060", "--readiness-probe-path=/readyz",
 		fmt.Sprintf("--certificate-namespace=%s", istiocsrConfigs.Istio.Namespace),
 		"--issuer-enabled=true", "--preserve-certificate-requests=false",
-		fmt.Sprintf("--issuer-name=%s", istiocsrConfigs.CertManager.IssuerRef.Name),
-		fmt.Sprintf("--issuer-kind=%s", istiocsrConfigs.CertManager.IssuerRef.Kind),
-		fmt.Sprintf("--issuer-group=%s", istiocsrConfigs.CertManager.IssuerRef.Group),
+		fmt.Sprintf("--issuer-name=%s", issuerRef.Name),
+		fmt.Sprintf("--issuer-kind=%s", issuerRef.Kind),
+		fmt.Sprintf("--issuer-group=%s", issuerRef.Group),
 		fmt.Sprintf("--root-ca-file=%s/%s", caVolumeMountPath, IstiocsrCAKeyName),
 		fmt.Sprintf("--serving-certificate-dns-names=cert-manager-istio-csr.%s.svc", istiocsr.GetNamespace()),
 		fmt.Sprintf("--serving-certificate-duration=%.0fm", istiocsrConfigs.IstiodTLSConfig.CertificateDuration.Minutes()),
@@ -239,42 +238,23 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 }
 
 func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
-	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	if issuerRefKind != clusterIssuerKind && issuerRefKind != issuerKind {
-		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.kind can be any of `%s` or `%s`, configured: %s", clusterIssuerKind, issuerKind, issuerRefKind)
-	}
-
-	issuerRefGroup := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group)
-	if issuerRefGroup != issuerGroup {
-		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef.group can be only `%s`, configured: %s", issuerGroup, issuerRefGroup)
-	}
-
 	obj, err := r.getIssuer(istiocsr)
 	if err != nil {
 		return common.FromClientError(err, "failed to fetch issuer")
 	}
 
-	var issuerConfig certmanagerv1.IssuerConfig
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
-		if !ok {
-			return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "failed to convert to ClusterIssuer")
+	if isCertManagerBuiltInIssuer(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef) {
+		usesACME, err := issuerUsesACMESpec(obj)
+		if err != nil {
+			return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "failed to validate issuer %s: %v", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name, err)
 		}
-		issuerConfig = clusterIssuer.Spec.IssuerConfig
-	case issuerKind:
-		issuer, ok := obj.(*certmanagerv1.Issuer)
-		if !ok {
-			return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "failed to convert to Issuer")
+		if usesACME {
+			return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 		}
-		issuerConfig = issuer.Spec.IssuerConfig
-	}
-	if issuerConfig.ACME != nil {
-		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 	}
 
 	if err := r.updateWatchLabel(obj, istiocsr); err != nil {
-		return common.FromClientError(err, "failed to update watch label on cert-manager issuer %s", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
+		return common.FromClientError(err, "failed to update watch label on issuer %s", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
 
 	return nil
@@ -369,41 +349,25 @@ func (r *Reconciler) handleUserProvidedCA(deployment *appsv1.Deployment, istiocs
 
 // handleIssuerBasedCA handles the creation of CA ConfigMap from issuer secret and volume mounting.
 func (r *Reconciler) handleIssuerBasedCA(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
-	var (
-		issuerConfig certmanagerv1.IssuerConfig
-	)
-
 	obj, err := r.getIssuer(istiocsr)
 	if err != nil {
 		return common.FromClientError(err, "failed to fetch issuer")
 	}
 
-	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		clusterIssuer, ok := obj.(*certmanagerv1.ClusterIssuer)
-		if !ok {
-			return common.FromClientError(fmt.Errorf("failed to convert to ClusterIssuer"), "failed to fetch issuer")
-		}
-		issuerConfig = clusterIssuer.Spec.IssuerConfig
-	case issuerKind:
-		issuer, ok := obj.(*certmanagerv1.Issuer)
-		if !ok {
-			return common.FromClientError(fmt.Errorf("failed to convert to Issuer"), "failed to fetch issuer")
-		}
-		issuerConfig = issuer.Spec.IssuerConfig
-	}
-
 	shouldUpdateVolume := false
 
-	if issuerConfig.CA != nil && issuerConfig.CA.SecretName != "" {
-		if err := r.createCAConfigMapFromIssuerSecret(istiocsr, issuerConfig, resourceLabels); err != nil {
+	caSecretName, hasCA, err := issuerCASecretName(obj)
+	if err != nil {
+		return common.FromClientError(err, "failed to read issuer CA configuration")
+	}
+	if hasCA && caSecretName != "" {
+		if err := r.createCAConfigMapFromIssuerSecret(istiocsr, caSecretName, resourceLabels); err != nil {
 			return common.FromClientError(err, "failed to create CA ConfigMap")
 		}
 		shouldUpdateVolume = true
 	}
 
-	if issuerConfig.CA == nil {
+	if !hasCA || caSecretName == "" {
 		if err := r.createCAConfigMapFromIstiodCertificate(istiocsr, resourceLabels); err != nil {
 			return common.FromClientError(err, "failed to create CA ConfigMap")
 		}
@@ -488,29 +452,6 @@ func updateVolumeWithIssuerCA(deployment *appsv1.Deployment) {
 	}
 }
 
-func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (client.Object, error) {
-	issuerRefKind := strings.ToLower(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind)
-	key := client.ObjectKey{
-		Name:      istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,
-		Namespace: istiocsr.Spec.IstioCSRConfig.Istio.Namespace,
-	}
-
-	var object client.Object
-	switch issuerRefKind {
-	case clusterIssuerKind:
-		object = &certmanagerv1.ClusterIssuer{}
-	case issuerKind:
-		object = &certmanagerv1.Issuer{}
-	default:
-		return nil, fmt.Errorf("unsupported issuer kind %q: must be %q or %q", issuerRefKind, clusterIssuerKind, issuerKind)
-	}
-
-	if err := r.Get(r.ctx, key, object); err != nil {
-		return nil, fmt.Errorf("failed to fetch %q issuer: %w", key, err)
-	}
-	return object, nil
-}
-
 func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string) error {
 	istiodCertificate, err := r.getCertificateObject(istiocsr, resourceLabels)
 	if err != nil {
@@ -533,13 +474,13 @@ func (r *Reconciler) createCAConfigMapFromIstiodCertificate(istiocsr *v1alpha1.I
 	return r.createOrUpdateCAConfigMap(istiocsr, certData, resourceLabels)
 }
 
-func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, issuerConfig certmanagerv1.IssuerConfig, resourceLabels map[string]string) error {
-	if issuerConfig.CA.SecretName == "" {
+func (r *Reconciler) createCAConfigMapFromIssuerSecret(istiocsr *v1alpha1.IstioCSR, caSecretName string, resourceLabels map[string]string) error {
+	if caSecretName == "" {
 		return fmt.Errorf("failed to fetch CA certificate configured for the %s issuer of CA type", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
 	}
 
 	secretKey := client.ObjectKey{
-		Name:      issuerConfig.CA.SecretName,
+		Name:      caSecretName,
 		Namespace: istiocsr.Spec.IstioCSRConfig.Istio.Namespace,
 	}
 	secret := &corev1.Secret{}
