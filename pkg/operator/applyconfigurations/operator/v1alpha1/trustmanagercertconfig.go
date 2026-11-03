@@ -15,14 +15,19 @@ import (
 type TrustManagerCertConfigApplyConfiguration struct {
 	// certificateDuration is the requested validity period of the webhook TLS certificate.
 	// When unset, cert-manager's default certificate duration is used.
+	// Minimum accepted value is 1h.
 	// Example: "8760h" for one year.
 	CertificateDuration *v1.Duration `json:"certificateDuration,omitempty"`
 	// certificateRenewBefore is how long before expiry cert-manager renews the webhook certificate.
 	// When unset, cert-manager renews at one third of the certificate lifetime.
+	// Minimum accepted value is 5m. It must be less than certificateDuration, or less
+	// than 2160h (cert-manager's 90-day default) when certificateDuration is unset.
 	CertificateRenewBefore *v1.Duration `json:"certificateRenewBefore,omitempty"`
 	// issuerRef overrides the Issuer used for the webhook certificate.
 	// When unset, the operator uses the self-signed Issuer it creates.
-	// kind must be Issuer or ClusterIssuer. group must be cert-manager.io.
+	// When kind is omitted it defaults to Issuer. When group is omitted it
+	// defaults to cert-manager.io. If set, kind must be Issuer or ClusterIssuer
+	// and group must be cert-manager.io.
 	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
 	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
 	// inject-ca-from-secret cannot populate the webhook caBundle.
