@@ -1571,12 +1571,7 @@ func pollTillTrustManagerWithTimeout(ctx context.Context, client operatorclientv
 // verifyTrustManagerManagedLabels verifies that the resource has all the expected
 // labels for resources managed by the TrustManager controller.
 func verifyTrustManagerManagedLabels(labels map[string]string) {
-	Expect(labels).Should(HaveKeyWithValue("app", trustManagerCommonName))
-	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/name", trustManagerCommonName))
-	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/instance", trustManagerCommonName))
-	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/managed-by", "cert-manager-operator"))
-	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/part-of", "cert-manager-operator"))
-	Expect(labels).Should(HaveKey("app.kubernetes.io/version"))
+	verifyManagedResourceLabels(labels, trustManagerCommonName)
 }
 
 // verifyTrustManagerTLSVolume verifies that the volumes contain a "tls" volume
@@ -1648,26 +1643,7 @@ func trustManagerFeatureGateDisabledBeforeAll(ctx context.Context, clientset **k
 		Expect(err).Should(BeNil())
 		*clientset = cs
 
-		By("capturing original UNSUPPORTED_ADDON_FEATURES from subscription before patching")
-		*unsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("capturing original OPERATOR_LOG_LEVEL from subscription before patching")
-		*operatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
-		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Fprintf(GinkgoWriter, "TrustManager feature gate disabled BeforeAll: captured UNSUPPORTED_ADDON_FEATURES=%q OPERATOR_LOG_LEVEL=%q\n",
-			*unsupportedAddonFeatures, *operatorLogLevel)
-
-		By("ensuring TrustManager operator feature gate is not enabled via subscription")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": "",
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		By("waiting for operator deployment to rollout without UNSUPPORTED_ADDON_FEATURES")
-		err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
-		Expect(err).NotTo(HaveOccurred())
+		enableOperatorFeatureGateForSuite(ctx, loader, "TrustManager", false, false, unsupportedAddonFeatures, operatorLogLevel)
 	}
 }
 
@@ -1677,46 +1653,13 @@ func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset
 		Expect(err).Should(BeNil())
 		*clientset = cs
 
-		By("capturing original UNSUPPORTED_ADDON_FEATURES from subscription before patching")
-		*unsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("capturing original OPERATOR_LOG_LEVEL from subscription before patching")
-		*operatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
-		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Fprintf(GinkgoWriter, "TrustManager BeforeAll: captured UNSUPPORTED_ADDON_FEATURES=%q OPERATOR_LOG_LEVEL=%q\n",
-			*unsupportedAddonFeatures, *operatorLogLevel)
-
-		By("enabling TrustManager feature gate via subscription")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
-			"OPERATOR_LOG_LEVEL":         "4",
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		By("waiting for operator deployment to rollout with TrustManager env var set")
-		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", lowTimeout)
-		Expect(err).NotTo(HaveOccurred())
+		enableOperatorFeatureGateForSuite(ctx, loader, "TrustManager", true, true, unsupportedAddonFeatures, operatorLogLevel)
 	}
 }
 
 func trustManagerAfterAll(ctx context.Context, unsupportedAddonFeatures, operatorLogLevel *string) func() {
 	return func() {
-		By("restoring UNSUPPORTED_ADDON_FEATURES on subscription to pre-suite value")
-		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": *unsupportedAddonFeatures,
-			"OPERATOR_LOG_LEVEL":         *operatorLogLevel,
-		})
-		Expect(err).NotTo(HaveOccurred())
-		if *unsupportedAddonFeatures == "" {
-			By("waiting for operator deployment to rollout after removing UNSUPPORTED_ADDON_FEATURES")
-			err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
-		} else {
-			By("waiting for operator deployment to rollout with restored UNSUPPORTED_ADDON_FEATURES")
-			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", *unsupportedAddonFeatures, lowTimeout)
-		}
-		Expect(err).NotTo(HaveOccurred())
+		restoreOperatorFeatureGateForSuite(ctx, loader, unsupportedAddonFeatures, operatorLogLevel)
 	}
 }
 

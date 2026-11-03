@@ -273,8 +273,10 @@ vet: ## Run go vet against code.
 test: manifests generate vet test-apis test-unit ## Run tests.
 
 .PHONY: test-unit
-test-unit: ## Run unit tests.
-	go test $$(go list ./... | grep -vE 'test/(e2e|apis|utils)(/|$$)') -coverprofile cover.out
+test-unit: $(SETUP_ENVTEST) ## Run unit tests.
+	assets="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(BIN_DIR) -p path)" && \
+	KUBEBUILDER_ASSETS="$${assets}" \
+		go test $$(go list ./... | grep -vE 'test/(e2e|apis|utils)(/|$$)') -coverprofile cover.out
 
 # Utilize controller-runtime provided envtest for API integration test
 .PHONY: test-apis  ## Run only the api integration tests.
