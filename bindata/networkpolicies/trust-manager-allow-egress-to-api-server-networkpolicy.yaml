@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-allow-egress-to-api-server
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 6443

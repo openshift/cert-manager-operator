@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-deny-all
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Ingress
+  - Egress

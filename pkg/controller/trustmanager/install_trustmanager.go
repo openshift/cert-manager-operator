@@ -42,6 +42,11 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels); err != nil {
+		r.log.Error(err, "failed to reconcile network policy resources")
+		return err
+	}
+
 	// Apply the operand Deployment before Issuer/Certificate. Those cert-manager
 	// CRs go through the cert-manager webhook. A cluster TLS profile or
 	// tlsAdherence change rolls cert-manager operands (and may restart this
