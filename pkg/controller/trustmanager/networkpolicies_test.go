@@ -187,3 +187,50 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *testing.T) {
+	r := testReconciler(t)
+	labels := testResourceLabels()
+	labels[trustManagerNetworkPolicyOwnedByLabelKey] = "user-override"
+
+	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, labels)
+	if err != nil {
+		t.Fatalf("getNetworkPolicyFromAsset: %v", err)
+	}
+	if got := policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey]; got != trustManagerNetworkPolicyOwnedByValue {
+		t.Errorf("owned-by: got %q want %q", got, trustManagerNetworkPolicyOwnedByValue)
+	}
+}
+
+func TestCreateOrApplyNetworkPolicies_doesNotDeleteUnrelatedNetworkPolicy(t *testing.T) {
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+		return false, nil
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+	if err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm)); err != nil {
+		t.Fatalf("createOrApplyNetworkPolicies: %v", err)
+	}
+	if got := mock.DeleteCallCount(); got != 0 {
+		t.Errorf("Delete calls: got %d want 0", got)
+	}
+	if got := mock.PatchCallCount(); got != 4 {
+		t.Errorf("Patch calls: got %d want 4", got)
+	}
+}
+
+func TestNetworkPolicyModified_detectsSpecDrift(t *testing.T) {
+	desired := &networkingv1.NetworkPolicy{
+		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+		},
+	}
+	existing := desired.DeepCopy()
+	existing.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+	if !networkPolicyModified(desired, existing) {
+		t.Error("expected modified when policyTypes differ")
+	}
+}

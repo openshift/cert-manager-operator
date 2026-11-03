@@ -34,6 +34,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, resourceLabels 
 		policy.Labels = make(map[string]string)
 	}
 	maps.Copy(policy.Labels, resourceLabels)
+	policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey] = trustManagerNetworkPolicyOwnedByValue
 	return policy, nil
 }
 
