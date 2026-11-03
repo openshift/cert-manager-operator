@@ -12,7 +12,11 @@ import (
 // CertManagerConfig is for configuring cert-manager specifics.
 type CertManagerConfigApplyConfiguration struct {
 	// issuerRef contains details of the referenced object used for obtaining certificates.
-	// When `issuerRef.Kind` is `Issuer`, it must exist in the `.spec.istioCSRConfig.istio.namespace`.
+	// When kind is omitted it defaults to Issuer. When group is omitted it defaults to cert-manager.io.
+	// When `issuerRef.Kind` is `Issuer`, the referenced object must exist in `.spec.istioCSRConfig.istio.namespace`.
+	// External cert-manager issuers (for example GoogleCASIssuer or AWSPCAClusterIssuer) are supported by setting
+	// the appropriate group and kind. When the issuer does not expose a CA via `spec.ca.secretName`, configure
+	// `istioCACertificate` or rely on the istiod certificate Secret for the root CA bundle.
 	// This field is immutable once set.
 	IssuerRef *v1.IssuerReference `json:"issuerRef,omitempty"`
 	// istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap.
