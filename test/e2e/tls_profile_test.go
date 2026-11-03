@@ -525,6 +525,23 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		expectOperatorContainerRestart(ctx, baseline.RestartKey)
 	})
 
+	It("should not restart the operator container when the cluster TLS profile changes under Legacy adherence only", func() {
+		original := requireAPIServerTLSConfig(ctx)
+		DeferCleanup(restoreAPIServerTLSConfigCleanup(ctx, original))
+
+		baseline := ensureLegacyTLSProfileSettled(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileIntermediateType,
+		})
+
+		By("patching apiserver cluster profile from Intermediate to Modern while staying on LegacyAdheringComponentsOnly")
+		patchLegacyTLSProfile(ctx, &configapiv1.TLSSecurityProfile{
+			Type: configapiv1.TLSProfileModernType,
+		})
+
+		By("verifying operator container restart key stays stable (no leader-election churn)")
+		expectOperatorContainerRestartKeyStable(ctx, baseline.RestartKey)
+	})
+
 	Context("trust-manager webhook TLS", Ordered, func() {
 		var (
 			tmCtx                            = context.Background()
@@ -1126,6 +1143,39 @@ func ensureStrictTLSProfileSettled(ctx context.Context, profile *configapiv1.TLS
 	}
 	patchStrictTLSProfile(ctx, profile)
 	return expectOperatorContainerRestart(ctx, before.RestartKey)
+}
+
+// ensureLegacyTLSProfileSettled applies profile under LegacyAdheringComponentsOnly and
+// waits out any operator restart from leaving Strict. A Legacy-only profile edit does not restart.
+func ensureLegacyTLSProfileSettled(ctx context.Context, profile *configapiv1.TLSSecurityProfile) *operatorContainerIdentity {
+	GinkgoHelper()
+	current, err := getClusterAPIServerTLSConfig(ctx)
+	Expect(err).NotTo(HaveOccurred(), "read apiserver TLS configuration")
+	before := expectReadyOperatorContainer(ctx)
+	if current.adherence == configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly &&
+		current.tlsProfile != nil && current.tlsProfile.Type == profile.Type {
+		return before
+	}
+	patchLegacyTLSProfile(ctx, profile)
+	if current.adherence == configapiv1.TLSAdherencePolicyStrictAllComponents {
+		return expectOperatorContainerRestart(ctx, before.RestartKey)
+	}
+	return expectReadyOperatorContainer(ctx)
+}
+
+// expectOperatorContainerRestartKeyStable polls to ensure the operator container was not restarted.
+func expectOperatorContainerRestartKeyStable(ctx context.Context, restartKey string) {
+	GinkgoHelper()
+	Consistently(func() error {
+		pod, err := readyOperatorContainer(ctx)
+		if err != nil {
+			return err
+		}
+		if pod.RestartKey != restartKey {
+			return fmt.Errorf("operator container restartKey changed from %s to %s", restartKey, pod.RestartKey)
+		}
+		return nil
+	}, 15*time.Second, fastPollInterval).Should(Succeed(), "operator container restartKey %s", restartKey)
 }
 
 func deleteOperatorControllerPods(ctx context.Context) error {
