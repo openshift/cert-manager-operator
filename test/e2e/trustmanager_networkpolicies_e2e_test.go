@@ -7,17 +7,21 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"path/filepath"
+	"strings"
 
-	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -75,8 +79,15 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		for _, name := range trustManagerNetworkPolicyNames {
 			np, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "NetworkPolicy %s", name)
-			Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", trustManagerCommonName))
+			Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{"app": trustManagerCommonName}))
 			Expect(np.Labels[tmNPOwnedByLabelKey]).To(Equal(tmNPOwnedByLabelValue))
+		}
+
+		deploy, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
+		if err == nil {
+			selector := labels.SelectorFromSet(labels.Set{"app": trustManagerCommonName})
+			Expect(selector.Matches(labels.Set(deploy.Spec.Template.Labels))).To(BeFalse(),
+				"trust-manager policies must not select cert-manager pods")
 		}
 
 		egressNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowEgressAPIServerName, metav1.GetOptions{})
@@ -129,10 +140,7 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 			Build()
 		createBundleWithCleanup(ctx, bundle)
 
-		var got trustapi.Bundle
-		Eventually(func() error {
-			return bundleClient.Get(ctx, crclient.ObjectKey{Name: bundleName}, &got)
-		}, lowTimeout, fastPollInterval).Should(Succeed())
+		Expect(waitForConfigMapTarget(ctx, bundleClient, bundleName, targetNS.Name, "ca.crt", pem, highTimeout)).To(Succeed())
 	})
 
 	It("CJ-3: restores drifted deny-all policy after TrustManager spec change and does not select cert-manager pods", func() {
@@ -160,17 +168,14 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 			g.Expect(getErr).NotTo(HaveOccurred())
 			g.Expect(np.Spec.PolicyTypes).To(ContainElements(networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress))
 		}, highTimeout, fastPollInterval).Should(Succeed())
-
-		deploy, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, "cert-manager", metav1.GetOptions{})
-		if err == nil {
-			appLabel := deploy.Spec.Template.Labels["app"]
-			Expect(appLabel).NotTo(Equal(trustManagerCommonName))
-		}
 	})
 
-	It("CJ-4: allows metrics scrape from openshift-user-workload-monitoring when monitoring stack is present", func() {
+	It("CJ-4: allows metrics scrape from openshift-user-workload-monitoring and denies other clients", func() {
 		createTrustManager(ctx, newTrustManagerCR())
 		expectTrustManagerNetworkPolicies()
+
+		By("confirming a client outside openshift-user-workload-monitoring cannot reach metrics")
+		expectTrustManagerMetricsDenied(ctx, clientset)
 
 		_, err := clientset.CoreV1().Namespaces().Get(ctx, uwmNamespace, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
@@ -178,6 +183,113 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		}
 		Expect(err).NotTo(HaveOccurred())
 
-		Skip("ServiceMonitor + Prometheus verification is cluster-specific; implement using testdata/observe/servicemonitor.yaml when UWM is available")
+		pods, err := clientset.CoreV1().Pods(uwmNamespace).List(ctx, metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/name=prometheus",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		ready := false
+		for i := range pods.Items {
+			if isPodReady(&pods.Items[i]) {
+				ready = true
+				break
+			}
+		}
+		if !ready {
+			Skip("user-workload-monitoring Prometheus is not ready")
+		}
+
+		By("creating a ServiceMonitor for trust-manager-metrics")
+		smFile := filepath.Join("testdata", "observe", "trust-manager-servicemonitor.yaml")
+		loader.CreateFromFile(testassets.ReadFile, smFile, trustManagerNamespace)
+		DeferCleanup(func() {
+			loader.DeleteFromFile(testassets.ReadFile, smFile, trustManagerNamespace)
+		})
+
+		By("waiting for user-workload monitoring to scrape trust-manager")
+		route, err := routeClient.Routes("openshift-monitoring").Get(ctx, "thanos-querier", metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(route.Status.Ingress).NotTo(BeEmpty())
+		queryURL := fmt.Sprintf("https://%s/api/v1/query", route.Status.Ingress[0].Host)
+		token, err := getSAToken(ctx, "prometheus-k8s", "openshift-monitoring")
+		Expect(err).NotTo(HaveOccurred())
+
+		err = wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, false, func(pollCtx context.Context) (bool, error) {
+			promPod, podErr := readyPrometheusPod(pollCtx, clientset)
+			if podErr != nil {
+				return false, nil
+			}
+			output, queryErr := execInPod(pollCtx, cfg, clientset, "openshift-monitoring", promPod, "prometheus",
+				"curl", "-s", "-S", "-k",
+				"-H", fmt.Sprintf("Authorization: Bearer %s", token),
+				"--data-urlencode", `query={namespace="cert-manager",service="trust-manager-metrics"}`,
+				queryURL,
+			)
+			if queryErr != nil {
+				return false, nil
+			}
+			return strings.Contains(output, `"status":"success"`) && !strings.Contains(output, `"result":[]`), nil
+		})
+		Expect(err).NotTo(HaveOccurred(), "timeout waiting for trust-manager metrics scrape")
 	})
 })
+
+func readyPrometheusPod(ctx context.Context, clientset kubernetes.Interface) (string, error) {
+	pods, err := clientset.CoreV1().Pods("openshift-monitoring").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=prometheus",
+	})
+	if err != nil {
+		return "", err
+	}
+	for i := range pods.Items {
+		if isPodReady(&pods.Items[i]) {
+			return pods.Items[i].Name, nil
+		}
+	}
+	return "", fmt.Errorf("no ready Prometheus pod")
+}
+
+func expectTrustManagerMetricsDenied(ctx context.Context, clientset kubernetes.Interface) {
+	ns := createNamespaceWithCleanup(ctx, "tm-np-deny-", nil)
+	const podName = "metrics-probe"
+	allowPrivilegeEscalation := false
+	runAsNonRoot := true
+	runAsUser := int64(65534)
+	privileged := false
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: ns.Name},
+		Spec: corev1.PodSpec{
+			RestartPolicy:                corev1.RestartPolicyNever,
+			AutomountServiceAccountToken: ptr.To(false),
+			Containers: []corev1.Container{{
+				Name:            "probe",
+				Image:           "quay.io/openshifttest/helm:3.17.0",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{"sh", "-c",
+					`if ! command -v wget >/dev/null 2>&1; then echo no-wget; exit 1; fi; ` +
+						`if wget -T 5 -q -O /dev/null http://trust-manager-metrics.cert-manager.svc:9402/metrics; then echo allowed; exit 1; else echo denied; exit 0; fi`,
+				},
+				SecurityContext: &corev1.SecurityContext{
+					AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+					RunAsNonRoot:             &runAsNonRoot,
+					RunAsUser:                &runAsUser,
+					Privileged:               &privileged,
+					SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+					Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+				},
+			}},
+		},
+	}
+	_, err := clientset.CoreV1().Pods(ns.Name).Create(ctx, pod, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	Eventually(func(g Gomega) {
+		got, getErr := clientset.CoreV1().Pods(ns.Name).Get(ctx, podName, metav1.GetOptions{})
+		g.Expect(getErr).NotTo(HaveOccurred())
+		g.Expect(got.Status.Phase).To(Equal(corev1.PodSucceeded))
+	}, highTimeout, fastPollInterval).Should(Succeed())
+
+	logs, err := clientset.CoreV1().Pods(ns.Name).GetLogs(podName, &corev1.PodLogOptions{}).DoRaw(ctx)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(string(logs)).To(ContainSubstring("denied"))
+	Expect(string(logs)).NotTo(ContainSubstring("allowed"))
+}

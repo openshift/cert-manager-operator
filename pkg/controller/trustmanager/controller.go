@@ -55,6 +55,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
+// NetworkPolicies are applied by the cert-manager-operator manager.
+// The trust-manager operand ServiceAccount is not granted this permission.
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch

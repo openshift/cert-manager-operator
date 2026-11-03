@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
@@ -190,15 +192,91 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 
 func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *testing.T) {
 	r := testReconciler(t)
-	labels := testResourceLabels()
-	labels[trustManagerNetworkPolicyOwnedByLabelKey] = "user-override"
+	tm := testTrustManager().WithLabels(map[string]string{
+		"app":                                    "user-app",
+		"app.kubernetes.io/name":                 "user-name",
+		trustManagerNetworkPolicyOwnedByLabelKey: "user-override",
+		"team":                                   "platform",
+	}).Build()
 
-	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, labels)
+	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, getResourceLabels(tm))
 	if err != nil {
 		t.Fatalf("getNetworkPolicyFromAsset: %v", err)
 	}
+	if got := policy.Labels["app"]; got != trustManagerCommonName {
+		t.Errorf("app: got %q want %q", got, trustManagerCommonName)
+	}
+	if got := policy.Labels["app.kubernetes.io/name"]; got != trustManagerCommonName {
+		t.Errorf("app.kubernetes.io/name: got %q want %q", got, trustManagerCommonName)
+	}
 	if got := policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey]; got != trustManagerNetworkPolicyOwnedByValue {
 		t.Errorf("owned-by: got %q want %q", got, trustManagerNetworkPolicyOwnedByValue)
+	}
+	if got := policy.Labels["team"]; got != "platform" {
+		t.Errorf("extra user label: got %q want %q", got, "platform")
+	}
+}
+
+func TestReconcileTrustManagerDeployment_appliesFourPoliciesWithoutCertManager(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+
+	r := testReconciler(t)
+	mock := &fakes.FakeCtrlClient{}
+	mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+		if _, ok := obj.(*corev1.Namespace); ok {
+			return true, nil
+		}
+		return false, nil
+	})
+	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		if _, ok := obj.(*v1alpha1.CertManager); ok {
+			t.Errorf("reconcile consulted CertManager %s; trust-manager policies ignore spec.defaultNetworkPolicy", key)
+		}
+		return nil
+	})
+	r.CtrlClient = mock
+
+	if err := r.reconcileTrustManagerDeployment(testTrustManager().Build()); err != nil {
+		t.Fatalf("reconcileTrustManagerDeployment: %v", err)
+	}
+	if got := mock.DeleteCallCount(); got != 0 {
+		t.Errorf("Delete calls: got %d want 0", got)
+	}
+
+	wantNames := map[string]struct{}{
+		"trust-manager-deny-all":                   {},
+		"trust-manager-allow-egress-to-api-server": {},
+		"trust-manager-allow-ingress-to-webhook":   {},
+		"trust-manager-allow-ingress-to-metrics":   {},
+	}
+	gotNames := map[string]struct{}{}
+	for i := 0; i < mock.PatchCallCount(); i++ {
+		_, obj, patch, _ := mock.PatchArgsForCall(i)
+		policy, ok := obj.(*networkingv1.NetworkPolicy)
+		if !ok {
+			continue
+		}
+		if patch != client.Apply {
+			t.Errorf("network policy %s: expected client.Apply", policy.Name)
+		}
+		if policy.Namespace != operandNamespace {
+			t.Errorf("%s namespace: got %q want %q", policy.Name, policy.Namespace, operandNamespace)
+		}
+		if got := policy.Spec.PodSelector.MatchLabels["app"]; got != trustManagerCommonName {
+			t.Errorf("%s selector app: got %q want %q", policy.Name, got, trustManagerCommonName)
+		}
+		if got := policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey]; got != trustManagerNetworkPolicyOwnedByValue {
+			t.Errorf("%s owned-by: got %q want %q", policy.Name, got, trustManagerNetworkPolicyOwnedByValue)
+		}
+		gotNames[policy.Name] = struct{}{}
+	}
+	if len(gotNames) != len(wantNames) {
+		t.Fatalf("applied network policies: got %v want %v", gotNames, wantNames)
+	}
+	for name := range wantNames {
+		if _, ok := gotNames[name]; !ok {
+			t.Errorf("missing network policy %s", name)
+		}
 	}
 }
 
