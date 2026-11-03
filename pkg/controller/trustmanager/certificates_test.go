@@ -152,6 +152,24 @@ func TestCertificateSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("allow-direct-injection stays true when controllerConfig overrides it", func(t *testing.T) {
+		overridden := testTrustManager().WithAnnotations(map[string]string{
+			"cert-manager.io/allow-direct-injection": "false",
+			"user-annotation":                        "preserved",
+		}).Build()
+		got := getCertificateObject(getResourceLabels(overridden), getResourceAnnotations(overridden))
+		if got.Spec.SecretTemplate == nil {
+			t.Fatal("expected secretTemplate to be set")
+		}
+		annotations := got.Spec.SecretTemplate.Annotations
+		if annotations["cert-manager.io/allow-direct-injection"] != "true" {
+			t.Errorf("expected secretTemplate annotation cert-manager.io/allow-direct-injection=true, got %q", annotations["cert-manager.io/allow-direct-injection"])
+		}
+		if annotations["user-annotation"] != "preserved" {
+			t.Errorf("expected user annotation to be preserved, got %q", annotations["user-annotation"])
+		}
+	})
+
 	t.Run("sets private key rotation policy Always", func(t *testing.T) {
 		if cert.Spec.PrivateKey == nil || cert.Spec.PrivateKey.RotationPolicy != certmanagerv1.RotationPolicyAlways {
 			t.Errorf("expected privateKey.rotationPolicy Always, got %+v", cert.Spec.PrivateKey)

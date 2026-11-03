@@ -102,8 +102,9 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 
 // certificateSecretTemplate copies operator-managed labels and annotations onto
 // the Certificate secretTemplate so cert-manager propagates them to the webhook
-// TLS Secret. Annotations already set on the manifest, including
-// cert-manager.io/allow-direct-injection, are kept.
+// TLS Secret. User annotations are copied first, then manifest annotations are
+// re-applied so keys such as cert-manager.io/allow-direct-injection keep the
+// manifest value. cainjector uses that annotation to fill the webhook caBundle.
 func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.CertificateSecretTemplate {
 	template := &certmanagerv1.CertificateSecretTemplate{}
 	if base != nil {
@@ -116,10 +117,10 @@ func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, re
 		maps.Copy(template.Labels, resourceLabels)
 	}
 	if len(resourceAnnotations) > 0 {
-		if template.Annotations == nil {
-			template.Annotations = make(map[string]string, len(resourceAnnotations))
-		}
-		maps.Copy(template.Annotations, resourceAnnotations)
+		merged := make(map[string]string, len(template.Annotations)+len(resourceAnnotations))
+		maps.Copy(merged, resourceAnnotations)
+		maps.Copy(merged, template.Annotations)
+		template.Annotations = merged
 	}
 	return template
 }
