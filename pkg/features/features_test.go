@@ -118,6 +118,19 @@ func TestFeatureGates(t *testing.T) {
 		}
 	})
 
+	t.Run("pre-GA features should use the TechPreview label", func(t *testing.T) {
+		// Red Hat ships pre-GA operator features as Technology Preview. Mixing
+		// upstream Kubernetes labels (Alpha/Beta) with "TechPreview" makes the
+		// support level unclear to users, so every pre-GA gate uses one label.
+		for feat, spec := range v1alpha1.OperatorFeatureGates {
+			if spec.PreRelease == featuregate.GA || spec.PreRelease == featuregate.Deprecated {
+				continue
+			}
+			assert.Equal(t, "TechPreview", string(spec.PreRelease),
+				"feature %q should be labeled TechPreview, got %q", feat, spec.PreRelease)
+		}
+	})
+
 	t.Run("runtime should allow enabling all operator featuregates that default to off", func(t *testing.T) {
 		// enable all disabled features
 		defaultDisabledFeatures := expectedDefaultFeatureState[false]
