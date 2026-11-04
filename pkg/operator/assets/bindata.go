@@ -3117,6 +3117,9 @@ spec:
       files:
         - contents:
             source: data:text/plain;charset=utf-8;base64,{{ .NFTRulesBase64 }}
+          # 384 is octal 0600 (rw-------). Ignition takes the mode as a decimal
+          # integer; it is written in decimal so YAML/JSON decoding cannot
+          # reinterpret it.
           mode: 384
           overwrite: true
           path: /etc/sysconfig/nftables-crtmgr-http01.conf
@@ -3132,7 +3135,6 @@ spec:
             ProtectSystem=full
             ProtectHome=true
             ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
-            ExecReload=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
             ExecStop=/sbin/nft 'add table inet crtmgr_http01_dnat; delete table inet crtmgr_http01_dnat'
 {{- range .Families }}
             ExecStartPre=/sbin/sysctl -w {{ .ForwardSysctl }}=1

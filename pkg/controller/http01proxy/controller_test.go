@@ -24,9 +24,26 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
+// fakeReader adapts a FakeCtrlClient to client.Reader, so tests can stub the
+// uncached MachineConfig reader with the same counterfeiter fake. Get drops the
+// GetOptions because CtrlClient.Get does not take any.
+type fakeReader struct {
+	*fakes.FakeCtrlClient
+}
+
+func (f fakeReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+	return f.FakeCtrlClient.Get(ctx, key, obj)
+}
+
+// readerFor returns c as a client.Reader for Reconciler.mcReader.
+func readerFor(c *fakes.FakeCtrlClient) client.Reader {
+	return fakeReader{FakeCtrlClient: c}
+}
+
 func newTestReconciler(client *fakes.FakeCtrlClient) *Reconciler {
 	return &Reconciler{
 		CtrlClient:    client,
+		mcReader:      readerFor(client),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}

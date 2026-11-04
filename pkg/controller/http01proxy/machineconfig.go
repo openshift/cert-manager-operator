@@ -98,7 +98,7 @@ func (r *Reconciler) createOrApplyMachineConfig(ctx context.Context, info *platf
 	}
 
 	existing := &mcfgv1.MachineConfig{}
-	err = r.Get(ctx, types.NamespacedName{Name: machineConfigName}, existing)
+	err = r.mcReader.Get(ctx, types.NamespacedName{Name: machineConfigName}, existing)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to get MachineConfig %q: %w", machineConfigName, err)
