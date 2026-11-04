@@ -451,6 +451,64 @@ func TestApplyTrustManagerWebhookTLSArgs_missingContainer(t *testing.T) {
 	}
 }
 
+func TestCreateOrApplyDeployment_legacyStripsStaleTLSArgs(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+		},
+	}
+	r := testReconciler(t)
+	mock := fakeCtrlClientWithAPIServer(apiServer)
+	var patched *appsv1.Deployment
+	mock.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
+		dep := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name: trustManagerContainerName,
+							Args: []string{
+								"--webhook-port=6443",
+								"--tls-min-version=VersionTLS12",
+								"--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+							},
+						}},
+					},
+				},
+			},
+		}
+		withServiceAccountUID(dep, testServiceAccountUID)
+		dep.DeepCopyInto(obj.(*appsv1.Deployment))
+		return true, nil
+	})
+	mock.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
+		patched = obj.(*appsv1.Deployment).DeepCopy()
+		return nil
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+	if err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), ""); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if patched == nil {
+		t.Fatal("expected Patch when leftover profile TLS flags are present under Legacy")
+	}
+	argMap := containerArgMap(patched)
+	if _, ok := argMap["--tls-min-version"]; ok {
+		t.Fatalf("patched deployment still has --tls-min-version: %#v", argMap)
+	}
+	if _, ok := argMap["--tls-cipher-suites"]; ok {
+		t.Fatalf("patched deployment still has --tls-cipher-suites: %#v", argMap)
+	}
+}
+
 func TestApplyClusterTLSProfile_intermediateCiphers(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	apiServer := &configv1.APIServer{

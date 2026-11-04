@@ -66,7 +66,8 @@ func NewClientReaderAPIServerFetch(r ObjectGetter) FetchAPIServerFunc {
 
 // ResolveHonoredTLSProfile fetches the cluster APIServer via fetch and, when
 // tlsAdherence requires enforcement, returns EffectiveSpec. A nil profile with
-// a nil error means the caller should leave existing TLS settings unchanged.
+// a nil error means the caller must not inject cluster-profile TLS flags
+// (and should strip any previously injected profile flags).
 func ResolveHonoredTLSProfile(ctx context.Context, fetch FetchAPIServerFunc, component string, mode FetchErrorMode) (*configv1.TLSProfileSpec, error) {
 	if fetch == nil {
 		return nil, fmt.Errorf("APIServer fetch function is nil")

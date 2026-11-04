@@ -286,6 +286,9 @@ func buildCacheObjectList(config ControllerConfig) (map[client.Object]cache.ByOb
 		}
 		// TrustManager CR - no label filter needed
 		objectList[&v1alpha1.TrustManager{}] = cache.ByObject{}
+		// Cluster APIServer is unlabelled; a dedicated informer keeps TLS
+		// profile/adherence Gets aligned with the controller watch.
+		objectList[&configv1.APIServer{}] = cache.ByObject{}
 	}
 
 	if config.EnableHTTP01Proxy {

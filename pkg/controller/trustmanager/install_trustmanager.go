@@ -42,6 +42,16 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	// Apply the operand Deployment before Issuer/Certificate. Those cert-manager
+	// CRs go through the cert-manager webhook. A cluster TLS profile or
+	// tlsAdherence change rolls cert-manager operands (and may restart this
+	// operator), so webhook admission can fail while leftover profile TLS flags
+	// still need to be stripped from trust-manager.
+	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
+		r.log.Error(err, "failed to reconcile deployment resource")
+		return err
+	}
+
 	if err := r.createOrApplyIssuer(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile issuer resource")
 		return err
@@ -49,11 +59,6 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 
 	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile certificate resource")
-		return err
-	}
-
-	if err := r.createOrApplyDeployment(trustManager, resourceLabels, resourceAnnotations, caBundleHash); err != nil {
-		r.log.Error(err, "failed to reconcile deployment resource")
 		return err
 	}
 
