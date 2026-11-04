@@ -46,7 +46,6 @@
 package e2e
 
 import (
-	"context"
 	"crypto/x509"
 	"fmt"
 	"strings"
@@ -74,7 +73,6 @@ const (
 )
 
 var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
-	ctx := context.TODO()
 
 	var (
 		testNS                                     *corev1.Namespace
@@ -84,7 +82,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 		originalOperatorLogLevel         string
 	)
 
-	BeforeAll(func() {
+	BeforeAll(func(ctx SpecContext) {
 		By("capturing original UNSUPPORTED_ADDON_FEATURES from subscription before patching")
 		var err error
 		originalUnsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
@@ -126,7 +124,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 		testNS = createNamespaceWithCleanup(ctx, "bundle-e2e-", map[string]string{bundleTestNamespaceLabel: "true"})
 	})
 
-	AfterAll(func() {
+	AfterAll(func(ctx SpecContext) {
 		By("restoring UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL on subscription to pre-suite values")
 		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
 			"UNSUPPORTED_ADDON_FEATURES": originalUnsupportedAddonFeatures,
@@ -145,10 +143,10 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 	// ===== Group 1: Default TrustManager =====
 	Context("with default TrustManager configuration", Ordered, func() {
-		BeforeAll(func() { createTrustManager(ctx, newTrustManagerCR()) })
-		AfterAll(func() { deleteTrustManager(ctx) })
+		BeforeAll(func(ctx SpecContext) { createTrustManager(ctx, newTrustManagerCR()) })
+		AfterAll(func(ctx SpecContext) { deleteTrustManager(ctx) })
 
-		It("should sync inline source to ConfigMap target and restore tampered target", func() {
+		It("should sync inline source to ConfigMap target and restore tampered target", func(ctx SpecContext) {
 			bundleName := "bundle-inline-cm-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -175,7 +173,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should sync ConfigMap source to ConfigMap target and re-sync on source update", func() {
+		It("should sync ConfigMap source to ConfigMap target and re-sync on source update", func(ctx SpecContext) {
 			bundleName := "bundle-cm-src-" + randomStr(5)
 			sourceCMName := "bundle-source-cm-" + randomStr(5)
 
@@ -209,7 +207,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should sync Secret source to ConfigMap target", func() {
+		It("should sync Secret source to ConfigMap target", func(ctx SpecContext) {
 			bundleName := "bundle-secret-src-" + randomStr(5)
 			sourceSecretName := "bundle-source-secret-" + randomStr(5)
 
@@ -228,7 +226,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should sync multiple sources to ConfigMap target", func() {
+		It("should sync multiple sources to ConfigMap target", func(ctx SpecContext) {
 			bundleName := "bundle-multi-src-" + randomStr(5)
 			sourceCMName := "bundle-multi-cm-" + randomStr(5)
 
@@ -250,7 +248,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should apply custom metadata to target ConfigMaps", func() {
+		It("should apply custom metadata to target ConfigMaps", func(ctx SpecContext) {
 			bundleName := "bundle-meta-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -272,7 +270,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, highTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		It("should sync only to namespaces matching selector", func() {
+		It("should sync only to namespaces matching selector", func(ctx SpecContext) {
 			bundleName := "bundle-ns-sel-" + randomStr(5)
 			selectorLabel := "bundle-selector-" + randomStr(5)
 
@@ -301,7 +299,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, "30s", fastPollInterval).Should(BeTrue())
 		})
 
-		It("should update targets when inline source changes", func() {
+		It("should update targets when inline source changes", func(ctx SpecContext) {
 			bundleName := "bundle-update-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -329,7 +327,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should remove targets when Bundle is deleted", func() {
+		It("should remove targets when Bundle is deleted", func(ctx SpecContext) {
 			bundleName := "bundle-delete-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -350,7 +348,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should report error in Bundle status when targeting Secret without SecretTargets enabled", func() {
+		It("should report error in Bundle status when targeting Secret without SecretTargets enabled", func(ctx SpecContext) {
 			bundleName := "bundle-no-secret-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -367,7 +365,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(apierrors.IsNotFound(err)).Should(BeTrue())
 		})
 
-		It("should report error in Bundle status when using useDefaultCAs without DefaultCAPackage", func() {
+		It("should report error in Bundle status when using useDefaultCAs without DefaultCAPackage", func(ctx SpecContext) {
 			bundleName := "bundle-no-default-ca-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithUseDefaultCAs().
@@ -380,7 +378,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleNeverSynced(ctx, bundleName)
 		})
 
-		It("should not sync sources that exist outside the trust namespace", func() {
+		It("should not sync sources that exist outside the trust namespace", func(ctx SpecContext) {
 			bundleName := "bundle-wrong-ns-" + randomStr(5)
 			sourceCMName := "src-wrong-ns-" + randomStr(5)
 			sourceSecretName := "src-secret-wrong-ns-" + randomStr(5)
@@ -416,15 +414,15 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			bundleSecretDisable    = "bundle-secret-disable"
 		)
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(
 				v1alpha1.SecretTargetsPolicyCustom,
 				[]string{bundleSecretTarget, bundleDualTarget, bundleCMToSecretTarget, bundleSecretDrift, bundleSecretDisable},
 			))
 		})
-		AfterAll(func() { deleteTrustManager(ctx) })
+		AfterAll(func(ctx SpecContext) { deleteTrustManager(ctx) })
 
-		It("should sync inline source to Secret target", func() {
+		It("should sync inline source to Secret target", func(ctx SpecContext) {
 			bundle := newBundle(bundleSecretTarget).
 				WithInLineSource(testCertPEM1).
 				WithSecretTarget(bundleTargetKey).
@@ -439,7 +437,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, bundleSecretTarget)
 		})
 
-		It("should sync to both ConfigMap and Secret targets", func() {
+		It("should sync to both ConfigMap and Secret targets", func(ctx SpecContext) {
 			bundle := newBundle(bundleDualTarget).
 				WithInLineSource(testCertPEM1).
 				WithConfigMapTarget(bundleTargetKey).
@@ -457,7 +455,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should sync ConfigMap source to Secret target", func() {
+		It("should sync ConfigMap source to Secret target", func(ctx SpecContext) {
 			sourceCMName := "bundle-cm-secret-src-" + randomStr(5)
 
 			By("creating source ConfigMap in trust namespace")
@@ -477,7 +475,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, bundleCMToSecretTarget)
 		})
 
-		It("should restore Secret target when tampered", func() {
+		It("should restore Secret target when tampered", func(ctx SpecContext) {
 			bundle := newBundle(bundleSecretDrift).
 				WithInLineSource(testCertPEM1).
 				WithSecretTarget(bundleTargetKey).
@@ -501,7 +499,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("should not sync Secret when Bundle name is not in authorizedSecrets list", func() {
+		It("should not sync Secret when Bundle name is not in authorizedSecrets list", func(ctx SpecContext) {
 			bundleName := "bundle-not-authorized"
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -518,7 +516,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			Expect(apierrors.IsNotFound(err)).Should(BeTrue())
 		})
 
-		It("should report SecretTargetsDisabled on existing synced Bundle after disabling secretTargets", func() {
+		It("should report SecretTargetsDisabled on existing synced Bundle after disabling secretTargets", func(ctx SpecContext) {
 			bundle := newBundle(bundleSecretDisable).
 				WithInLineSource(testCertPEM1).
 				WithSecretTarget(bundleTargetKey).
@@ -554,14 +552,14 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 	// ===== Group 3: DefaultCAPackage enabled =====
 	Context("with DefaultCAPackage enabled", Ordered, func() {
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
 
 			By("waiting for default CA package ConfigMap to be created")
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-		AfterAll(func() {
+		AfterAll(func(ctx SpecContext) {
 			deleteTrustManager(ctx)
 			// The operator does not delete managed ConfigMaps when the feature is
 			// disabled or the CR is removed. Clean up explicitly so subsequent
@@ -569,7 +567,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			_ = k8sClientSet.CoreV1().ConfigMaps(trustManagerNamespace).Delete(ctx, defaultCAPackageConfigMapName, metav1.DeleteOptions{})
 		})
 
-		It("should sync useDefaultCAs source to ConfigMap target", func() {
+		It("should sync useDefaultCAs source to ConfigMap target", func(ctx SpecContext) {
 			bundleName := "bundle-default-cas-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithUseDefaultCAs().
@@ -591,7 +589,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, bundleName)
 		})
 
-		It("should include default CAs alongside explicit inline source", func() {
+		It("should include default CAs alongside explicit inline source", func(ctx SpecContext) {
 			bundleName := "bundle-cas-inline-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithInLineSource(testCertPEM1).
@@ -616,7 +614,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
-		It("should reconcile unintended package ConfigMap drift and maintain Bundle target integrity", func() {
+		It("should reconcile unintended package ConfigMap drift and maintain Bundle target integrity", func(ctx SpecContext) {
 			bundleName := "bundle-drift-unintended-" + randomStr(5)
 			bundle := newBundle(bundleName).
 				WithUseDefaultCAs().
@@ -668,7 +666,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
-		It("should propagate CNO CA bundle update through to Bundle target ConfigMaps", func() {
+		It("should propagate CNO CA bundle update through to Bundle target ConfigMaps", func(ctx SpecContext) {
 			const openshiftConfigNS = "openshift-config"
 			const userCABundleName = "user-ca-bundle"
 
@@ -736,7 +734,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				originalUserCAData = existingUserCA.Data["ca-bundle.crt"]
 			}
 
-			DeferCleanup(func() {
+			DeferCleanup(func(ctx SpecContext) {
 				By("[cleanup] restoring original Proxy trustedCA reference")
 				if originalTrustedCAName != userCABundleName {
 					Eventually(func() error {
@@ -863,7 +861,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	Context("with SecretTargets and DefaultCAPackage enabled", Ordered, func() {
 		const bundleCombined = "bundle-combined"
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			createTrustManager(ctx, newTrustManagerCR().
 				WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{bundleCombined}).
 				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
@@ -872,7 +870,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			err := pollTillConfigMapAvailable(ctx, k8sClientSet, trustManagerNamespace, defaultCAPackageConfigMapName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-		AfterAll(func() {
+		AfterAll(func(ctx SpecContext) {
 			deleteTrustManager(ctx)
 			// The operator does not delete managed ConfigMaps when the feature is
 			// disabled or the CR is removed. Clean up explicitly so subsequent
@@ -880,7 +878,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			_ = k8sClientSet.CoreV1().ConfigMaps(trustManagerNamespace).Delete(ctx, defaultCAPackageConfigMapName, metav1.DeleteOptions{})
 		})
 
-		It("should sync useDefaultCAs and inline sources to both ConfigMap and Secret targets", func() {
+		It("should sync useDefaultCAs and inline sources to both ConfigMap and Secret targets", func(ctx SpecContext) {
 			bundle := newBundle(bundleCombined).
 				WithInLineSource(testCertPEM1).
 				WithUseDefaultCAs().
@@ -916,7 +914,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	Context("with custom trustNamespace", Ordered, func() {
 		var customTrustNS *corev1.Namespace
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			By("creating custom trust namespace")
 			customTrustNS = createNamespaceWithCleanup(ctx, "custom-trust-ns-", nil)
 
@@ -933,9 +931,9 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		AfterAll(func() { deleteTrustManager(ctx) })
+		AfterAll(func(ctx SpecContext) { deleteTrustManager(ctx) })
 
-		It("should sync ConfigMap source from custom trust namespace to target", func() {
+		It("should sync ConfigMap source from custom trust namespace to target", func(ctx SpecContext) {
 			bundleName := "bundle-custom-ns-" + randomStr(5)
 			sourceCMName := "src-custom-ns-" + randomStr(5)
 
@@ -956,7 +954,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, bundleName)
 		})
 
-		It("should sync Secret source from custom trust namespace to target", func() {
+		It("should sync Secret source from custom trust namespace to target", func(ctx SpecContext) {
 			bundleName := "bundle-secret-custom-ns-" + randomStr(5)
 			sourceSecretName := "src-secret-custom-ns-" + randomStr(5)
 
@@ -977,7 +975,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, bundleName)
 		})
 
-		It("should not sync sources from default namespace when custom trust namespace is configured", func() {
+		It("should not sync sources from default namespace when custom trust namespace is configured", func(ctx SpecContext) {
 			bundleName := "bundle-default-ns-miss-" + randomStr(5)
 			sourceCMName := "src-default-ns-miss-" + randomStr(5)
 			sourceSecretName := "src-secret-default-miss-" + randomStr(5)
@@ -1010,7 +1008,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			sourceCMName     string
 		)
 
-		BeforeAll(func() {
+		BeforeAll(func(ctx SpecContext) {
 			createTrustManager(ctx, newTrustManagerCR().
 				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
 
@@ -1028,9 +1026,9 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 			createBundleWithCleanup(ctx, bundle)
 		})
-		AfterAll(func() { deleteTrustManager(ctx) })
+		AfterAll(func(ctx SpecContext) { deleteTrustManager(ctx) })
 
-		It("should exclude expired certificates from ConfigMap target when using ConfigMap source", func() {
+		It("should exclude expired certificates from ConfigMap target when using ConfigMap source", func(ctx SpecContext) {
 			By("verifying target contains the valid certificate")
 			err := waitForConfigMapTarget(ctx, bundleClient, filterBundleName, testNS.Name, bundleTargetKey, testCertPEM1, highTimeout)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -1047,7 +1045,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 			verifyBundleSynced(ctx, filterBundleName)
 		})
 
-		It("should re-sync same Bundle with expired certs included after disabling filter", func() {
+		It("should re-sync same Bundle with expired certs included after disabling filter", func(ctx SpecContext) {
 			By("disabling filterExpiredCertificates on TrustManager CR")
 			Eventually(func() error {
 				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
