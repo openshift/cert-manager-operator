@@ -41,6 +41,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operator().V1alpha1().ApproverPolicyManagers().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("certmanagers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operator().V1alpha1().CertManagers().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("http01proxies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operator().V1alpha1().HTTP01Proxies().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("istiocsrs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Operator().V1alpha1().IstioCSRs().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("trustmanagers"):

@@ -1,0 +1,5 @@
+apiVersion: operator.openshift.io/v1alpha1
+kind: HTTP01Proxy
+metadata:
+  name: cluster
+spec: {}

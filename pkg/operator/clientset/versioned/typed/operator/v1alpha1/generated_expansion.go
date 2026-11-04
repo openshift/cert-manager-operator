@@ -6,6 +6,8 @@ type ApproverPolicyManagerExpansion interface{}
 
 type CertManagerExpansion interface{}
 
+type HTTP01ProxyExpansion interface{}
+
 type IstioCSRExpansion interface{}
 
 type TrustManagerExpansion interface{}

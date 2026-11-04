@@ -1,0 +1,43 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: master
+  name: {{ .Name }}
+spec:
+  config:
+    ignition:
+      version: 3.4.0
+    storage:
+      files:
+        - contents:
+            source: data:text/plain;charset=utf-8;base64,{{ .NFTRulesBase64 }}
+          mode: 384
+          overwrite: true
+          path: /etc/sysconfig/nftables-crtmgr-http01.conf
+    systemd:
+      units:
+        - contents: |
+            [Unit]
+            Description=cert-manager HTTP01 DNAT nftables rules
+            Wants=network-pre.target
+            Before=network-pre.target
+            [Service]
+            Type=oneshot
+            ProtectSystem=full
+            ProtectHome=true
+            ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
+            ExecReload=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf
+            ExecStop=/sbin/nft 'add table inet crtmgr_http01_dnat; delete table inet crtmgr_http01_dnat'
+{{- range .Families }}
+            ExecStartPre=/sbin/sysctl -w {{ .ForwardSysctl }}=1
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardRequestRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardRequestRule }}'
+            ExecStart=/bin/bash -c '{{ .IPTables }} -C FORWARD {{ .ForwardReplyRule }} 2>/dev/null || {{ .IPTables }} -I FORWARD 1 {{ .ForwardReplyRule }}'
+            ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardRequestRule }} 2>/dev/null; true'
+            ExecStop=/bin/bash -c '{{ .IPTables }} -D FORWARD {{ .ForwardReplyRule }} 2>/dev/null; true'
+{{- end }}
+            RemainAfterExit=yes
+            [Install]
+            WantedBy=multi-user.target
+          enabled: true
+          name: crtmgr-http01-dnat.service

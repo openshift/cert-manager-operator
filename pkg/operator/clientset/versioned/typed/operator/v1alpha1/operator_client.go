@@ -14,6 +14,7 @@ type OperatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ApproverPolicyManagersGetter
 	CertManagersGetter
+	HTTP01ProxiesGetter
 	IstioCSRsGetter
 	TrustManagersGetter
 }
@@ -29,6 +30,10 @@ func (c *OperatorV1alpha1Client) ApproverPolicyManagers() ApproverPolicyManagerI
 
 func (c *OperatorV1alpha1Client) CertManagers() CertManagerInterface {
 	return newCertManagers(c)
+}
+
+func (c *OperatorV1alpha1Client) HTTP01Proxies() HTTP01ProxyInterface {
+	return newHTTP01Proxies(c)
 }
 
 func (c *OperatorV1alpha1Client) IstioCSRs(namespace string) IstioCSRInterface {
