@@ -357,7 +357,7 @@ func TestIstioCSRServingTLSArgs_rejectsMinVersionBelowTLS12(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error for minimum TLS version below 1.2")
 			}
-			if !strings.Contains(err.Error(), "Old/TLS 1.0-1.1 profiles are not supported by istio-csr") {
+			if !strings.Contains(err.Error(), "minimum TLS version "+string(version)+" is not supported by istio-csr") {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if args != nil {

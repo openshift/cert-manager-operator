@@ -828,7 +828,7 @@ func TestProcessReconcileRequest_oldTLSProfileSetsDegradedCondition(t *testing.T
 		t.Fatalf("processReconcileRequest() unexpected error: %v", err)
 	}
 
-	const wantMsg = "Old/TLS 1.0-1.1 profiles are not supported by istio-csr"
+	const wantMsg = "minimum TLS version VersionTLS10 is not supported by istio-csr"
 	var degraded, ready *metav1.Condition
 	for i := range istiocsr.Status.Conditions {
 		c := &istiocsr.Status.Conditions[i]

@@ -95,7 +95,7 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 				}
 			},
 			wantErr:         true,
-			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
+			wantErrContains: "minimum TLS version VersionTLS10 is not supported by istio-csr",
 		},
 		{
 			name: "Custom TLS 1.0 is rejected before rollout",
@@ -110,7 +110,7 @@ func TestClusterTLSProfileArgs(t *testing.T) {
 				}
 			},
 			wantErr:         true,
-			wantErrContains: "Old/TLS 1.0-1.1 profiles are not supported by istio-csr",
+			wantErrContains: "minimum TLS version VersionTLS10 is not supported by istio-csr",
 		},
 		{
 			name: "Custom TLS 1.2 with unmappable ciphers is rejected before rollout",

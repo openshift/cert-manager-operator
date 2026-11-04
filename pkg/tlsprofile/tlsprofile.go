@@ -202,7 +202,7 @@ func IstioCSRServingTLSArgs(spec *configv1.TLSProfileSpec) ([]string, error) {
 	}
 	switch spec.MinTLSVersion {
 	case configv1.VersionTLS10, configv1.VersionTLS11:
-		return nil, fmt.Errorf("Old/TLS 1.0-1.1 profiles are not supported by istio-csr; VersionTLS12 or higher is required")
+		return nil, fmt.Errorf("minimum TLS version %s is not supported by istio-csr; VersionTLS12 or higher is required", spec.MinTLSVersion)
 	}
 	args := []string{"--serving-tls-min-version=" + string(spec.MinTLSVersion)}
 	if spec.MinTLSVersion != configv1.VersionTLS13 {
