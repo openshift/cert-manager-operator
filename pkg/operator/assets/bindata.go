@@ -4018,7 +4018,11 @@ spec:
   policyTypes:
   - Egress
   egress:
-  - ports:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-kube-apiserver
+    ports:
     - protocol: TCP
       port: 6443
 `)
@@ -4090,7 +4094,11 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  - ports:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/host-network: ""
+    ports:
     - protocol: TCP
       port: 6443
 `)

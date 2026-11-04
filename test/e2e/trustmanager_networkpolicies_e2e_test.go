@@ -56,8 +56,9 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		Expect(err).NotTo(HaveOccurred())
 		clientset = cs
 
-		_, subErr := getCertManagerOperatorSubscription(ctx, loader)
-		hasOLMSubscription = subErr == nil
+		installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
+		Expect(err).NotTo(HaveOccurred())
+		hasOLMSubscription = installed
 		if !hasOLMSubscription {
 			By("no OLM subscription in cert-manager-operator; using local operator with TrustManager already enabled")
 			return
@@ -94,11 +95,15 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		Expect(err).NotTo(HaveOccurred())
 		Expect(egressNP.Spec.Egress).NotTo(BeEmpty())
 		Expect(egressNP.Spec.Egress[0].Ports[0].Port.IntVal).To(Equal(int32(6443)))
+		Expect(egressNP.Spec.Egress[0].To).NotTo(BeEmpty())
+		Expect(egressNP.Spec.Egress[0].To[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue("kubernetes.io/metadata.name", "openshift-kube-apiserver"))
 
 		webhookNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowIngressWebhookName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(webhookNP.Spec.Ingress).NotTo(BeEmpty())
 		Expect(webhookNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(int32(6443)))
+		Expect(webhookNP.Spec.Ingress[0].From).NotTo(BeEmpty())
+		Expect(webhookNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue("policy-group.network.openshift.io/host-network", ""))
 
 		metricsNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowIngressMetricsName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
