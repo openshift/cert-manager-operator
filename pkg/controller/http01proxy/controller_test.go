@@ -466,16 +466,21 @@ func TestReconcileMachineConfigCreateErrorIsRetried(t *testing.T) {
 	result, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: http01proxyObjectName},
 	})
-	if err == nil || !strings.Contains(err.Error(), "admission webhook unavailable") {
-		t.Fatalf("Reconcile() error = %v, want the MachineConfig create error", err)
+	// A retryable error is reported through RequeueAfter, not the returned
+	// error, so retry timing does not depend on the status write.
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v, want nil with a requeue", err)
 	}
-	if result != (ctrl.Result{}) {
-		t.Errorf("expected empty result alongside error, got %v", result)
+	if want := (ctrl.Result{RequeueAfter: defaultRequeueTime}); result != want {
+		t.Errorf("result = %+v, want %+v", result, want)
 	}
 
 	ready := lastStatusCondition(t, fakeClient, v1alpha1.Ready)
 	if ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != v1alpha1.ReasonInProgress {
-		t.Errorf("Ready condition = %+v, want status False with reason %q", ready, v1alpha1.ReasonInProgress)
+		t.Fatalf("Ready condition = %+v, want status False with reason %q", ready, v1alpha1.ReasonInProgress)
+	}
+	if !strings.Contains(ready.Message, "admission webhook unavailable") {
+		t.Errorf("Ready message = %q, want it to include the MachineConfig create error", ready.Message)
 	}
 }
 
