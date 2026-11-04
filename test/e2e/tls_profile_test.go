@@ -119,7 +119,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 	BeforeEach(func() {
 		By("waiting for operator to be healthy before each scenario")
-		Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).
+		Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).
 			To(Succeed(), "operator must be healthy before scenario starts")
 	})
 
@@ -134,7 +134,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying no TLS profile args appear on any operand")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyDeploymentArgs(k8sClientSet, dep,
+			Expect(verifyDeploymentArgs(ctx, k8sClientSet, dep,
 				[]string{"--tls-min-version=", "--metrics-tls-min-version="}, false)).
 				To(Succeed(), "deployment %s must not have TLS profile args", dep)
 		}
@@ -154,17 +154,17 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying all operands receive VersionTLS13 args")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
+			Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, dep, expectedSpec)).
 				To(Succeed(), "deployment %s", dep)
 		}
 
 		By("verifying cert-manager-webhook has NO cipher suite args (TLS 1.3 ignores ciphers)")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment,
 			tlsprofile.CertManagerCipherSuiteArgKeys, false)).
 			To(Succeed(), "cipher suite args must be absent for TLS 1.3")
 
 		By("verifying controller has no --tls-min-version (no main TLS listener)")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerControllerDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerControllerDeployment,
 			[]string{"--tls-min-version="}, false)).
 			To(Succeed(), "controller must not have --tls-min-version")
 	})
@@ -183,13 +183,13 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying all operands receive VersionTLS12 args with ciphers")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
+			Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, dep, expectedSpec)).
 				To(Succeed(), "deployment %s", dep)
 		}
 
 		By("verifying controller and cainjector do NOT have --tls-min-version (metrics-only TLS)")
 		for _, dep := range []string{certmanagerControllerDeployment, certmanagerCAinjectorDeployment} {
-			Expect(verifyDeploymentArgs(k8sClientSet, dep,
+			Expect(verifyDeploymentArgs(ctx, k8sClientSet, dep,
 				[]string{"--tls-min-version="}, false)).
 				To(Succeed(), "deployment %s must not have --tls-min-version", dep)
 		}
@@ -209,7 +209,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying all operands receive VersionTLS10 args with extended cipher list")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
+			Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, dep, expectedSpec)).
 				To(Succeed(), "deployment %s", dep)
 		}
 	})
@@ -232,7 +232,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		// which contains IANA names (e.g. TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256) converted from
 		// the OpenSSL names supplied in the custom profile (e.g. ECDHE-RSA-AES128-GCM-SHA256).
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedSpec)).
+			Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, dep, expectedSpec)).
 				To(Succeed(), "deployment %s", dep)
 		}
 	})
@@ -249,7 +249,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying no TLS profile args appear on any operand")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyDeploymentArgs(k8sClientSet, dep,
+			Expect(verifyDeploymentArgs(ctx, k8sClientSet, dep,
 				[]string{"--tls-min-version=", "--metrics-tls-min-version="}, false)).
 				To(Succeed(), "deployment %s must not have TLS profile args with LegacyAdheringComponentsOnly", dep)
 		}
@@ -266,7 +266,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		By("waiting for TLS 1.2 args to be present (confirming Strict applied)")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment,
 			[]string{"--tls-min-version=VersionTLS12"}, true)).
 			To(Succeed(), "webhook must have VersionTLS12 args before rollback")
 
@@ -277,7 +277,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying TLS args are removed from all operands after rollback")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyDeploymentArgs(k8sClientSet, dep,
+			Expect(verifyDeploymentArgs(ctx, k8sClientSet, dep,
 				[]string{"--tls-min-version=", "--metrics-tls-min-version="}, false)).
 				To(Succeed(), "deployment %s must not have TLS args after rollback", dep)
 		}
@@ -292,7 +292,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Expect(updateClusterAPIServerTLSConfig(ctx, tlsProfileIntermediateProfile,
 			configapiv1.TLSAdherencePolicyStrictAllComponents)).
 			To(Succeed())
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment,
 			[]string{"--tls-min-version=VersionTLS12"}, true)).
 			To(Succeed(), "cluster TLS 1.2 must be applied before testing override")
 
@@ -301,7 +301,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			To(Succeed())
 
 		By("verifying VersionTLS10 override wins over cluster VersionTLS12")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment,
 			[]string{"--tls-min-version=VersionTLS10"}, true)).
 			To(Succeed(), "unsupportedConfigOverrides VersionTLS10 must win over cluster VersionTLS12")
 
@@ -309,7 +309,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Expect(setWebhookUnsupportedArgs(ctx, nil)).To(Succeed())
 
 		By("verifying cluster TLS 1.2 restores after removing override")
-		Expect(verifyDeploymentArgs(k8sClientSet, certmanagerWebhookDeployment,
+		Expect(verifyDeploymentArgs(ctx, k8sClientSet, certmanagerWebhookDeployment,
 			[]string{"--tls-min-version=VersionTLS12"}, true)).
 			To(Succeed(), "cluster TLS 1.2 must restore after override is removed")
 	})
@@ -330,7 +330,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		// verifyOperandTLSArgsMatchClusterProfile waits for the full --tls-cipher-suites=<IANA list>
 		// argument. verifyDeploymentArgs cannot be used with a "--tls-cipher-suites=" prefix here
 		// because it requires exact set membership.
-		Expect(verifyOperandTLSArgsMatchClusterProfile(certmanagerWebhookDeployment, expectedIntermediate)).
+		Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, certmanagerWebhookDeployment, expectedIntermediate)).
 			To(Succeed(), "webhook must match Intermediate profile before switch")
 
 		By("patching apiserver: Modern + StrictAllComponents (cipher args must disappear)")
@@ -342,7 +342,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		expectedModern, err := tlsprofile.EffectiveSpec(tlsProfileModernProfile)
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve effective TLS spec for Modern profile in S9")
 		for _, dep := range tlsProfileTestDeployments {
-			Expect(verifyOperandTLSArgsMatchClusterProfile(dep, expectedModern)).
+			Expect(verifyOperandTLSArgsMatchClusterProfile(ctx, dep, expectedModern)).
 				To(Succeed(), "deployment %s must match Modern profile after switch", dep)
 		}
 	})
@@ -354,7 +354,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			certmanagerWebhookDeployment,
 			certmanagerCAinjectorDeployment,
 		} {
-			err := verifyOperandMetricsHTTPS(name)
+			err := verifyOperandMetricsHTTPS(ctx, name)
 			Expect(err).NotTo(HaveOccurred(), "deployment %s", name)
 		}
 	})
@@ -479,7 +479,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying cert-manager operands match Modern EffectiveSpec")
 		for _, name := range operandDeployments {
-			err := verifyOperandTLSArgsMatchClusterProfile(name, modernSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, name, modernSpec)
 			Expect(err).NotTo(HaveOccurred(), "modern profile args on %s", name)
 		}
 
@@ -490,7 +490,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 		By("verifying cert-manager operands converge to Intermediate EffectiveSpec")
 		for _, name := range operandDeployments {
-			err := verifyOperandTLSArgsMatchClusterProfile(name, intermediateSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, name, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args on %s", name)
 		}
 	})
@@ -572,7 +572,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			})
 
 			By("verifying trust-manager webhook TLS flags match Modern EffectiveSpec")
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, expectedSpec)
 			Expect(err).NotTo(HaveOccurred(), "deployment %s", trustManagerDeploymentName)
 
 			By("verifying trust-manager deployment is Available after TLS reconcile")
@@ -591,7 +591,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			modernSpec := patchStrictTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
 				Type: configapiv1.TLSProfileModernType,
 			})
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, modernSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, modernSpec)
 			Expect(err).NotTo(HaveOccurred(), "modern profile args")
 
 			By("patching apiserver cluster profile to Intermediate")
@@ -600,7 +600,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			})
 
 			By("verifying trust-manager args converge to Intermediate EffectiveSpec")
-			err = verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, intermediateSpec)
+			err = verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args")
 		})
 
@@ -624,7 +624,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 				Type: configapiv1.TLSProfileIntermediateType,
 			})
 			for _, name := range deployments {
-				err := verifyOperandTLSArgsMatchClusterProfile(name, intermediateSpec)
+				err := verifyOperandTLSArgsMatchClusterProfile(ctx, name, intermediateSpec)
 				Expect(err).NotTo(HaveOccurred(), "intermediate profile args on %s", name)
 			}
 
@@ -635,7 +635,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 			By("verifying deployments converge to Modern min-version args with cipher flags stripped")
 			for _, name := range deployments {
-				err := verifyOperandTLSArgsMatchClusterProfile(name, modernSpec)
+				err := verifyOperandTLSArgsMatchClusterProfile(ctx, name, modernSpec)
 				Expect(err).NotTo(HaveOccurred(), "modern profile args / cipher strip on %s", name)
 			}
 		})
@@ -663,7 +663,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			expectedSpec := patchStrictTLSProfile(tmCtx, customProfile)
 
 			By("verifying trust-manager args match Custom EffectiveSpec")
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, expectedSpec)
 			Expect(err).NotTo(HaveOccurred(), "custom profile args")
 		})
 
@@ -676,7 +676,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 			customSpec := patchStrictTLSProfile(tmCtx, customTLS13SecurityProfile())
 			By("verifying trust-manager args match Custom TLS 1.3 EffectiveSpec without cipher flags")
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, customSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(tmCtx, trustManagerDeploymentName, customSpec)
 			Expect(err).NotTo(HaveOccurred(), "custom tls13 profile args")
 			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
 			Expect(err).NotTo(HaveOccurred(), "rollout %s after Custom TLS 1.3", trustManagerDeploymentName)
@@ -701,7 +701,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			expectedSpec := patchStrictTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
 				Type: configapiv1.TLSProfileModernType,
 			})
-			err = verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)
+			err = verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, expectedSpec)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("re-checking Certificate readiness and TLS secret after profile application")
@@ -741,7 +741,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 			By("consistently verifying Modern Strict TLS args are absent on trust-manager")
 			Consistently(func() error {
-				return verifyOperandTLSArgsNotPresent(trustManagerDeploymentName, unexpected)
+				return verifyOperandTLSArgsNotPresent(ctx, trustManagerDeploymentName, unexpected)
 			}, 15*time.Second, fastPollInterval).Should(Succeed())
 		})
 
@@ -756,7 +756,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			intermediateSpec := patchStrictTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
 				Type: configapiv1.TLSProfileIntermediateType,
 			})
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, intermediateSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(tmCtx, trustManagerDeploymentName, intermediateSpec)
 			Expect(err).NotTo(HaveOccurred(), "intermediate profile args")
 			err = waitForDeploymentRollout(tmCtx, operandNamespace, trustManagerDeploymentName, lowTimeout)
 			Expect(err).NotTo(HaveOccurred(), "rollout %s after Strict Intermediate", trustManagerDeploymentName)
@@ -772,7 +772,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			// kubelet backoff can exceed lowTimeout before trust-manager can
 			// strip leftover Intermediate flags.
 			By("waiting for operator to become healthy after tlsAdherence restart")
-			err = verifyHealthyOperatorConditionsWithTimeout(certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
+			err = verifyHealthyOperatorConditionsWithTimeout(tmCtx, certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectProfileManagedTLSFlagsGone(tmCtx, []string{trustManagerDeploymentName})
@@ -792,7 +792,7 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			expectedSpec := patchStrictTLSProfile(tmCtx, &configapiv1.TLSSecurityProfile{
 				Type: configapiv1.TLSProfileModernType,
 			})
-			err := verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)
+			err := verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, expectedSpec)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("deleting operator controller-manager pods")
@@ -800,11 +800,11 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for operator to become healthy again")
-			err = verifyHealthyOperatorConditionsWithTimeout(certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
+			err = verifyHealthyOperatorConditionsWithTimeout(ctx, certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying trust-manager TLS args still match Modern EffectiveSpec")
-			err = verifyOperandTLSArgsMatchClusterProfile(trustManagerDeploymentName, expectedSpec)
+			err = verifyOperandTLSArgsMatchClusterProfile(ctx, trustManagerDeploymentName, expectedSpec)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -846,11 +846,11 @@ func expectCertManagerListenersMatchProfile(ctx context.Context, spec *configapi
 	}
 	By("waiting for cert-manager operand TLS args and rollout")
 	for _, name := range operandDeployments {
-		err := verifyOperandTLSArgsMatchClusterProfile(name, spec)
+		err := verifyOperandTLSArgsMatchClusterProfile(ctx, name, spec)
 		Expect(err).NotTo(HaveOccurred(), "deployment %s", name)
 		err = waitForDeploymentRollout(ctx, operandNamespace, name, lowTimeout)
 		Expect(err).NotTo(HaveOccurred(), "rollout %s", name)
-		err = verifyOperandMetricsHTTPS(name)
+		err = verifyOperandMetricsHTTPS(ctx, name)
 		Expect(err).NotTo(HaveOccurred(), "https metrics %s", name)
 	}
 	Eventually(func() error {
@@ -981,16 +981,16 @@ func patchLegacyTLSProfile(ctx context.Context, profile *configapiv1.TLSSecurity
 func expectProfileManagedTLSFlagsGone(ctx context.Context, deployments []string) {
 	GinkgoHelper()
 	for _, name := range deployments {
-		err := waitForOperandProfileTLSArgKeysAbsent(name)
+		err := waitForOperandProfileTLSArgKeysAbsent(ctx, name)
 		Expect(err).NotTo(HaveOccurred(), "deployment %s still has profile-managed TLS flags under Legacy", name)
 
 		Consistently(func() error {
-			return verifyOperandProfileTLSArgKeysAbsent(name)
+			return verifyOperandProfileTLSArgKeysAbsent(ctx, name)
 		}, 15*time.Second, fastPollInterval).Should(Succeed(), "deployment %s", name)
 
 		if name != trustManagerDeploymentName {
 			Eventually(func() error {
-				return verifyOperandMetricsHTTPS(name)
+				return verifyOperandMetricsHTTPS(ctx, name)
 			}, lowTimeout, fastPollInterval).Should(Succeed(), "https metrics remain on %s", name)
 		}
 

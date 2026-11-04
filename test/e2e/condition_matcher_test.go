@@ -107,14 +107,14 @@ func GenerateConditionMatchers(tuples []PrefixAndMatchTypeTuple, expectedConditi
 // verifyOperatorStatusCondition polls every few second to check if the status of each of the controllers
 // match with the expected conditions. It returns an error if a timeout (few mins) occurs or an error was
 // encountered which polls the status.
-func verifyOperatorStatusCondition(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher) error {
-	return verifyOperatorStatusConditionWithTimeout(client, conditionMatchers, lowTimeout)
+func verifyOperatorStatusCondition(ctx context.Context, client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher) error {
+	return verifyOperatorStatusConditionWithTimeout(ctx, client, conditionMatchers, lowTimeout)
 }
 
-func verifyOperatorStatusConditionWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher, timeout time.Duration) error {
+func verifyOperatorStatusConditionWithTimeout(ctx context.Context, client v1alpha1client.OperatorV1alpha1Interface, conditionMatchers []ConditionMatcher, timeout time.Duration) error {
 	var lastFetchedConditions []opv1.OperatorCondition
 
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		operator, err := client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			// Retry a kube-apiserver 504. A timeout here means the conditions
@@ -154,12 +154,12 @@ func verifyOperatorStatusConditionWithTimeout(client v1alpha1client.OperatorV1al
 	return nil
 }
 
-func VerifyHealthyOperatorConditions(client v1alpha1client.OperatorV1alpha1Interface) error {
-	return verifyHealthyOperatorConditionsWithTimeout(client, lowTimeout)
+func VerifyHealthyOperatorConditions(ctx context.Context, client v1alpha1client.OperatorV1alpha1Interface) error {
+	return verifyHealthyOperatorConditionsWithTimeout(ctx, client, lowTimeout)
 }
 
-func verifyHealthyOperatorConditionsWithTimeout(client v1alpha1client.OperatorV1alpha1Interface, timeout time.Duration) error {
-	return verifyOperatorStatusConditionWithTimeout(client,
+func verifyHealthyOperatorConditionsWithTimeout(ctx context.Context, client v1alpha1client.OperatorV1alpha1Interface, timeout time.Duration) error {
+	return verifyOperatorStatusConditionWithTimeout(ctx, client,
 		GenerateConditionMatchers(
 			[]PrefixAndMatchTypeTuple{
 				{certManagerController, MatchAllConditions},

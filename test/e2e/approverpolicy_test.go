@@ -54,7 +54,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 		BeforeEach(func() {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 		})
 
 		AfterEach(func() {
@@ -532,7 +532,7 @@ var _ = Describe("ApproverPolicyManager with the operator gate disabled", Serial
 
 		BeforeEach(func() {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 		})
 
 		AfterEach(func() {

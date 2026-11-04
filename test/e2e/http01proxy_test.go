@@ -45,7 +45,7 @@ var _ = Describe("HTTP01 Proxy [apigroup:operator.openshift.io]", Label("Platfor
 		Expect(err).NotTo(HaveOccurred(), "operator did not roll out after enabling HTTP01Proxy feature gate")
 
 		By("waiting for operator to become available after restart")
-		err = VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err = VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "operator not healthy after enabling HTTP01Proxy feature gate")
 	})
 
@@ -74,7 +74,7 @@ var _ = Describe("HTTP01 Proxy [apigroup:operator.openshift.io]", Label("Platfor
 
 	BeforeEach(func() {
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 	})
 

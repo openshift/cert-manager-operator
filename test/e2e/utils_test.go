@@ -117,7 +117,7 @@ var serviceMonitorGVR = schema.GroupVersionResource{
 	Resource: "servicemonitors",
 }
 
-func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
+func verifyDeploymentGenerationIsNotEmpty(ctx context.Context, client *certmanoperatorclient.Clientset, deployments []metav1.ObjectMeta) error {
 	var wg sync.WaitGroup
 	var lastFetchedGenerationStatus []opv1.GenerationStatus
 
@@ -128,8 +128,8 @@ func verifyDeploymentGenerationIsNotEmpty(client *certmanoperatorclient.Clientse
 		go func(idx int, nameAndNs *metav1.ObjectMeta) {
 			defer wg.Done()
 
-			err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-				operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+			err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+				operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 				if err != nil {
 					if apierrors.IsNotFound(err) {
 						return false, nil
@@ -180,7 +180,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 	// update operator spec to empty *Config and set operatorSpec to default values
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
-		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -205,7 +205,7 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 			ManagementState: opv1.Managed,
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 
@@ -235,9 +235,9 @@ func resetCertManagerState(ctx context.Context, client *certmanoperatorclient.Cl
 
 // addOverrideArgs adds the override args to specific the cert-manager operand. The update process is retried if
 // a conflict error is encountered.
-func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName string, args []string) error {
+func addOverrideArgs(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, args []string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -279,19 +279,19 @@ func addOverrideArgs(client *certmanoperatorclient.Clientset, deploymentName str
 // passed args. It returns an error if a timeout occurs or an error was encountered while polling the deployment
 // args list. The optional timeout parameter overrides the default lowTimeout; pass highTimeout for checks that
 // follow heavy cluster churn where reconciliation may take longer than usual.
-func verifyDeploymentArgs(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout ...time.Duration) error {
+func verifyDeploymentArgs(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout ...time.Duration) error {
 	t := lowTimeout
 	if len(timeout) > 0 && timeout[0] > 0 {
 		t = timeout[0]
 	}
-	return verifyDeploymentArgsWithTimeout(k8sclient, deploymentName, args, added, t)
+	return verifyDeploymentArgsWithTimeout(ctx, k8sclient, deploymentName, args, added, t)
 }
 
 // verifyDeploymentArgsWithTimeout is verifyDeploymentArgs with an explicit timeout.
 // Transient API errors, including a kube-apiserver 504 during a TLS-profile rollout,
 // are retried. The wait still succeeds only when the args match.
-func verifyDeploymentArgsWithTimeout(k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout time.Duration) error {
-	return verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, operandNamespace, deploymentName, args, added, timeout)
+func verifyDeploymentArgsWithTimeout(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, args []string, added bool, timeout time.Duration) error {
+	return verifyDeploymentArgsInNamespaceWithTimeout(ctx, k8sclient, operandNamespace, deploymentName, args, added, timeout)
 }
 
 // verifyDeploymentArgsInNamespace polls every $fastPollInterval to check if the deployment (in the given
@@ -299,12 +299,12 @@ func verifyDeploymentArgsWithTimeout(k8sclient *kubernetes.Clientset, deployment
 // occurs or an error was encountered while polling the deployment args list. This is the namespace-aware
 // counterpart of verifyDeploymentArgs, needed for operands like cert-manager-istio-csr whose deployment lives
 // in a per-test namespace rather than the shared operandNamespace.
-func verifyDeploymentArgsInNamespace(k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool) error {
-	return verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, deploymentName, args, added, lowTimeout)
+func verifyDeploymentArgsInNamespace(ctx context.Context, k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool) error {
+	return verifyDeploymentArgsInNamespaceWithTimeout(ctx, k8sclient, namespace, deploymentName, args, added, lowTimeout)
 }
 
-func verifyDeploymentArgsInNamespaceWithTimeout(k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
+func verifyDeploymentArgsInNamespaceWithTimeout(ctx context.Context, k8sclient *kubernetes.Clientset, namespace, deploymentName string, args []string, added bool, timeout time.Duration) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		controllerDeployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
@@ -335,9 +335,9 @@ func verifyDeploymentArgsInNamespaceWithTimeout(k8sclient *kubernetes.Clientset,
 
 // addOverrideEnv adds the override environment variables to specific the cert-manager operand. The update process
 // is retried if a conflict error is encountered.
-func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName string, env []corev1.EnvVar) error {
+func addOverrideEnv(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, env []corev1.EnvVar) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -370,7 +370,7 @@ func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName stri
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -378,10 +378,10 @@ func addOverrideEnv(client *certmanoperatorclient.Clientset, deploymentName stri
 // verifyDeploymentEnv polls every $fastPollInterval to check if the deployment env list is updated to contain the
 // passed env. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while polling
 // the deployment env list.
-func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string, env []corev1.EnvVar, added bool) error {
+func verifyDeploymentEnv(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, env []corev1.EnvVar, added bool) error {
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -411,9 +411,9 @@ func verifyDeploymentEnv(k8sclient *kubernetes.Clientset, deploymentName string,
 
 // addOverrideLabels adds the override labels to specific the cert-manager operand. The update process
 // is retried if a conflict error is encountered.
-func addOverrideLabels(client *certmanoperatorclient.Clientset, deploymentName string, labels map[string]string) error {
+func addOverrideLabels(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, labels map[string]string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -446,16 +446,16 @@ func addOverrideLabels(client *certmanoperatorclient.Clientset, deploymentName s
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
 
 // addOverrideResources adds the override resources to the specific cert-manager operand. The update process
 // is retried if a conflict error is encountered.
-func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
+func addOverrideResources(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -488,7 +488,7 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -496,10 +496,10 @@ func addOverrideResources(client *certmanoperatorclient.Clientset, deploymentNam
 // verifyDeploymentResources polls every $slowPollInterval to check if the deployment resources is updated to contain
 // the passed resources. It returns an error if a timeout ($highTimeout) occurs or an error was encountered while
 // polling the deployment resources.
-func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
+func verifyDeploymentResources(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerResourceRequirements, added bool) error {
 
-	return wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -533,9 +533,9 @@ func verifyDeploymentResources(k8sclient *kubernetes.Clientset, deploymentName s
 
 // addOverrideScheduling adds the override scheduling to the specific cert-manager operand. The update process
 // is retried if a conflict error is encountered.
-func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling) error {
+func addOverrideScheduling(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -568,7 +568,7 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -576,10 +576,10 @@ func addOverrideScheduling(client *certmanoperatorclient.Clientset, deploymentNa
 // verifyDeploymentScheduling polls every $slowPollInterval to check if the deployment scheduling is updated to contain
 // the passed scheduling. It returns an error if a timeout ($highTimeout) occurs or an error was encountered while
 // polling the deployment scheduling.
-func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
+func verifyDeploymentScheduling(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, res v1alpha1.CertManagerScheduling, added bool) error {
 
-	return wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		controllerDeployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -633,9 +633,9 @@ func verifyDeploymentScheduling(k8sclient *kubernetes.Clientset, deploymentName 
 
 // addOverrideReplicas adds the override replicas to the specific cert-manager operand. The update process
 // is retried if a conflict error is encountered.
-func addOverrideReplicas(client *certmanoperatorclient.Clientset, deploymentName string, replicas *int32) error {
+func addOverrideReplicas(ctx context.Context, client *certmanoperatorclient.Clientset, deploymentName string, replicas *int32) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		operator, err := client.OperatorV1alpha1().CertManagers().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -668,7 +668,7 @@ func addOverrideReplicas(client *certmanoperatorclient.Clientset, deploymentName
 			return fmt.Errorf("unsupported deployment name: %s", deploymentName)
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 }
@@ -676,10 +676,10 @@ func addOverrideReplicas(client *certmanoperatorclient.Clientset, deploymentName
 // verifyDeploymentReplicas polls every $fastPollInterval to check if the deployment replicas is updated to contain
 // the passed replica count. It returns an error if a timeout ($lowTimeout) occurs or an error was encountered while
 // polling the deployment replicas.
-func verifyDeploymentReplicas(k8sclient *kubernetes.Clientset, deploymentName string, expectedReplicas *int32, shouldMatch bool) error {
+func verifyDeploymentReplicas(ctx context.Context, k8sclient *kubernetes.Clientset, deploymentName string, expectedReplicas *int32, shouldMatch bool) error {
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -1091,7 +1091,7 @@ func waitForIssuerReadiness(ctx context.Context, issuerName, namespace string) e
 // waitForCertificateReadiness polls the status of the Certificate object and returns non-nil error
 // once the Ready condition is true, otherwise should return a time-out error
 func waitForCertificateReadiness(ctx context.Context, certName, namespace string) error {
-	return wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		cert, err := certmanagerClient.CertmanagerV1().Certificates(namespace).Get(ctx, certName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -1111,7 +1111,7 @@ func waitForCertificateReadiness(ctx context.Context, certName, namespace string
 // - certificate hasn't expired
 // - certificate has subject CN matching provided hostname
 func verifyCertificate(ctx context.Context, secretName, namespace, hostname string) error {
-	return wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -1129,7 +1129,7 @@ func verifyCertificate(ctx context.Context, secretName, namespace, hostname stri
 // and returns no error if certificate was renewed at least once
 func verifyCertificateRenewed(ctx context.Context, secretName, namespace string, pollDuration time.Duration) error {
 	var initExpiryTime *time.Time
-	return wait.PollUntilContextTimeout(context.TODO(), pollDuration, highTimeout, true, func(context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, pollDuration, highTimeout, true, func(ctx context.Context) (bool, error) {
 		secret, err := loader.KubeClient.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
@@ -1188,7 +1188,7 @@ func createAndDestroyTestNamespace(ctx context.Context, clientset *kubernetes.Cl
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 	}, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		By("cleaning up test namespace")
 		_ = clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
 		waitNamespaceDeleted(ctx, clientset, name)
@@ -1209,7 +1209,7 @@ func randomStr(size int) string {
 // pollTillJobCompleted poll the job object and returns non-nil error
 // once the job is completed, otherwise should return a time-out error
 func pollTillJobCompleted(ctx context.Context, clientset *kubernetes.Clientset, namespace, jobName string) error {
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		job, err := clientset.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 
 		if err != nil {
@@ -1258,7 +1258,7 @@ func pollTillJobFailed(ctx context.Context, clientset *kubernetes.Clientset, nam
 // pollTillServiceAccountAvailable poll the service account object and returns non-nil error
 // once the service account is available, otherwise should return a time-out error
 func pollTillServiceAccountAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace, serviceAccountName string) error {
-	err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		_, err := clientset.CoreV1().ServiceAccounts(namespace).Get(ctx, serviceAccountName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -1282,7 +1282,7 @@ func pollTillIstioCSRAvailable(ctx context.Context, loader library.DynamicResour
 func pollTillIstioCSRAvailableWithTimeout(ctx context.Context, loader library.DynamicResourceLoader, namespace, istioCsrName string, timeout time.Duration) (v1alpha1.IstioCSRStatus, error) {
 	var istioCSRStatus v1alpha1.IstioCSRStatus
 	istiocsrClient := loader.DynamicClient.Resource(istiocsrSchema).Namespace(namespace)
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		customResource, err := istiocsrClient.Get(ctx, istioCsrName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -1458,7 +1458,7 @@ func cleanupAllIstioCSROperands(ctx context.Context, loader library.DynamicResou
 			return fmt.Errorf("delete IstioCSR %s/%s: %w", ns, name, err)
 		}
 	}
-	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, slowPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
 		list, err := client.List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
@@ -1477,7 +1477,7 @@ func pollTillDeploymentAvailable(ctx context.Context, clientSet *kubernetes.Clie
 }
 
 func pollTillDeploymentAvailableWithTimeout(ctx context.Context, clientSet *kubernetes.Clientset, namespace, deploymentName string, timeout time.Duration) error {
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -1664,7 +1664,7 @@ func verifyManagedResourceLabels(labels map[string]string, name string) {
 func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var operatorState *v1alpha1.CertManager
-		err := wait.PollUntilContextTimeout(context.TODO(), slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 			operator, err := client.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 			if err != nil {
 				if apierrors.IsNotFound(err) {
@@ -1757,7 +1757,7 @@ func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoper
 			},
 		}
 
-		_, err = client.OperatorV1alpha1().CertManagers().Update(context.TODO(), updatedOperator, metav1.UpdateOptions{})
+		_, err = client.OperatorV1alpha1().CertManagers().Update(ctx, updatedOperator, metav1.UpdateOptions{})
 		return err
 	})
 	if err != nil {
@@ -2018,7 +2018,7 @@ func waitForCertManagerOperandsHealthy(ctx context.Context) error {
 			return fmt.Errorf("waiting for %s/%s rollout after TLS change: %w", operandNamespace, name, err)
 		}
 	}
-	if err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1()); err != nil {
+	if err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1()); err != nil {
 		return fmt.Errorf("waiting for cert-manager operator healthy conditions after TLS change: %w", err)
 	}
 	return nil
@@ -2080,7 +2080,7 @@ func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileS
 
 // verifyOperandTLSArgsMatchClusterProfile waits until deployment container args include
 // the TLS flags derived from the cluster profile (same mapping as the operator hook).
-func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *configapiv1.TLSProfileSpec) error {
+func verifyOperandTLSArgsMatchClusterProfile(ctx context.Context, deploymentName string, spec *configapiv1.TLSProfileSpec) error {
 	expected := expectedOperandTLSArgs(deploymentName, spec)
 	if len(expected) == 0 {
 		return fmt.Errorf("unsupported deployment %q", deploymentName)
@@ -2088,7 +2088,7 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 
 	// highTimeout covers one in-flight kube-apiserver rollout. The profile patch
 	// itself does not wait for that rollout, so this poll must outlast a 504.
-	if err := verifyDeploymentArgs(k8sClientSet, deploymentName, expected, true, highTimeout); err != nil {
+	if err := verifyDeploymentArgs(ctx, k8sClientSet, deploymentName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", deploymentName, err)
 	}
 
@@ -2096,7 +2096,7 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
@@ -2125,12 +2125,12 @@ func verifyOperandTLSArgsMatchClusterProfile(deploymentName string, spec *config
 
 // verifyOperandTLSArgsNotPresent succeeds when none of the given args are present on the
 // deployment's first container. Used for Legacy adherence negative checks.
-func verifyOperandTLSArgsNotPresent(deploymentName string, unexpected []string) error {
+func verifyOperandTLSArgsNotPresent(ctx context.Context, deploymentName string, unexpected []string) error {
 	if len(unexpected) == 0 {
 		return fmt.Errorf("unexpected arg list is empty")
 	}
 
-	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -2153,9 +2153,9 @@ func verifyOperandTLSArgsNotPresent(deploymentName string, unexpected []string) 
 
 // waitForOperandTLSArgsAbsent polls until unexpected TLS args are gone from the deployment
 // (e.g. after switching to Legacy adherence). Uses the same retry budget as other TLS helpers.
-func waitForOperandTLSArgsAbsent(deploymentName string, unexpected []string) error {
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		err := verifyOperandTLSArgsNotPresent(deploymentName, unexpected)
+func waitForOperandTLSArgsAbsent(ctx context.Context, deploymentName string, unexpected []string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+		err := verifyOperandTLSArgsNotPresent(ctx, deploymentName, unexpected)
 		if err == nil {
 			return true, nil
 		}
@@ -2182,13 +2182,13 @@ func profileManagedTLSArgKeys(deploymentName string) []string {
 }
 
 // verifyOperandProfileTLSArgKeysAbsent reports profile-managed TLS flags still set on the deployment.
-func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+func verifyOperandProfileTLSArgKeysAbsent(ctx context.Context, deploymentName string) error {
 	keys := profileManagedTLSArgKeys(deploymentName)
 	if len(keys) == 0 {
 		return fmt.Errorf("unsupported deployment %q", deploymentName)
 	}
 
-	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -2213,10 +2213,10 @@ func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 // waitForOperandProfileTLSArgKeysAbsent polls until profile-managed TLS flags are gone.
 // Transient read failures keep polling. A timeout includes the last verification error.
 // highTimeout covers operator container restart backoff after a tlsAdherence flip.
-func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
+func waitForOperandProfileTLSArgKeysAbsent(ctx context.Context, deploymentName string) error {
 	var lastErr error
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		lastErr = verifyOperandProfileTLSArgKeysAbsent(deploymentName)
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, highTimeout, true, func(pollCtx context.Context) (bool, error) {
+		lastErr = verifyOperandProfileTLSArgKeysAbsent(pollCtx, deploymentName)
 		return lastErr == nil, nil
 	})
 	if err != nil && lastErr != nil {
@@ -2227,9 +2227,9 @@ func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 
 // verifyOperandMetricsHTTPS waits until cert-manager operand deployments expose
 // dynamic metrics serving flags and prometheus.io/scheme=https on the pod template.
-func verifyOperandMetricsHTTPS(deploymentName string) error {
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+func verifyOperandMetricsHTTPS(ctx context.Context, deploymentName string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
@@ -2272,7 +2272,7 @@ func verifyOperandMetricsHTTPS(deploymentName string) error {
 // verifyIstioCSRServingTLSArgsMatchClusterProfile waits until the cert-manager-istio-csr deployment (in the
 // given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
 // same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
-func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
+func verifyIstioCSRServingTLSArgsMatchClusterProfile(ctx context.Context, k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
 	expected, err := tlsprofile.IstioCSRServingTLSArgs(spec)
 	if err != nil {
 		return fmt.Errorf("istio-csr serving TLS args: %w", err)
@@ -2283,7 +2283,7 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 
 	// highTimeout covers one in-flight kube-apiserver rollout. The profile patch
 	// itself does not wait for that rollout, so this poll must outlast a 504.
-	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
+	if err := verifyDeploymentArgsInNamespaceWithTimeout(ctx, k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
 	}
 
@@ -2291,7 +2291,7 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
