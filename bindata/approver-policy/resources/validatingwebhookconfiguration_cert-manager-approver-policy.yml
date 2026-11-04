@@ -5,10 +5,10 @@ metadata:
   name: cert-manager-approver-policy
   labels:
     app: cert-manager-approver-policy
-    app.kubernetes.io/name: cert-manager-approver-policy
     app.kubernetes.io/instance: cert-manager-approver-policy
-    app.kubernetes.io/version: "v0.27.0"
     app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/name: cert-manager-approver-policy
+    app.kubernetes.io/version: v0.29.0
     app.kubernetes.io/part-of: cert-manager-operator
   annotations:
     cert-manager.io/inject-ca-from-secret: "cert-manager/cert-manager-approver-policy-tls"

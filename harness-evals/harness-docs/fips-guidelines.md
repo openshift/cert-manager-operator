@@ -82,8 +82,8 @@ flags.
 
 ## Crypto Fork Expectations (`go.mod` replace)
 
-```140:140:go.mod
-replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.21.2
+```138:138:go.mod
+replace github.com/cert-manager/cert-manager => github.com/openshift/jetstack-cert-manager v1.21.3
 ```
 
 Upstream `cert-manager/cert-manager` uses Go's standard `crypto/*` packages
@@ -92,7 +92,7 @@ BoringCrypto/OpenSSL module when `strictfipsruntime` is active. To close this
 gap, all `cert-manager/cert-manager` imports are transparently redirected to
 **`openshift/jetstack-cert-manager`**, a Red Hat-maintained fork that:
 
-- Tracks the same upstream version tag (`v1.21.2` here — kept in lockstep with
+- Tracks the same upstream version tag (`v1.21.3` here — kept in lockstep with
   `CERT_MANAGER_VERSION` in the Makefile).
 - Carries the minimal patch set needed so the vendored crypto call paths are
   compatible with `strictfipsruntime` / `openssl` build tags.

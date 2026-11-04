@@ -88,7 +88,7 @@ Defined in `api/operator/v1alpha1/features.go`; registered in `pkg/features`.
 
 ## Image Resolution
 
-Makefile versions: `CERT_MANAGER_VERSION` (v1.20.3), `ISTIO_CSR_VERSION` (v0.16.0), `TRUST_MANAGER_VERSION` (v0.25.0), `APPROVER_POLICY_VERSION` (v0.27.0).
+Makefile versions: `CERT_MANAGER_VERSION` (v1.21.3), `ISTIO_CSR_VERSION` (v0.19.1), `TRUST_MANAGER_VERSION` (v0.26.0), `APPROVER_POLICY_VERSION` (v0.29.0).
 
 OLM injects env (CSV / `config/manager/manager.yaml`):
 
@@ -100,8 +100,8 @@ CertManager remaps quay substrings → RELATED_IMAGE_* in `related_images.go`.
 TrustManager reads its related image for the Deployment and status, and its operand
 version for `app.kubernetes.io/version` labels. Approver-policy's image and version
 variables are supplied by the bundle and `make local-run`; no approver-policy
-controller consumes them yet. `make local-run` uses the Makefile operand versions
-directly (including `v`); packaged operand-version env values omit that prefix.
+controller consumes them yet. `make local-run` strips the leading `v` from Makefile
+operand versions for `*_OPERAND_IMAGE_VERSION`, matching packaged env literals.
 
 ## Errors & Status (ctrl-runtime path)
 
@@ -178,4 +178,4 @@ TrustManager/cluster ──ctrl-runtime SSA──► trust-manager Deployment (+
 - Operational gotchas not visible in code (Slack/Jira) — Phase 5.5 chai-bot skipped.  
 - Recipe nuances for adding a fourth operand controller (CSV env, RBAC, relatedImages checklist).
 
-**Last verified against**: repo tree on branch `master` (operand versions v1.20.3 / istio-csr v0.16.0 / trust-manager v0.20.3).
+**Last verified against**: repo tree on branch `master` (operand versions v1.21.3 / istio-csr v0.19.1 / trust-manager v0.26.0).
