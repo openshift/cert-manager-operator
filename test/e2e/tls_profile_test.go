@@ -92,12 +92,12 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Expect(err).NotTo(HaveOccurred(), "failed to read original apiserver TLS config")
 
 		By("verifying tlsAdherence field is available in this cluster's API schema")
-		err = updateClusterAPIServerTLSConfig(ctx, nil,
+		_, err = dryRunClusterAPIServerTLSConfig(ctx, nil,
 			configapiv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)
 		if isTLSAdherenceUnsupported(err) {
 			Skip(fmt.Sprintf("apiserver tlsAdherence field not available on this cluster: %v", err))
 		}
-		Expect(err).NotTo(HaveOccurred(), "failed to probe tlsAdherence field availability on apiserver/cluster")
+		Expect(err).NotTo(HaveOccurred(), "failed to dry-run probe tlsAdherence field availability on apiserver/cluster")
 	})
 
 	AfterAll(func() {
