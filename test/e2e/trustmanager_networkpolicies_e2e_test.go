@@ -221,7 +221,7 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 			output, queryErr := execInPod(pollCtx, cfg, clientset, "openshift-monitoring", promPod, "prometheus",
 				"curl", "-s", "-S", "-k",
 				"-H", fmt.Sprintf("Authorization: Bearer %s", token),
-				"--data-urlencode", `query={namespace="cert-manager",service="trust-manager-metrics"}`,
+				"--data-urlencode", `query=up{namespace="cert-manager",service="trust-manager-metrics"}==1`,
 				queryURL,
 			)
 			if queryErr != nil {

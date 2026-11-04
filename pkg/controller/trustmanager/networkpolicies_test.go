@@ -175,10 +175,10 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
-				t.Errorf("Exists calls: got %d want %d", tt.wantExistsCount, got)
+				t.Errorf("Exists calls: got %d want %d", got, tt.wantExistsCount)
 			}
 			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("Patch calls: got %d want %d", tt.wantPatchCount, got)
+				t.Errorf("Patch calls: got %d want %d", got, tt.wantPatchCount)
 			}
 			for i := 0; i < mock.PatchCallCount(); i++ {
 				_, _, patch, _ := mock.PatchArgsForCall(i)
