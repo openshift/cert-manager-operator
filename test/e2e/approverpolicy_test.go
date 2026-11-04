@@ -62,7 +62,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 		BeforeEach(func() {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 		})
 
 		AfterEach(func() {
@@ -86,9 +86,9 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				Expect(disabledEvents).To(BeNumerically(">=", 1))
 
 				By("attempting an actual approval as the cert-manager ServiceAccount")
-				ns, err := loader.CreateTestingNS("auto-approver-rejection", false)
+				ns, err := loader.CreateTestingNS(ctx, "auto-approver-rejection", false)
 				Expect(err).NotTo(HaveOccurred())
-				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+				DeferCleanup(func(ctx SpecContext) { loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
 				csr, err := library.GenerateCSR(&x509.CertificateRequest{DNSNames: []string{"handoff.example.com"}})
 				Expect(err).NotTo(HaveOccurred())
 				request, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Create(ctx, &cmv1.CertificateRequest{
@@ -126,9 +126,9 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
 				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
 
-				ns, err := loader.CreateTestingNS("auto-approver-policy-sign", false)
+				ns, err := loader.CreateTestingNS(ctx, "auto-approver-policy-sign", false)
 				Expect(err).NotTo(HaveOccurred())
-				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+				DeferCleanup(func(ctx SpecContext) { loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
 
 				issuerName := "handoff-selfsigned-" + string(uuid.NewUUID())
 				createSelfSignedClusterIssuer(ctx, issuerName)
@@ -182,9 +182,9 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
 				waitForAutoApproverTransitionEvent(ctx, "AutoApproverEnabled")
 
-				ns, err := loader.CreateTestingNS("auto-approver-restored", false)
+				ns, err := loader.CreateTestingNS(ctx, "auto-approver-restored", false)
 				Expect(err).NotTo(HaveOccurred())
-				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+				DeferCleanup(func(ctx SpecContext) { loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
 
 				issuerName := "restored-selfsigned-" + string(uuid.NewUUID())
 				createSelfSignedClusterIssuer(ctx, issuerName)
@@ -258,7 +258,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 				By("restarting the operator controller pods")
 				Expect(deleteOperatorControllerPods(ctx)).To(Succeed())
-				Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+				Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 
 				Consistently(func(g Gomega) {
 					verifyAutoApproverState(ctx, g, true)
@@ -803,7 +803,7 @@ var _ = Describe("ApproverPolicyManager with the operator gate disabled", Serial
 
 		BeforeEach(func() {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 		})
 
 		AfterEach(func() {

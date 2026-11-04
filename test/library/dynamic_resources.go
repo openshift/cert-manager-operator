@@ -37,18 +37,16 @@ type DynamicResourceLoader struct {
 	KubeClient    kubernetes.Interface
 	DynamicClient dynamic.Interface
 
-	context context.Context
-	t       FailureReporter
+	t FailureReporter
 }
 
 type doFunc func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface)
 
-func NewDynamicResourceLoader(context context.Context, t FailureReporter) DynamicResourceLoader {
+func NewDynamicResourceLoader(t FailureReporter) DynamicResourceLoader {
 	k, d := NewClientsConfigForTest(t)
 	return DynamicResourceLoader{
 		KubeClient:    k,
 		DynamicClient: d,
-		context:       context,
 		t:             t,
 	}
 }
@@ -112,7 +110,7 @@ func retryRetriable(ctx context.Context, fn func(context.Context) error) error {
 	})
 }
 
-func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
+func (d DynamicResourceLoader) do(ctx context.Context, do doFunc, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	b, err := assetFunc(filename)
 	require.NoError(d.t, err)
 
@@ -137,7 +135,7 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 		unstructuredObj := &unstructured.Unstructured{Object: unstructuredMap}
 
 		var gr []*restmapper.APIGroupResources
-		err = retryRetriable(d.context, func(context.Context) error {
+		err = retryRetriable(ctx, func(context.Context) error {
 			var getErr error
 			gr, getErr = restmapper.GetAPIGroupResources(d.KubeClient.Discovery())
 			return getErr
@@ -163,10 +161,10 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 	}
 }
 
-func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
+func (d DynamicResourceLoader) DeleteFromFile(ctx context.Context, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Deleting resource %v\n", filename)
 	deleteFunc := func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
-		err := retryRetriable(d.context, func(ctx context.Context) error {
+		err := retryRetriable(ctx, func(ctx context.Context) error {
 			err := dynamicResourceInterface.Delete(ctx, unstructured.GetName(), metav1.DeleteOptions{})
 			if k8serrors.IsNotFound(err) {
 				return nil
@@ -176,17 +174,17 @@ func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byt
 		d.noErrorSkipNotExisting(err)
 	}
 
-	d.do(deleteFunc, assetFunc, filename, overrideNamespace)
+	d.do(ctx, deleteFunc, assetFunc, filename, overrideNamespace)
 	d.t.Logf("Resource %v deleted\n", filename)
 }
 
-func (d DynamicResourceLoader) CreateFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
+func (d DynamicResourceLoader) CreateFromFile(ctx context.Context, assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Creating resource %v\n", filename)
 	createFunc := func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
-		_, err := dynamicResourceInterface.Create(context.TODO(), unstructured, metav1.CreateOptions{})
+		_, err := dynamicResourceInterface.Create(ctx, unstructured, metav1.CreateOptions{})
 		d.noErrorSkipExists(err)
 	}
 
-	d.do(createFunc, assetFunc, filename, overrideNamespace)
+	d.do(ctx, createFunc, assetFunc, filename, overrideNamespace)
 	d.t.Logf("Resource %v created\n", filename)
 }
