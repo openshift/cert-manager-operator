@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,6 +20,19 @@ const (
 	defaultIssuerGroup = "cert-manager.io"
 )
 
+// errUnsupportedIssuerRefKind indicates issuerRef does not reference an accepted issuer kind.
+var errUnsupportedIssuerRefKind = errors.New("unsupported issuerRef kind")
+
+// isAcceptedIssuerReference reports whether issuerRef points at a cert-manager or third-party issuer type.
+// It rejects arbitrary API kinds (for example apps/Deployment) that REST mapping alone would allow.
+func isAcceptedIssuerReference(ref certmanagermetav1.IssuerReference) bool {
+	ref = resolvedIssuerRef(ref)
+	if isCertManagerBuiltInIssuer(ref) {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(ref.Kind), "issuer")
+}
+
 // resolvedIssuerRef returns issuerRef with default kind and group applied.
 func resolvedIssuerRef(ref certmanagermetav1.IssuerReference) certmanagermetav1.IssuerReference {
 	resolved := ref
@@ -33,6 +47,9 @@ func resolvedIssuerRef(ref certmanagermetav1.IssuerReference) certmanagermetav1.
 
 func (r *Reconciler) getIssuer(istiocsr *v1alpha1.IstioCSR) (*unstructured.Unstructured, error) {
 	ref := resolvedIssuerRef(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef)
+	if !isAcceptedIssuerReference(ref) {
+		return nil, fmt.Errorf("%w %q", errUnsupportedIssuerRefKind, ref.Kind)
+	}
 
 	mapping, err := r.restMapper.RESTMapping(schema.GroupKind{Group: ref.Group, Kind: ref.Kind})
 	if err != nil {
@@ -78,26 +95,7 @@ func issuerCASecretName(issuer *unstructured.Unstructured) (string, bool, error)
 	return secretName, true, nil
 }
 
-func unstructuredIssuerReference(ref certmanagermetav1.IssuerReference) certmanagermetav1.IssuerReference {
-	resolved := resolvedIssuerRef(ref)
-	return certmanagermetav1.IssuerReference{
-		Name:  resolved.Name,
-		Kind:  resolved.Kind,
-		Group: resolved.Group,
-	}
-}
-
 // issuerRefForIstioCSR returns the effective issuerRef for an IstioCSR resource.
 func issuerRefForIstioCSR(istiocsr *v1alpha1.IstioCSR) certmanagermetav1.IssuerReference {
-	return unstructuredIssuerReference(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef)
-}
-
-// issuerRefForCertificate returns cert-manager IssuerReference for the istiod Certificate.
-func issuerRefForCertificate(istiocsr *v1alpha1.IstioCSR) certmanagermetav1.IssuerReference {
-	ref := issuerRefForIstioCSR(istiocsr)
-	return certmanagermetav1.IssuerReference{
-		Name:  ref.Name,
-		Kind:  ref.Kind,
-		Group: ref.Group,
-	}
+	return resolvedIssuerRef(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef)
 }

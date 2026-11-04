@@ -129,6 +129,6 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 	}
 
-	certificate.Spec.IssuerRef = issuerRefForCertificate(istiocsr)
+	certificate.Spec.IssuerRef = issuerRefForIstioCSR(istiocsr)
 	return nil
 }

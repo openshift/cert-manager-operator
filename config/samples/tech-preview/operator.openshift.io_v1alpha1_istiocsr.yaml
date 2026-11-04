@@ -12,6 +12,8 @@ spec:
         name: istio-csr-issuer  # Replace with your Issuer, ClusterIssuer, or external cert-manager issuer.
         kind: Issuer            # Optional; defaults to Issuer. Use the external issuer kind when applicable.
         group: cert-manager.io  # Optional; defaults to cert-manager.io. Set to the external issuer API group when applicable.
+      # External issuer API groups are not included in the operator's default ClusterRole. When issuerRef targets a
+      # third-party issuer CRD, bind config/rbac/istiocsr_external_issuer_clusterrole.yaml to the operator service account.
       # When the issuer does not expose spec.ca.secretName, provide istioCACertificate or rely on the istiod certificate Secret for the root CA bundle.
     istiodTLSConfig:
       trustDomain: cluster.local

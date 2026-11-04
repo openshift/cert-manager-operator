@@ -3,6 +3,7 @@ package istiocsr
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -240,6 +241,10 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 	obj, err := r.getIssuer(istiocsr)
 	if err != nil {
+		if errors.Is(err, errUnsupportedIssuerRefKind) {
+			ref := resolvedIssuerRef(istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef)
+			return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef kind %q is not a supported issuer type", ref.Kind)
+		}
 		return common.FromClientError(err, "failed to fetch issuer")
 	}
 

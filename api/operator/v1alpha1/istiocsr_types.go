@@ -165,6 +165,8 @@ type CertManagerConfig struct {
 	// External cert-manager issuers (for example GoogleCASIssuer or AWSPCAClusterIssuer) are supported by setting
 	// the appropriate group and kind. When the issuer does not expose a CA via `spec.ca.secretName`, configure
 	// `istioCACertificate` or rely on the istiod certificate Secret for the root CA bundle.
+	// The operator service account must be granted get and update on the external issuer API group; apply and bind
+	// config/rbac/istiocsr_external_issuer_clusterrole.yaml when using third-party issuer CRDs.
 	// This field is immutable once set.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="issuerRef is immutable once set"
 	// +kubebuilder:validation:Required

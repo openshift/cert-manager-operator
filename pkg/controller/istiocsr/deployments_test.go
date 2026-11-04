@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -13,11 +14,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
@@ -1025,6 +1029,55 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
 		},
+		{
+			name: "deployment reconciliation succeeds with external issuer and istiod certificate CA fallback",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *unstructured.Unstructured:
+						o.SetUnstructuredContent(map[string]interface{}{
+							"apiVersion": "cas-issuer.jetstack.io/v1",
+							"kind":       "GoogleCASIssuer",
+							"metadata": map[string]interface{}{
+								"name":      testResourcesName,
+								"namespace": testIstiodNamespace,
+							},
+							"spec": map[string]interface{}{
+								"acme": map[string]interface{}{"email": "test@example.com"},
+							},
+						})
+						o.SetGroupVersionKind(schema.GroupVersionKind{Group: "cas-issuer.jetstack.io", Version: "v1", Kind: "GoogleCASIssuer"})
+					case *corev1.Secret:
+						if ns.Name != "istiod-tls" {
+							return apierrors.NewNotFound(corev1.Resource("secrets"), ns.Name)
+						}
+						secret := testSecret()
+						secret.Name = "istiod-tls"
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef = certmanagermetav1.IssuerReference{
+					Name:  testResourcesName,
+					Kind:  "GoogleCASIssuer",
+					Group: "cas-issuer.jetstack.io",
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1317,8 +1370,8 @@ func TestGetIssuerUnknownKind(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown issuer kind")
 	}
-	if !strings.Contains(err.Error(), "failed to resolve issuer reference") {
-		t.Errorf("unexpected error message: %v", err)
+	if !errors.Is(err, errUnsupportedIssuerRefKind) {
+		t.Errorf("expected unsupported issuerRef kind error, got: %v", err)
 	}
 }
 

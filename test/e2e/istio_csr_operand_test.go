@@ -371,28 +371,36 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "unsupported ACME issuer", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
 	})
 
-	It("should accept an external issuer reference in IstioCSR spec", Label("ISTIOCSR-029"), func() {
+	It("should reconcile IstioCSR with external issuer when external issuer RBAC is bound", Label("ISTIOCSR-029"), func() {
 		ns, err := loader.CreateTestingNS("istiocsr-external-issuer", true)
 		Expect(err).NotTo(HaveOccurred())
 		DeferCleanup(func() {
 			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 
+		crbName := fmt.Sprintf("cert-manager-operator-istiocsr-external-issuer-%s", ns.Name)
+		DeferCleanup(bindIstioCSRExternalIssuerClusterRole(ctx, clientset, crbName))
+
+		ensureGoogleCASIssuerCRD(ctx)
+		createIssuerPrerequisites(ns.Name)
+		createGoogleCASIssuer(ns.Name)
+
 		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
 			issuerRefKind:  "GoogleCASIssuer",
-			issuerRefGroup: "cas-issuer.jetstack.io",
-			issuerRefName:  "google-cas-issuer",
+			issuerRefGroup: googleCASIssuerGroup,
+			issuerRefName:  googleCASIssuerName,
 		})
 		createIstioCSR(ns.Name, istioCSR)
 
 		By("verifying IstioCSR with external issuerRef was accepted by the API")
 		got, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(ns.Name).Get(ctx, istioCSRResourceName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		spec, found, err := unstructured.NestedMap(got.Object, "spec", "istioCSRConfig", "certManager", "issuerRef")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(found).To(BeTrue())
+		spec := unstructuredIssuerRefSpec(got)
 		Expect(spec["kind"]).To(Equal("GoogleCASIssuer"))
-		Expect(spec["group"]).To(Equal("cas-issuer.jetstack.io"))
+		Expect(spec["group"]).To(Equal(googleCASIssuerGroup))
+
+		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		expectGoogleCASIssuerWatchLabel(ctx, ns.Name)
 	})
 
 	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-005"), func() {

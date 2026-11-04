@@ -18,7 +18,10 @@ import (
 )
 
 func testRESTMapper() meta.RESTMapper {
-	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{certmanagerv1.SchemeGroupVersion})
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{
+		certmanagerv1.SchemeGroupVersion,
+		{Group: "cas-issuer.jetstack.io", Version: "v1"},
+	})
 	mapper.Add(certmanagerv1.SchemeGroupVersion.WithKind(certmanagerv1.IssuerKind), meta.RESTScopeNamespace)
 	mapper.Add(certmanagerv1.SchemeGroupVersion.WithKind(certmanagerv1.ClusterIssuerKind), meta.RESTScopeRoot)
 	mapper.Add(schema.GroupVersion{Group: "cas-issuer.jetstack.io", Version: "v1"}.WithKind("GoogleCASIssuer"), meta.RESTScopeNamespace)
