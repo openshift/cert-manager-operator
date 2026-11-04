@@ -1906,6 +1906,34 @@ func normalizeTLSSecurityProfile(profile *configapiv1.TLSSecurityProfile) *confi
 	return out
 }
 
+// dryRunClusterAPIServerTLSConfig simulates patching apiserver TLS settings and returns
+// spec.tlsAdherence as it would be stored, without persisting or rolling kube-apiserver.
+func dryRunClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.TLSSecurityProfile, adherence configapiv1.TLSAdherencePolicy) (configapiv1.TLSAdherencePolicy, error) {
+	var stored configapiv1.TLSAdherencePolicy
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		apiServer, err := configClient.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		updated := apiServer.DeepCopy()
+		if profile != nil {
+			updated.Spec.TLSSecurityProfile = normalizeTLSSecurityProfile(profile)
+		} else {
+			updated.Spec.TLSSecurityProfile = nil
+		}
+		updated.Spec.TLSAdherence = adherence
+
+		result, err := configClient.APIServers().Update(ctx, updated, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+		if err != nil {
+			return err
+		}
+		stored = result.Spec.TLSAdherence
+		return nil
+	})
+	return stored, err
+}
+
 // updateClusterAPIServerTLSConfig patches apiserver.config.openshift.io/cluster TLS settings.
 func updateClusterAPIServerTLSConfig(ctx context.Context, profile *configapiv1.TLSSecurityProfile, adherence configapiv1.TLSAdherencePolicy) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
