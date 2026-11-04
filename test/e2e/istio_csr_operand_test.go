@@ -457,21 +457,14 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}
 		strictAdherence := configapiv1.TLSAdherencePolicyStrictAllComponents
 
-		// Probe tlsAdherence alone. Writing a new tlsSecurityProfile before this check
-		// sticks on clusters that drop the unknown field, and the following skip
-		// restores it. That pair of writes rolls kube-apiserver twice.
 		By("probing whether apiserver stores spec.tlsAdherence without changing the TLS profile")
-		err = updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, strictAdherence)
+		storedAdherence, err := dryRunClusterAPIServerTLSConfig(ctx, original.tlsProfile, strictAdherence)
 		if isTLSAdherenceUnsupported(err) {
 			Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
 		}
-		Expect(err).NotTo(HaveOccurred(), "failed to probe apiserver tlsAdherence")
-
-		// A disabled TLSAdherence gate accepts the update and drops spec.tlsAdherence.
-		stored, err := getClusterAPIServerTLSConfig(ctx)
-		Expect(err).NotTo(HaveOccurred(), "failed to read apiserver TLS configuration after probe")
-		if stored.adherence != strictAdherence {
-			Skip(fmt.Sprintf("apiserver did not store spec.tlsAdherence=%s (got %q)", strictAdherence, stored.adherence))
+		Expect(err).NotTo(HaveOccurred(), "failed to dry-run probe apiserver tlsAdherence")
+		if storedAdherence != strictAdherence {
+			Skip(fmt.Sprintf("apiserver did not store spec.tlsAdherence=%s (dry-run got %q)", strictAdherence, storedAdherence))
 		}
 
 		By("patching apiserver cluster to enforce StrictAllComponents with Modern TLS profile")
