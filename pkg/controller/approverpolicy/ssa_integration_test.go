@@ -12,6 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
@@ -84,15 +85,28 @@ func TestServerSideApply(t *testing.T) {
 	instance := testInstance()
 	instance.Spec.ControllerConfig.Labels = map[string]string{"example.test/remove": "old"}
 
-	t.Run("install applies every resource and waits for the rollout", func(t *testing.T) {
+	t.Run("install waits for the rollout before registering the webhook", func(t *testing.T) {
 		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
-		assert.Equal(t, 10, c.PatchCallCount())
+		assert.Equal(t, 9, c.PatchCallCount())
+		err := live.Get(t.Context(), client.ObjectKey{Name: operandName}, &admissionregistrationv1.ValidatingWebhookConfiguration{})
+		assert.True(t, apierrors.IsNotFound(err), "webhook must remain absent until the Deployment is ready: %v", err)
 	})
 
 	t.Run("a repeated reconcile is a no-op once applied", func(t *testing.T) {
 		patches := c.PatchCallCount()
 		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
 		assert.Equal(t, patches, c.PatchCallCount(), "server defaults must not cause a second apply")
+	})
+
+	deployment := &appsv1.Deployment{}
+	t.Run("webhook is registered once the rollout is observed ready", func(t *testing.T) {
+		require.NoError(t, live.Get(t.Context(), client.ObjectKey{Namespace: operandNamespace, Name: operandName}, deployment))
+		deployment.Status = availableDeploymentStatus(deployment.Generation)
+		require.NoError(t, live.Status().Update(t.Context(), deployment))
+		patches := c.PatchCallCount()
+		require.NoError(t, r.reconcileApproverPolicy(t.Context(), instance))
+		assert.Equal(t, patches+1, c.PatchCallCount(), "only the webhook remains to be applied")
+		require.NoError(t, live.Get(t.Context(), client.ObjectKey{Name: operandName}, &admissionregistrationv1.ValidatingWebhookConfiguration{}))
 	})
 
 	var secret *corev1.Secret
@@ -113,6 +127,13 @@ func TestServerSideApply(t *testing.T) {
 		instance.Spec.ControllerConfig.Annotations = map[string]string{"example.test/change": "new"}
 		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
 
+		// The pod template metadata changed. Complete that rollout before
+		// expecting the operator to update the webhook metadata as well.
+		require.NoError(t, live.Get(t.Context(), client.ObjectKeyFromObject(deployment), deployment))
+		deployment.Status = availableDeploymentStatus(deployment.Generation)
+		require.NoError(t, live.Status().Update(t.Context(), deployment))
+		require.NoError(t, r.reconcileApproverPolicy(t.Context(), instance))
+
 		require.NoError(t, live.Get(t.Context(), client.ObjectKeyFromObject(secret), secret))
 		assert.Equal(t, []byte("generated-key"), secret.Data["tls.key"], "the operand's own TLS material is not ours to overwrite")
 		assert.Equal(t, "value", secret.Annotations["external.example/keep"])
@@ -120,17 +141,17 @@ func TestServerSideApply(t *testing.T) {
 
 		require.NoError(t, live.Get(t.Context(), client.ObjectKeyFromObject(webhook), webhook))
 		assert.Equal(t, []byte("injected-ca"), webhook.Webhooks[0].ClientConfig.CABundle, "cert-manager's CA injector owns this field")
+		assert.Equal(t, "new", webhook.Annotations["example.test/change"])
+		assert.NotContains(t, webhook.Labels, "example.test/remove")
 	})
 
-	var deployment *appsv1.Deployment
 	t.Run("signer scope changes update the ClusterRole without rolling the Deployment", func(t *testing.T) {
-		deployment = &appsv1.Deployment{}
 		require.NoError(t, live.Get(t.Context(), client.ObjectKey{Namespace: operandNamespace, Name: operandName}, deployment))
 		generation := deployment.Generation
 
 		for _, names := range [][]string{{"external.example/*"}, {"issuers.cert-manager.io/*"}, nil} {
 			instance.Spec.ApproverPolicyConfig.ApproveSignerNames = names
-			require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
+			require.NoError(t, r.reconcileApproverPolicy(t.Context(), instance))
 
 			role := &rbacv1.ClusterRole{}
 			require.NoError(t, live.Get(t.Context(), client.ObjectKey{Name: operandName}, role))
@@ -145,7 +166,16 @@ func TestServerSideApply(t *testing.T) {
 		}
 	})
 
-	t.Run("reconcile succeeds once the rollout is observed ready", func(t *testing.T) {
+	t.Run("an existing webhook is retained if the Deployment loses readiness", func(t *testing.T) {
+		deployment.Status.AvailableReplicas = 0
+		deployment.Status.ReadyReplicas = 0
+		require.NoError(t, live.Status().Update(t.Context(), deployment))
+		patches := c.PatchCallCount()
+		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
+		assert.Equal(t, patches, c.PatchCallCount())
+		require.NoError(t, live.Get(t.Context(), client.ObjectKeyFromObject(webhook), webhook))
+		assert.Equal(t, []byte("injected-ca"), webhook.Webhooks[0].ClientConfig.CABundle)
+
 		deployment.Status = availableDeploymentStatus(deployment.Generation)
 		require.NoError(t, live.Status().Update(t.Context(), deployment))
 		require.NoError(t, r.reconcileApproverPolicy(t.Context(), instance))

@@ -21,7 +21,10 @@ func (r *Reconciler) cleanUp(ctx context.Context, instance *v1alpha1.ApproverPol
 	if pending || err != nil {
 		return pending, err
 	}
-	resources := append([]client.Object{getWebhookObject(instance)}, supportingResources(instance)...)
+	resources := []client.Object{getWebhookObject(instance), getServiceAccountObject(instance)}
+	resources = append(resources, getRBACObjects(instance)...)
+	resources = append(resources, getServiceObjects(instance)...)
+	resources = append(resources, getSecretObject(instance))
 	var errs []error
 	for _, obj := range resources {
 		wait, err := r.deleteResource(ctx, instance, obj)

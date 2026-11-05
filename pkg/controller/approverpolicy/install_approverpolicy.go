@@ -17,55 +17,31 @@ import (
 )
 
 func (r *Reconciler) reconcileApproverPolicy(ctx context.Context, instance *v1alpha1.ApproverPolicyManager) error {
-	// Apply the ServiceAccount, RBAC, Services, and TLS Secret via SSA. These
-	// must exist before the Deployment is built/applied below.
-	for _, desired := range supportingResources(instance) {
-		if err := r.applyResource(ctx, instance, desired); err != nil {
-			return err
-		}
-	}
-	// Read back the live ServiceAccount to get its server-assigned UID.
-	sa := &corev1.ServiceAccount{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: operandNamespace, Name: operandName}, sa); err != nil {
-		return common.FromClientError(err, "failed to read approver-policy ServiceAccount")
-	}
-	// Build the desired Deployment.
-	deployment, err := getDeploymentObject(instance, sa.UID)
-	if err != nil {
+	// Apply ServiceAccount via SSA.
+	if err := r.createOrApplyServiceAccount(ctx, instance); err != nil {
 		return err
 	}
-	// Apply the Deployment via SSA.
-	if err := r.applyResource(ctx, instance, deployment); err != nil {
+	// Apply TLS Secret via SSA.
+	if err := r.createOrApplySecret(ctx, instance); err != nil {
 		return err
 	}
-	// Apply the ValidatingWebhookConfiguration via SSA.
-	if err := r.applyResource(ctx, instance, getWebhookObject(instance)); err != nil {
+	// Apply RBAC objects via SSA.
+	if err := r.createOrApplyRBACResources(ctx, instance); err != nil {
 		return err
 	}
-	// The cache may lag behind apply. Keep reconciling until it reflects the
-	// desired Deployment and that rollout is ready.
-	observed := &appsv1.Deployment{}
-	if err := r.Get(ctx, client.ObjectKeyFromObject(deployment), observed); err != nil {
-		return common.FromClientError(err, "failed to observe approver-policy Deployment")
+	// Apply Services via SSA.
+	if err := r.createOrApplyServices(ctx, instance); err != nil {
+		return err
 	}
-	// Record the desired (not observed) image so status reflects intent even
-	// while the rollout is still in progress.
-	instance.Status.ApproverPolicyImage = deployment.Spec.Template.Spec.Containers[0].Image
-	// Retry until the cache reflects what was applied and that rollout has
-	// finished successfully; only then is reconciliation considered complete.
-	if deploymentModified(deployment, observed) || !deploymentReady(observed) {
-		return common.NewRetryRequiredError(fmt.Errorf("Deployment %s/%s is not available at the desired generation", operandNamespace, operandName), "waiting for approver-policy rollout")
+	// Apply the Deployment via SSA and wait for its rollout.
+	if err := r.createOrApplyDeployment(ctx, instance); err != nil {
+		return err
+	}
+	// Register the webhook only after its backend Deployment is ready.
+	if err := r.createOrApplyValidatingWebhookConfiguration(ctx, instance); err != nil {
+		return err
 	}
 	return nil
-}
-
-// supportingResources returns every managed resource except the Deployment and
-// webhook, which require the ServiceAccount to exist first.
-func supportingResources(instance *v1alpha1.ApproverPolicyManager) []client.Object {
-	resources := []client.Object{getServiceAccountObject(instance)}
-	resources = append(resources, getRBACObjects(instance)...)
-	resources = append(resources, getServiceObjects(instance)...)
-	return append(resources, getSecretObject(instance))
 }
 
 // applyResource server-side applies desired if it is missing or has drifted from

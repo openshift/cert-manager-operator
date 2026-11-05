@@ -83,6 +83,8 @@ func TestDeploymentConfiguration(t *testing.T) {
 			tc.mutate(instance)
 			obj, err := getDeploymentObject(instance, "")
 			require.NoError(t, err)
+			require.Len(t, obj.Spec.Template.Spec.Containers, 1)
+			require.Equal(t, operandName, obj.Spec.Template.Spec.Containers[0].Name)
 			require.Equal(t, "registry.example/approver@sha256:test", obj.Spec.Template.Spec.Containers[0].Image)
 			tc.check(t, obj)
 		})

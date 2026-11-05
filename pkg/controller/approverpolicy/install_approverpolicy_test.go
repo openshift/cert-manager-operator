@@ -13,6 +13,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,7 +29,10 @@ func desiredResources(t *testing.T, instance *v1alpha1.ApproverPolicyManager) []
 	t.Helper()
 	deployment, err := getDeploymentObject(instance, "")
 	require.NoError(t, err)
-	return append(supportingResources(instance), deployment, getWebhookObject(instance))
+	resources := []client.Object{getServiceAccountObject(instance), getSecretObject(instance)}
+	resources = append(resources, getRBACObjects(instance)...)
+	resources = append(resources, getServiceObjects(instance)...)
+	return append(resources, deployment, getWebhookObject(instance))
 }
 
 func objectID(obj client.Object) string {
@@ -273,6 +277,8 @@ func TestInstallWaitsForCachedResources(t *testing.T) {
 			if scenario == "Deployment cache contains previous rollout" {
 				assert.Zero(t, api.getCalls, "routine reads should stay in the cache")
 				require.Equal(t, 1, c.PatchCallCount())
+				assert.Equal(t, "example.test/approver-policy:test", instance.Status.ApproverPolicyImage,
+					"image status reflects the desired Deployment while the cache contains the previous rollout")
 			} else {
 				assert.Equal(t, 1, api.getCalls, "only the apply ownership check confirms the cache miss")
 				assert.Zero(t, c.PatchCallCount())
@@ -309,23 +315,57 @@ func TestInstallRolloutAndServiceAccountRecreation(t *testing.T) {
 	result, err := r.Reconcile(t.Context(), singletonRequest())
 	require.NoError(t, err)
 	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
-	assert.Len(t, objects, 10)
+	assert.Len(t, objects, 9)
+	appliedKinds := make([]string, 0, c.PatchCallCount())
+	for i := range c.PatchCallCount() {
+		_, applied, _, _ := c.PatchArgsForCall(i)
+		appliedKinds = append(appliedKinds, applied.GetObjectKind().GroupVersionKind().Kind)
+	}
+	assert.Equal(t, []string{
+		"ServiceAccount", "Secret", "ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding",
+		"Service", "Service", "Deployment",
+	}, appliedKinds, "install prerequisites and the workload before registering the webhook")
+	webhookID := objectID(getWebhookObject(instance))
+	assert.NotContains(t, objects, webhookID, "do not register a webhook with an unready backend")
 	assertCondition(t, instance, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress)
 	assert.Equal(t, "example.test/approver-policy:test", instance.Status.ApproverPolicyImage)
 	deployment := objects[objectID(&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: operandName, Namespace: operandNamespace}})].(*appsv1.Deployment)
-	deployment.Status = availableDeploymentStatus(deployment.Generation)
+	assert.Equal(t, "resource-uid", deployment.Spec.Template.Annotations[serviceAccountUIDAnnotation],
+		"the Deployment uses the UID read back after applying the ServiceAccount")
 	patches := c.PatchCallCount()
+	result, err = r.Reconcile(t.Context(), singletonRequest())
+	require.NoError(t, err)
+	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+	assert.Equal(t, patches, c.PatchCallCount(), "waiting for readiness does not reapply resources")
+	assert.NotContains(t, objects, webhookID)
+
+	// Register the webhook once the Deployment is observed ready.
+	deployment.Status = availableDeploymentStatus(deployment.Generation)
+	result, err = r.Reconcile(t.Context(), singletonRequest())
+	require.NoError(t, err)
+	assert.Zero(t, result)
+	assertCondition(t, instance, v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady)
+	require.Equal(t, patches+1, c.PatchCallCount(), "only the webhook is applied after readiness")
+	_, applied, _, _ := c.PatchArgsForCall(patches)
+	assert.IsType(t, &admissionregistrationv1.ValidatingWebhookConfiguration{}, applied)
+	require.Contains(t, objects, webhookID)
+	webhook := objects[webhookID]
+	patches = c.PatchCallCount()
 	_, err = r.Reconcile(t.Context(), singletonRequest())
 	require.NoError(t, err)
 	assertCondition(t, instance, v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady)
 	assert.Equal(t, patches, c.PatchCallCount())
 	account := objects[objectID(getServiceAccountObject(instance))]
 	account.SetUID("replacement-account")
-	_, err = r.Reconcile(t.Context(), singletonRequest())
+	result, err = r.Reconcile(t.Context(), singletonRequest())
 	require.NoError(t, err)
+	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+	assertCondition(t, instance, v1alpha1.Ready, metav1.ConditionFalse, v1alpha1.ReasonInProgress)
 	assert.Equal(t, patches+1, c.PatchCallCount(), "only the Deployment rolls for the new account UID")
-	_, applied, _, _ := c.PatchArgsForCall(patches)
+	_, applied, _, _ = c.PatchArgsForCall(patches)
 	assert.Equal(t, "replacement-account", applied.(*appsv1.Deployment).Spec.Template.Annotations[serviceAccountUIDAnnotation])
+	assert.Same(t, webhook, objects[webhookID], "an existing webhook remains registered during a rollout")
+	assert.Zero(t, c.DeleteCallCount())
 }
 
 func availableDeploymentStatus(generation int64) appsv1.DeploymentStatus {
@@ -334,11 +374,8 @@ func availableDeploymentStatus(generation int64) appsv1.DeploymentStatus {
 		Conditions: []appsv1.DeploymentCondition{{Type: appsv1.DeploymentAvailable, Status: corev1.ConditionTrue}}}
 }
 
-// TestReconcileApproverPolicyFailurePaths exercises the three distinct ways
-// reconcileApproverPolicy can fail before the rollout is even observed:
-// a supporting resource rejected by the apply, an unbuildable Deployment, and
-// the Deployment apply itself being rejected. Each must stop installation
-// immediately and surface the underlying error.
+// TestReconcileApproverPolicyFailurePaths verifies that a build or apply failure
+// stops installation immediately and surfaces the underlying error.
 func TestReconcileApproverPolicyFailurePaths(t *testing.T) {
 	applyErr := errors.New("apply denied")
 	for _, tc := range []struct {
@@ -348,8 +385,20 @@ func TestReconcileApproverPolicyFailurePaths(t *testing.T) {
 		wantPermanent bool
 	}{
 		{
-			name:       "a supporting resource apply is rejected",
+			name:       "the ServiceAccount apply is rejected",
 			failOnKind: reflect.TypeOf(&corev1.ServiceAccount{}),
+		},
+		{
+			name:       "the TLS Secret apply is rejected",
+			failOnKind: reflect.TypeOf(&corev1.Secret{}),
+		},
+		{
+			name:       "an RBAC apply is rejected",
+			failOnKind: reflect.TypeOf(&rbacv1.ClusterRole{}),
+		},
+		{
+			name:       "a Service apply is rejected",
+			failOnKind: reflect.TypeOf(&corev1.Service{}),
 		},
 		{
 			name: "the Deployment cannot be built from an invalid configuration",
@@ -373,14 +422,19 @@ func TestReconcileApproverPolicyFailurePaths(t *testing.T) {
 				tc.mutate(instance)
 			}
 			r, c := testReconciler(t, instance)
-			// Every managed resource is reported absent so every apply in the
-			// install path issues a Patch and the failure injected below is
-			// actually reached. The one exception is the bare, unlabeled
-			// ServiceAccount struct reconcileApproverPolicy reads back purely
-			// for its UID, which must still resolve successfully.
+			// Apply reads report resources absent so each apply is attempted.
+			// Subsequent reads provide the ServiceAccount UID and a ready
+			// Deployment so the webhook apply can also be reached.
 			c.GetCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 				if sa, ok := obj.(*corev1.ServiceAccount); ok && len(sa.GetLabels()) == 0 {
 					sa.UID = "sa-uid"
+					return nil
+				}
+				if deployment, ok := obj.(*appsv1.Deployment); ok && len(deployment.Labels) == 0 {
+					desired, err := getDeploymentObject(instance, "sa-uid")
+					require.NoError(t, err)
+					copyObject(deployment, desired)
+					deployment.Status = availableDeploymentStatus(deployment.Generation)
 					return nil
 				}
 				return apierrors.NewNotFound(v1alpha1.Resource("managed"), key.Name)
@@ -397,6 +451,9 @@ func TestReconcileApproverPolicyFailurePaths(t *testing.T) {
 			assert.Equal(t, tc.wantPermanent, common.IsIrrecoverableError(err))
 			if tc.failOnKind != nil {
 				assert.ErrorIs(t, err, applyErr, "the original apply error must still be reachable")
+				require.Positive(t, c.PatchCallCount())
+				_, lastApplied, _, _ := c.PatchArgsForCall(c.PatchCallCount() - 1)
+				assert.Equal(t, tc.failOnKind, reflect.TypeOf(lastApplied), "do not apply later resources after a failure")
 			}
 		})
 	}

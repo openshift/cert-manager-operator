@@ -51,10 +51,7 @@ func testReconciler(t *testing.T, stored *v1alpha1.ApproverPolicyManager) (*Reco
 			if stored == nil || !stored.DeletionTimestamp.IsZero() {
 				return apierrors.NewNotFound(v1alpha1.Resource("managed"), key.Name)
 			}
-			deployment, err := getDeploymentObject(stored, "")
-			require.NoError(t, err)
-			objects := append(supportingResources(stored), deployment, getWebhookObject(stored))
-			for _, candidate := range objects {
+			for _, candidate := range desiredResources(t, stored) {
 				if reflect.TypeOf(obj) == reflect.TypeOf(candidate) && key == client.ObjectKeyFromObject(candidate) {
 					reflect.ValueOf(obj).Elem().Set(reflect.ValueOf(candidate.DeepCopyObject()).Elem())
 					return nil

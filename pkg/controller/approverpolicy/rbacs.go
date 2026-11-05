@@ -1,6 +1,7 @@
 package approverpolicy
 
 import (
+	"context"
 	"slices"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -10,6 +11,15 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
+
+func (r *Reconciler) createOrApplyRBACResources(ctx context.Context, instance *v1alpha1.ApproverPolicyManager) error {
+	for _, desired := range getRBACObjects(instance) {
+		if err := r.applyResource(ctx, instance, desired); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func getRBACObjects(instance *v1alpha1.ApproverPolicyManager) []client.Object {
 	clusterRole := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(assetName("clusterrole", operandName)))
