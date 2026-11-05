@@ -98,56 +98,15 @@ func validateConfig(instance *v1alpha1.ApproverPolicyManager) error {
 	return nil
 }
 
-// deploymentModified compares managed fields, excluding API-defaulted pod/probe
-// fields. Optional configuration is compared explicitly to detect resets.
+// deploymentModified extends the shared comparison with the pod networking and
+// security fields explicitly managed by approver-policy.
 func deploymentModified(desired, existing *appsv1.Deployment) bool {
-	if managedMetadataModified(desired, existing) ||
-		!ptr.Equal(desired.Spec.Replicas, existing.Spec.Replicas) ||
-		!equality.Semantic.DeepEqual(desired.Spec.Selector, existing.Spec.Selector) ||
-		managedMapModified(desired.Spec.Template.Labels, existing.Spec.Template.Labels, existing, "f:spec", "f:template", "f:metadata", "f:labels") ||
-		managedMapModified(desired.Spec.Template.Annotations, existing.Spec.Template.Annotations, existing, "f:spec", "f:template", "f:metadata", "f:annotations") {
+	if common.DeploymentModified(desired, existing, fieldOwner) {
 		return true
 	}
-	// Compare the container spec explicitly since the API fills in several defaults.
 	a, b := &desired.Spec.Template.Spec, &existing.Spec.Template.Spec
-	if a.ServiceAccountName != b.ServiceAccountName || a.HostNetwork != b.HostNetwork || a.DNSPolicy != b.DNSPolicy ||
-		managedMapModified(a.NodeSelector, b.NodeSelector, existing, "f:spec", "f:template", "f:spec", "f:nodeSelector") ||
-		!equality.Semantic.DeepEqual(a.Affinity, b.Affinity) ||
-		!equality.Semantic.DeepEqual(a.Tolerations, b.Tolerations) ||
-		!equality.Semantic.DeepEqual(a.SecurityContext, b.SecurityContext) ||
-		len(a.Containers) != len(b.Containers) {
-		return true
-	}
-
-	for i := range a.Containers {
-		x, y := &a.Containers[i], &b.Containers[i]
-		if x.Name != y.Name || x.Image != y.Image || x.ImagePullPolicy != y.ImagePullPolicy ||
-			!slices.Equal(x.Args, y.Args) || !equality.Semantic.DeepEqual(x.Resources, y.Resources) ||
-			!equality.Semantic.DeepEqual(x.SecurityContext, y.SecurityContext) ||
-			len(x.Ports) != len(y.Ports) {
-			return true
-		}
-		for j := range x.Ports {
-			p, q := x.Ports[j], y.Ports[j]
-			// Omitted protocol defaults to TCP server-side; not drift.
-			if p.Name != q.Name || p.ContainerPort != q.ContainerPort || q.Protocol != "" && q.Protocol != corev1.ProtocolTCP {
-				return true
-			}
-		}
-		// Compared field-by-field since the API fills in several probe defaults.
-		if x.ReadinessProbe == nil || y.ReadinessProbe == nil {
-			if x.ReadinessProbe != y.ReadinessProbe {
-				return true
-			}
-		} else {
-			p, q := x.ReadinessProbe, y.ReadinessProbe
-			if p.InitialDelaySeconds != q.InitialDelaySeconds || p.PeriodSeconds != q.PeriodSeconds ||
-				p.HTTPGet == nil || q.HTTPGet == nil || p.HTTPGet.Path != q.HTTPGet.Path || p.HTTPGet.Port != q.HTTPGet.Port {
-				return true
-			}
-		}
-	}
-	return false
+	return a.HostNetwork != b.HostNetwork || a.DNSPolicy != b.DNSPolicy ||
+		!equality.Semantic.DeepEqual(a.SecurityContext, b.SecurityContext)
 }
 
 // deploymentReady reports whether the last rollout finished: generation observed,

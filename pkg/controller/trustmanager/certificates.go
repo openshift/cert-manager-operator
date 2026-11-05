@@ -98,7 +98,7 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 
 // issuerModified compares only the fields we manage via SSA.
 func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
-	return managedMetadataModified(desired, existing) ||
+	return common.ManagedMetadataModified(desired, existing, fieldOwner) ||
 		!reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
@@ -106,7 +106,7 @@ func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
 // We compare individual spec fields rather than the full Spec because
 // cert-manager's webhook may default fields we don't set (e.g. Duration).
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
-	if managedMetadataModified(desired, existing) {
+	if common.ManagedMetadataModified(desired, existing, fieldOwner) {
 		return true
 	}
 	if desired.Spec.CommonName != existing.Spec.CommonName ||

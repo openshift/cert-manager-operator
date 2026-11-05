@@ -31,7 +31,7 @@ func TestServiceAccountModified(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existing := desired.DeepCopy()
 			tc.mutate(existing)
-			assert.Equal(t, tc.wantModified, serviceAccountModified(desired, existing))
+			assert.Equal(t, tc.wantModified, resourceModified(desired, existing))
 		})
 	}
 }

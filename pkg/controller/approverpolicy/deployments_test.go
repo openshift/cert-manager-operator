@@ -181,7 +181,7 @@ func TestDeploymentModified(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existing := desired.DeepCopy()
 			tc.mutate(existing)
-			assert.Equal(t, tc.wantModified, deploymentModified(desired, existing))
+			assert.Equal(t, tc.wantModified, resourceModified(desired, existing))
 		})
 	}
 }
@@ -256,7 +256,7 @@ func TestServiceAccountUIDAnnotation(t *testing.T) {
 	require.NoError(t, err)
 	withUID2, err := getDeploymentObject(instance, "sa-uid-2")
 	require.NoError(t, err)
-	assert.True(t, deploymentModified(withUID2, withUID1),
+	assert.True(t, resourceModified(withUID2, withUID1),
 		"a changed ServiceAccount UID must be treated as drift so the Deployment rolls")
 }
 

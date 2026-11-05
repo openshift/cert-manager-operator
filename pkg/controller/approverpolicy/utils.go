@@ -2,11 +2,9 @@ package approverpolicy
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -48,46 +46,6 @@ func prepareResource(instance *v1alpha1.ApproverPolicyManager, obj client.Object
 	maps.Copy(annotations, obj.GetAnnotations())
 	obj.SetAnnotations(annotations)
 	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(instance, v1alpha1.SchemeGroupVersion.WithKind("ApproverPolicyManager"))})
-}
-
-func managedMetadataModified(desired, existing client.Object) bool {
-	return managedMapModified(desired.GetLabels(), existing.GetLabels(), existing, "f:metadata", "f:labels") ||
-		managedMapModified(desired.GetAnnotations(), existing.GetAnnotations(), existing, "f:metadata", "f:annotations") ||
-		!equality.Semantic.DeepEqual(metav1.GetControllerOf(desired), metav1.GetControllerOf(existing))
-}
-
-// Compare desired keys and removals of keys previously owned by our SSA manager.
-// Extra keys from other writers do not constitute drift.
-func managedMapModified(desired, existing map[string]string, obj client.Object, path ...string) bool {
-	for key, value := range desired {
-		if actual, ok := existing[key]; !ok || actual != value {
-			return true
-		}
-	}
-	for _, entry := range obj.GetManagedFields() {
-		if entry.Manager != fieldOwner || entry.Subresource != "" || entry.FieldsV1 == nil {
-			continue
-		}
-		var fields map[string]interface{}
-		if json.Unmarshal(entry.FieldsV1.Raw, &fields) != nil {
-			return true
-		}
-		for _, segment := range path {
-			fields, _ = fields[segment].(map[string]interface{})
-		}
-		for key := range fields {
-			if !strings.HasPrefix(key, "f:") {
-				continue
-			}
-			key = strings.TrimPrefix(key, "f:")
-			if _, wanted := desired[key]; !wanted {
-				if _, present := existing[key]; present {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (r *Reconciler) updateFinalizer(ctx context.Context, instance *v1alpha1.ApproverPolicyManager, add bool) error {

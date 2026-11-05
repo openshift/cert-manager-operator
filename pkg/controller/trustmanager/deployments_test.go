@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
@@ -505,6 +506,46 @@ func TestDeploymentReconciliation(t *testing.T) {
 			},
 			wantExistsCount: 1,
 			wantPatchCount:  0,
+		},
+		{
+			name:     "skip apply for unrelated pod metadata and scheduling keys",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					if err != nil {
+						return false, err
+					}
+					dep.Spec.Template.Labels["external"] = "keep"
+					dep.Spec.Template.Annotations["external"] = "keep"
+					dep.Spec.Template.Spec.NodeSelector["external"] = "keep"
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
+			name:     "apply to remove a previously owned pod annotation",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					if err != nil {
+						return false, err
+					}
+					dep.Spec.Template.Annotations["removed"] = "old"
+					dep.ManagedFields = []metav1.ManagedFieldsEntry{{
+						Manager:  fieldOwner,
+						FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{"f:template":{"f:metadata":{"f:annotations":{"f:removed":{}}}}}}`)},
+					}}
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
 		},
 		{
 			name:     "apply when service account uid changes",

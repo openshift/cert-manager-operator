@@ -142,6 +142,21 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 			wantPatchCount:  0,
 		},
 		{
+			name: "skip apply for API defaults and injected CA",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					vwc := getValidatingWebhookConfigObject(testResourceLabels(), testResourceAnnotations())
+					vwc.Webhooks[0].Rules[0].Scope = ptr.To(admissionregistrationv1.AllScopes)
+					vwc.Webhooks[0].ClientConfig.Service.Port = ptr.To(int32(443))
+					vwc.Webhooks[0].ClientConfig.CABundle = []byte("injected CA")
+					vwc.DeepCopyInto(obj.(*admissionregistrationv1.ValidatingWebhookConfiguration))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+		},
+		{
 			name: "apply when existing has label drift",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {

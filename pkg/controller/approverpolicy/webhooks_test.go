@@ -93,7 +93,7 @@ func TestWebhookModified(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existing := desired.DeepCopy()
 			tc.mutate(existing)
-			assert.Equal(t, tc.wantModified, webhookModified(desired, existing))
+			assert.Equal(t, tc.wantModified, resourceModified(desired, existing))
 		})
 	}
 
@@ -102,7 +102,7 @@ func TestWebhookModified(t *testing.T) {
 		explicitScope.Webhooks[0].Rules[0].Scope = ptr.To(admissionregistrationv1.NamespacedScope)
 		existing := explicitScope.DeepCopy()
 		existing.Webhooks[0].Rules[0].Scope = ptr.To(admissionregistrationv1.AllScopes)
-		assert.True(t, webhookModified(explicitScope, existing),
+		assert.True(t, resourceModified(explicitScope, existing),
 			"when the asset explicitly sets a scope, a differing existing scope must be treated as drift")
 	})
 }

@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -31,23 +30,4 @@ func getRBACObjects(instance *v1alpha1.ApproverPolicyManager) []client.Object {
 		prepareResource(instance, obj)
 	}
 	return objects
-}
-
-func rbacModified(desired, existing client.Object) bool {
-	if managedMetadataModified(desired, existing) {
-		return true
-	}
-	switch desired := desired.(type) {
-	case *rbacv1.ClusterRole:
-		return !equality.Semantic.DeepEqual(desired.Rules, existing.(*rbacv1.ClusterRole).Rules)
-	case *rbacv1.ClusterRoleBinding:
-		actual := existing.(*rbacv1.ClusterRoleBinding)
-		return !equality.Semantic.DeepEqual(desired.RoleRef, actual.RoleRef) || !equality.Semantic.DeepEqual(desired.Subjects, actual.Subjects)
-	case *rbacv1.Role:
-		return !equality.Semantic.DeepEqual(desired.Rules, existing.(*rbacv1.Role).Rules)
-	case *rbacv1.RoleBinding:
-		actual := existing.(*rbacv1.RoleBinding)
-		return !equality.Semantic.DeepEqual(desired.RoleRef, actual.RoleRef) || !equality.Semantic.DeepEqual(desired.Subjects, actual.Subjects)
-	}
-	return false
 }

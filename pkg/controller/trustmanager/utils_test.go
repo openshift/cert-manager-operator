@@ -167,7 +167,7 @@ func TestManagedLabelsModified(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
 			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.existing}}
-			got := managedLabelsModified(desired, existing)
+			got := common.ManagedMapModified(desired.Labels, existing.Labels, existing, fieldOwner, "f:metadata", "f:labels")
 			if got != tt.want {
 				t.Errorf("managedLabelsModified() = %v, want %v", got, tt.want)
 			}
@@ -408,7 +408,7 @@ func TestManagedAnnotationsModified(t *testing.T) {
 			existing := testTrustManager().Build()
 			existing.SetAnnotations(tt.currentAnnotations)
 
-			got := managedAnnotationsModified(desired, existing)
+			got := common.ManagedMapModified(desired.Annotations, existing.Annotations, existing, fieldOwner, "f:metadata", "f:annotations")
 			if got != tt.wantModified {
 				t.Errorf("expected modified=%v, got %v", tt.wantModified, got)
 			}

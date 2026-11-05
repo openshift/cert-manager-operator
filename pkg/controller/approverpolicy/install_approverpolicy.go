@@ -107,20 +107,27 @@ func (r *Reconciler) applyResource(ctx context.Context, instance *v1alpha1.Appro
 
 // resourceModified dispatches to the type-specific drift check applyResource needs
 // to decide whether a write is required.
+// applyResource creates existing by deep-copying desired, so their types match.
 func resourceModified(desired, existing client.Object) bool {
 	switch desired := desired.(type) {
 	case *corev1.ServiceAccount:
-		return serviceAccountModified(desired, existing.(*corev1.ServiceAccount))
+		return common.ServiceAccountModified(desired, existing.(*corev1.ServiceAccount), fieldOwner)
 	case *corev1.Service:
-		return serviceModified(desired, existing.(*corev1.Service))
+		return common.ServiceModified(desired, existing.(*corev1.Service), fieldOwner)
 	case *corev1.Secret:
-		return managedMetadataModified(desired, existing)
+		return common.ManagedMetadataModified(desired, existing, fieldOwner)
 	case *appsv1.Deployment:
 		return deploymentModified(desired, existing.(*appsv1.Deployment))
 	case *admissionregistrationv1.ValidatingWebhookConfiguration:
-		return webhookModified(desired, existing.(*admissionregistrationv1.ValidatingWebhookConfiguration))
-	case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding, *rbacv1.Role, *rbacv1.RoleBinding:
-		return rbacModified(desired, existing)
+		return common.ValidatingWebhookConfigurationModified(desired, existing.(*admissionregistrationv1.ValidatingWebhookConfiguration), fieldOwner)
+	case *rbacv1.ClusterRole:
+		return common.ClusterRoleModified(desired, existing.(*rbacv1.ClusterRole), fieldOwner)
+	case *rbacv1.ClusterRoleBinding:
+		return common.ClusterRoleBindingModified(desired, existing.(*rbacv1.ClusterRoleBinding), fieldOwner)
+	case *rbacv1.Role:
+		return common.RoleModified(desired, existing.(*rbacv1.Role), fieldOwner)
+	case *rbacv1.RoleBinding:
+		return common.RoleBindingModified(desired, existing.(*rbacv1.RoleBinding), fieldOwner)
 	default:
 		return true
 	}
