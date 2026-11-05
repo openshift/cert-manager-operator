@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,7 +79,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -94,7 +96,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -138,6 +140,33 @@ func TestReconcile(t *testing.T) {
 			assertError(t, err, tt.wantErr)
 		})
 	}
+}
+
+func TestReconcileSkipsInstallationWhenDeletionStartsDuringFinalizerUpdate(t *testing.T) {
+	r := testReconciler(t)
+	c := &fakes.FakeCtrlClient{}
+	r.CtrlClient = c
+	stored := testTrustManager().Build()
+	stored.UID = "original"
+	stored.Finalizers = []string{"example.test/other"}
+	c.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
+		stored.DeepCopyInto(obj.(*v1alpha1.TrustManager))
+		if c.GetCallCount() == 1 {
+			// Deletion starts between the initial read and the finalizer read.
+			now := metav1.Now()
+			stored.DeletionTimestamp = &now
+		}
+		return nil
+	})
+
+	result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKey{Name: trustManagerObjectName}})
+	require.NoError(t, err)
+	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+	assert.Equal(t, []string{"example.test/other"}, stored.Finalizers)
+	assert.Zero(t, c.UpdateCallCount())
+	assert.Zero(t, c.ExistsCallCount(), "do not begin reconciling operand resources")
+	assert.Zero(t, c.PatchCallCount())
+	assert.Zero(t, c.StatusUpdateCallCount())
 }
 
 func TestProcessReconcileRequest(t *testing.T) {

@@ -15,7 +15,6 @@ import (
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -49,42 +48,12 @@ func prepareResource(instance *v1alpha1.ApproverPolicyManager, obj client.Object
 }
 
 func (r *Reconciler) updateFinalizer(ctx context.Context, instance *v1alpha1.ApproverPolicyManager, add bool) error {
-	if controllerutil.ContainsFinalizer(instance, finalizer) == add {
-		return nil
+	updated, err := common.UpdateFinalizer(ctx, r.CtrlClient, instance, v1alpha1.Resource("approverpolicymanagers"), finalizer, add)
+	if err != nil {
+		return err
 	}
-	key := client.ObjectKeyFromObject(instance)
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &v1alpha1.ApproverPolicyManager{}
-		if err := r.Get(ctx, key, current); err != nil {
-			return err
-		}
-		if current.UID != instance.UID {
-			return apierrors.NewConflict(v1alpha1.Resource("approverpolicymanagers"), key.Name,
-				fmt.Errorf("ApproverPolicyManager was replaced during reconciliation"))
-		}
-		if add && !current.DeletionTimestamp.IsZero() {
-			current.DeepCopyInto(instance)
-			return nil
-		}
-		var changed bool
-		if add {
-			changed = controllerutil.AddFinalizer(current, finalizer)
-		} else {
-			changed = controllerutil.RemoveFinalizer(current, finalizer)
-		}
-		if changed {
-			if err := r.Update(ctx, current); err != nil {
-				return err
-			}
-			if add {
-				r.log.V(1).Info("added finalizer", "name", current.Name)
-			} else {
-				r.log.V(1).Info("removed finalizer", "name", current.Name)
-			}
-		}
-		current.DeepCopyInto(instance)
-		return nil
-	})
+	*instance = *updated
+	return nil
 }
 
 func (r *Reconciler) updateStatus(ctx context.Context, instance *v1alpha1.ApproverPolicyManager, desired v1alpha1.ConditionalStatus) error {
