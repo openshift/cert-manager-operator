@@ -187,11 +187,11 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--leader-elect=true",
 				"--webhook-port=6443",
 				"--metrics-port=9402",
+				"--filter-non-ca-certs=true",
 			},
 			notExpectedArgs: []string{
 				"--secret-targets-enabled=true",
 				"--filter-expired-certificates=true",
-				"--filter-non-ca-certs=true",
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
 		},

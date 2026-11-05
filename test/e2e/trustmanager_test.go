@@ -632,7 +632,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 		})
 
 		It("should not have filter-non-ca-certs arg when filterNonCACerts is Disabled", func() {
-			createTrustManager(ctx, newTrustManagerCR())
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.Disabled))
 
 			By("verifying deployment args do not contain --filter-non-ca-certs=true")
 			Eventually(func(g Gomega) {
@@ -1650,6 +1651,7 @@ func verifyTrustManagerDefaultContainerArgs(args []string) {
 	Expect(args).Should(ContainElement("--webhook-host=0.0.0.0"))
 	Expect(args).Should(ContainElement("--webhook-port=6443"))
 	Expect(args).Should(ContainElement("--webhook-certificate-dir=/tls"))
+	Expect(args).Should(ContainElement("--filter-non-ca-certs=true"))
 }
 
 // verifyTrustManagerResourceRecreation deletes a resource and verifies it is recreated
