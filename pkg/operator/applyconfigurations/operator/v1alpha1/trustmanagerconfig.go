@@ -34,8 +34,8 @@ type TrustManagerConfigApplyConfiguration struct {
 	// filterNonCACerts controls whether trust-manager filters out
 	// non-CA certificates from trust bundles before distributing them.
 	// When set to "Enabled", only certificates with the X.509 basicConstraints
-	// CA bit set are included in bundles.
-	// When set to "Disabled", non-CA certificates are included (default behavior).
+	// CA bit set are included in bundles (default behavior).
+	// When set to "Disabled", non-CA certificates are included.
 	FilterNonCACerts *operatorv1alpha1.Mode `json:"filterNonCACerts,omitempty"`
 	// defaultCAPackage configures the default CA package for trust-manager.
 	// When enabled, the operator will use OpenShift's trusted CA bundle injection mechanism.

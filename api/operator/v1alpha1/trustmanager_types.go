@@ -123,9 +123,9 @@ type TrustManagerConfig struct {
 	// filterNonCACerts controls whether trust-manager filters out
 	// non-CA certificates from trust bundles before distributing them.
 	// When set to "Enabled", only certificates with the X.509 basicConstraints
-	// CA bit set are included in bundles.
-	// When set to "Disabled", non-CA certificates are included (default behavior).
-	// +kubebuilder:default:="Disabled"
+	// CA bit set are included in bundles (default behavior).
+	// When set to "Disabled", non-CA certificates are included.
+	// +kubebuilder:default:="Enabled"
 	// +kubebuilder:validation:Enum:=Enabled;Disabled
 	// +kubebuilder:validation:Optional
 	// +optional

@@ -150,7 +150,8 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--filter-expired-certificates=true")
 	}
 
-	if config.FilterNonCACerts == v1alpha1.Enabled {
+	// Empty matches the API default (Enabled). Disabled is the only opt-out.
+	if config.FilterNonCACerts != v1alpha1.Disabled {
 		args = append(args, "--filter-non-ca-certs=true")
 	}
 
