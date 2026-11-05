@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -24,17 +23,27 @@ import (
 	"k8s.io/client-go/restmapper"
 )
 
+// FailureReporter is the subset of testing.T / GinkgoT used by this loader.
+// Prefer GinkgoT() in e2e suites: a bare &testing.T{} is not wired into the
+// running spec, so require.NoError FailNow() surfaces as a nil panic with no error text.
+type FailureReporter interface {
+	Helper()
+	Logf(format string, args ...any)
+	Errorf(format string, args ...any)
+	FailNow()
+}
+
 type DynamicResourceLoader struct {
 	KubeClient    kubernetes.Interface
 	DynamicClient dynamic.Interface
 
 	context context.Context
-	t       *testing.T
+	t       FailureReporter
 }
 
-type doFunc func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface)
+type doFunc func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface)
 
-func NewDynamicResourceLoader(context context.Context, t *testing.T) DynamicResourceLoader {
+func NewDynamicResourceLoader(context context.Context, t FailureReporter) DynamicResourceLoader {
 	k, d := NewClientsConfigForTest(t)
 	return DynamicResourceLoader{
 		KubeClient:    k,
@@ -156,7 +165,7 @@ func (d DynamicResourceLoader) do(do doFunc, assetFunc func(name string) ([]byte
 
 func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Deleting resource %v\n", filename)
-	deleteFunc := func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
+	deleteFunc := func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
 		err := retryRetriable(d.context, func(ctx context.Context) error {
 			err := dynamicResourceInterface.Delete(ctx, unstructured.GetName(), metav1.DeleteOptions{})
 			if k8serrors.IsNotFound(err) {
@@ -173,7 +182,7 @@ func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byt
 
 func (d DynamicResourceLoader) CreateFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Creating resource %v\n", filename)
-	createFunc := func(t *testing.T, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
+	createFunc := func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
 		_, err := dynamicResourceInterface.Create(context.TODO(), unstructured, metav1.CreateOptions{})
 		d.noErrorSkipExists(err)
 	}
