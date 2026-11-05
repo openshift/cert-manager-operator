@@ -66,7 +66,8 @@ func NewClientReaderAPIServerFetch(r ObjectGetter) FetchAPIServerFunc {
 
 // ResolveHonoredTLSProfile fetches the cluster APIServer via fetch and, when
 // tlsAdherence requires enforcement, returns EffectiveSpec. A nil profile with
-// a nil error means the caller should leave existing TLS settings unchanged.
+// a nil error means the caller must not inject cluster-profile TLS flags
+// (and should strip any previously injected profile flags).
 func ResolveHonoredTLSProfile(ctx context.Context, fetch FetchAPIServerFunc, component string, mode FetchErrorMode) (*configv1.TLSProfileSpec, error) {
 	if fetch == nil {
 		return nil, fmt.Errorf("APIServer fetch function is nil")
@@ -96,6 +97,52 @@ func ResolveHonoredTLSProfile(ctx context.Context, fetch FetchAPIServerFunc, com
 	}
 
 	return EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+}
+
+// ResolvedProfile is the cluster TLS state used to configure the operator
+// metrics server and to seed SecurityProfileWatcher. Spec is the effective
+// profile even when Honor is false. The watcher restarts on a profile change
+// only when Honor is true, and whenever Honor flips.
+type ResolvedProfile struct {
+	// Adherence is the raw tlsAdherence value (may be empty).
+	Adherence configv1.TLSAdherencePolicy
+	// Spec is the effective TLS profile. Empty when Unresolvable is true.
+	Spec configv1.TLSProfileSpec
+	// Honor is true when ShouldHonorClusterTLSProfile(Adherence) is true.
+	Honor bool
+	// Unresolvable is true when the profile could not be resolved and Honor
+	// is false, so startup left Controllercmd defaults in place. Spec is then
+	// not meaningful.
+	Unresolvable bool
+}
+
+// ResolveFromAPIServer resolves TLS settings from an already-fetched APIServer.
+// A nil APIServer is treated as empty (Intermediate spec, empty adherence).
+// Custom profiles with missing settings and unrecognized profile types return
+// an error; Adherence and Honor are still populated so callers can decide
+// whether that error is fatal.
+func ResolveFromAPIServer(apiServer *configv1.APIServer) (ResolvedProfile, error) {
+	if apiServer == nil {
+		apiServer = &configv1.APIServer{}
+	}
+
+	adherence := apiServer.Spec.TLSAdherence
+	honor := libgocrypto.ShouldHonorClusterTLSProfile(adherence)
+	if adherence != configv1.TLSAdherencePolicyNoOpinion &&
+		adherence != configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly &&
+		adherence != configv1.TLSAdherencePolicyStrictAllComponents {
+		klog.Warningf("apiserver.config.openshift.io/%s has unknown tlsAdherence %q; treating as StrictAllComponents", APIServerClusterName, adherence)
+	}
+
+	spec, err := EffectiveSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return ResolvedProfile{Adherence: adherence, Honor: honor}, err
+	}
+	return ResolvedProfile{
+		Adherence: adherence,
+		Spec:      *spec,
+		Honor:     honor,
+	}, nil
 }
 
 // ClusterAPIServerTLSConfigChanged reports whether TLS fields that this

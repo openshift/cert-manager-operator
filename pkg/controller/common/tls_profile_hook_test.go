@@ -50,12 +50,14 @@ func (f *fakeAPIServerLister) Get(name string) (*configv1.APIServer, error) {
 	return nil, fmt.Errorf("apiserver.config.openshift.io %q not found", name)
 }
 
+// newFakeAPIServerInformer returns an APIServer informer backed by the given object.
 func newFakeAPIServerInformer(apiServer *configv1.APIServer) configv1informer.APIServerInformer {
 	return &fakeAPIServerInformer{
 		lister: &fakeAPIServerLister{apiServer: apiServer},
 	}
 }
 
+// apiserverCluster returns a cluster APIServer with the given TLS profile and adherence.
 func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence configv1.TLSAdherencePolicy) *configv1.APIServer {
 	return &configv1.APIServer{
 		ObjectMeta: metav1.ObjectMeta{
@@ -68,6 +70,7 @@ func apiserverCluster(tlsProfile *configv1.TLSSecurityProfile, tlsAdherence conf
 	}
 }
 
+// TestWithClusterTLSProfileFromAPIServer_Webhook checks webhook TLS args for each adherence and profile case.
 func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -289,6 +292,28 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "webhook strips leftover Intermediate TLS flags when tlsAdherence becomes Legacy",
+			tlsProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+			tlsAdherence:   configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			deploymentName: certmanagerWebhookDeployment,
+			containerCount: 1,
+			existingArgs: []string{
+				"--v=2",
+				"--secure-port=10250",
+				"--tls-min-version=VersionTLS12",
+				"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+				"--metrics-tls-min-version=VersionTLS12",
+				"--metrics-tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+			},
+			expectedArgs: []string{
+				"--v=2",
+				"--secure-port=10250",
+			},
+			expectError: false,
+		},
+		{
 			name: "webhook does not get cluster TLS flags when tlsAdherence is unset",
 			tlsProfile: &configv1.TLSSecurityProfile{
 				Type: configv1.TLSProfileIntermediateType,
@@ -375,6 +400,7 @@ func TestWithClusterTLSProfileFromAPIServer_Webhook(t *testing.T) {
 	}
 }
 
+// TestWithClusterTLSProfileFromAPIServer_Controller checks controller metrics TLS args for each adherence and profile case.
 func TestWithClusterTLSProfileFromAPIServer_Controller(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -427,6 +453,24 @@ func TestWithClusterTLSProfileFromAPIServer_Controller(t *testing.T) {
 			existingArgs: []string{
 				"--v=2",
 				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+			},
+			expectedArgs: []string{
+				"--v=2",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+			},
+		},
+		{
+			name: "controller strips leftover Intermediate metrics TLS flags when tlsAdherence becomes Legacy",
+			tlsProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+			tlsAdherence:   configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			deploymentName: certmanagerControllerDeployment,
+			existingArgs: []string{
+				"--v=2",
+				"--cluster-resource-namespace=$(POD_NAMESPACE)",
+				"--metrics-tls-min-version=VersionTLS12",
+				"--metrics-tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
 			},
 			expectedArgs: []string{
 				"--v=2",

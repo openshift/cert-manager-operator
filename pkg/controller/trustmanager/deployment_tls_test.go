@@ -340,6 +340,7 @@ func TestApplyClusterTLSProfile_invalidCustomPropagates(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_forbiddenPropagates checks that a Forbidden API error is returned to the caller.
 func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 	r := testReconciler(t)
@@ -364,6 +365,7 @@ func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_nilClientIsNoop checks that a nil client leaves the deployment unchanged.
 func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 	r := testReconciler(t)
 	r.CtrlClient = nil
@@ -388,6 +390,47 @@ func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 	}
 }
 
+// TestApplyClusterTLSProfile_legacyStripsStaleArgs checks that Legacy adherence removes leftover profile TLS flags.
+func TestApplyClusterTLSProfile_legacyStripsStaleArgs(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+		},
+	}
+	r := testReconciler(t)
+	r.CtrlClient = fakeCtrlClientWithAPIServer(apiServer)
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: trustManagerContainerName,
+						Args: []string{
+							"--webhook-port=6443",
+							"--tls-min-version=VersionTLS12",
+							"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+						},
+					}},
+				},
+			},
+		},
+	}
+	if err := r.applyClusterTLSProfile(dep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := dep.Spec.Template.Spec.Containers[0].Args
+	if len(got) != 1 || got[0] != "--webhook-port=6443" {
+		t.Fatalf("expected leftover profile TLS flags stripped, got %#v", got)
+	}
+}
+
 func TestApplyTrustManagerWebhookTLSArgs_missingContainer(t *testing.T) {
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
@@ -405,6 +448,64 @@ func TestApplyTrustManagerWebhookTLSArgs_missingContainer(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for missing container")
+	}
+}
+
+func TestCreateOrApplyDeployment_legacyStripsStaleTLSArgs(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileIntermediateType,
+			},
+		},
+	}
+	r := testReconciler(t)
+	mock := fakeCtrlClientWithAPIServer(apiServer)
+	var patched *appsv1.Deployment
+	mock.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
+		dep := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: operandNamespace},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name: trustManagerContainerName,
+							Args: []string{
+								"--webhook-port=6443",
+								"--tls-min-version=VersionTLS12",
+								"--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+							},
+						}},
+					},
+				},
+			},
+		}
+		withServiceAccountUID(dep, testServiceAccountUID)
+		dep.DeepCopyInto(obj.(*appsv1.Deployment))
+		return true, nil
+	})
+	mock.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
+		patched = obj.(*appsv1.Deployment).DeepCopy()
+		return nil
+	})
+	r.CtrlClient = mock
+
+	tm := testTrustManager().Build()
+	if err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), ""); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if patched == nil {
+		t.Fatal("expected Patch when leftover profile TLS flags are present under Legacy")
+	}
+	argMap := containerArgMap(patched)
+	if _, ok := argMap["--tls-min-version"]; ok {
+		t.Fatalf("patched deployment still has --tls-min-version: %#v", argMap)
+	}
+	if _, ok := argMap["--tls-cipher-suites"]; ok {
+		t.Fatalf("patched deployment still has --tls-cipher-suites: %#v", argMap)
 	}
 }
 

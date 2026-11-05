@@ -16,7 +16,13 @@ const (
 
 // withOperandMetricsTLS enables HTTPS on the cert-manager operand metrics
 // listeners (port 9402) using cert-manager's dynamic metrics serving CA.
+// HTTPS is always enabled, including the default cluster TLS configuration.
 // Cipher/min-version flags continue to come from WithClusterTLSProfileFromAPIServer.
+//
+// The prometheus.io/scheme annotation does not change a ServiceMonitor.
+// Each serving certificate lists only that Service's DNS names, so a scrape
+// must use scheme https, trust Secret cert-manager-metrics-ca key ca.crt, and
+// set serverName to <service>.<namespace>.svc. See docs/operand_metrics.md.
 func withOperandMetricsTLS(_ *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	if len(deployment.Spec.Template.Spec.Containers) != 1 {
 		return fmt.Errorf("deployment %s/%s: expected 1 container for metrics TLS hook, got %d",

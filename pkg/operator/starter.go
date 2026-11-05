@@ -3,9 +3,11 @@ package operator
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,6 +28,7 @@ import (
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
+	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 const (
@@ -44,7 +47,16 @@ var CloudCredentialSecret string
 // that the operator optionally enables, and is provided as a runtime arg.
 var UnsupportedAddonFeatures string
 
-func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error {
+// OperatorTLSWatch is the cluster TLS profile applied (or deliberately skipped)
+// on the operator metrics server at process start. Enabled is false when there
+// is no HTTPS server to reconfigure, or when startup could not read a baseline.
+type OperatorTLSWatch struct {
+	Resolved tlsprofile.ResolvedProfile
+	Enabled  bool
+}
+
+// RunOperator starts the cert-manager controllers and restarts the process when the honored cluster TLS profile changes, or when whether that profile is honored changes.
+func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWatch OperatorTLSWatch) error {
 	// Set controller-runtime logger before any ctrl.Log usage (e.g. NewControllerManager).
 	// Uses klog so --v flag controls verbosity for both library-go and controller-runtime.
 	ctrl.SetLogger(klog.NewKlogr())
@@ -86,6 +98,10 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 
 	configClient, err := configv1client.NewForConfig(cc.KubeConfig)
 	if err != nil {
+		return err
+	}
+
+	if err := startTLSSecurityProfileWatcher(ctx, configClient, tlsWatch); err != nil {
 		return err
 	}
 
@@ -182,6 +198,38 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	}
 
 	<-ctx.Done()
+	return nil
+}
+
+// startTLSSecurityProfileWatcher restarts the process when the honored cluster
+// TLS profile changes, or when whether that profile is honored changes. The
+// metrics HTTPS server is configured only at process start, so it cannot pick
+// up either change in place. A profile edit that stays on Legacy does not restart.
+func startTLSSecurityProfileWatcher(ctx context.Context, configClient configv1client.Interface, tlsWatch OperatorTLSWatch) error {
+	if !tlsWatch.Enabled {
+		return nil
+	}
+
+	configInformers := configinformers.NewSharedInformerFactory(configClient, resyncInterval)
+	tlsWatcher := &tlsprofile.SecurityProfileWatcher{
+		InitialTLSProfileSpec:     tlsWatch.Resolved.Spec,
+		InitialTLSAdherencePolicy: tlsWatch.Resolved.Adherence,
+		InitialUnresolvable:       tlsWatch.Resolved.Unresolvable,
+		OnChange: func() {
+			// HTTPS cannot be reconfigured in place. RequestShutdown follows the
+			// SIGTERM path already wired in the start command; os.Exit(0) is only
+			// a fallback if that signal handler is missing.
+			klog.Info("TLS security profile or adherence changed; requesting graceful operator restart")
+			if !apiserver.RequestShutdown() {
+				klog.Warning("failed to request a graceful shutdown, exiting directly")
+				os.Exit(0)
+			}
+		},
+	}
+	if err := tlsWatcher.Start(configInformers.Config().V1().APIServers()); err != nil {
+		return fmt.Errorf("failed to start TLS security profile watcher: %w", err)
+	}
+	go configInformers.Start(ctx.Done())
 	return nil
 }
 

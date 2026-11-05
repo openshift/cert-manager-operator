@@ -115,12 +115,12 @@ Expectations for anyone touching this:
 
 ## The `fips-compliant` CSV Annotation
 
-```283:287:bundle/manifests/cert-manager-operator.clusterserviceversion.yaml
+```301:305:bundle/manifests/cert-manager-operator.clusterserviceversion.yaml
     features.operators.openshift.io/csi: "false"
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "true"
     features.operators.openshift.io/proxy-aware: "true"
-    features.operators.openshift.io/tls-profiles: "false"
+    features.operators.openshift.io/tls-profiles: "true"
 ```
 
 This annotation is generated/maintained as part of the OLM bundle
