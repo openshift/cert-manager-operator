@@ -551,17 +551,20 @@ func ensureServiceMeshForSmoke(ctx context.Context, cfg *rest.Config, loader lib
 	return ossmIstioSystemNamespace, nil
 }
 
-func labelNamespaceForIstioInjection(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
-	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
-		ns, err := clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+func labelNamespaceForIstioInjection(ctx context.Context, clientset kubernetes.Interface, namespace string) error {
+	return wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(pollCtx context.Context) (bool, error) {
+		ns, err := clientset.CoreV1().Namespaces().Get(pollCtx, namespace, metav1.GetOptions{})
 		if err != nil {
+			if isRetriableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		if ns.Labels == nil {
 			ns.Labels = map[string]string{}
 		}
 		ns.Labels[ossmIstioInjectionLabel] = ossmIstioInjectionEnabled
-		_, err = clientset.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
+		_, err = clientset.CoreV1().Namespaces().Update(pollCtx, ns, metav1.UpdateOptions{})
 		if err != nil {
 			return false, nil
 		}

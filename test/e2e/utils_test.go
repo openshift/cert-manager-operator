@@ -1477,11 +1477,11 @@ func pollTillDeploymentAvailableWithTimeout(ctx context.Context, clientSet *kube
 
 // pollTillConfigMapAvailable poll the configmap object and returns non-nil error
 // once the configmap is available, otherwise should return a time-out error
-func pollTillConfigMapAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace, configMapName string) error {
-	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+func pollTillConfigMapAvailable(ctx context.Context, clientset kubernetes.Interface, namespace, configMapName string) error {
+	err := wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(pollCtx context.Context) (bool, error) {
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(pollCtx, configMapName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -1494,14 +1494,23 @@ func pollTillConfigMapAvailable(ctx context.Context, clientset *kubernetes.Clien
 }
 
 // pollTillConfigMapRemains poll to ensure a configmap does NOT exist for a specified duration
-// Returns nil if the configmap consistently does not exist, error if it gets created
-func pollTillConfigMapRemains(ctx context.Context, clientset *kubernetes.Clientset, namespace, configMapName string, duration time.Duration) error {
-	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, duration, true, func(context.Context) (bool, error) {
-		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
+// Returns nil if the configmap consistently does not exist, error if it gets created or if the
+// poll never managed to observe the configmap's absence
+func pollTillConfigMapRemains(ctx context.Context, clientset kubernetes.Interface, namespace, configMapName string, duration time.Duration) error {
+	observedAbsent := false
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, duration, true, func(pollCtx context.Context) (bool, error) {
+		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(pollCtx, configMapName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
+				observedAbsent = true
 				// ConfigMap doesn't exist, which is what we want
 				return false, nil // Continue polling to ensure it stays absent
+			}
+			if isRetriableAPIError(err) {
+				// A transient API failure says nothing about whether the ConfigMap
+				// exists, so keep polling rather than failing the spec on a 504.
+				fmt.Fprintf(GinkgoWriter, "ignoring transient error checking configmap %s/%s: %v\n", namespace, configMapName, err)
+				return false, nil
 			}
 			return false, err // Some other error occurred
 		}
@@ -1510,12 +1519,41 @@ func pollTillConfigMapRemains(ctx context.Context, clientset *kubernetes.Clients
 		return false, fmt.Errorf("configmap %s/%s should not exist but was found", namespace, configMapName)
 	})
 
-	// If we timed out without the ConfigMap being created, that's success
+	// If we timed out without the ConfigMap being created, that's success, but only
+	// once a GET has actually confirmed the ConfigMap was absent. Otherwise a poll
+	// that only ever saw transient errors would report success without evidence.
 	if wait.Interrupted(err) {
+		if !observedAbsent {
+			return fmt.Errorf("configmap %s/%s absence was not observed before the poll ended", namespace, configMapName)
+		}
 		return nil
 	}
 
 	return err
+}
+
+// getConfigMapRetrying fetches a configmap, retrying transient API errors so a single
+// kube-apiserver 504 does not fail the calling spec.
+func getConfigMapRetrying(ctx context.Context, clientset kubernetes.Interface, namespace, configMapName string) (*corev1.ConfigMap, error) {
+	var configMap *corev1.ConfigMap
+
+	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, lowTimeout, true, func(pollCtx context.Context) (bool, error) {
+		cm, err := clientset.CoreV1().ConfigMaps(namespace).Get(pollCtx, configMapName, metav1.GetOptions{})
+		if err != nil {
+			if isRetriableAPIError(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		configMap = cm
+
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return configMap, nil
 }
 
 // VerifyContainerResources verifies that a container in a pod has resources matching the expected configuration.
