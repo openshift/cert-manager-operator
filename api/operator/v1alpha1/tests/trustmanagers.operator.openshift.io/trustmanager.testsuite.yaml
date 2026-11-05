@@ -22,7 +22,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should not allow creating TrustManager with invalid name
     resourceName: invalid-name
@@ -53,7 +53,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should not allow logLevel below minimum
     resourceName: cluster
@@ -95,7 +95,7 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should not allow invalid logFormat
     resourceName: cluster
@@ -127,7 +127,7 @@ tests:
           logFormat: text
           trustNamespace: custom-namespace
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   # ==========================================
   # FilterExpiredCertificates Tests
@@ -216,7 +216,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -255,7 +255,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -323,7 +323,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           resources:
             requests:
               cpu: 100m
@@ -357,7 +357,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -388,7 +388,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           tolerations:
             - key: node-role.kubernetes.io/master
               operator: Exists
@@ -412,7 +412,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           nodeSelector:
             kubernetes.io/os: linux
 
@@ -438,7 +438,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
         controllerConfig:
           labels:
             app.kubernetes.io/managed-by: cert-manager-operator
@@ -462,7 +462,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
         controllerConfig:
           annotations:
             custom-annotation: custom-value
@@ -489,7 +489,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           webhookTLS:
             certManager:
               certificateDuration: 8760h
@@ -525,7 +525,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           webhookTLS:
             certManager:
               certificateDuration: 1h
@@ -561,7 +561,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           webhookTLS:
             certManager:
               certificateRenewBefore: 5m
@@ -623,7 +623,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           webhookTLS:
             certManager:
               certificateDuration: 1h
@@ -649,7 +649,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           webhookTLS:
             certManager:
               issuerRef:
@@ -741,7 +741,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should allow updating logFormat
     resourceName: cluster
@@ -766,7 +766,7 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
 
   - name: Should allow updating filterExpiredCertificates
     resourceName: cluster
@@ -845,7 +845,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -876,7 +876,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -912,7 +912,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -946,7 +946,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           secretTargets:
             policy: Disabled
 
@@ -1022,7 +1022,7 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
