@@ -60,7 +60,7 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 	// Create the CertificateRequestPolicy and RBAC before the Certificate.
 	// The Certificate's CertificateRequest is approved only when those resources
 	// already exist, and a denied CertificateRequest is not retried.
-	// When bootstrapResources is not Enabled, this deletes them only if
+	// When bootstrapResources is Disabled, this deletes them only if
 	// status.certificateRequestPolicy records them and the live objects carry
 	// this operator's managed-by label.
 	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
