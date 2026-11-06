@@ -487,7 +487,7 @@ func TestCreateOrApplyDeployment_legacyStripsStaleTLSArgs(t *testing.T) {
 		dep.DeepCopyInto(obj.(*appsv1.Deployment))
 		return true, nil
 	})
-	mock.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
+	mock.ApplyCalls(func(_ context.Context, obj client.Object, _ ...client.ApplyOption) error {
 		patched = obj.(*appsv1.Deployment).DeepCopy()
 		return nil
 	})
@@ -498,7 +498,7 @@ func TestCreateOrApplyDeployment_legacyStripsStaleTLSArgs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if patched == nil {
-		t.Fatal("expected Patch when leftover profile TLS flags are present under Legacy")
+		t.Fatal("expected Apply when leftover profile TLS flags are present under Legacy")
 	}
 	argMap := containerArgMap(patched)
 	if _, ok := argMap["--tls-min-version"]; ok {
