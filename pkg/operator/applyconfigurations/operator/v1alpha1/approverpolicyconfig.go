@@ -15,11 +15,11 @@ type ApproverPolicyConfigApplyConfiguration struct {
 	// bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
 	// and associated RBAC required for approver-policy to approve the webhook certificate.
 	//
-	// Enabled creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
-	// Disabled (default) does not create them. Flipping from Enabled to Disabled deletes those
+	// Enabled (default) creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
+	// Disabled does not create them. Flipping from Enabled to Disabled deletes those
 	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
 	//
-	// Setting this to "Enabled" requires cert-manager approver-policy to be installed.
+	// When Enabled, cert-manager approver-policy must be installed.
 	BootstrapResources *operatorv1alpha1.Mode `json:"bootstrapResources,omitempty"`
 }
 

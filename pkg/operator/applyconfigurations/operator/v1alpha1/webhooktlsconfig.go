@@ -12,7 +12,7 @@ type WebhookTLSConfigApplyConfiguration struct {
 	CertManager *TrustManagerCertConfigApplyConfiguration `json:"certManager,omitempty"`
 	// approverPolicy configures a CertificateRequestPolicy so that
 	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Resources are created when bootstrapResources is Enabled and removed when it is Disabled.
+	// Resources are created when bootstrapResources is Enabled (the default) and removed when it is Disabled.
 	// If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
 	// approver-policy is installed or bootstrapResources is set to Disabled.
 	ApproverPolicy *ApproverPolicyConfigApplyConfiguration `json:"approverPolicy,omitempty"`

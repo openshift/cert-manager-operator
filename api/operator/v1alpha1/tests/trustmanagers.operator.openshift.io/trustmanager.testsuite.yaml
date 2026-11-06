@@ -23,6 +23,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow creating TrustManager with invalid name
     resourceName: invalid-name
@@ -54,6 +57,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow logLevel below minimum
     resourceName: cluster
@@ -96,6 +102,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid logFormat
     resourceName: cluster
@@ -128,6 +137,9 @@ tests:
           trustNamespace: custom-namespace
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   # ==========================================
   # FilterExpiredCertificates Tests
@@ -151,6 +163,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
           filterNonCACerts: Disabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid filterExpiredCertificates value
     resourceName: cluster
@@ -184,6 +199,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid filterNonCACerts value
     resourceName: cluster
@@ -217,6 +235,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -256,6 +277,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -324,6 +348,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           resources:
             requests:
               cpu: 100m
@@ -358,6 +385,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -389,6 +419,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           tolerations:
             - key: node-role.kubernetes.io/master
               operator: Exists
@@ -413,6 +446,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           nodeSelector:
             kubernetes.io/os: linux
 
@@ -439,6 +475,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
         controllerConfig:
           labels:
             app.kubernetes.io/managed-by: cert-manager-operator
@@ -463,6 +502,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
         controllerConfig:
           annotations:
             custom-annotation: custom-value
@@ -491,6 +533,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -530,6 +574,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -569,6 +615,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -634,6 +682,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -663,6 +713,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -777,6 +829,8 @@ tests:
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
           webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
             certManager:
               privateKeyAlgorithm: RSA
               privateKeyRotationPolicy: Always
@@ -827,6 +881,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating logFormat
     resourceName: cluster
@@ -852,6 +909,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating filterExpiredCertificates
     resourceName: cluster
@@ -879,6 +939,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
           filterNonCACerts: Disabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating filterNonCACerts
     resourceName: cluster
@@ -904,6 +967,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster
@@ -931,6 +997,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -962,6 +1031,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -998,6 +1070,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -1032,6 +1107,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Disabled
 
@@ -1108,6 +1186,9 @@ tests:
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
           filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:

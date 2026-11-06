@@ -128,12 +128,13 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 	}{
 		{
 			name:            "skips approver policy cleanup when status does not record a policy",
+			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.Disabled),
 			wantExistsCount: 0,
 			wantDeleteCount: 0,
 		},
 		{
 			name:      "deletes managed approver policy resources recorded in status",
-			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					markOperatorManaged(obj)
@@ -150,13 +151,13 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		},
 		{
 			name:            "skips delete when recorded approver policy resources are already absent",
-			tmBuilder:       testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			wantExistsCount: 3,
 			wantDeleteCount: 0,
 		},
 		{
 			name:      "leaves an existing policy that this operator does not manage",
-			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					obj.SetLabels(map[string]string{"app.kubernetes.io/managed-by": "helm"})
@@ -168,7 +169,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		},
 		{
 			name:      "ignores missing CertificateRequestPolicy CRD when disabled",
-			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					if _, ok := obj.(*policyv1alpha1.CertificateRequestPolicy); ok {
@@ -182,7 +183,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		},
 		{
 			name:      "returns error when deleting approver policy RBAC fails",
-			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					markOperatorManaged(obj)
