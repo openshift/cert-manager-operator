@@ -21,6 +21,13 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)
 	}
 
+	// NetworkPolicies first so ingress/egress restrictions are in place before
+	// workloads and other cluster-scoped resources are reconciled.
+	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels); err != nil {
+		r.log.Error(err, "failed to reconcile network policy resources")
+		return err
+	}
+
 	caBundleHash, err := r.createOrApplyDefaultCAPackageConfigMap(trustManager, resourceLabels, resourceAnnotations)
 	if err != nil {
 		r.log.Error(err, "failed to reconcile default CA package ConfigMap")
@@ -39,11 +46,6 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 
 	if err := r.createOrApplyServices(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile service resources")
-		return err
-	}
-
-	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels); err != nil {
-		r.log.Error(err, "failed to reconcile network policy resources")
 		return err
 	}
 
