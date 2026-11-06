@@ -322,14 +322,14 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name:    "unset nodeSelector ignores fetched value",
+			name:    "cleared nodeSelector is drift when live Deployment still has it",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
 				d.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
 				return d
 			}(),
-			wantTrue: false,
+			wantTrue: true,
 		},
 		{
 			name: "nodeSelector drift when desired sets it",
@@ -346,14 +346,14 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name:    "unset affinity ignores fetched value",
+			name:    "cleared affinity is drift when live Deployment still has it",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
 				d.Spec.Template.Spec.Affinity = &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}}
 				return d
 			}(),
-			wantTrue: false,
+			wantTrue: true,
 		},
 		{
 			name: "affinity drift when desired sets it",
@@ -368,14 +368,14 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name:    "unset tolerations ignore fetched value",
+			name:    "cleared tolerations are drift when live Deployment still has them",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
 				d.Spec.Template.Spec.Tolerations = []corev1.Toleration{{Key: "dedicated", Operator: corev1.TolerationOpExists}}
 				return d
 			}(),
-			wantTrue: false,
+			wantTrue: true,
 		},
 		{
 			name: "tolerations drift when desired sets them",
@@ -388,7 +388,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 			wantTrue: true,
 		},
 		{
-			name:    "unset revisionHistoryLimit ignores fetched value",
+			name:    "cleared revisionHistoryLimit is drift when live Deployment still has it",
 			desired: baseDeployment(1, "img"),
 			fetched: func() *appsv1.Deployment {
 				d := baseDeployment(1, "img")
@@ -396,7 +396,7 @@ func TestDeploymentSpecModified(t *testing.T) {
 				d.Spec.RevisionHistoryLimit = &limit
 				return d
 			}(),
-			wantTrue: false,
+			wantTrue: true,
 		},
 		{
 			name: "revisionHistoryLimit drift when desired sets it",

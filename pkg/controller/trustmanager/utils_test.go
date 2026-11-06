@@ -352,7 +352,7 @@ func TestManagedAnnotationsModified(t *testing.T) {
 			existing := testTrustManager().Build()
 			existing.SetAnnotations(tt.currentAnnotations)
 
-			got := managedAnnotationsModified(desired, existing)
+			got := common.ManagedAnnotationsModified(desired, existing)
 			if got != tt.wantModified {
 				t.Errorf("expected modified=%v, got %v", tt.wantModified, got)
 			}
