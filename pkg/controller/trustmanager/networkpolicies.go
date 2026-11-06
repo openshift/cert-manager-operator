@@ -14,9 +14,9 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyNetworkPolicies(trustManager *v1alpha1.TrustManager, resourceLabels map[string]string) error {
+func (r *Reconciler) createOrApplyNetworkPolicies(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	for _, assetPath := range trustManagerNetworkPolicyAssets {
-		desired, err := r.getNetworkPolicyFromAsset(assetPath, resourceLabels)
+		desired, err := r.getNetworkPolicyFromAsset(assetPath, resourceLabels, resourceAnnotations)
 		if err != nil {
 			return fmt.Errorf("failed to load network policy asset %s: %w", assetPath, err)
 		}
@@ -27,7 +27,7 @@ func (r *Reconciler) createOrApplyNetworkPolicies(trustManager *v1alpha1.TrustMa
 	return nil
 }
 
-func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, resourceLabels map[string]string) (*networkingv1.NetworkPolicy, error) {
+func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, resourceLabels, resourceAnnotations map[string]string) (*networkingv1.NetworkPolicy, error) {
 	policy := common.DecodeObjBytes[*networkingv1.NetworkPolicy](codecs, networkingv1.SchemeGroupVersion, assets.MustAsset(assetPath))
 	common.UpdateNamespace(policy, operandNamespace)
 	if policy.Labels == nil {
@@ -35,6 +35,7 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, resourceLabels 
 	}
 	maps.Copy(policy.Labels, resourceLabels)
 	policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey] = trustManagerNetworkPolicyOwnedByValue
+	updateResourceAnnotations(policy, resourceAnnotations)
 	return policy, nil
 }
 

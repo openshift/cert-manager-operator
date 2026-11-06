@@ -23,7 +23,7 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 
 	// NetworkPolicies first so ingress/egress restrictions are in place before
 	// workloads and other cluster-scoped resources are reconciled.
-	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels); err != nil {
+	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile network policy resources")
 		return err
 	}

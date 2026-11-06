@@ -49,7 +49,7 @@ func TestNetworkPolicyFromAsset(t *testing.T) {
 	r := testReconciler(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			policy, err := r.getNetworkPolicyFromAsset(tt.assetPath, testResourceLabels())
+			policy, err := r.getNetworkPolicyFromAsset(tt.assetPath, testResourceLabels(), testResourceAnnotations())
 			if err != nil {
 				t.Fatalf("getNetworkPolicyFromAsset: %v", err)
 			}
@@ -112,7 +112,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					call++
 					labels := testResourceLabels()
-					policy, err := r.getNetworkPolicyFromAsset(trustManagerNetworkPolicyAssets[call-1], labels)
+					policy, err := r.getNetworkPolicyFromAsset(trustManagerNetworkPolicyAssets[call-1], labels, testResourceAnnotations())
 					if err != nil {
 						return false, err
 					}
@@ -130,7 +130,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					call++
 					labels := testResourceLabels()
-					policy, err := r.getNetworkPolicyFromAsset(trustManagerNetworkPolicyAssets[call-1], labels)
+					policy, err := r.getNetworkPolicyFromAsset(trustManagerNetworkPolicyAssets[call-1], labels, testResourceAnnotations())
 					if err != nil {
 						return false, err
 					}
@@ -155,6 +155,28 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 			wantExistsCount: 4,
 			wantPatchCount:  4,
 		},
+		{
+			name:      "apply when existing has annotation drift",
+			tmBuilder: testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				call := 0
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					call++
+					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
+					policy, err := r.getNetworkPolicyFromAsset(trustManagerNetworkPolicyAssets[call-1], getResourceLabels(tm), getResourceAnnotations(tm))
+					if err != nil {
+						return false, err
+					}
+					if call == 1 {
+						policy.Annotations["user-annotation"] = "tampered"
+					}
+					policy.DeepCopyInto(obj.(*networkingv1.NetworkPolicy))
+					return true, nil
+				})
+			},
+			wantExistsCount: 4,
+			wantPatchCount:  1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,7 +193,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm))
+			err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
@@ -199,7 +221,7 @@ func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *tes
 		"team":                                   "platform",
 	}).Build()
 
-	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, getResourceLabels(tm))
+	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, getResourceLabels(tm), getResourceAnnotations(tm))
 	if err != nil {
 		t.Fatalf("getNetworkPolicyFromAsset: %v", err)
 	}
@@ -214,6 +236,29 @@ func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *tes
 	}
 	if got := policy.Labels["team"]; got != "platform" {
 		t.Errorf("extra user label: got %q want %q", got, "platform")
+	}
+}
+
+func TestGetNetworkPolicyFromAsset_appliesUserAnnotations(t *testing.T) {
+	r := testReconciler(t)
+	tm := testTrustManager().WithAnnotations(map[string]string{
+		"user-annotation": "test-value",
+	}).Build()
+
+	policy, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, getResourceLabels(tm), getResourceAnnotations(tm))
+	if err != nil {
+		t.Fatalf("getNetworkPolicyFromAsset: %v", err)
+	}
+	if got := policy.Annotations["user-annotation"]; got != "test-value" {
+		t.Errorf("user annotation: got %q want %q", got, "test-value")
+	}
+
+	empty, err := r.getNetworkPolicyFromAsset(trustManagerDenyAllNetworkPolicyAssetName, getResourceLabels(tm), nil)
+	if err != nil {
+		t.Fatalf("getNetworkPolicyFromAsset with nil annotations: %v", err)
+	}
+	if len(empty.Annotations) != 0 {
+		t.Errorf("nil annotations: got %v want empty", empty.Annotations)
 	}
 }
 
@@ -289,7 +334,7 @@ func TestCreateOrApplyNetworkPolicies_doesNotDeleteUnrelatedNetworkPolicy(t *tes
 	r.CtrlClient = mock
 
 	tm := testTrustManager().Build()
-	if err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm)); err != nil {
+	if err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm), getResourceAnnotations(tm)); err != nil {
 		t.Fatalf("createOrApplyNetworkPolicies: %v", err)
 	}
 	if got := mock.DeleteCallCount(); got != 0 {
