@@ -178,6 +178,18 @@ func TestCertificateSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("sets private key algorithm Ed25519 by default", func(t *testing.T) {
+		if cert.Spec.PrivateKey == nil || cert.Spec.PrivateKey.Algorithm != certmanagerv1.Ed25519KeyAlgorithm {
+			t.Errorf("expected privateKey.algorithm Ed25519, got %+v", cert.Spec.PrivateKey)
+		}
+	})
+
+	t.Run("sets signature algorithm PureEd25519 by default", func(t *testing.T) {
+		if cert.Spec.SignatureAlgorithm != certmanagerv1.PureEd25519 {
+			t.Errorf("expected signatureAlgorithm PureEd25519, got %q", cert.Spec.SignatureAlgorithm)
+		}
+	})
+
 	t.Run("sets correct issuer reference", func(t *testing.T) {
 		if cert.Spec.IssuerRef.Name != trustManagerIssuerName {
 			t.Errorf("expected issuerRef.name %q, got %q", trustManagerIssuerName, cert.Spec.IssuerRef.Name)
@@ -533,7 +545,7 @@ func TestCertificateReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
-			name: "skip apply when existing privateKey has extra defaulted fields",
+			name: "apply when existing privateKey has cert-manager RSA defaults",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					cert := getCertificateObject(v1alpha1.TrustManagerConfig{}, testResourceLabels(), testResourceAnnotations())
@@ -547,7 +559,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantPatchCount:  1,
 		},
 		{
 			name: "apply when existing has secretTemplate label drift",

@@ -262,6 +262,7 @@ type TrustManagerCertConfig struct {
 
 	// privateKeyAlgorithm is the private key algorithm for the webhook certificate.
 	// Allowed values are RSA, ECDSA, and Ed25519.
+	// +kubebuilder:default:=Ed25519
 	// +kubebuilder:validation:Enum=RSA;ECDSA;Ed25519
 	// +kubebuilder:validation:Optional
 	// +optional
@@ -269,6 +270,7 @@ type TrustManagerCertConfig struct {
 
 	// privateKeyRotationPolicy controls whether a new private key is generated on re-issuance.
 	// Allowed values are Always and Never.
+	// +kubebuilder:default:=Always
 	// +kubebuilder:validation:Enum=Always;Never
 	// +kubebuilder:validation:Optional
 	// +optional
@@ -282,6 +284,7 @@ type TrustManagerCertConfig struct {
 	PrivateKeySize int32 `json:"privateKeySize,omitempty"`
 
 	// certificateSignatureAlgorithm is the signature algorithm for the webhook certificate.
+	// +kubebuilder:default:=PureEd25519
 	// +kubebuilder:validation:Enum=SHA256WithRSA;SHA384WithRSA;SHA512WithRSA;ECDSAWithSHA256;ECDSAWithSHA384;ECDSAWithSHA512;PureEd25519
 	// +kubebuilder:validation:Optional
 	// +optional

@@ -110,6 +110,8 @@ func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v
 	}
 	if certConfig.CertificateSignatureAlgorithm != "" {
 		certificate.Spec.SignatureAlgorithm = certmanagerv1.SignatureAlgorithm(certConfig.CertificateSignatureAlgorithm)
+	} else {
+		certificate.Spec.SignatureAlgorithm = certmanagerv1.PureEd25519
 	}
 	overlayPrivateKeyFromCertConfig(certificate, certConfig)
 }
@@ -136,10 +138,14 @@ func webhookCertificateIssuerRef(certConfig v1alpha1.TrustManagerCertConfig) cer
 }
 
 // overlayPrivateKeyFromCertConfig copies configured private-key fields onto the
-// Certificate decoded from bindata. Unset fields keep the operator default
-// (rotationPolicy Always) instead of replacing the whole struct.
+// Certificate decoded from bindata. Unset algorithm defaults to Ed25519 (API default).
+// Unset rotation policy and size keep bindata or cert-manager defaults.
 func overlayPrivateKeyFromCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig) {
-	if certConfig.PrivateKeyAlgorithm == "" && certConfig.PrivateKeyRotationPolicy == "" && certConfig.PrivateKeySize == 0 {
+	if certConfig.PrivateKeyRotationPolicy == "" && certConfig.PrivateKeySize == 0 && certConfig.PrivateKeyAlgorithm == "" {
+		if certificate.Spec.PrivateKey == nil {
+			certificate.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{}
+		}
+		certificate.Spec.PrivateKey.Algorithm = certmanagerv1.Ed25519KeyAlgorithm
 		return
 	}
 	if certificate.Spec.PrivateKey == nil {

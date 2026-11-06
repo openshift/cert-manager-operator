@@ -492,6 +492,9 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
               certificateDuration: 8760h
 
   - name: Should not allow a malformed webhookTLS certificateDuration
@@ -528,6 +531,9 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
               certificateDuration: 1h
 
   - name: Should not allow a webhookTLS certificateDuration below 1h
@@ -564,6 +570,9 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
               certificateRenewBefore: 5m
 
   - name: Should not allow a webhookTLS certificateRenewBefore below 5m
@@ -626,6 +635,9 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
               certificateDuration: 1h
               certificateRenewBefore: 30m
 
@@ -652,6 +664,9 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
               issuerRef:
                 name: corp-ca
 
