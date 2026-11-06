@@ -22,10 +22,11 @@ import (
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
 // Helm app.webhook.tls.approverPolicy. Resources are created when bootstrapResources
-// is Enabled. They are deleted when it is not only if status records them and the
-// live objects carry this operator's managed-by label. If Enabled and the
-// CertificateRequestPolicy CRD is missing, reconciliation fails with a CRD-missing
-// error. A missing CRD is ignored while bootstrapResources is Disabled.
+// is not Disabled (the API default is Enabled). They are deleted when it is Disabled,
+// only if status records them and the live objects carry this operator's managed-by
+// label. If bootstrap is enabled and the CertificateRequestPolicy CRD is missing,
+// reconciliation fails with a CRD-missing error. A missing CRD is ignored while
+// bootstrapResources is Disabled.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	if !approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
 		return r.deleteApproverPolicyResources(trustManager)
