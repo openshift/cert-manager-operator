@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -437,4 +438,69 @@ func TestServiceAccountModified(t *testing.T) {
 		&corev1.ServiceAccount{},
 		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(true)},
 	))
+}
+
+func baseDeployment() *appsv1.Deployment {
+	return &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Replicas: ptr.To(int32(1)),
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "operand"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "operand"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "img"}}},
+			},
+		},
+	}
+}
+
+func TestDeploymentSpecModified(t *testing.T) {
+	t.Run("identical deployments", func(t *testing.T) {
+		d := baseDeployment()
+		assert.False(t, DeploymentSpecModified(d, d.DeepCopy()))
+	})
+
+	t.Run("clearing nodeSelector is drift when live Deployment still has it", func(t *testing.T) {
+		desired := baseDeployment()
+		fetched := desired.DeepCopy()
+		fetched.Spec.Template.Spec.NodeSelector = map[string]string{"disktype": "ssd"}
+		assert.True(t, DeploymentSpecModified(desired, fetched))
+	})
+
+	t.Run("clearing affinity is drift when live Deployment still has it", func(t *testing.T) {
+		desired := baseDeployment()
+		fetched := desired.DeepCopy()
+		fetched.Spec.Template.Spec.Affinity = &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{MatchExpressions: []corev1.NodeSelectorRequirement{
+							{Key: "k", Operator: corev1.NodeSelectorOpIn, Values: []string{"v"}},
+						}},
+					},
+				},
+			},
+		}
+		assert.True(t, DeploymentSpecModified(desired, fetched))
+	})
+
+	t.Run("clearing tolerations is drift when live Deployment still has them", func(t *testing.T) {
+		desired := baseDeployment()
+		fetched := desired.DeepCopy()
+		fetched.Spec.Template.Spec.Tolerations = []corev1.Toleration{
+			{Key: "key", Operator: corev1.TolerationOpExists},
+		}
+		assert.True(t, DeploymentSpecModified(desired, fetched))
+	})
+
+	t.Run("revision history limit cleared in desired is drift", func(t *testing.T) {
+		desired := baseDeployment()
+		fetched := desired.DeepCopy()
+		fetched.Spec.RevisionHistoryLimit = ptr.To(int32(5))
+		assert.True(t, DeploymentSpecModified(desired, fetched))
+	})
+
+	t.Run("both revision history limits nil matches", func(t *testing.T) {
+		d := baseDeployment()
+		assert.False(t, DeploymentSpecModified(d, d.DeepCopy()))
+	})
 }

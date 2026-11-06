@@ -208,17 +208,16 @@ func HasObjectChanged(desired, fetched client.Object) bool {
 }
 
 // DeploymentSpecModified compares the Deployment fields the operand controllers set.
-// NodeSelector, Affinity, Tolerations, and RevisionHistoryLimit are compared only
-// when desired sets them, so an operand that leaves a field unset does not treat
-// API defaults on the fetched object as drift.
+// NodeSelector, Affinity, Tolerations, and RevisionHistoryLimit are always compared
+// so clearing them in the operand spec is still detected as drift (stale values are
+// not left on the live Deployment). maps.Equal and ptr.Equal treat nil/empty sensibly.
 func DeploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 	if !ptr.Equal(desired.Spec.Replicas, fetched.Spec.Replicas) ||
 		!reflect.DeepEqual(desired.Spec.Selector, fetched.Spec.Selector) {
 		return true
 	}
 
-	if desired.Spec.RevisionHistoryLimit != nil &&
-		!ptr.Equal(desired.Spec.RevisionHistoryLimit, fetched.Spec.RevisionHistoryLimit) {
+	if !ptr.Equal(desired.Spec.RevisionHistoryLimit, fetched.Spec.RevisionHistoryLimit) {
 		return true
 	}
 
@@ -235,16 +234,13 @@ func DeploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 		return true
 	}
 
-	if desiredPodSpec.NodeSelector != nil &&
-		!maps.Equal(desiredPodSpec.NodeSelector, fetchedPodSpec.NodeSelector) {
+	if !maps.Equal(desiredPodSpec.NodeSelector, fetchedPodSpec.NodeSelector) {
 		return true
 	}
-	if desiredPodSpec.Affinity != nil &&
-		!reflect.DeepEqual(desiredPodSpec.Affinity, fetchedPodSpec.Affinity) {
+	if !reflect.DeepEqual(desiredPodSpec.Affinity, fetchedPodSpec.Affinity) {
 		return true
 	}
-	if desiredPodSpec.Tolerations != nil &&
-		!reflect.DeepEqual(desiredPodSpec.Tolerations, fetchedPodSpec.Tolerations) {
+	if !reflect.DeepEqual(desiredPodSpec.Tolerations, fetchedPodSpec.Tolerations) {
 		return true
 	}
 
