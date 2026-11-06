@@ -127,9 +127,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		wantDeleted     []string
 	}{
 		{
-			name:            "skips approver policy cleanup when status does not record a policy",
+			name:            "checks approver policy resources when disabled even if status does not record a policy",
 			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.Disabled),
-			wantExistsCount: 0,
+			wantExistsCount: 3,
 			wantDeleteCount: 0,
 		},
 		{

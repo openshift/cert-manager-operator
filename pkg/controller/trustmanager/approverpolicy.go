@@ -22,9 +22,9 @@ import (
 // createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
 // and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
 // Helm app.webhook.tls.approverPolicy. Resources are created when bootstrapResources
-// is not Disabled (the API default is Enabled). They are deleted when it is Disabled,
-// only if status records them and the live objects carry this operator's managed-by
-// label. If bootstrap is enabled and the CertificateRequestPolicy CRD is missing,
+// is not Disabled (the API default is Enabled). They are deleted when it is Disabled
+// by checking fixed resource names; an existing object is deleted only when it carries
+// this operator's managed-by label. If bootstrap is enabled and the CertificateRequestPolicy CRD is missing,
 // reconciliation fails with a CRD-missing error. A missing CRD is ignored while
 // bootstrapResources is Disabled.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
@@ -44,15 +44,10 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	return nil
 }
 
-// deleteApproverPolicyResources removes the CertificateRequestPolicy and RBAC
-// recorded in status.certificateRequestPolicy. An empty status means this
-// controller did not create them, so a same-named policy is left alone and
-// Disabled does not call the API. An existing object is deleted only when it
-// carries app.kubernetes.io/managed-by=cert-manager-operator.
+// deleteApproverPolicyResources removes operator-managed CertificateRequestPolicy and
+// RBAC for the fixed names used by this controller. Same-named objects without
+// app.kubernetes.io/managed-by=cert-manager-operator are left unchanged.
 func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustManager) error {
-	if trustManager.Status.CertificateRequestPolicy == "" {
-		return nil
-	}
 	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
