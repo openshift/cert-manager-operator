@@ -1371,6 +1371,14 @@ spec:
                             == "Ed25519" || (self.privateKeyAlgorithm == "RSA" &&
                             self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm
                             == "ECDSA" && self.privateKeySize in [256, 384, 521])'
+                        - message: certificateSignatureAlgorithm must match privateKeyAlgorithm
+                          rule: '!has(self.certificateSignatureAlgorithm) || self.certificateSignatureAlgorithm
+                            == "" || ((!has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm
+                            == "" || self.privateKeyAlgorithm == "RSA") && self.certificateSignatureAlgorithm
+                            in ["SHA256WithRSA", "SHA384WithRSA", "SHA512WithRSA"]) || (self.privateKeyAlgorithm
+                            == "ECDSA" && self.certificateSignatureAlgorithm in ["ECDSAWithSHA256",
+                            "ECDSAWithSHA384", "ECDSAWithSHA512"]) || (self.privateKeyAlgorithm
+                            == "Ed25519" && self.certificateSignatureAlgorithm == "PureEd25519")'
                         - message: certificateDuration must be at least 1h
                           rule: '!has(self.certificateDuration) || duration(self.certificateDuration)
                             >= duration(''1h'')'

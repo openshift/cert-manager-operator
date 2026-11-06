@@ -713,6 +713,76 @@ tests:
               privateKeySize: 256
     expectedError: "privateKeySize"
 
+  - name: Should not allow Ed25519 private key with an RSA signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              certificateSignatureAlgorithm: SHA256WithRSA
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should not allow ECDSA private key with PureEd25519 signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: ECDSA
+              privateKeySize: 256
+              certificateSignatureAlgorithm: PureEd25519
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should not allow RSA private key with PureEd25519 signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: PureEd25519
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should create with matching RSA private key and signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: SHA256WithRSA
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeyRotationPolicy: Always
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: SHA256WithRSA
+
   # ==========================================
   # Immutability Tests (onUpdate)
   # ==========================================

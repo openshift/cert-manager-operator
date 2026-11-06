@@ -237,7 +237,7 @@ func TestWebhookCertConfig(t *testing.T) {
 	tm.Spec.TrustManagerConfig.WebhookTLS.CertManager = v1alpha1.TrustManagerCertConfig{
 		CertificateDuration:           &metav1.Duration{Duration: 8760 * time.Hour},
 		CertificateRenewBefore:        &metav1.Duration{Duration: 360 * time.Hour},
-		IssuerRef:                     &certmanagermetav1.ObjectReference{Name: "custom-issuer", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+		IssuerRef:                     &certmanagermetav1.IssuerReference{Name: "custom-issuer", Kind: "ClusterIssuer", Group: "cert-manager.io"},
 		PrivateKeyAlgorithm:           "ECDSA",
 		PrivateKeyRotationPolicy:      "Always",
 		PrivateKeySize:                256,
