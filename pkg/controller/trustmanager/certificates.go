@@ -90,8 +90,8 @@ func getCertificateObject(config v1alpha1.TrustManagerConfig, resourceLabels, re
 	certificate.Spec.DNSNames = []string{dnsName}
 	certificate.Spec.SecretName = trustManagerTLSSecretName
 	// secretTemplate stays as decoded from the manifest, including
-	// cert-manager.io/allow-direct-injection. Copying controller labels and
-	// annotations onto that template is CM-1025, not webhookTLS.certManager.
+	// cert-manager.io/allow-direct-injection, so cainjector can fill the
+	// webhook caBundle. webhookTLS.certManager does not change this template.
 	applyWebhookCertConfig(certificate, config.WebhookTLS.CertManager)
 	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
