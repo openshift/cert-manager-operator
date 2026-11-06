@@ -19,7 +19,7 @@ type ApproverPolicyConfigApplyConfiguration struct {
 	// Disabled does not create them. Flipping from Enabled to Disabled deletes those
 	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
 	//
-	// When Enabled, cert-manager approver-policy must be installed.
+	// When set to Enabled, cert-manager approver-policy must be installed.
 	BootstrapResources *operatorv1alpha1.Mode `json:"bootstrapResources,omitempty"`
 }
 
