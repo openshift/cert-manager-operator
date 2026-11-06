@@ -57,16 +57,19 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
-	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
-		r.log.Error(err, "failed to reconcile certificate resource")
+	// Create the CertificateRequestPolicy and RBAC before the Certificate.
+	// The Certificate's CertificateRequest is approved only when those resources
+	// already exist, and a denied CertificateRequest is not retried.
+	// When bootstrapResources is not Enabled, this deletes them only if
+	// status.certificateRequestPolicy records them and the live objects carry
+	// this operator's managed-by label.
+	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile approver-policy resources")
 		return err
 	}
 
-	// Optional: CertificateRequestPolicy + RBAC when webhookTLS.approverPolicy.bootstrapResources is Enabled.
-	// They are deleted when bootstrap is not Enabled only if status.certificateRequestPolicy
-	// records them and the live objects carry this operator's managed-by label.
-	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
-		r.log.Error(err, "failed to reconcile approver-policy resources")
+	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile certificate resource")
 		return err
 	}
 
