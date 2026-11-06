@@ -60,7 +60,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 	}
 
 	r.log.V(2).Info("default CA package ConfigMap has been modified, updating to desired state", "name", cmName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Apply(r.ctx, desired, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return "", common.FromClientError(err, "failed to apply ConfigMap %q", cmName)
 	}
 
