@@ -54,6 +54,9 @@ type TrustManagerConfigApplyConfiguration struct {
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// webhookTLS configures the cert-manager Certificate used for the
 	// trust-manager validating webhook serving certificate.
+	// Default {} so nested defaults (e.g. approverPolicy.bootstrapResources) apply when
+	// users omit webhookTLS entirely (Kubernetes only applies nested defaults after parent
+	// structural defaults are materialized).
 	WebhookTLS *WebhookTLSConfigApplyConfiguration `json:"webhookTLS,omitempty"`
 }
 

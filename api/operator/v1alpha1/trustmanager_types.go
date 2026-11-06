@@ -169,6 +169,10 @@ type TrustManagerConfig struct {
 
 	// webhookTLS configures the cert-manager Certificate used for the
 	// trust-manager validating webhook serving certificate.
+	// Default {} so nested defaults (e.g. approverPolicy.bootstrapResources) apply when
+	// users omit webhookTLS entirely (Kubernetes only applies nested defaults after parent
+	// structural defaults are materialized).
+	// +kubebuilder:default:={}
 	// +kubebuilder:validation:Optional
 	// +optional
 	WebhookTLS WebhookTLSConfig `json:"webhookTLS,omitempty"`
@@ -214,6 +218,8 @@ type WebhookTLSConfig struct {
 	// Resources are created when bootstrapResources is Enabled (the default) and removed when it is Disabled.
 	// If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
 	// approver-policy is installed or bootstrapResources is set to Disabled.
+	// Default {} so bootstrapResources defaults to Enabled when approverPolicy is omitted.
+	// +kubebuilder:default:={}
 	// +kubebuilder:validation:Optional
 	// +optional
 	ApproverPolicy ApproverPolicyConfig `json:"approverPolicy,omitempty"`
