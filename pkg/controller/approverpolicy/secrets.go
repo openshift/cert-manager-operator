@@ -15,10 +15,9 @@ func (r *Reconciler) createOrApplySecret(ctx context.Context, instance *v1alpha1
 }
 
 func getSecretObject(instance *v1alpha1.ApproverPolicyManager) *corev1.Secret {
+	// The bootstrap manifest contains only metadata. DynamicSource generates
+	// and rotates the certificate data and may set the Secret type.
 	obj := common.DecodeObjBytes[*corev1.Secret](codecs, corev1.SchemeGroupVersion, assets.MustAsset(assetName("secret", tlsSecretName)))
 	prepareResource(instance, obj)
-	// Only bootstrap metadata is owned by the operator. DynamicSource generates
-	// and rotates the certificate data and may set the Secret type.
-	obj.Data, obj.StringData, obj.Type = nil, nil, ""
 	return obj
 }

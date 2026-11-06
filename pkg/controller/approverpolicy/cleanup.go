@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,37 +14,39 @@ import (
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
-// cleanUp waits for workload garbage collection before removing its credentials
-// and supporting resources. A successful DELETE is not proof of disappearance.
+// cleanUp follows Helm's uninstall order for the managed resource kinds:
+// https://github.com/helm/helm/blob/main/internal/release/v2/util/kind_sorter.go
+// Wait for webhook removal before its backend, and workload garbage collection
+// before RBAC and credentials. A successful DELETE is not proof of disappearance.
 func (r *Reconciler) cleanUp(ctx context.Context, instance *v1alpha1.ApproverPolicyManager) (bool, error) {
 	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: operandName, Namespace: operandNamespace}}
-	pending, err := r.deleteResource(ctx, instance, deployment)
-	if pending || err != nil {
-		return pending, err
+	rbacResources := getRBACObjects(instance)
+	// Reverse installation order: RoleBinding, Role, ClusterRoleBinding, ClusterRole.
+	slices.Reverse(rbacResources)
+	phases := [][]client.Object{
+		{getWebhookObject(instance)},
+		append(getServiceObjects(instance), deployment),
+		append(rbacResources, getSecretObject(instance), getServiceAccountObject(instance)),
 	}
-	resources := []client.Object{getWebhookObject(instance), getServiceAccountObject(instance)}
-	resources = append(resources, getRBACObjects(instance)...)
-	resources = append(resources, getServiceObjects(instance)...)
-	resources = append(resources, getSecretObject(instance))
-	var errs []error
-	for _, obj := range resources {
-		wait, err := r.deleteResource(ctx, instance, obj)
-		pending = pending || wait
-		errs = append(errs, err)
+	for _, resources := range phases {
+		var pending bool
+		var errs []error
+		for _, obj := range resources {
+			wait, err := r.deleteResource(ctx, instance, obj)
+			pending = pending || wait
+			errs = append(errs, err)
+		}
+		if err := errors.Join(errs...); pending || err != nil {
+			return pending, err
+		}
 	}
-	return pending, errors.Join(errs...)
+	return false, nil
 }
 
 func (r *Reconciler) deleteResource(ctx context.Context, instance *v1alpha1.ApproverPolicyManager, obj client.Object) (bool, error) {
-	// Confirm existence directly: a cache miss may only mean the managed label
-	// was removed, which must not allow cleanup to release the finalizer early.
-	var err error
-	if r.apiReader != nil {
-		err = r.apiReader.Get(ctx, client.ObjectKeyFromObject(obj), obj)
-	} else {
-		err = r.Get(ctx, client.ObjectKeyFromObject(obj), obj)
-	}
-	if err != nil {
+	// Confirm via the API: resources can fall out of the filtered cache when
+	// their managed label is removed, without actually being deleted.
+	if err := r.apiReader.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}

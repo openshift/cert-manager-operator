@@ -20,6 +20,7 @@ func TestSecretOnlyOwnsBootstrapMetadata(t *testing.T) {
 	payload, err := json.Marshal(desired)
 	require.NoError(t, err)
 	assert.NotContains(t, string(payload), `"data"`, "data must be entirely omitted, not just empty")
+	assert.NotContains(t, string(payload), `"stringData"`, "stringData must be entirely omitted, not just empty")
 	assert.NotContains(t, string(payload), `"type"`, "type must be entirely omitted, not just empty")
 
 	for _, tc := range []struct {

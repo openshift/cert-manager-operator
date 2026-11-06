@@ -74,7 +74,7 @@ func testReconciler(t *testing.T, stored *v1alpha1.ApproverPolicyManager) (*Reco
 		obj.(*v1alpha1.ApproverPolicyManager).Status.DeepCopyInto(&stored.Status)
 		return nil
 	})
-	return &Reconciler{CtrlClient: c, log: logr.Discard()}, c
+	return &Reconciler{CtrlClient: c, apiReader: &testAPIReader{}, log: logr.Discard()}, c
 }
 
 func singletonRequest() ctrl.Request {
