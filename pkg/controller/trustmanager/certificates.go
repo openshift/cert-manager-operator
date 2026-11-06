@@ -241,38 +241,27 @@ func certificateFieldDrift(desiredSet, equal bool, existing *certmanagerv1.Certi
 	if desiredSet {
 		return !equal
 	}
-	return !equal && controllerOwnsField(existing, parts...)
+	return !equal && ownsPath(controllerOwnedFields(existing), parts...)
 }
 
-// controllerOwnsField reports whether trust-manager-controller's server-side apply
-// managed fields include path or one of its children.
-func controllerOwnsField(cert *certmanagerv1.Certificate, parts ...string) bool {
+// ownsPath reports whether owned includes path or one of its children.
+func ownsPath(owned *fieldpath.Set, parts ...string) bool {
+	if owned == nil || owned.Empty() {
+		return false
+	}
 	pathElems := make([]any, len(parts))
 	for i, part := range parts {
 		pathElems[i] = part
 	}
-	path := fieldpath.MakePathOrDie(pathElems...)
-	for _, entry := range cert.GetManagedFields() {
-		if entry.Manager != fieldOwner || entry.Subresource != "" || entry.FieldsV1 == nil || len(entry.FieldsV1.Raw) == 0 {
-			continue
-		}
-		var fields fieldpath.Set
-		if err := fields.FromJSON(bytes.NewReader(entry.FieldsV1.Raw)); err != nil {
-			continue
-		}
-		if fields.Has(path) {
-			return true
-		}
-		subset := &fields
-		for _, part := range parts {
-			name := part
-			subset = subset.WithPrefix(fieldpath.PathElement{FieldName: &name})
-		}
-		if subset != nil && !subset.Empty() {
-			return true
-		}
+	if owned.Has(fieldpath.MakePathOrDie(pathElems...)) {
+		return true
 	}
-	return false
+	subset := owned
+	for _, part := range parts {
+		name := part
+		subset = subset.WithPrefix(fieldpath.PathElement{FieldName: &name})
+	}
+	return subset != nil && !subset.Empty()
 }
 
 // certificatePrivateKeyRotationPolicy returns the rotation policy we manage on
