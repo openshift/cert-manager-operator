@@ -1257,7 +1257,7 @@ spec:
                               Disabled does not create them. Flipping from Enabled to Disabled deletes those
                               resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
 
-                              When Enabled, cert-manager approver-policy must be installed.
+                              When set to Enabled, cert-manager approver-policy must be installed.
                             enum:
                             - Enabled
                             - Disabled
@@ -1375,10 +1375,11 @@ spec:
                           rule: '!has(self.certificateSignatureAlgorithm) || self.certificateSignatureAlgorithm
                             == "" || ((!has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm
                             == "" || self.privateKeyAlgorithm == "RSA") && self.certificateSignatureAlgorithm
-                            in ["SHA256WithRSA", "SHA384WithRSA", "SHA512WithRSA"]) || (self.privateKeyAlgorithm
-                            == "ECDSA" && self.certificateSignatureAlgorithm in ["ECDSAWithSHA256",
-                            "ECDSAWithSHA384", "ECDSAWithSHA512"]) || (self.privateKeyAlgorithm
-                            == "Ed25519" && self.certificateSignatureAlgorithm == "PureEd25519")'
+                            in ["SHA256WithRSA", "SHA384WithRSA", "SHA512WithRSA"])
+                            || (self.privateKeyAlgorithm == "ECDSA" && self.certificateSignatureAlgorithm
+                            in ["ECDSAWithSHA256", "ECDSAWithSHA384", "ECDSAWithSHA512"])
+                            || (self.privateKeyAlgorithm == "Ed25519" && self.certificateSignatureAlgorithm
+                            == "PureEd25519")'
                         - message: certificateDuration must be at least 1h
                           rule: '!has(self.certificateDuration) || duration(self.certificateDuration)
                             >= duration(''1h'')'
