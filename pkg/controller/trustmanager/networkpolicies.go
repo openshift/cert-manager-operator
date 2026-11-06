@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"reflect"
@@ -14,13 +15,13 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyNetworkPolicies(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyNetworkPolicies(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	for _, assetPath := range trustManagerNetworkPolicyAssets {
 		desired, err := r.getNetworkPolicyFromAsset(assetPath, resourceLabels, resourceAnnotations)
 		if err != nil {
 			return fmt.Errorf("failed to load network policy asset %s: %w", assetPath, err)
 		}
-		if err := r.createOrApplyNetworkPolicy(trustManager, desired); err != nil {
+		if err := r.createOrApplyNetworkPolicy(ctx, trustManager, desired); err != nil {
 			return fmt.Errorf("failed to reconcile network policy %s/%s: %w", desired.GetNamespace(), desired.GetName(), err)
 		}
 	}
@@ -39,12 +40,12 @@ func (r *Reconciler) getNetworkPolicyFromAsset(assetPath string, resourceLabels,
 	return policy, nil
 }
 
-func (r *Reconciler) createOrApplyNetworkPolicy(trustManager *v1alpha1.TrustManager, desired *networkingv1.NetworkPolicy) error {
+func (r *Reconciler) createOrApplyNetworkPolicy(ctx context.Context, trustManager *v1alpha1.TrustManager, desired *networkingv1.NetworkPolicy) error {
 	policyName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling network policy resource", "name", policyName)
 
 	existing := &networkingv1.NetworkPolicy{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if network policy %q exists", policyName)
 	}
@@ -54,7 +55,7 @@ func (r *Reconciler) createOrApplyNetworkPolicy(trustManager *v1alpha1.TrustMana
 	}
 
 	r.log.V(2).Info("network policy resource has been modified, updating to desired state", "name", policyName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply network policy %q", policyName)
 	}
 

@@ -1,7 +1,6 @@
 package trustmanager
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -108,7 +107,6 @@ func (b *trustManagerBuilder) Build() *v1alpha1.TrustManager {
 
 func testReconciler(t *testing.T) *Reconciler {
 	return &Reconciler{
-		ctx:           context.Background(),
 		eventRecorder: record.NewFakeRecorder(100),
 		log:           testr.New(t),
 		scheme:        testutil.Scheme,

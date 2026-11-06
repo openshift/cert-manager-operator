@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -14,8 +15,8 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
-	desired, err := r.getDeploymentObject(trustManager, resourceLabels, resourceAnnotations, caBundleHash)
+func (r *Reconciler) createOrApplyDeployment(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
+	desired, err := r.getDeploymentObject(ctx, trustManager, resourceLabels, resourceAnnotations, caBundleHash)
 	if err != nil {
 		return err
 	}
@@ -24,7 +25,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
 
 	existing := &appsv1.Deployment{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
 	}
@@ -34,7 +35,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	}
 
 	r.log.V(2).Info("deployment resource has been modified, updating to desired state", "name", deploymentName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply deployment %q", deploymentName)
 	}
 
@@ -42,7 +43,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	return nil
 }
 
-func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {
+func (r *Reconciler) getDeploymentObject(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {
 	deployment := common.DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, assets.MustAsset(deploymentAssetName))
 
 	if err := validateDeploymentManifest(deployment); err != nil {
@@ -55,7 +56,7 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	updateResourceAnnotations(deployment, resourceAnnotations)
 	updatePodTemplateLabels(deployment, resourceLabels)
 	updateDeploymentArgs(deployment, trustManager)
-	if err := r.applyClusterTLSProfile(deployment); err != nil {
+	if err := r.applyClusterTLSProfile(ctx, deployment); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +84,7 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	if err := updateNodeSelector(deployment, trustManager); err != nil {
 		return nil, err
 	}
-	if err := r.setServiceAccountUIDAnnotation(deployment); err != nil {
+	if err := r.setServiceAccountUIDAnnotation(ctx, deployment); err != nil {
 		return nil, err
 	}
 
@@ -289,10 +290,10 @@ func updateServiceAccountName(deployment *appsv1.Deployment) {
 // pod template. A new UID means the account was recreated, so the deployment
 // must roll. Otherwise the existing pod keeps a projected token for the
 // deleted account and CrashLoopBackOffs with an unauthenticated API client.
-func (r *Reconciler) setServiceAccountUIDAnnotation(deployment *appsv1.Deployment) error {
+func (r *Reconciler) setServiceAccountUIDAnnotation(ctx context.Context, deployment *appsv1.Deployment) error {
 	serviceAccount := &corev1.ServiceAccount{}
 	serviceAccountKey := client.ObjectKey{Namespace: operandNamespace, Name: trustManagerServiceAccountName}
-	if err := r.Get(r.ctx, serviceAccountKey, serviceAccount); err != nil {
+	if err := r.Get(ctx, serviceAccountKey, serviceAccount); err != nil {
 		return common.FromClientError(err, "failed to get serviceaccount %q", serviceAccountKey.String())
 	}
 	// The apiserver assigns a UID when the ServiceAccount is stored. Clients

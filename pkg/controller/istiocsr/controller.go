@@ -52,7 +52,6 @@ type TLSConfig struct {
 type Reconciler struct {
 	common.CtrlClient
 
-	ctx           context.Context
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 	scheme        *runtime.Scheme
@@ -75,7 +74,6 @@ func New(mgr ctrl.Manager, tlsConfig TLSConfig) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
-		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
@@ -196,7 +194,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if !istiocsr.DeletionTimestamp.IsZero() {
 		r.log.V(1).Info("istiocsr.openshift.operator.io is marked for deletion", "namespace", req.NamespacedName)
 
-		if requeue, err := r.cleanUp(istiocsr); err != nil {
+		if requeue, err := r.cleanUp(ctx, istiocsr); err != nil {
 			return ctrl.Result{}, fmt.Errorf("clean up failed for %q istiocsr.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
 		} else if requeue {
 			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
@@ -215,17 +213,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to update %q istiocsr.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
 	}
 
-	return r.processReconcileRequest(istiocsr, req.NamespacedName)
+	return r.processReconcileRequest(ctx, istiocsr, req.NamespacedName)
 }
 
-func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
+func (r *Reconciler) processReconcileRequest(ctx context.Context, istiocsr *v1alpha1.IstioCSR, req types.NamespacedName) (ctrl.Result, error) {
 	istioCSRCreateRecon := false
 	if !containsProcessedAnnotation(istiocsr) && reflect.DeepEqual(istiocsr.Status, v1alpha1.IstioCSRStatus{}) {
 		r.log.V(1).Info("starting reconciliation of newly created istiocsr", "namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName())
 		istioCSRCreateRecon = true
 	}
 
-	if err := r.disallowMultipleIstioCSRInstances(istiocsr); err != nil {
+	if err := r.disallowMultipleIstioCSRInstances(ctx, istiocsr); err != nil {
 		if common.IsMultipleInstanceError(err) {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "MultiIstioCSRInstance", "creation of multiple istiocsr instances is not supported, will not be processed")
 			err = nil
@@ -233,7 +231,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		return ctrl.Result{}, err
 	}
 
-	reconcileErr := r.reconcileIstioCSRDeployment(istiocsr, istioCSRCreateRecon)
+	reconcileErr := r.reconcileIstioCSRDeployment(ctx, istiocsr, istioCSRCreateRecon)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile IstioCSR deployment", "request", req)
 	}
@@ -243,7 +241,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 		reconcileErr,
 		r.log.WithValues("namespace", istiocsr.GetNamespace(), "name", istiocsr.GetName()),
 		func(prependErr error) error {
-			return r.updateCondition(istiocsr, prependErr)
+			return r.updateCondition(ctx, istiocsr, prependErr)
 		},
 		defaultRequeueTime,
 	)
@@ -252,7 +250,7 @@ func (r *Reconciler) processReconcileRequest(istiocsr *v1alpha1.IstioCSR, req ty
 // cleanUp handles deletion of istiocsr.openshift.operator.io gracefully.
 //
 //nolint:unparam // error return is kept for future implementation
-func (r *Reconciler) cleanUp(istiocsr *v1alpha1.IstioCSR) (bool, error) {
+func (r *Reconciler) cleanUp(_ context.Context, istiocsr *v1alpha1.IstioCSR) (bool, error) {
 	// TODO: For GA, handle cleaning up of resources created for installing istio-csr operand.
 	// This might require a validation webhook to check for usage of service as GRPC endpoint in
 	// any of OpenShift Service Mesh or Istiod deployments to avoid disruptions across cluster.
