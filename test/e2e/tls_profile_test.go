@@ -110,6 +110,11 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Eventually(func() error {
 			return setWebhookUnsupportedArgs(ctx, nil)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
+
+		By("waiting for cert-manager operands to finish TLS-driven rollout")
+		Eventually(func() error {
+			return waitForCertManagerOperandsHealthy(ctx)
+		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
 	BeforeEach(func() {
@@ -815,6 +820,11 @@ func restoreAPIServerTLSConfigCleanup(ctx context.Context, original *apiserverTL
 		Eventually(func() error {
 			return restoreClusterAPIServerTLSConfig(ctx, original)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
+
+		By("[cleanup] waiting for cert-manager operands to finish TLS-driven rollout")
+		Eventually(func() error {
+			return waitForCertManagerOperandsHealthy(ctx)
+		}, highTimeout, slowPollInterval).Should(Succeed())
 	}
 }
 

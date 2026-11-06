@@ -557,7 +557,7 @@ func TestValidateIstioCSRConfig(t *testing.T) {
 				Spec: v1alpha1.IstioCSRSpec{
 					IstioCSRConfig: v1alpha1.IstioCSRConfig{
 						CertManager: v1alpha1.CertManagerConfig{
-							IssuerRef: certmanagermetav1.ObjectReference{
+							IssuerRef: certmanagermetav1.IssuerReference{
 								Name: "test",
 								Kind: "issuer",
 							},
@@ -583,7 +583,7 @@ func TestValidateIstioCSRConfig(t *testing.T) {
 							CertificateDuration: &metav1.Duration{Duration: DefaultCertificateDuration},
 						},
 						CertManager: v1alpha1.CertManagerConfig{
-							IssuerRef: certmanagermetav1.ObjectReference{
+							IssuerRef: certmanagermetav1.IssuerReference{
 								Name: "test",
 								Kind: "issuer",
 							},

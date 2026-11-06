@@ -19,7 +19,7 @@ export XDG_CONFIG_HOME ?= $(PROJECT_ROOT)/_output/.config
 # ============================================================================
 
 # DEFAULT_VERSION is the default version to use for image tags when not set.
-DEFAULT_VERSION := 1.20.0
+DEFAULT_VERSION := 1.21.0
 
 # Helper function to validate semver (Major.Minor.Patch format)
 # Returns 'valid' if the version matches semver (X.Y.Z) or 'latest', empty string otherwise
@@ -57,10 +57,10 @@ endif
 # --- Operand Versions ---
 
 # Versions of the cert-manager components managed by this operator
-CERT_MANAGER_VERSION ?= v1.21.2
-ISTIO_CSR_VERSION ?= v0.18.0
-TRUST_MANAGER_VERSION ?= v0.25.0
-APPROVER_POLICY_VERSION ?= v0.27.0
+CERT_MANAGER_VERSION ?= v1.21.3
+ISTIO_CSR_VERSION ?= v0.19.1
+TRUST_MANAGER_VERSION ?= v0.26.0
+APPROVER_POLICY_VERSION ?= v0.29.0
 
 # --- Test Versions ---
 
@@ -138,7 +138,7 @@ USE_IMAGE_DIGESTS ?= false
 
 # CHANNELS define the bundle channels used in the bundle.
 # To override: make bundle CHANNELS=candidate,fast,stable or export CHANNELS="candidate,fast,stable"
-CHANNELS ?= stable-v1,stable-v1.20
+CHANNELS ?= stable-v1,stable-v1.21
 ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
@@ -332,10 +332,10 @@ local-run: build ## Run the operator locally against the cluster configured in ~
 	RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER=quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION) \
 	RELATED_IMAGE_APPROVER_POLICY=quay.io/jetstack/cert-manager-approver-policy:$(APPROVER_POLICY_VERSION) \
 	OPERATOR_NAME=cert-manager-operator \
-	OPERAND_IMAGE_VERSION=$(BUNDLE_VERSION) \
-	ISTIOCSR_OPERAND_IMAGE_VERSION=$(ISTIO_CSR_VERSION) \
-	TRUSTMANAGER_OPERAND_IMAGE_VERSION=$(TRUST_MANAGER_VERSION) \
-	APPROVERPOLICY_OPERAND_IMAGE_VERSION=$(APPROVER_POLICY_VERSION) \
+	OPERAND_IMAGE_VERSION=$(CERT_MANAGER_VERSION:v%=%) \
+	ISTIOCSR_OPERAND_IMAGE_VERSION=$(ISTIO_CSR_VERSION:v%=%) \
+	TRUSTMANAGER_OPERAND_IMAGE_VERSION=$(TRUST_MANAGER_VERSION:v%=%) \
+	APPROVERPOLICY_OPERAND_IMAGE_VERSION=$(APPROVER_POLICY_VERSION:v%=%) \
 	OPERATOR_IMAGE_VERSION=$(BUNDLE_VERSION) \
 	./cert-manager-operator start \
 		--config=./hack/local-run-config.yaml \

@@ -1942,6 +1942,25 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// waitForCertManagerOperandsHealthy waits until the cert-manager operand Deployments have
+// finished rolling out and operator status conditions are healthy. Call this after mutating
+// apiserver TLS settings so later tests do not race a webhook/controller restart.
+func waitForCertManagerOperandsHealthy(ctx context.Context) error {
+	for _, name := range []string{
+		certmanagerControllerDeployment,
+		certmanagerWebhookDeployment,
+		certmanagerCAinjectorDeployment,
+	} {
+		if err := waitForDeploymentRollout(ctx, operandNamespace, name, highTimeout); err != nil {
+			return fmt.Errorf("waiting for %s/%s rollout after TLS change: %w", operandNamespace, name, err)
+		}
+	}
+	if err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1()); err != nil {
+		return fmt.Errorf("waiting for cert-manager operator healthy conditions after TLS change: %w", err)
+	}
+	return nil
+}
+
 func isTLSAdherenceUnsupported(err error) bool {
 	if err == nil {
 		return false

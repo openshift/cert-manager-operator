@@ -141,7 +141,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred(), "operator is expected to be available")
 
 	By("creating dynamic resources client")
-	loader = library.NewDynamicResourceLoader(context.TODO(), &testing.T{})
+	// GinkgoT() (not &testing.T{}) so CreateFromFile/require failures include the real
+	// API error instead of a nil panic from FailNow on an unwired testing.T.
+	loader = library.NewDynamicResourceLoader(context.TODO(), GinkgoT())
 
 	By("creating config.openshift.io/v1 client")
 	configClient, err = configv1.NewForConfig(cfg)

@@ -432,6 +432,11 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			Eventually(func() error {
 				return restoreClusterAPIServerTLSConfig(ctx, original)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("[cleanup] waiting for cert-manager operands to finish TLS-driven rollout")
+			Eventually(func() error {
+				return waitForCertManagerOperandsHealthy(ctx)
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
 		ns, err := loader.CreateTestingNS("istiocsr-tls-profile", true)
