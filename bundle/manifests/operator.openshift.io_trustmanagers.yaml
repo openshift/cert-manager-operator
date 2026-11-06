@@ -1285,6 +1285,7 @@ spec:
                             pattern: ^[-+]?(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|h|m|s))+$|^[-+]?0$
                             type: string
                           certificateSignatureAlgorithm:
+                            default: PureEd25519
                             description: certificateSignatureAlgorithm is the signature
                               algorithm for the webhook certificate.
                             enum:
@@ -1331,6 +1332,7 @@ spec:
                               rule: '!has(self.group) || self.group.lowerAscii() ==
                                 ''cert-manager.io'''
                           privateKeyAlgorithm:
+                            default: Ed25519
                             description: |-
                               privateKeyAlgorithm is the private key algorithm for the webhook certificate.
                               Allowed values are RSA, ECDSA, and Ed25519.
@@ -1340,6 +1342,7 @@ spec:
                             - Ed25519
                             type: string
                           privateKeyRotationPolicy:
+                            default: Always
                             description: |-
                               privateKeyRotationPolicy controls whether a new private key is generated on re-issuance.
                               Allowed values are Always and Never.

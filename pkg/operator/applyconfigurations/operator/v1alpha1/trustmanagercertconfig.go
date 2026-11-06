@@ -33,15 +33,16 @@ type TrustManagerCertConfigApplyConfiguration struct {
 	// inject-ca-from-secret cannot populate the webhook caBundle.
 	IssuerRef *metav1.IssuerReference `json:"issuerRef,omitempty"`
 	// privateKeyAlgorithm is the private key algorithm for the webhook certificate.
-	// Allowed values are RSA, ECDSA, and Ed25519.
+	// Allowed values are RSA, ECDSA, and Ed25519. Defaults to Ed25519 when unset.
 	PrivateKeyAlgorithm *string `json:"privateKeyAlgorithm,omitempty"`
 	// privateKeyRotationPolicy controls whether a new private key is generated on re-issuance.
-	// Allowed values are Always and Never.
+	// Allowed values are Always and Never. Defaults to Always when unset.
 	PrivateKeyRotationPolicy *string `json:"privateKeyRotationPolicy,omitempty"`
 	// privateKeySize is the private key size for the webhook certificate.
 	// RSA allows 2048, 4096, and 8192. ECDSA allows 256, 384, and 521. Ed25519 ignores this field.
 	PrivateKeySize *int32 `json:"privateKeySize,omitempty"`
 	// certificateSignatureAlgorithm is the signature algorithm for the webhook certificate.
+	// Defaults to PureEd25519 when unset.
 	CertificateSignatureAlgorithm *string `json:"certificateSignatureAlgorithm,omitempty"`
 }
 
