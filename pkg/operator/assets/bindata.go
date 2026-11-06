@@ -4021,8 +4021,10 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: openshift-kube-apiserver
+          policy-group.network.openshift.io/host-network: ""
     ports:
+    - protocol: TCP
+      port: 443
     - protocol: TCP
       port: 6443
 `)
