@@ -63,8 +63,8 @@ func testIstioCSR() *v1alpha1.IstioCSR {
 				CertManager: v1alpha1.CertManagerConfig{
 					IssuerRef: certmanagermetav1.IssuerReference{
 						Name:  testResourcesName,
-						Kind:  issuerKind,
-						Group: issuerGroup,
+						Kind:  certmanagerv1.IssuerKind,
+						Group: certmanagerv1.SchemeGroupVersion.Group,
 					},
 				},
 				IstiodTLSConfig: v1alpha1.IstiodTLSConfig{

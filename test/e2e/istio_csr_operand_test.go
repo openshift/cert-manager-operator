@@ -50,6 +50,7 @@ const (
 
 type istioCSRBuildConfig struct {
 	issuerRefKind              string
+	issuerRefGroup             string
 	issuerRefName              string
 	serverPort                 int32
 	logLevel                   int32
@@ -148,6 +149,20 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 			issuerRefName = cfg.issuerRefName
 		}
 
+		issuerRef := map[string]interface{}{
+			"name": issuerRefName,
+		}
+		if cfg.issuerRefKind != "" {
+			issuerRef["kind"] = cfg.issuerRefKind
+		} else {
+			issuerRef["kind"] = issuerRefKind
+		}
+		if cfg.issuerRefGroup != "" {
+			issuerRef["group"] = cfg.issuerRefGroup
+		} else {
+			issuerRef["group"] = "cert-manager.io"
+		}
+
 		istioCSR := &unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"apiVersion": "operator.openshift.io/v1alpha1",
@@ -159,11 +174,7 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 				"spec": map[string]interface{}{
 					"istioCSRConfig": map[string]interface{}{
 						"certManager": map[string]interface{}{
-							"issuerRef": map[string]interface{}{
-								"name":  issuerRefName,
-								"kind":  issuerRefKind,
-								"group": "cert-manager.io",
-							},
+							"issuerRef": issuerRef,
 						},
 						"istiodTLSConfig": map[string]interface{}{
 							"trustDomain": "cluster.local",
@@ -358,6 +369,38 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		createIstioCSR(ns.Name, istioCSR)
 		By("waiting for IstioCSR Degraded=True with unsupported ACME issuer message")
 		Expect(waitForIstioCSRConditionMessage(ctx, loader, ns.Name, istioCSRResourceName, v1alpha1.Degraded, metav1.ConditionTrue, "unsupported ACME issuer", highTimeout, slowPollInterval)).NotTo(HaveOccurred())
+	})
+
+	It("should reconcile IstioCSR with external issuer when external issuer RBAC is bound", Label("ISTIOCSR-029"), func() {
+		ns, err := loader.CreateTestingNS("istiocsr-external-issuer", true)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() {
+			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		})
+
+		crbName := fmt.Sprintf("cert-manager-operator-istiocsr-external-issuer-%s", ns.Name)
+		DeferCleanup(bindIstioCSRExternalIssuerClusterRole(ctx, clientset, crbName))
+
+		ensureGoogleCASIssuerCRD(ctx)
+		createIssuerPrerequisites(ns.Name)
+		createGoogleCASIssuer(ns.Name)
+
+		istioCSR := newIstioCSR(ns.Name, istioCSRBuildConfig{
+			issuerRefKind:  "GoogleCASIssuer",
+			issuerRefGroup: googleCASIssuerGroup,
+			issuerRefName:  googleCASIssuerName,
+		})
+		createIstioCSR(ns.Name, istioCSR)
+
+		By("verifying IstioCSR with external issuerRef was accepted by the API")
+		got, err := loader.DynamicClient.Resource(istiocsrSchema).Namespace(ns.Name).Get(ctx, istioCSRResourceName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		spec := unstructuredIssuerRefSpec(got)
+		Expect(spec["kind"]).To(Equal("GoogleCASIssuer"))
+		Expect(spec["group"]).To(Equal(googleCASIssuerGroup))
+
+		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+		expectGoogleCASIssuerWatchLabel(ctx, ns.Name)
 	})
 
 	It("should reconcile custom gRPC port to service and status endpoint", Label("ISTIOCSR-005"), func() {

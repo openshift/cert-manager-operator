@@ -11,6 +11,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -56,6 +57,8 @@ type Reconciler struct {
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 	scheme        *runtime.Scheme
+	restMapper    meta.RESTMapper
+	apiReader     client.Reader
 	tlsConfig     TLSConfig
 }
 
@@ -79,6 +82,8 @@ func New(mgr ctrl.Manager, tlsConfig TLSConfig) (*Reconciler, error) {
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
+		restMapper:    mgr.GetRESTMapper(),
+		apiReader:     mgr.GetAPIReader(),
 		tlsConfig:     tlsConfig,
 	}, nil
 }
