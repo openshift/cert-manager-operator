@@ -19,6 +19,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
@@ -93,28 +94,19 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 
 		egressNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowEgressAPIServerName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(egressNP.Spec.Egress).NotTo(BeEmpty())
-		Expect(egressNP.Spec.Egress[0].Ports[0].Port.IntVal).To(Equal(int32(6443)))
-		Expect(egressNP.Spec.Egress[0].To).NotTo(BeEmpty())
-		Expect(egressNP.Spec.Egress[0].To[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue("kubernetes.io/metadata.name", "openshift-kube-apiserver"))
+		expectTrustManagerAPIServerEgressPolicy(egressNP)
 
 		webhookNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowIngressWebhookName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(webhookNP.Spec.Ingress).NotTo(BeEmpty())
-		Expect(webhookNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(int32(6443)))
-		Expect(webhookNP.Spec.Ingress[0].From).NotTo(BeEmpty())
-		Expect(webhookNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue("policy-group.network.openshift.io/host-network", ""))
+		expectTrustManagerWebhookIngressPolicy(webhookNP)
 
 		metricsNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPAllowIngressMetricsName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(metricsNP.Spec.Ingress).NotTo(BeEmpty())
-		Expect(metricsNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(int32(9402)))
-		Expect(metricsNP.Spec.Ingress[0].From).NotTo(BeEmpty())
-		Expect(metricsNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue("kubernetes.io/metadata.name", uwmNamespace))
+		expectTrustManagerMetricsIngressPolicy(metricsNP)
 
 		denyNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPDenyAllName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(denyNP.Spec.PolicyTypes).To(ContainElements(networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress))
+		expectTrustManagerDenyAllPolicy(denyNP)
 	}
 
 	It("CJ-1: creates four reserved policies regardless of CertManager defaultNetworkPolicy", func() {
@@ -237,6 +229,77 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		Expect(err).NotTo(HaveOccurred(), "timeout waiting for trust-manager metrics scrape")
 	})
 })
+
+// expectNonEmptyNamespaceSelector fails when namespaceSelector is missing or matches every
+// namespace ({} / empty label selector), which would allow overly broad policy peers.
+func expectNonEmptyNamespaceSelector(ns *metav1.LabelSelector) {
+	Expect(ns).NotTo(BeNil(), "namespace selector must be set (empty {} matches all namespaces)")
+	Expect(ns.MatchExpressions).To(BeEmpty(), "unexpected namespace matchExpressions on trust-manager operator policy")
+	Expect(ns.MatchLabels).NotTo(BeEmpty(), "namespace selector must not be empty (matches all namespaces)")
+}
+
+func expectTrustManagerAPIServerEgressPolicy(np *networkingv1.NetworkPolicy) {
+	Expect(np.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeEgress}))
+	Expect(np.Spec.Ingress).To(BeEmpty())
+	Expect(np.Spec.Egress).To(HaveLen(1))
+	rule := np.Spec.Egress[0]
+	Expect(rule.Ports).To(HaveLen(1))
+	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
+	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
+	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(6443)))
+	Expect(rule.To).To(HaveLen(1))
+	peer := rule.To[0]
+	Expect(peer.IPBlock).To(BeNil())
+	Expect(peer.PodSelector).To(BeNil())
+	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
+	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+		"kubernetes.io/metadata.name": "openshift-kube-apiserver",
+	}))
+}
+
+func expectTrustManagerWebhookIngressPolicy(np *networkingv1.NetworkPolicy) {
+	Expect(np.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+	Expect(np.Spec.Egress).To(BeEmpty())
+	Expect(np.Spec.Ingress).To(HaveLen(1))
+	rule := np.Spec.Ingress[0]
+	Expect(rule.Ports).To(HaveLen(1))
+	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
+	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
+	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(6443)))
+	Expect(rule.From).To(HaveLen(1))
+	peer := rule.From[0]
+	Expect(peer.IPBlock).To(BeNil())
+	Expect(peer.PodSelector).To(BeNil())
+	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
+	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+		"policy-group.network.openshift.io/host-network": "",
+	}))
+}
+
+func expectTrustManagerMetricsIngressPolicy(np *networkingv1.NetworkPolicy) {
+	Expect(np.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+	Expect(np.Spec.Egress).To(BeEmpty())
+	Expect(np.Spec.Ingress).To(HaveLen(1))
+	rule := np.Spec.Ingress[0]
+	Expect(rule.Ports).To(HaveLen(1))
+	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
+	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
+	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(9402)))
+	Expect(rule.From).To(HaveLen(1))
+	peer := rule.From[0]
+	Expect(peer.IPBlock).To(BeNil())
+	Expect(peer.PodSelector).To(BeNil())
+	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
+	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+		"kubernetes.io/metadata.name": uwmNamespace,
+	}))
+}
+
+func expectTrustManagerDenyAllPolicy(np *networkingv1.NetworkPolicy) {
+	Expect(np.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress}))
+	Expect(np.Spec.Ingress).To(BeEmpty())
+	Expect(np.Spec.Egress).To(BeEmpty())
+}
 
 func readyPrometheusPod(ctx context.Context, clientset kubernetes.Interface) (string, error) {
 	pods, err := clientset.CoreV1().Pods("openshift-monitoring").List(ctx, metav1.ListOptions{
