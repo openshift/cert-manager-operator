@@ -16,28 +16,29 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 )
 
-// ManagedLabelsModified reports whether any label on desired is missing or
-// different on existing. Extra labels on existing are ignored.
-func ManagedLabelsModified(desired, existing client.Object) bool {
-	existingLabels := existing.GetLabels()
-	for k, v := range desired.GetLabels() {
-		if existingLabels[k] != v {
+// ManagedMapModified reports whether any key in desired is missing or different
+// on existing. Extra keys on existing are ignored. A missing key is drift even
+// when the desired value is empty.
+func ManagedMapModified(desired, existing map[string]string) bool {
+	for k, v := range desired {
+		existingValue, ok := existing[k]
+		if !ok || existingValue != v {
 			return true
 		}
 	}
 	return false
 }
 
+// ManagedLabelsModified reports whether any label on desired is missing or
+// different on existing. Extra labels on existing are ignored.
+func ManagedLabelsModified(desired, existing client.Object) bool {
+	return ManagedMapModified(desired.GetLabels(), existing.GetLabels())
+}
+
 // ManagedAnnotationsModified reports whether any annotation on desired is
 // missing or different on existing. Extra annotations on existing are ignored.
 func ManagedAnnotationsModified(desired, existing client.Object) bool {
-	existingAnnotations := existing.GetAnnotations()
-	for k, v := range desired.GetAnnotations() {
-		if existingAnnotations[k] != v {
-			return true
-		}
-	}
-	return false
+	return ManagedMapModified(desired.GetAnnotations(), existing.GetAnnotations())
 }
 
 // ManagedMetadataModified reports whether any managed label or annotation has drifted.
@@ -185,6 +186,8 @@ func HasObjectChanged(desired, fetched client.Object) bool {
 // NodeSelector, Affinity, Tolerations, and RevisionHistoryLimit are always compared
 // so clearing them in the operand spec is still detected as drift (stale values are
 // not left on the live Deployment). maps.Equal and ptr.Equal treat nil/empty sensibly.
+// Pod template labels use full equality; template annotations use ManagedMapModified
+// so extra annotations on the live Pod template (e.g. from tooling) are ignored.
 func DeploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 	if !ptr.Equal(desired.Spec.Replicas, fetched.Spec.Replicas) ||
 		!reflect.DeepEqual(desired.Spec.Selector, fetched.Spec.Selector) {
@@ -196,7 +199,7 @@ func DeploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
 	}
 
 	if !maps.Equal(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
-		!maps.Equal(desired.Spec.Template.Annotations, fetched.Spec.Template.Annotations) {
+		ManagedMapModified(desired.Spec.Template.Annotations, fetched.Spec.Template.Annotations) {
 		return true
 	}
 
