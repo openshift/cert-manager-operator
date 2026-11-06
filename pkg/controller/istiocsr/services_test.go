@@ -111,7 +111,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
-			err := r.createOrApplyServices(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyServices(context.Background(), istiocsr, controllerDefaultResourceLabels, false)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyServices() err: %v, wantErr: %v", err, tt.wantErr)
 			}
