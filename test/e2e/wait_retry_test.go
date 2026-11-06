@@ -37,6 +37,7 @@ func TestIsRetriableAPIError(t *testing.T) {
 		{name: "service unavailable", err: apierrors.NewServiceUnavailable("unavailable"), want: true},
 		{name: "internal error", err: apierrors.NewInternalError(fmt.Errorf("boom")), want: true},
 		{name: "connection reset", err: fmt.Errorf("read: connection reset by peer"), want: true},
+		{name: "etcd request timed out as a plain 500", err: etcdTimeoutError(), want: true},
 		{name: "not found is not retriable here", err: notFound, want: false},
 		{name: "forbidden", err: forbidden, want: false},
 	}
@@ -57,6 +58,16 @@ func apiServerTimeoutError() error {
 		Message: "the server was unable to return a response in the time allotted, but may still be processing the request",
 		Reason:  metav1.StatusReasonTimeout,
 		Code:    http.StatusGatewayTimeout,
+	}}
+}
+
+// etcdTimeoutError builds the error the apiserver returns when etcd times out:
+// a 500 with no StatusReason, which IsInternalError treats as internal and retriable.
+func etcdTimeoutError() error {
+	return &apierrors.StatusError{ErrStatus: metav1.Status{
+		Status:  metav1.StatusFailure,
+		Message: "etcdserver: request timed out",
+		Code:    http.StatusInternalServerError,
 	}}
 }
 

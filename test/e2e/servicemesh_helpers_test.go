@@ -118,6 +118,9 @@ func waitForIstiodControlPlaneNamespace(ctx context.Context, clientset *kubernet
 	err := wait.PollUntilContextTimeout(ctx, fastPollInterval, timeout, true, func(context.Context) (bool, error) {
 		namespace, found, err := discoverIstiodControlPlaneNamespace(ctx, clientset)
 		if err != nil {
+			if isRetriableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		if !found {
@@ -274,7 +277,7 @@ func waitForClusterExtensionReady(ctx context.Context, loader library.DynamicRes
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, ossmIstiodWaitTimeout, true, func(context.Context) (bool, error) {
 		ce, err := loader.DynamicClient.Resource(clusterExtensionGVR).Get(ctx, ossmClusterExtensionName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -298,7 +301,7 @@ func waitForSailIstioReady(ctx context.Context, loader library.DynamicResourceLo
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, ossmIstiodWaitTimeout, true, func(context.Context) (bool, error) {
 		istioCR, err := loader.DynamicClient.Resource(istioGVR).Get(ctx, "default", metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -315,7 +318,7 @@ func waitForSailIstioCNIReady(ctx context.Context, loader library.DynamicResourc
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, ossmIstiodWaitTimeout, true, func(context.Context) (bool, error) {
 		cniCR, err := loader.DynamicClient.Resource(istioCNIGVR).Get(ctx, "default", metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -486,7 +489,7 @@ func cleanupOSSMIstioCSROperand(ctx context.Context, loader library.DynamicResou
 		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
-		if err != nil {
+		if err != nil && !isRetriableAPIError(err) {
 			return false, err
 		}
 		return false, nil
@@ -527,7 +530,7 @@ func ensureServiceMeshForSmoke(ctx context.Context, cfg *rest.Config, loader lib
 				if err := waitForSailIstioReady(ctx, loader); err != nil {
 					return "", fmt.Errorf("existing Istio CR is not Healthy: %w", err)
 				}
-			} else if !apierrors.IsNotFound(getErr) {
+			} else if !apierrors.IsNotFound(getErr) && !isRetriableAPIError(getErr) {
 				return "", getErr
 			}
 		}
@@ -581,7 +584,7 @@ func waitForInjectedDeploymentReady(ctx context.Context, clientset *kubernetes.C
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		deployment, err := clientset.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err
@@ -594,6 +597,9 @@ func waitForInjectedDeploymentReady(ctx context.Context, clientset *kubernetes.C
 			LabelSelector: fmt.Sprintf("app=%s", deploymentName),
 		})
 		if err != nil {
+			if isRetriableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		for _, pod := range pods.Items {
@@ -627,6 +633,9 @@ func waitForCertificateRequestsFromIstioCSR(ctx context.Context, namespace strin
 	return wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		crs, err := certmanagerClient.CertmanagerV1().CertificateRequests(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
+			if isRetriableAPIError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		count := 0
