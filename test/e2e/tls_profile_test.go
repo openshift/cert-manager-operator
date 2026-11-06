@@ -767,6 +767,14 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 				Type: configapiv1.TLSProfileIntermediateType,
 			})
 
+			// Flipping tlsAdherence restarts the operator container. This spec
+			// runs late in the Ordered suite after several such restarts, so
+			// kubelet backoff can exceed lowTimeout before trust-manager can
+			// strip leftover Intermediate flags.
+			By("waiting for operator to become healthy after tlsAdherence restart")
+			err = verifyHealthyOperatorConditionsWithTimeout(certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
 			expectProfileManagedTLSFlagsGone(tmCtx, []string{trustManagerDeploymentName})
 
 			By("handshaking trust-manager webhook: TLS 1.2 succeeds after Strict → Legacy")

@@ -2150,9 +2150,10 @@ func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 
 // waitForOperandProfileTLSArgKeysAbsent polls until profile-managed TLS flags are gone.
 // Transient read failures keep polling. A timeout includes the last verification error.
+// highTimeout covers operator container restart backoff after a tlsAdherence flip.
 func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 	var lastErr error
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		lastErr = verifyOperandProfileTLSArgKeysAbsent(deploymentName)
 		return lastErr == nil, nil
 	})
