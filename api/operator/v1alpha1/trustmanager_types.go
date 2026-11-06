@@ -222,6 +222,7 @@ type WebhookTLSConfig struct {
 // TrustManagerCertConfig configures the cert-manager Certificate used for the
 // trust-manager webhook serving certificate.
 // +kubebuilder:validation:XValidation:rule="!has(self.privateKeySize) || self.privateKeySize == 0 || !has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm == \"Ed25519\" || (self.privateKeyAlgorithm == \"RSA\" && self.privateKeySize in [2048, 4096, 8192]) || (self.privateKeyAlgorithm == \"ECDSA\" && self.privateKeySize in [256, 384, 521])",message="privateKeySize must match privateKeyAlgorithm"
+// +kubebuilder:validation:XValidation:rule="!has(self.certificateSignatureAlgorithm) || self.certificateSignatureAlgorithm == \"\" || ((!has(self.privateKeyAlgorithm) || self.privateKeyAlgorithm == \"\" || self.privateKeyAlgorithm == \"RSA\") && self.certificateSignatureAlgorithm in [\"SHA256WithRSA\", \"SHA384WithRSA\", \"SHA512WithRSA\"]) || (self.privateKeyAlgorithm == \"ECDSA\" && self.certificateSignatureAlgorithm in [\"ECDSAWithSHA256\", \"ECDSAWithSHA384\", \"ECDSAWithSHA512\"]) || (self.privateKeyAlgorithm == \"Ed25519\" && self.certificateSignatureAlgorithm == \"PureEd25519\")",message="certificateSignatureAlgorithm must match privateKeyAlgorithm"
 // +kubebuilder:validation:XValidation:rule="!has(self.certificateDuration) || duration(self.certificateDuration) >= duration('1h')",message="certificateDuration must be at least 1h"
 // +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || duration(self.certificateRenewBefore) >= duration('5m')",message="certificateRenewBefore must be at least 5m"
 // +kubebuilder:validation:XValidation:rule="!has(self.certificateRenewBefore) || duration(self.certificateRenewBefore) < (has(self.certificateDuration) ? duration(self.certificateDuration) : duration('2160h'))",message="certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
@@ -258,7 +259,7 @@ type TrustManagerCertConfig struct {
 	// +kubebuilder:validation:XValidation:rule="!has(self.group) || self.group.lowerAscii() == 'cert-manager.io'",message="group must be 'cert-manager.io'"
 	// +kubebuilder:validation:Optional
 	// +optional
-	IssuerRef *certmanagermetav1.ObjectReference `json:"issuerRef,omitempty"`
+	IssuerRef *certmanagermetav1.IssuerReference `json:"issuerRef,omitempty"`
 
 	// privateKeyAlgorithm is the private key algorithm for the webhook certificate.
 	// Allowed values are RSA, ECDSA, and Ed25519.

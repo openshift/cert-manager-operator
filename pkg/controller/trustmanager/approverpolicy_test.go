@@ -47,7 +47,7 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 		(*obj.Spec.Allowed.Usages)[1] != certmanagerv1.UsageKeyEncipherment {
 		t.Errorf("expected usages [digital signature, key encipherment], got %#v", obj.Spec.Allowed.Usages)
 	}
-	assertPolicyIssuerRef(t, obj, certmanagermetav1.ObjectReference{
+	assertPolicyIssuerRef(t, obj, certmanagermetav1.IssuerReference{
 		Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io",
 	})
 }
@@ -55,22 +55,22 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
 	tests := []struct {
 		name string
-		ref  *certmanagermetav1.ObjectReference
-		want certmanagermetav1.ObjectReference
+		ref  *certmanagermetav1.IssuerReference
+		want certmanagermetav1.IssuerReference
 	}{
 		{
 			name: "defaults to the operator self-signed issuer",
-			want: certmanagermetav1.ObjectReference{Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.IssuerReference{Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io"},
 		},
 		{
 			name: "uses a custom issuer",
-			ref:  &certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
-			want: certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+			ref:  &certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
 		},
 		{
 			name: "uses a custom cluster issuer",
-			ref:  &certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
-			want: certmanagermetav1.ObjectReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+			ref:  &certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "ClusterIssuer", Group: "cert-manager.io"},
 		},
 	}
 	for _, tt := range tests {
@@ -81,7 +81,7 @@ func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
 	}
 }
 
-func assertPolicyIssuerRef(t *testing.T, obj *policyv1alpha1.CertificateRequestPolicy, want certmanagermetav1.ObjectReference) {
+func assertPolicyIssuerRef(t *testing.T, obj *policyv1alpha1.CertificateRequestPolicy, want certmanagermetav1.IssuerReference) {
 	t.Helper()
 	got := obj.Spec.Selector.IssuerRef
 	if got == nil || got.Name == nil || got.Kind == nil || got.Group == nil ||
