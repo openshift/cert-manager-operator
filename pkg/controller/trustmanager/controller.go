@@ -44,7 +44,6 @@ const RequestEnqueueLabelValue = "cert-manager-trust-manager"
 type Reconciler struct {
 	common.CtrlClient
 
-	ctx           context.Context
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 	scheme        *runtime.Scheme
@@ -82,7 +81,6 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
-		ctx:           context.Background(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 		scheme:        mgr.GetScheme(),
@@ -207,7 +205,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if !trustManager.DeletionTimestamp.IsZero() {
 		r.log.V(1).Info("trustmanager.openshift.operator.io is marked for deletion", "name", req.NamespacedName)
 
-		if requeue, err := r.cleanUp(trustManager); err != nil {
+		if requeue, err := r.cleanUp(ctx, trustManager); err != nil {
 			return ctrl.Result{}, fmt.Errorf("clean up failed for %q trustmanager.openshift.operator.io instance deletion: %w", req.NamespacedName, err)
 		} else if requeue {
 			return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
@@ -231,11 +229,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
 	}
 
-	return r.processReconcileRequest(trustManager, req.NamespacedName)
+	return r.processReconcileRequest(ctx, trustManager, req.NamespacedName)
 }
 
-func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
-	reconcileErr := r.reconcileTrustManagerDeployment(trustManager)
+func (r *Reconciler) processReconcileRequest(ctx context.Context, trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
+	reconcileErr := r.reconcileTrustManagerDeployment(ctx, trustManager)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile TrustManager deployment", "request", req)
 	}
@@ -245,14 +243,14 @@ func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager
 		reconcileErr,
 		r.log.WithValues("name", trustManager.GetName()),
 		func(prependErr error) error {
-			return r.updateCondition(trustManager, prependErr)
+			return r.updateCondition(ctx, trustManager, prependErr)
 		},
 		defaultRequeueTime,
 	)
 }
 
 // cleanUp handles deletion of trustmanager.openshift.operator.io gracefully.
-func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) {
+func (r *Reconciler) cleanUp(_ context.Context, trustManager *v1alpha1.TrustManager) (bool, error) {
 	// TODO: For GA, handle cleaning up of resources created for installing trust-manager operand.
 	// As per Non-Goals in the enhancement, removing the TrustManager CR will not remove the
 	// trust-manager deployment or its associated resources.
@@ -271,7 +269,7 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 func (r *Reconciler) targetNamespaceWatchPredicate() predicate.Funcs {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return r.isListedTargetNamespace(e.Object)
+			return r.isListedTargetNamespace(context.Background(), e.Object)
 		},
 		DeleteFunc: func(event.DeleteEvent) bool {
 			return false
@@ -287,12 +285,12 @@ func (r *Reconciler) targetNamespaceWatchPredicate() predicate.Funcs {
 
 // isListedTargetNamespace reports whether obj is named in the current
 // TrustManager targetNamespaces list.
-func (r *Reconciler) isListedTargetNamespace(obj client.Object) bool {
+func (r *Reconciler) isListedTargetNamespace(ctx context.Context, obj client.Object) bool {
 	if obj == nil || obj.GetName() == "" {
 		return false
 	}
 	trustManager := &v1alpha1.TrustManager{}
-	if err := r.Get(r.ctx, types.NamespacedName{Name: trustManagerObjectName}, trustManager); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: trustManagerObjectName}, trustManager); err != nil {
 		r.log.V(4).Info("target namespace watch skipped", "namespace", obj.GetName(), "error", err)
 		return false
 	}

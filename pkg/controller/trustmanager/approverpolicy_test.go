@@ -358,7 +358,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 				obj.(*v1alpha1.CertManager).Status.AutoApproverDisabled = tt.autoApproverDisabled
 				return tt.certManagerReadError
 			})
-			err := r.createOrApplyApproverPolicyResources(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyApproverPolicyResources(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 			if !approverPolicyManaged(tm) {
 				assert.Zero(t, mock.GetCallCount(), "Unmanaged must not read CertManager")
