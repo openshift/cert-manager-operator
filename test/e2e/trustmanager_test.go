@@ -153,6 +153,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				verifyTrustManagerManagedLabels(cert.Labels)
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				verifyTrustManagerManagedLabels(cert.Spec.SecretTemplate.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 
 			// Cluster-scoped resources
@@ -1159,13 +1161,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			err := waitForCertificateReadiness(ctx, trustManagerCertificateName, trustManagerNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("verifying TLS secret is created with expected keys")
+			By("verifying TLS secret is created with expected keys and operator-managed labels")
 			Eventually(func(g Gomega) {
 				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(secret.Data).Should(HaveKey("tls.crt"))
 				g.Expect(secret.Data).Should(HaveKey("tls.key"))
 				g.Expect(secret.Data).Should(HaveKey("ca.crt"))
+				verifyTrustManagerManagedLabels(secret.Labels)
 			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
@@ -1185,6 +1188,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(cert.Spec.IssuerRef.Kind).Should(Equal("Issuer"))
 				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
 				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue("cert-manager.io/allow-direct-injection", "true"))
+				verifyTrustManagerManagedLabels(cert.Spec.SecretTemplate.Labels)
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 	})
@@ -1414,6 +1418,24 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				}
 				return vwc.Labels, nil
 			})
+
+			verifyCustomLabelOnResource("Certificate secretTemplate", func() (map[string]string, error) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				if err != nil {
+					return nil, err
+				}
+				if cert.Spec.SecretTemplate == nil {
+					return nil, fmt.Errorf("certificate secretTemplate is nil")
+				}
+				return cert.Spec.SecretTemplate.Labels, nil
+			})
+
+			By("verifying custom label is copied to the webhook TLS Secret")
+			Eventually(func(g Gomega) {
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Labels).Should(HaveKeyWithValue("custom-label", "custom-value"))
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 
 		It("should apply custom annotations from controllerConfig to managed resources", func() {
@@ -1444,6 +1466,84 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				expectedCAAnnotation := fmt.Sprintf("%s/%s", trustManagerNamespace, trustManagerTLSSecretName)
 				g.Expect(vwc.Annotations).Should(HaveKeyWithValue("cert-manager.io/inject-ca-from-secret", expectedCAAnnotation))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying custom annotation is set on Certificate secretTemplate")
+			Eventually(func(g Gomega) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue("custom-annotation", "annotation-value"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying custom annotation is copied to the webhook TLS Secret")
+			Eventually(func(g Gomega) {
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Annotations).Should(HaveKeyWithValue("custom-annotation", "annotation-value"))
+			}, highTimeout, slowPollInterval).Should(Succeed())
+		})
+
+		It("should drop a removed controllerConfig label and annotation from the webhook TLS Secret without re-issuing", func() {
+			const (
+				removedLabel      = "removed-label"
+				removedAnnotation = "removed-annotation"
+			)
+
+			By("creating TrustManager CR with a label and annotation that will be removed")
+			createTrustManager(ctx, newTrustManagerCR().
+				WithLabels(map[string]string{removedLabel: "present"}).
+				WithAnnotations(map[string]string{removedAnnotation: "present"}))
+
+			var issuedCert []byte
+			By("waiting until the label and annotation are on the Certificate secretTemplate and the webhook TLS Secret")
+			Eventually(func(g Gomega) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				g.Expect(cert.Spec.SecretTemplate.Labels).Should(HaveKeyWithValue(removedLabel, "present"))
+				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue(removedAnnotation, "present"))
+
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Labels).Should(HaveKeyWithValue(removedLabel, "present"))
+				g.Expect(secret.Annotations).Should(HaveKeyWithValue(removedAnnotation, "present"))
+				g.Expect(secret.Data).Should(HaveKey("tls.crt"))
+				issuedCert = slices.Clone(secret.Data["tls.crt"])
+			}, highTimeout, slowPollInterval).Should(Succeed())
+
+			By("removing the label and annotation from controllerConfig")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				delete(tm.Spec.ControllerConfig.Labels, removedLabel)
+				delete(tm.Spec.ControllerConfig.Annotations, removedAnnotation)
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying the Certificate secretTemplate drops the removed keys and keeps managed metadata")
+			Eventually(func(g Gomega) {
+				cert, err := certmanagerClient.CertmanagerV1().Certificates(trustManagerNamespace).Get(ctx, trustManagerCertificateName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(cert.Spec.SecretTemplate).ShouldNot(BeNil())
+				g.Expect(cert.Spec.SecretTemplate.Labels).ShouldNot(HaveKey(removedLabel))
+				g.Expect(cert.Spec.SecretTemplate.Annotations).ShouldNot(HaveKey(removedAnnotation))
+				g.Expect(cert.Spec.SecretTemplate.Labels).Should(HaveKeyWithValue("app", trustManagerCommonName))
+				g.Expect(cert.Spec.SecretTemplate.Annotations).Should(HaveKeyWithValue("cert-manager.io/allow-direct-injection", "true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("verifying the webhook TLS Secret drops the removed keys without replacing tls.crt")
+			Eventually(func(g Gomega) {
+				secret, err := clientset.CoreV1().Secrets(trustManagerNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(secret.Labels).ShouldNot(HaveKey(removedLabel))
+				g.Expect(secret.Annotations).ShouldNot(HaveKey(removedAnnotation))
+				g.Expect(secret.Labels).Should(HaveKeyWithValue("app", trustManagerCommonName))
+				g.Expect(secret.Annotations).Should(HaveKeyWithValue("cert-manager.io/allow-direct-injection", "true"))
+				g.Expect(secret.Data["tls.crt"]).Should(Equal(issuedCert), "tls.crt changed, so removal did not happen as a metadata update")
+			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
 	})
 

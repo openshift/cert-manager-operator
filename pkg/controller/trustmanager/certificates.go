@@ -1,13 +1,16 @@
 package trustmanager
 
 import (
+	"bytes"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -92,8 +95,34 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 		Kind:  "Issuer",
 		Group: "cert-manager.io",
 	}
+	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
 	return certificate
+}
+
+// certificateSecretTemplate copies operator-managed labels and annotations onto
+// the Certificate secretTemplate so cert-manager propagates them to the webhook
+// TLS Secret. User annotations are copied first, then manifest annotations are
+// re-applied so keys such as cert-manager.io/allow-direct-injection keep the
+// manifest value. cainjector uses that annotation to fill the webhook caBundle.
+func certificateSecretTemplate(base *certmanagerv1.CertificateSecretTemplate, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.CertificateSecretTemplate {
+	template := &certmanagerv1.CertificateSecretTemplate{}
+	if base != nil {
+		template = base.DeepCopy()
+	}
+	if len(resourceLabels) > 0 {
+		if template.Labels == nil {
+			template.Labels = make(map[string]string, len(resourceLabels))
+		}
+		maps.Copy(template.Labels, resourceLabels)
+	}
+	if len(resourceAnnotations) > 0 {
+		merged := make(map[string]string, len(template.Annotations)+len(resourceAnnotations))
+		maps.Copy(merged, resourceAnnotations)
+		maps.Copy(merged, template.Annotations)
+		template.Annotations = merged
+	}
+	return template
 }
 
 // issuerModified compares only the fields we manage via SSA.
@@ -114,7 +143,7 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		desired.Spec.SecretName != existing.Spec.SecretName ||
 		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
 		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
-		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
+		secretTemplateModified(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate, existing) ||
 		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
 		return true
 	}
@@ -129,4 +158,86 @@ func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey
 		return ""
 	}
 	return pk.RotationPolicy
+}
+
+// secretTemplateModified reports whether managed secretTemplate labels or
+// annotations have drifted. Keys still requested are compared by value. A key
+// that is no longer requested is drift only when trust-manager-controller owns
+// it in managedFields, so the next server-side apply drops it. Keys owned by
+// another manager are left alone. Nil and empty maps are treated as equivalent
+// so cert-manager omitting an empty annotations field does not force a re-apply.
+func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTemplate, existingCert *certmanagerv1.Certificate) bool {
+	if desired == nil && existing == nil {
+		return false
+	}
+	var desiredLabels, desiredAnnotations, existingLabels, existingAnnotations map[string]string
+	if desired != nil {
+		desiredLabels = desired.Labels
+		desiredAnnotations = desired.Annotations
+	}
+	if existing != nil {
+		existingLabels = existing.Labels
+		existingAnnotations = existing.Annotations
+	}
+	if managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations) {
+		return true
+	}
+	if existingCert == nil || (!mapHasKeyAbsentFrom(existingLabels, desiredLabels) && !mapHasKeyAbsentFrom(existingAnnotations, desiredAnnotations)) {
+		return false
+	}
+	owned := controllerOwnedFields(existingCert)
+	return ownedSecretTemplateKeyRemoved(owned, "labels", desiredLabels, existingLabels) ||
+		ownedSecretTemplateKeyRemoved(owned, "annotations", desiredAnnotations, existingAnnotations)
+}
+
+func managedMapModified(desired, existing map[string]string) bool {
+	for k, v := range desired {
+		existingValue, ok := existing[k]
+		if !ok || existingValue != v {
+			return true
+		}
+	}
+	return false
+}
+
+func mapHasKeyAbsentFrom(live, desired map[string]string) bool {
+	for key := range live {
+		if _, ok := desired[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func ownedSecretTemplateKeyRemoved(owned *fieldpath.Set, mapField string, desired, live map[string]string) bool {
+	for key := range live {
+		if _, kept := desired[key]; kept {
+			continue
+		}
+		if owned.Has(fieldpath.MakePathOrDie("spec", "secretTemplate", mapField, key)) {
+			return true
+		}
+	}
+	return false
+}
+
+// controllerOwnedFields returns the fields trust-manager-controller owns on the
+// main resource. Status and other subresources are ignored. An unreadable
+// managedFields entry is skipped.
+func controllerOwnedFields(obj *certmanagerv1.Certificate) *fieldpath.Set {
+	owned := fieldpath.NewSet()
+	if obj == nil {
+		return owned
+	}
+	for _, entry := range obj.GetManagedFields() {
+		if entry.Manager != fieldOwner || entry.Subresource != "" || entry.FieldsV1 == nil || len(entry.FieldsV1.Raw) == 0 {
+			continue
+		}
+		var fields fieldpath.Set
+		if err := fields.FromJSON(bytes.NewReader(entry.FieldsV1.Raw)); err != nil {
+			continue
+		}
+		owned = owned.Union(&fields)
+	}
+	return owned
 }
