@@ -392,7 +392,7 @@ func TestRBACReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply of all RBAC resources",
@@ -402,7 +402,7 @@ func TestRBACReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  7,
+			wantApplyCount:  7,
 		},
 		{
 			name: "skip apply when all RBAC resources match desired",
@@ -437,7 +437,7 @@ func TestRBACReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when cluster role has label drift",
@@ -473,7 +473,7 @@ func TestRBACReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when cluster role binding has annotation drift",
@@ -513,7 +513,7 @@ func TestRBACReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when role has rules drift",
@@ -551,7 +551,7 @@ func TestRBACReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates on first resource",
@@ -560,9 +560,9 @@ func TestRBACReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if clusterrole",
+			wantErr:         "failed to check if ClusterRole",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "clusterrole patch error propagates",
@@ -570,16 +570,16 @@ func TestRBACReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					if _, ok := obj.(*rbacv1.ClusterRole); ok {
 						return errTestClient
 					}
 					return nil
 				})
 			},
-			wantErr:         "failed to apply clusterrole",
+			wantErr:         "failed to apply ClusterRole",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "clusterrolebinding patch error propagates",
@@ -587,16 +587,16 @@ func TestRBACReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
 						return errTestClient
 					}
 					return nil
 				})
 			},
-			wantErr:         "failed to apply clusterrolebinding",
+			wantErr:         "failed to apply ClusterRoleBinding",
 			wantExistsCount: 2,
-			wantPatchCount:  2,
+			wantApplyCount:  2,
 		},
 		{
 			name: "role patch error propagates",
@@ -604,16 +604,16 @@ func TestRBACReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					if _, ok := obj.(*rbacv1.Role); ok {
 						return errTestClient
 					}
 					return nil
 				})
 			},
-			wantErr:         "failed to apply role",
+			wantErr:         "failed to apply Role",
 			wantExistsCount: 3,
-			wantPatchCount:  3,
+			wantApplyCount:  3,
 		},
 		{
 			name: "rolebinding patch error propagates",
@@ -621,16 +621,16 @@ func TestRBACReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					if _, ok := obj.(*rbacv1.RoleBinding); ok {
 						return errTestClient
 					}
 					return nil
 				})
 			},
-			wantErr:         "failed to apply rolebinding",
+			wantErr:         "failed to apply RoleBinding",
 			wantExistsCount: 4,
-			wantPatchCount:  4,
+			wantApplyCount:  4,
 		},
 	}
 
@@ -654,8 +654,8 @@ func TestRBACReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}
@@ -737,7 +737,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 		name            string
 		tmBuilder       *trustManagerBuilder
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient, *v1alpha1.TrustManager)
-		wantPatchCount  int
+		wantApplyCount  int
 		wantExistsCount int
 	}{
 		{
@@ -775,7 +775,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "skip apply when secretTargets rules already match",
@@ -812,7 +812,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:      "apply when authorizedSecrets list changes",
@@ -852,7 +852,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 				})
 			},
 			wantExistsCount: 7,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -872,8 +872,8 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}
@@ -1261,8 +1261,10 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			// Target-namespace Roles are written with Patch; the remaining RBAC
+			// objects go through ApplyResource, which uses Apply.
+			if got := mock.PatchCallCount() + mock.ApplyCallCount(); got != tt.wantPatchCount {
+				t.Errorf("expected %d Patch+Apply calls, got %d", tt.wantPatchCount, got)
 			}
 			if got := mock.DeleteCallCount(); got != tt.wantDeleteCount {
 				t.Errorf("expected %d Delete calls, got %d", tt.wantDeleteCount, got)
@@ -1282,7 +1284,7 @@ func TestTargetNamespaceRolesAppliedBeforeClusterRoleNarrowing(t *testing.T) {
 		return false, nil
 	})
 	var patched []string
-	mock.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	record := func(obj client.Object) {
 		switch o := obj.(type) {
 		case *rbacv1.Role:
 			patched = append(patched, "role/"+o.Name)
@@ -1291,6 +1293,13 @@ func TestTargetNamespaceRolesAppliedBeforeClusterRoleNarrowing(t *testing.T) {
 		case *rbacv1.ClusterRole:
 			patched = append(patched, "clusterrole/"+o.Name)
 		}
+	}
+	mock.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+		record(obj)
+		return nil
+	})
+	mock.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
+		record(obj)
 		return nil
 	})
 	r.CtrlClient = mock

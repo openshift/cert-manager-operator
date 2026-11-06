@@ -17,10 +17,10 @@
 | Controller | Assert | Fake |
 |------------|--------|------|
 | CertManager | library-go `resourceapply` / expected generation / rollout | library-go fake clientset — **no** `FakeCtrlClient` |
-| IstioCSR | `CreateCallCount` / `UpdateWithRetryCallCount` | `fakes.FakeCtrlClient` — **not** `PatchCallCount` |
-| TrustManager | `PatchCallCount` with `client.Apply` + FieldOwner `trust-manager-controller` | `fakes.FakeCtrlClient` — **not** Update/Create |
+| IstioCSR | `ApplyCallCount` for SSA resources (Service, SA, Certificate, Role/RoleBinding, NetworkPolicy); `CreateCallCount` / `UpdateWithRetryCallCount` for Deployment, CA ConfigMap, ClusterRole/Binding | `fakes.FakeCtrlClient` |
+| TrustManager | `ApplyCallCount` (SSA via `CtrlClient.Apply`, FieldOwner `trust-manager-controller`) | `fakes.FakeCtrlClient` — **not** Update/Create |
 
-A TrustManager test asserting `UpdateCallCount` (or IstioCSR asserting `PatchCallCount`) is the wrong path even if green. Regenerate fakes with `make generate-fakes` after changing `CtrlClient` — never hand-edit `pkg/controller/common/fakes/`.
+A test asserting `UpdateCallCount` for an SSA resource, or `ApplyCallCount` for a Create/Update resource, is the wrong path even if green. `PatchCallCount` only counts the JSON merge-patch fallback `ApplyResource` uses when a drift-correcting apply fails. Regenerate fakes with `make generate-fakes` after changing `CtrlClient` — never hand-edit `pkg/controller/common/fakes/`.
 
 ```bash
 make test-unit
