@@ -109,19 +109,27 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		expectTrustManagerDenyAllPolicy(denyNP)
 	}
 
+	// createTrustManagerReadyWithPolicies waits until the operand Deployment is Available.
+	// Existence of the Deployment object is not enough: a ProgressDeadlineExceeded
+	// pod leaves the webhook Service with no endpoints.
+	createTrustManagerReadyWithPolicies := func() {
+		createTrustManager(ctx, newTrustManagerCR())
+		expectTrustManagerDeploymentPresent(ctx)
+		By("waiting for trust-manager deployment to become available")
+		Expect(waitForDeploymentRollout(ctx, trustManagerNamespace, trustManagerDeploymentName, highTimeout)).To(Succeed())
+		expectTrustManagerNetworkPolicies()
+	}
+
 	It("CJ-1: creates four reserved policies regardless of CertManager defaultNetworkPolicy", func() {
 		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		By(fmt.Sprintf("CertManager.spec.defaultNetworkPolicy=%q (trust-manager NPs must still apply)", cm.Spec.DefaultNetworkPolicy))
 
-		createTrustManager(ctx, newTrustManagerCR())
-		expectTrustManagerDeploymentPresent(ctx)
-		expectTrustManagerNetworkPolicies()
+		createTrustManagerReadyWithPolicies()
 	})
 
 	It("CJ-2: admits Bundle create with network policies applied", func() {
-		createTrustManager(ctx, newTrustManagerCR())
-		expectTrustManagerNetworkPolicies()
+		createTrustManagerReadyWithPolicies()
 
 		targetNS := createNamespaceWithCleanup(ctx, "tm-np-bundle-", nil)
 		caTweak := func(cert *x509.Certificate) {
@@ -141,8 +149,7 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 	})
 
 	It("CJ-3: restores drifted deny-all policy after TrustManager spec change and does not select cert-manager pods", func() {
-		createTrustManager(ctx, newTrustManagerCR())
-		expectTrustManagerNetworkPolicies()
+		createTrustManagerReadyWithPolicies()
 
 		denyNP, err := clientset.NetworkingV1().NetworkPolicies(trustManagerNamespace).Get(ctx, tmNPDenyAllName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
@@ -168,8 +175,7 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 	})
 
 	It("CJ-4: allows metrics scrape from openshift-user-workload-monitoring and denies other clients", func() {
-		createTrustManager(ctx, newTrustManagerCR())
-		expectTrustManagerNetworkPolicies()
+		createTrustManagerReadyWithPolicies()
 
 		By("confirming a client outside openshift-user-workload-monitoring cannot reach metrics")
 		expectTrustManagerMetricsDenied(ctx, clientset)
@@ -238,22 +244,34 @@ func expectNonEmptyNamespaceSelector(ns *metav1.LabelSelector) {
 	Expect(ns.MatchLabels).NotTo(BeEmpty(), "namespace selector must not be empty (matches all namespaces)")
 }
 
+// expectNetworkPolicyTCPPort compares the NetworkPolicyPort.Port value. Port is a
+// *intstr.IntOrString; comparing the pointer to intstr.FromInt32() always fails.
+func expectNetworkPolicyTCPPort(port *intstr.IntOrString, want int32) {
+	Expect(port).NotTo(BeNil())
+	Expect(*port).To(Equal(intstr.FromInt32(want)))
+}
+
 func expectTrustManagerAPIServerEgressPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(np.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeEgress}))
 	Expect(np.Spec.Ingress).To(BeEmpty())
 	Expect(np.Spec.Egress).To(HaveLen(1))
 	rule := np.Spec.Egress[0]
-	Expect(rule.Ports).To(HaveLen(1))
-	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
-	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
-	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(6443)))
+	Expect(rule.Ports).To(HaveLen(2))
+	gotPorts := make([]int32, 0, len(rule.Ports))
+	for i := range rule.Ports {
+		Expect(rule.Ports[i].Protocol).NotTo(BeNil())
+		Expect(*rule.Ports[i].Protocol).To(Equal(corev1.ProtocolTCP))
+		Expect(rule.Ports[i].Port).NotTo(BeNil())
+		gotPorts = append(gotPorts, rule.Ports[i].Port.IntVal)
+	}
+	Expect(gotPorts).To(ConsistOf(int32(443), int32(6443)))
 	Expect(rule.To).To(HaveLen(1))
 	peer := rule.To[0]
 	Expect(peer.IPBlock).To(BeNil())
 	Expect(peer.PodSelector).To(BeNil())
 	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
 	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
-		"kubernetes.io/metadata.name": "openshift-kube-apiserver",
+		"policy-group.network.openshift.io/host-network": "",
 	}))
 }
 
@@ -265,7 +283,7 @@ func expectTrustManagerWebhookIngressPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(rule.Ports).To(HaveLen(1))
 	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
 	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
-	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(6443)))
+	expectNetworkPolicyTCPPort(rule.Ports[0].Port, 6443)
 	Expect(rule.From).To(HaveLen(1))
 	peer := rule.From[0]
 	Expect(peer.IPBlock).To(BeNil())
@@ -284,7 +302,7 @@ func expectTrustManagerMetricsIngressPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(rule.Ports).To(HaveLen(1))
 	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
 	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
-	Expect(rule.Ports[0].Port).To(Equal(intstr.FromInt32(9402)))
+	expectNetworkPolicyTCPPort(rule.Ports[0].Port, 9402)
 	Expect(rule.From).To(HaveLen(1))
 	peer := rule.From[0]
 	Expect(peer.IPBlock).To(BeNil())

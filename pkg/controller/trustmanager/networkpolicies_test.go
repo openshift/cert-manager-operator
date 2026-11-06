@@ -65,21 +65,54 @@ func TestNetworkPolicyFromAsset(t *testing.T) {
 			if policy.Labels[trustManagerNetworkPolicyOwnedByLabelKey] != trustManagerNetworkPolicyOwnedByValue {
 				t.Errorf("owned-by label missing or wrong")
 			}
-			if tt.wantPort != 0 {
-				var port int32
-				if tt.wantEgress {
-					if len(policy.Spec.Egress) == 0 || len(policy.Spec.Egress[0].Ports) == 0 {
-						t.Fatal("expected egress port")
-					}
-					port = policy.Spec.Egress[0].Ports[0].Port.IntVal
-				} else {
-					if len(policy.Spec.Ingress) == 0 || len(policy.Spec.Ingress[0].Ports) == 0 {
-						t.Fatal("expected ingress port")
-					}
-					port = policy.Spec.Ingress[0].Ports[0].Port.IntVal
+			if tt.wantPort != 0 && !tt.wantEgress {
+				if len(policy.Spec.Ingress) == 0 || len(policy.Spec.Ingress[0].Ports) == 0 {
+					t.Fatal("expected ingress port")
 				}
+				if policy.Spec.Ingress[0].Ports[0].Port == nil {
+					t.Fatal("ingress port is nil")
+				}
+				port := policy.Spec.Ingress[0].Ports[0].Port.IntVal
 				if port != tt.wantPort {
 					t.Errorf("port: got %d want %d", port, tt.wantPort)
+				}
+			}
+			if tt.assetPath == trustManagerAllowIngressWebhookNetworkPolicyAssetName {
+				from := policy.Spec.Ingress[0].From
+				if len(from) != 1 || from[0].NamespaceSelector == nil {
+					t.Fatalf("expected one webhook namespaceSelector peer, got %#v", from)
+				}
+				labels := from[0].NamespaceSelector.MatchLabels
+				v, ok := labels["policy-group.network.openshift.io/host-network"]
+				if !ok || v != "" || len(labels) != 1 {
+					t.Errorf("webhook host-network selector: got %v", labels)
+				}
+			}
+			if tt.wantEgress {
+				if len(policy.Spec.Egress) == 0 || len(policy.Spec.Egress[0].Ports) != 2 {
+					t.Fatalf("expected two egress ports, got %#v", policy.Spec.Egress)
+				}
+				gotPorts := map[int32]struct{}{}
+				for _, p := range policy.Spec.Egress[0].Ports {
+					if p.Port == nil {
+						t.Fatal("egress port is nil")
+					}
+					gotPorts[p.Port.IntVal] = struct{}{}
+				}
+				if _, ok := gotPorts[443]; !ok {
+					t.Errorf("missing egress port 443: %v", gotPorts)
+				}
+				if _, ok := gotPorts[6443]; !ok {
+					t.Errorf("missing egress port 6443: %v", gotPorts)
+				}
+				to := policy.Spec.Egress[0].To
+				if len(to) != 1 || to[0].NamespaceSelector == nil {
+					t.Fatalf("expected one namespaceSelector peer, got %#v", to)
+				}
+				labels := to[0].NamespaceSelector.MatchLabels
+				v, ok := labels["policy-group.network.openshift.io/host-network"]
+				if !ok || v != "" || len(labels) != 1 {
+					t.Errorf("host-network selector: got %v", labels)
 				}
 			}
 		})
