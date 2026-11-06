@@ -13,25 +13,23 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		return common.NewIrrecoverableError(err, "%s/%s configuration validation failed", istiocsr.GetNamespace(), istiocsr.GetName())
 	}
 
-	// if user has set custom labels to be added to all resources created by the controller
-	// merge it with the controller's own default labels.
 	resourceLabels := make(map[string]string)
 	if istiocsr.Spec.ControllerConfig != nil && len(istiocsr.Spec.ControllerConfig.Labels) != 0 {
 		maps.Copy(resourceLabels, istiocsr.Spec.ControllerConfig.Labels)
 	}
 	maps.Copy(resourceLabels, controllerDefaultResourceLabels)
 
-	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyNetworkPolicies(istiocsr, resourceLabels); err != nil {
 		r.log.Error(err, "failed to reconcile network policy resources")
 		return err
 	}
 
-	if err := r.createOrApplyServices(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyServices(istiocsr, resourceLabels); err != nil {
 		r.log.Error(err, "failed to reconcile service resource")
 		return err
 	}
 
-	if err := r.createOrApplyServiceAccounts(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyServiceAccounts(istiocsr, resourceLabels); err != nil {
 		r.log.Error(err, "failed to reconcile serviceaccount resource")
 		return err
 	}
@@ -41,7 +39,7 @@ func (r *Reconciler) reconcileIstioCSRDeployment(istiocsr *v1alpha1.IstioCSR, is
 		return err
 	}
 
-	if err := r.createOrApplyCertificates(istiocsr, resourceLabels, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyCertificates(istiocsr, resourceLabels); err != nil {
 		r.log.Error(err, "failed to reconcile certificate resource")
 		return err
 	}

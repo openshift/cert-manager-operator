@@ -25,7 +25,7 @@ FIPS: `make build` sources `hack/go-fips.sh`. WARN (non-FIPS) builds are **local
 
 ### New controller-runtime operand (greenfield)
 
-1. Copy **TrustManager** (SSA `Patch` + unique `FieldOwner`), not IstioCSR Create+Update
+1. Copy **TrustManager** (SSA via `common.ApplyResource` + unique `FieldOwner`), not IstioCSR Create+Update
 2. Feature gate — all five touchpoints ([ADR-0003](./decisions/adr-0003-feature-gates.md))
 3. Image triple-sync (below) + bindata via `hack/update-*-manifests.sh` + `make update-manifests` / `verify-bindata`
 4. RBAC via `+kubebuilder:rbac` → `make manifests` → `make bundle` (never hand-edit CSV RBAC)
@@ -62,7 +62,7 @@ the packaged operand-version env value in `manager.yaml` omits `v`.
 ## Common Mistakes
 
 1. Hand-edit bindata / generated clients / generated `bundle/` CSV  
-2. Assume SSA for IstioCSR or CertManager  
+2. Assume SSA for CertManager or for every IstioCSR resource  
 3. Logic in `certmanager_controller.go` placeholder  
 4. Label-filtered cache for ConfigMaps or Issuer/ClusterIssuer  
 5. Expect IstioCSR/TrustManager delete to GC operands (warn-only TODO)  
