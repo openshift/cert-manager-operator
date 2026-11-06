@@ -171,7 +171,7 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 		existingLabels = existing.Labels
 		existingAnnotations = existing.Annotations
 	}
-	if managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations) {
+	if common.ManagedMapModified(desiredLabels, existingLabels) || common.ManagedMapModified(desiredAnnotations, existingAnnotations) {
 		return true
 	}
 	if existingCert == nil || (!mapHasKeyAbsentFrom(existingLabels, desiredLabels) && !mapHasKeyAbsentFrom(existingAnnotations, desiredAnnotations)) {
@@ -180,16 +180,6 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 	owned := controllerOwnedFields(existingCert)
 	return ownedSecretTemplateKeyRemoved(owned, "labels", desiredLabels, existingLabels) ||
 		ownedSecretTemplateKeyRemoved(owned, "annotations", desiredAnnotations, existingAnnotations)
-}
-
-func managedMapModified(desired, existing map[string]string) bool {
-	for k, v := range desired {
-		existingValue, ok := existing[k]
-		if !ok || existingValue != v {
-			return true
-		}
-	}
-	return false
 }
 
 func mapHasKeyAbsentFrom(live, desired map[string]string) bool {

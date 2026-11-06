@@ -59,6 +59,12 @@ func TestManagedLabelsModified(t *testing.T) {
 			existing: nil,
 			want:     false,
 		},
+		{
+			name:     "absent label with empty desired value is modified",
+			desired:  map[string]string{"a": ""},
+			existing: map[string]string{},
+			want:     true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -414,5 +420,22 @@ func TestDeploymentSpecModified(t *testing.T) {
 	t.Run("both revision history limits nil matches", func(t *testing.T) {
 		d := baseDeployment()
 		assert.False(t, DeploymentSpecModified(d, d.DeepCopy()))
+	})
+
+	t.Run("extra pod template annotation on live only is not drift", func(t *testing.T) {
+		desired := baseDeployment()
+		fetched := desired.DeepCopy()
+		fetched.Spec.Template.Annotations = map[string]string{
+			"kubectl.kubernetes.io/restartedAt": "2020-01-01T00:00:00Z",
+		}
+		assert.False(t, DeploymentSpecModified(desired, fetched))
+	})
+
+	t.Run("pod template annotation value drift is drift", func(t *testing.T) {
+		desired := baseDeployment()
+		desired.Spec.Template.Annotations = map[string]string{"k": "v1"}
+		fetched := desired.DeepCopy()
+		fetched.Spec.Template.Annotations = map[string]string{"k": "v2"}
+		assert.True(t, DeploymentSpecModified(desired, fetched))
 	})
 }
