@@ -946,13 +946,13 @@ func trustManagerWebhookEndpoint() certManagerTLSEndpoint {
 }
 
 // customTLS13SecurityProfile returns a Custom profile whose minimum version is TLS 1.3.
+// TLS 1.3 cipher suites are not configurable on apiserver/cluster; leave Ciphers unset.
 func customTLS13SecurityProfile() *configapiv1.TLSSecurityProfile {
 	return &configapiv1.TLSSecurityProfile{
 		Type: configapiv1.TLSProfileCustomType,
 		Custom: &configapiv1.CustomTLSProfile{
 			TLSProfileSpec: configapiv1.TLSProfileSpec{
 				MinTLSVersion: configapiv1.VersionTLS13,
-				Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
 			},
 		},
 	}
