@@ -51,7 +51,9 @@ func HandleReconcileResult(
 				"degradedChanged", degradedChanged,
 				"readyChanged", readyChanged,
 				"error", reconcileErr)
-			errUpdate = updateConditionFn(reconcileErr)
+			// Pass nil so the callback returns only the status update error;
+			// reconcileErr is already recorded in the Ready condition message.
+			errUpdate = updateConditionFn(nil)
 		}
 		// For recoverable errors, either requeue manually or return error, not both.
 		// If status update failed, return the update error; otherwise requeue.
