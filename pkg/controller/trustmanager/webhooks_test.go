@@ -117,7 +117,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply when not found",
@@ -127,7 +127,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing matches desired",
@@ -139,7 +139,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "skip apply for API defaults and injected CA",
@@ -154,7 +154,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -167,7 +167,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -184,7 +184,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has service reference drift",
@@ -197,7 +197,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has failure policy drift",
@@ -210,7 +210,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has rules drift",
@@ -232,7 +232,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has admission review versions drift",
@@ -245,7 +245,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates",
@@ -254,9 +254,9 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if validatingwebhookconfiguration",
+			wantErr:         "failed to check if ValidatingWebhookConfiguration",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patch error propagates",
@@ -264,13 +264,13 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply validatingwebhookconfiguration",
+			wantErr:         "failed to apply ValidatingWebhookConfiguration",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -294,8 +294,8 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}
