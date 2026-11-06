@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -552,6 +553,42 @@ func TestCertificateSpecModified(t *testing.T) {
 			desired:  &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{DNSNames: []string{"a.example.com"}}},
 			fetched:  &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{DNSNames: []string{"a.example.com"}}},
 			wantTrue: false,
+		},
+		{
+			name: "Duration drift",
+			desired: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames: []string{"a.example.com"},
+				Duration: &metav1.Duration{Duration: time.Hour},
+			}},
+			fetched: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames: []string{"a.example.com"},
+				Duration: &metav1.Duration{Duration: 2 * time.Hour},
+			}},
+			wantTrue: true,
+		},
+		{
+			name: "URI SAN drift",
+			desired: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames: []string{"a.example.com"},
+				URIs:     []string{"spiffe://cluster.local/ns/x/sa/y"},
+			}},
+			fetched: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames: []string{"a.example.com"},
+				URIs:     []string{"spiffe://cluster.local/ns/x/sa/z"},
+			}},
+			wantTrue: true,
+		},
+		{
+			name: "private key rotation policy drift",
+			desired: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames:   []string{"a.example.com"},
+				PrivateKey: &certmanagerv1.CertificatePrivateKey{RotationPolicy: certmanagerv1.RotationPolicyNever},
+			}},
+			fetched: &certmanagerv1.Certificate{Spec: certmanagerv1.CertificateSpec{
+				DNSNames:   []string{"a.example.com"},
+				PrivateKey: &certmanagerv1.CertificatePrivateKey{RotationPolicy: certmanagerv1.RotationPolicyAlways},
+			}},
+			wantTrue: true,
 		},
 		{
 			name:     "different DNSNames",
