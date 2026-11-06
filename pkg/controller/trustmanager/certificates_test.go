@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"maps"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
@@ -583,7 +585,6 @@ func TestCertificateReconciliation(t *testing.T) {
 		})
 	}
 }
-
 func TestSecretTemplateModified(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -758,5 +759,94 @@ func TestSecretTemplateIndependentOfCertificateMetadata(t *testing.T) {
 	}
 	if !maps.Equal(cert.Spec.SecretTemplate.Annotations, wantAnnotations) {
 		t.Errorf("secretTemplate annotations = %v, want %v", cert.Spec.SecretTemplate.Annotations, wantAnnotations)
+	}
+}
+
+func TestCertificateModified(t *testing.T) {
+	issuerRef := certmanagermetav1.IssuerReference{Name: "selfsigned", Kind: "Issuer", Group: "cert-manager.io"}
+	base := func() *certmanagerv1.Certificate {
+		return &certmanagerv1.Certificate{
+			Spec: certmanagerv1.CertificateSpec{
+				CommonName:           "trust-manager.cert-manager.svc",
+				DNSNames:             []string{"trust-manager.cert-manager.svc"},
+				SecretName:           "trust-manager-tls",
+				RevisionHistoryLimit: ptr.To(int32(1)),
+				IssuerRef:            issuerRef,
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*certmanagerv1.Certificate)
+		want   bool
+	}{
+		{
+			name:   "identical managed fields",
+			mutate: func(*certmanagerv1.Certificate) {},
+			want:   false,
+		},
+		{
+			name: "webhook-defaulted duration is ignored",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.Duration = &metav1.Duration{Duration: time.Hour}
+			},
+			want: false,
+		},
+		{
+			name: "common name drift",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.CommonName = "other"
+			},
+			want: true,
+		},
+		{
+			name: "dns names drift",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.DNSNames = []string{"other.svc"}
+			},
+			want: true,
+		},
+		{
+			name: "nil and empty dns names match",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.DNSNames = nil
+			},
+			want: false,
+		},
+		{
+			name: "secret name drift",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.SecretName = "other"
+			},
+			want: true,
+		},
+		{
+			name: "revision history limit drift",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.RevisionHistoryLimit = ptr.To(int32(2))
+			},
+			want: true,
+		},
+		{
+			name: "issuer ref drift",
+			mutate: func(existing *certmanagerv1.Certificate) {
+				existing.Spec.IssuerRef.Name = "other"
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := base()
+			existing := base()
+			if tt.name == "nil and empty dns names match" {
+				desired.Spec.DNSNames = []string{}
+			}
+			tt.mutate(existing)
+			if got := certificateModified(desired, existing); got != tt.want {
+				t.Errorf("certificateModified() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

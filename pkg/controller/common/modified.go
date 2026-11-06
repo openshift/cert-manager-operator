@@ -45,32 +45,6 @@ func ManagedMetadataModified(desired, existing client.Object) bool {
 	return ManagedLabelsModified(desired, existing) || ManagedAnnotationsModified(desired, existing)
 }
 
-// CertificateManagedFieldsModified compares the Certificate spec fields the
-// trust-manager controller sets. Other spec fields are ignored because the
-// cert-manager webhook defaults them (for example Duration).
-func CertificateManagedFieldsModified(desired, existing *certmanagerv1.Certificate) bool {
-	if desired.Spec.CommonName != existing.Spec.CommonName ||
-		!slices.Equal(desired.Spec.DNSNames, existing.Spec.DNSNames) ||
-		desired.Spec.SecretName != existing.Spec.SecretName ||
-		!ptr.Equal(desired.Spec.RevisionHistoryLimit, existing.Spec.RevisionHistoryLimit) ||
-		!reflect.DeepEqual(desired.Spec.IssuerRef, existing.Spec.IssuerRef) ||
-		!reflect.DeepEqual(desired.Spec.SecretTemplate, existing.Spec.SecretTemplate) ||
-		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
-		return true
-	}
-	return false
-}
-
-// certificatePrivateKeyRotationPolicy returns the rotation policy we manage on
-// the webhook Certificate. Other PrivateKey fields (algorithm, encoding, size)
-// are omitted from the comparison because cert-manager may default them.
-func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyRotationPolicy {
-	if pk == nil {
-		return ""
-	}
-	return pk.RotationPolicy
-}
-
 // CertificateSpecModified reports whether the full Certificate specs differ.
 func CertificateSpecModified(desired, existing *certmanagerv1.Certificate) bool {
 	return !reflect.DeepEqual(desired.Spec, existing.Spec)

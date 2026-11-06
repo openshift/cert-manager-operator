@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 )
 
 func TestManagedLabelsModified(t *testing.T) {
@@ -152,93 +151,6 @@ func TestManagedMetadataModified(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, ManagedMetadataModified(tt.desired, tt.existing))
-		})
-	}
-}
-
-func TestCertificateManagedFieldsModified(t *testing.T) {
-	issuerRef := certmanagermetav1.ObjectReference{Name: "selfsigned", Kind: "Issuer", Group: "cert-manager.io"}
-	base := func() *certmanagerv1.Certificate {
-		return &certmanagerv1.Certificate{
-			Spec: certmanagerv1.CertificateSpec{
-				CommonName:           "trust-manager.cert-manager.svc",
-				DNSNames:             []string{"trust-manager.cert-manager.svc"},
-				SecretName:           "trust-manager-tls",
-				RevisionHistoryLimit: ptr.To(int32(1)),
-				IssuerRef:            issuerRef,
-			},
-		}
-	}
-
-	tests := []struct {
-		name   string
-		mutate func(*certmanagerv1.Certificate)
-		want   bool
-	}{
-		{
-			name:   "identical managed fields",
-			mutate: func(*certmanagerv1.Certificate) {},
-			want:   false,
-		},
-		{
-			name: "webhook-defaulted duration is ignored",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.Duration = &metav1.Duration{Duration: time.Hour}
-			},
-			want: false,
-		},
-		{
-			name: "common name drift",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.CommonName = "other"
-			},
-			want: true,
-		},
-		{
-			name: "dns names drift",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.DNSNames = []string{"other.svc"}
-			},
-			want: true,
-		},
-		{
-			name: "nil and empty dns names match",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.DNSNames = nil
-			},
-			want: false,
-		},
-		{
-			name: "secret name drift",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.SecretName = "other"
-			},
-			want: true,
-		},
-		{
-			name: "revision history limit drift",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.RevisionHistoryLimit = ptr.To(int32(2))
-			},
-			want: true,
-		},
-		{
-			name: "issuer ref drift",
-			mutate: func(existing *certmanagerv1.Certificate) {
-				existing.Spec.IssuerRef.Name = "other"
-			},
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			desired := base()
-			existing := base()
-			if tt.name == "nil and empty dns names match" {
-				desired.Spec.DNSNames = []string{}
-			}
-			tt.mutate(existing)
-			assert.Equal(t, tt.want, CertificateManagedFieldsModified(desired, existing))
 		})
 	}
 }
