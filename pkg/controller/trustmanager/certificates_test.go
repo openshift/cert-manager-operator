@@ -257,15 +257,16 @@ func TestWebhookCertConfig(t *testing.T) {
 	if cert.Spec.SignatureAlgorithm != certmanagerv1.ECDSAWithSHA256 {
 		t.Errorf("expected signature algorithm ECDSAWithSHA256, got %q", cert.Spec.SignatureAlgorithm)
 	}
-	// Controller labels and annotations stay off secretTemplate. CM-1025 copies them.
+	// Controller labels and annotations are copied onto secretTemplate. Manifest
+	// annotations such as allow-direct-injection keep the manifest value.
 	if cert.Spec.SecretTemplate == nil || cert.Spec.SecretTemplate.Annotations[certmanagerv1.AllowsInjectionFromSecretAnnotation] != "true" {
 		t.Errorf("expected secretTemplate annotation %s=true, got %+v", certmanagerv1.AllowsInjectionFromSecretAnnotation, cert.Spec.SecretTemplate)
 	}
-	if _, ok := cert.Spec.SecretTemplate.Annotations["user-annotation"]; ok {
-		t.Errorf("controller annotations must not be copied onto secretTemplate, got %+v", cert.Spec.SecretTemplate.Annotations)
+	if cert.Spec.SecretTemplate.Annotations["user-annotation"] != "kept" {
+		t.Errorf("expected user annotation on secretTemplate, got %+v", cert.Spec.SecretTemplate.Annotations)
 	}
-	if _, ok := cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"]; ok {
-		t.Errorf("controller labels must not be copied onto secretTemplate, got %+v", cert.Spec.SecretTemplate.Labels)
+	if cert.Spec.SecretTemplate.Labels["app.kubernetes.io/instance"] != trustManagerCommonName {
+		t.Errorf("expected controller labels on secretTemplate, got %+v", cert.Spec.SecretTemplate.Labels)
 	}
 }
 
