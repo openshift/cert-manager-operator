@@ -116,7 +116,7 @@ func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *t
 }
 
 func (b *trustManagerBuilder) WithWebhookIssuerRef(name, kind, group string) *trustManagerBuilder {
-	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.IssuerRef = &certmanagermetav1.ObjectReference{
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.IssuerRef = &certmanagermetav1.IssuerReference{
 		Name:  name,
 		Kind:  kind,
 		Group: group,

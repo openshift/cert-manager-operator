@@ -894,7 +894,7 @@ func (in *TrustManagerCertConfig) DeepCopyInto(out *TrustManagerCertConfig) {
 	}
 	if in.IssuerRef != nil {
 		in, out := &in.IssuerRef, &out.IssuerRef
-		*out = new(apismetav1.ObjectReference)
+		*out = new(apismetav1.IssuerReference)
 		**out = **in
 	}
 }
