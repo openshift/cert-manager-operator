@@ -91,7 +91,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	isManagedResource := func(object client.Object) bool {
 		labels := object.GetLabels()
-		matches := labels != nil && labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		if labels == nil {
+			return false
+		}
+		matches := labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
+		if !matches {
+			// CNO-injected trusted CA bundle: must carry app=cert-manager-operator (operator
+			// manifest / OLM upgrade) to enter the shared filtered ConfigMap cache.
+			if cm, ok := object.(*corev1.ConfigMap); ok {
+				matches = cm.GetNamespace() == common.OperatorNamespace &&
+					cm.GetName() == common.TrustedCABundleConfigMapName &&
+					labels[common.ManagedResourceLabelKey] == common.OperatorResourceLabelValue
+			}
+		}
 		r.log.V(4).Info("predicate evaluation", "object", fmt.Sprintf("%T", object), "name", object.GetName(), "namespace", object.GetNamespace(), "labels", labels, "matches", matches)
 		return matches
 	}
@@ -127,14 +139,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		controllerManagedResources,
 	)
 
-	// Predicate that matches the CNO-injected CA bundle ConfigMap in the operator namespace.
-	// This ConfigMap is NOT managed by trust-manager-controller (no managed label) but we need to detect
-	// when CNO updates the trusted CA bundle so we can reformat and propagate it.
-	injectedCABundleConfigMapPredicate := predicate.NewPredicateFuncs(func(object client.Object) bool {
-		return object.GetNamespace() == common.OperatorNamespace &&
-			object.GetName() == common.TrustedCABundleConfigMapName
-	})
-
 	// Reconcile when the cluster APIServer is created/deleted, or when TLS
 	// profile / adherence actually change. Status and unrelated spec updates
 	// (encryption, namedCertificates, etc.) are ignored.
@@ -147,7 +151,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(injectedCABundleConfigMapPredicate)).
 		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).

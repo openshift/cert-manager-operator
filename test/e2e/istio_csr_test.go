@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -493,15 +494,19 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 		// Helper functions for CA ConfigMap verification
 		verifyConfigMapHasWatchLabel := func(namespace, configMapName string) {
-			By(fmt.Sprintf("Verifying watch label on ConfigMap %s in namespace %s", configMapName, namespace))
+			By(fmt.Sprintf("Verifying watch and app labels on ConfigMap %s in namespace %s", configMapName, namespace))
 			Eventually(func() bool {
 				configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, configMapName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
+				if configMap.Labels == nil {
+					return false
+				}
 				_, hasWatchLabel := configMap.Labels[testutils.IstiocsrResourceWatchLabelName]
-				return hasWatchLabel
-			}, "1m", "5s").Should(BeTrue(), fmt.Sprintf("ConfigMap %s should have watch label", configMapName))
+				appLabel := configMap.Labels[common.ManagedResourceLabelKey]
+				return hasWatchLabel && appLabel == testutils.RequestEnqueueLabelValue
+			}, "1m", "5s").Should(BeTrue(), fmt.Sprintf("ConfigMap %s should have watch and app labels", configMapName))
 		}
 
 		verifyConfigMapCopied := func(sourceNamespace, sourceConfigMapName, sourceKey, destNamespace string) {
@@ -855,6 +860,106 @@ var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioC
 
 			// Verify that the ConfigMap volume mount is still correctly configured
 			verifyConfigMapMountedInPod(ns.Name)
+		})
+
+		It("should remove watch labels from user CA ConfigMap when IstioCSR is deleted", func() {
+			By("Creating a CA certificate ConfigMap")
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name,
+				},
+				Data: map[string]string{
+					configMapRefKey: testutils.GenerateCertificate("Delete Cleanup CA E2E", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+						cert.IsCA = true
+						cert.KeyUsage |= x509.KeyUsageCertSign
+					}),
+				},
+			}
+			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to upsert user CA ConfigMap %s/%s for delete-cleanup test", ns.Name, configMapRefName)
+
+			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
+				CustomNamespace: "",
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+
+			By("waiting for IstioCSR to be ready")
+			_ = expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+			verifyConfigMapHasWatchLabel(ns.Name, configMapRefName)
+
+			By("deleting IstioCSR resource")
+			loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+
+			By("verifying operator watch labels are removed from the user ConfigMap")
+			Eventually(func(g Gomega) {
+				cm, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, configMapRefName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get user CA ConfigMap %s/%s after IstioCSR delete", ns.Name, configMapRefName)
+				if cm.Labels != nil {
+					g.Expect(cm.Labels).ShouldNot(HaveKey(testutils.IstiocsrResourceWatchLabelName),
+						"watched-by label should be removed from %s/%s after IstioCSR delete", ns.Name, configMapRefName)
+					g.Expect(cm.Labels).ShouldNot(HaveKey(common.ManagedResourceLabelKey),
+						"app label should be removed from %s/%s after IstioCSR delete", ns.Name, configMapRefName)
+				}
+			}, "2m", "5s").Should(Succeed(), "watch labels should be removed from user CA ConfigMap %s/%s", ns.Name, configMapRefName)
+		})
+
+		It("should not update managed CA copy when an unrelated ConfigMap changes", func() {
+			initialCert := testutils.GenerateCertificate("Unrelated CM Test CA", []string{"cert-manager-operator"}, func(cert *x509.Certificate) {
+				cert.IsCA = true
+				cert.KeyUsage |= x509.KeyUsageCertSign
+			})
+			caCertConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      configMapRefName,
+					Namespace: ns.Name,
+				},
+				Data: map[string]string{
+					configMapRefKey: initialCert,
+				},
+			}
+			err := library.UpsertConfigMap(ctx, clientset, caCertConfigMap)
+			Expect(err).ShouldNot(HaveOccurred(), "failed to upsert user CA ConfigMap %s/%s for unrelated-ConfigMap test", ns.Name, configMapRefName)
+
+			templateData := istioCSRTemplateData{
+				IstioNamespace:  ns.Name,
+				CustomNamespace: "",
+				ConfigMapName:   configMapRefName,
+				ConfigMapKey:    configMapRefKey,
+			}
+			loader.CreateFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			DeferCleanup(func() {
+				loader.DeleteFromFile(AssetFunc(testassets.ReadFile).WithTemplateValues(templateData), filepath.Join("testdata", "istio", "istiocsr_with_ca_certificate_template.yaml"), ns.Name)
+			})
+
+			_ = expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
+
+			copiedConfigMap, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "failed to get operator-managed CA copy ConfigMap %s/%s", ns.Name, testutils.IstiocsrCAConfigMapName)
+			stableCopy := copiedConfigMap.Data[testutils.IstiocsrCAKeyName]
+
+			unrelated := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "unrelated-configmap-cm972",
+					Namespace: ns.Name,
+				},
+				Data: map[string]string{"noise": "v1"},
+			}
+			Expect(library.UpsertConfigMap(ctx, clientset, unrelated)).Should(Succeed(), "failed to create unrelated ConfigMap in %s", ns.Name)
+			unrelated.Data["noise"] = "v2"
+			_, err = clientset.CoreV1().ConfigMaps(ns.Name).Update(ctx, unrelated, metav1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "failed to update unrelated ConfigMap %s/unrelated-configmap-cm972", ns.Name)
+
+			Consistently(func() string {
+				cm, err := clientset.CoreV1().ConfigMaps(ns.Name).Get(ctx, testutils.IstiocsrCAConfigMapName, metav1.GetOptions{})
+				if err != nil {
+					return ""
+				}
+				return cm.Data[testutils.IstiocsrCAKeyName]
+			}, "30s", "5s").Should(Equal(stableCopy), "managed CA copy should be unchanged by unrelated ConfigMap updates")
 		})
 	})
 })

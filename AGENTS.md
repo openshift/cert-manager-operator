@@ -31,7 +31,7 @@ Deploys/configures upstream **cert-manager** (and optionally **istio-csr** / **t
 4. **Feature gates** — `--unsupported-addon-features`; five touchpoints; no cluster FeatureSet for TrustManager (CM-1141). [ADR-0003](harness-evals/harness-docs/decisions/adr-0003-feature-gates.md)
 5. **Ignore** `certmanager_controller.go` placeholder — RBAC markers only, never started.
 6. **RELATED_IMAGE triple-sync** — manager.yaml env ↔ controller constants ↔ CSV `relatedImages` + `make bundle`.
-7. **Cache** — no label-filtered ConfigMap/Issuer caches; use predicates when unlabeled watches are required.
+7. **Cache** — ConfigMaps use label-filtered `cache.ByObject` with `app in (cert-manager-trust-manager, cert-manager-istio-csr, cert-manager-operator)`; IstioCSR labels user-referenced ConfigMaps at runtime. Issuer/ClusterIssuer remain unfiltered. See `pkg/operator/setup_manager.go` and [istiocsr.md](harness-evals/harness-docs/domain/istiocsr.md#reserved-configmap-app-labels).
 8. **TLS 1.3** — strip cipher args via `StripArgsByKeys`; nil profile = Intermediate; Infrastructure discovery gates TLS + cloud-cred hooks (APIServer shares that factory, not discovered separately).
 
 ## Key Paths

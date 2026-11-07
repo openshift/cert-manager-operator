@@ -72,6 +72,20 @@ Condition types (`conditions.go`): `Ready`, `Degraded`. Reasons: `Failed`, `Read
 | Labels | Managed label value `cert-manager-istio-csr`; watch label `istiocsr.openshift.operator.io/watched-by` | `constants.go` |
 | Finalizer | `istiocsr.openshift.operator.io/cert-manager-istio-csr-controller` | `constants.go` |
 
+## Reserved ConfigMap `app` labels
+
+The operator uses the **`app`** label key (`common.ManagedResourceLabelKey`) so ConfigMaps can share a filtered controller-runtime cache. Do **not** set these values on ConfigMaps you reference in `spec.istioCSRConfig.certManager.istioCACertificate`:
+
+| Reserved `app` value | Used for |
+| -------------------- | -------- |
+| `cert-manager-trust-manager` | TrustManager managed ConfigMaps |
+| `cert-manager-istio-csr` | IstioCSR managed ConfigMaps and user CA ConfigMaps after reconcile (`updateWatchLabel`) |
+| `cert-manager-operator` | Operator-level shared ConfigMaps (e.g. CNO-injected `cert-manager-operator-trusted-ca-bundle`) |
+
+When IstioCSR references a user ConfigMap, the controller adds `app: cert-manager-istio-csr` and `istiocsr.openshift.operator.io/watched-by` in the same update. If the ConfigMap already has a **different** `app` value, the operator **overwrites** it with `cert-manager-istio-csr` (documented behavior). Labels are removed when the IstioCSR CR is deleted and the watch label matches that instance.
+
+Routing for watched user ConfigMaps still uses the `watched-by` label value in the ConfigMap watch `mapFunc`; cache membership uses the `app` label after the first successful reconcile.
+
 ## Common Mistakes
 
 1. Copying IstioCSR’s Create+Update path for new features — prefer TrustManager SSA.

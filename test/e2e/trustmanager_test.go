@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -680,10 +681,12 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			By("verifying the CNO-injected CA bundle ConfigMap exists in operator namespace")
 			Eventually(func(g Gomega) {
 				cm, err := clientset.CoreV1().ConfigMaps(operatorNamespace).Get(ctx, trustedCABundleConfigMapName, metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to get trusted CA bundle ConfigMap in %s", operatorNamespace)
 				g.Expect(cm.Data).Should(HaveKey(trustedCABundleKey))
 				g.Expect(cm.Data[trustedCABundleKey]).ShouldNot(BeEmpty())
-			}, lowTimeout, fastPollInterval).Should(Succeed())
+				g.Expect(cm.Labels).Should(HaveKeyWithValue(common.ManagedResourceLabelKey, common.OperatorResourceLabelValue),
+					"trusted CA bundle ConfigMap should carry app=%s for filtered cache membership", common.OperatorResourceLabelValue)
+			}, lowTimeout, fastPollInterval).Should(Succeed(), "CNO-injected trusted CA bundle should exist with operator app label in %s", operatorNamespace)
 
 			By("verifying the default CA package ConfigMap is created in operand namespace")
 			Eventually(func(g Gomega) {

@@ -58,6 +58,7 @@ import (
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	configopenshiftv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/test/library"
 
@@ -829,7 +830,9 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(len(cm.Data[trustedCABundleKey])).Should(BeNumerically(">", len(originalInjectedData)),
 					"CNO-injected CA bundle should have grown after adding a cert")
-			}, highTimeout, slowPollInterval).Should(Succeed())
+				g.Expect(cm.Labels).Should(HaveKeyWithValue(common.ManagedResourceLabelKey, common.OperatorResourceLabelValue),
+					"trusted CA bundle ConfigMap should retain app=%s after CNO update", common.OperatorResourceLabelValue)
+			}, highTimeout, slowPollInterval).Should(Succeed(), "CNO should propagate updated CA bundle to %s/%s", operatorNamespace, trustedCABundleConfigMapName)
 
 			// --- Verify operator propagated the change ---
 

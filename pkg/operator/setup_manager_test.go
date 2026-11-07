@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -179,5 +180,131 @@ func TestFindExistingCacheEntry(t *testing.T) {
 				t.Errorf("expected key to be %T, got %T", tt.lookup, key)
 			}
 		})
+	}
+}
+
+// TestBuildCacheObjectList_ConfigMapLabelMerge verifies merged ConfigMap cache selectors when both controllers are enabled.
+func TestBuildCacheObjectList_ConfigMapLabelMerge(t *testing.T) {
+	objectList, err := buildCacheObjectList(ControllerConfig{
+		EnableIstioCSR:     true,
+		EnableTrustManager: true,
+	})
+	if err != nil {
+		t.Fatalf("buildCacheObjectList: %v", err)
+	}
+
+	_, byObject, ok := findExistingCacheEntry(objectList, &corev1.ConfigMap{})
+	if !ok {
+		t.Fatal("expected ConfigMap cache entry")
+	}
+
+	reqs, _ := byObject.Label.Requirements()
+	if len(reqs) != 1 {
+		t.Fatalf("expected one label requirement, got %d", len(reqs))
+	}
+	req := reqs[0]
+	if req.Key() != common.ManagedResourceLabelKey || req.Operator() != selection.In {
+		t.Fatalf("unexpected requirement: %v", req)
+	}
+
+	want := []string{
+		istiocsr.RequestEnqueueLabelValue,
+		trustmanager.RequestEnqueueLabelValue,
+		common.OperatorResourceLabelValue,
+	}
+	got := req.Values().List()
+	if len(got) != len(want) {
+		t.Fatalf("expected values %v, got %v", want, got)
+	}
+	for _, v := range want {
+		if !containsString(got, v) {
+			t.Fatalf("missing label value %q in %v", v, got)
+		}
+	}
+}
+
+// TestBuildCacheObjectList_IstioCSROnly verifies ConfigMap cache labels when only IstioCSR is enabled.
+func TestBuildCacheObjectList_IstioCSROnly(t *testing.T) {
+	objectList, err := buildCacheObjectList(ControllerConfig{
+		EnableIstioCSR:     true,
+		EnableTrustManager: false,
+	})
+	if err != nil {
+		t.Fatalf("buildCacheObjectList: %v", err)
+	}
+
+	_, byObject, ok := findExistingCacheEntry(objectList, &corev1.ConfigMap{})
+	if !ok {
+		t.Fatal("expected ConfigMap cache entry")
+	}
+
+	reqs, _ := byObject.Label.Requirements()
+	if len(reqs) != 1 {
+		t.Fatalf("expected one label requirement, got %d", len(reqs))
+	}
+	req := reqs[0]
+	if req.Operator() != selection.Equals && req.Operator() != selection.In {
+		t.Fatalf("unexpected operator: %v", req.Operator())
+	}
+	if !containsString(req.Values().List(), istiocsr.RequestEnqueueLabelValue) {
+		t.Fatalf("expected istio-csr label in %v", req.Values().List())
+	}
+	if containsString(req.Values().List(), common.OperatorResourceLabelValue) {
+		t.Fatalf("operator label should not be present without TrustManager: %v", req.Values().List())
+	}
+}
+
+// TestBuildCacheObjectList_TrustManagerOnly verifies ConfigMap cache labels include the operator bundle value.
+func TestBuildCacheObjectList_TrustManagerOnly(t *testing.T) {
+	objectList, err := buildCacheObjectList(ControllerConfig{
+		EnableIstioCSR:     false,
+		EnableTrustManager: true,
+	})
+	if err != nil {
+		t.Fatalf("buildCacheObjectList: %v", err)
+	}
+
+	_, byObject, ok := findExistingCacheEntry(objectList, &corev1.ConfigMap{})
+	if !ok {
+		t.Fatal("expected ConfigMap cache entry")
+	}
+
+	reqs, _ := byObject.Label.Requirements()
+	req := reqs[0]
+	want := []string{
+		trustmanager.RequestEnqueueLabelValue,
+		common.OperatorResourceLabelValue,
+	}
+	got := req.Values().List()
+	for _, v := range want {
+		if !containsString(got, v) {
+			t.Fatalf("missing label value %q in %v", v, got)
+		}
+	}
+}
+
+// TestAppendConfigMapLabelValues verifies label values are merged and the selector uses In.
+func TestAppendConfigMapLabelValues(t *testing.T) {
+	objectList := make(map[client.Object]cache.ByObject)
+	labelReq, err := labels.NewRequirement(common.ManagedResourceLabelKey, selection.Equals, []string{"a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	objectList[&corev1.ConfigMap{}] = cache.ByObject{Label: labels.NewSelector().Add(*labelReq)}
+
+	if err := appendConfigMapLabelValues(objectList, "b", "a"); err != nil {
+		t.Fatalf("appendConfigMapLabelValues: %v", err)
+	}
+
+	_, byObject, ok := findExistingCacheEntry(objectList, &corev1.ConfigMap{})
+	if !ok {
+		t.Fatal("expected ConfigMap entry")
+	}
+	reqs, _ := byObject.Label.Requirements()
+	if reqs[0].Operator() != selection.In {
+		t.Fatalf("expected In operator, got %v", reqs[0].Operator())
+	}
+	if !containsString(reqs[0].Values().List(), "b") {
+		t.Fatalf("expected value b in %v", reqs[0].Values().List())
 	}
 }
