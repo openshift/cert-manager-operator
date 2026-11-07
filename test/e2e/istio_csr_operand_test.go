@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -402,14 +403,19 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		createIstioCSR(ns.Name, istioCSR)
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
-		deployment, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
-		Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
-		Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
+		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			deployment, getErr := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
+			if getErr != nil {
+				return getErr
+			}
+			Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+			Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
+			Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
 
-		deployment.Spec.Template.Spec.Containers[0].Args = []string{"--log-level=1", "--log-format=text"}
-		_, err = clientset.AppsV1().Deployments(ns.Name).Update(ctx, deployment, metav1.UpdateOptions{})
+			deployment.Spec.Template.Spec.Containers[0].Args = []string{"--log-level=1", "--log-format=text"}
+			_, updateErr := clientset.AppsV1().Deployments(ns.Name).Update(ctx, deployment, metav1.UpdateOptions{})
+			return updateErr
+		})
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(func(g Gomega) {
