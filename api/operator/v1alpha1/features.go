@@ -35,5 +35,5 @@ var (
 var OperatorFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	FeatureIstioCSR:     {Default: true, PreRelease: featuregate.GA},
 	FeatureTrustManager: {Default: false, PreRelease: "TechPreview"},
-	FeatureHTTP01Proxy:  {Default: false, PreRelease: featuregate.Alpha},
+	FeatureHTTP01Proxy:  {Default: false, PreRelease: "TechPreview"},
 }

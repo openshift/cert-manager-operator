@@ -412,6 +412,7 @@ spec:
         traffic from the API endpoint on port 80 to ingress routers.
         The name must be 'cluster' to make HTTP01Proxy a singleton, allowing only one instance per cluster.
         When an HTTP01Proxy is created, a MachineConfig with nftables DNAT/SNAT rules is applied to control plane nodes.
+        Creating, re-rendering, or deleting that MachineConfig causes a rolling drain and reboot of the control plane nodes.
       displayName: HTTP01Proxy
       kind: HTTP01Proxy
       name: http01proxies.operator.openshift.io
@@ -683,11 +684,16 @@ spec:
           - machineconfigs
           verbs:
           - create
+        - apiGroups:
+          - machineconfiguration.openshift.io
+          resourceNames:
+          - 98-nftables-crtmgr-http01-dnat
+          resources:
+          - machineconfigs
+          verbs:
           - delete
           - get
-          - list
           - update
-          - watch
         - apiGroups:
           - networking.k8s.io
           resources:
