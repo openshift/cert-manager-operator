@@ -273,7 +273,7 @@ func TestValidatingWebhookConfigReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyValidatingWebhookConfiguration(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyValidatingWebhookConfiguration(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {

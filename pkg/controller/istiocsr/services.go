@@ -1,6 +1,7 @@
 package istiocsr
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,27 +17,27 @@ const (
 	grpcServicePortName = "web"
 )
 
-func (r *Reconciler) createOrApplyServices(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
+func (r *Reconciler) createOrApplyServices(ctx context.Context, istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	service := r.getServiceObject(istiocsr, resourceLabels)
-	if err := r.createOrApplyService(istiocsr, service, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyService(ctx, istiocsr, service, istioCSRCreateRecon); err != nil {
 		return err
 	}
-	if err := r.updateGRPCEndpointInStatus(istiocsr, service); err != nil {
+	if err := r.updateGRPCEndpointInStatus(ctx, istiocsr, service); err != nil {
 		return common.FromClientError(err, "failed to update %s/%s istiocsr status with %s service endpoint info", istiocsr.GetNamespace(), istiocsr.GetName(), service.GetName())
 	}
 
 	metricsService := r.getMetricsServiceObject(istiocsr, resourceLabels)
-	if err := r.createOrApplyService(istiocsr, metricsService, istioCSRCreateRecon); err != nil {
+	if err := r.createOrApplyService(ctx, istiocsr, metricsService, istioCSRCreateRecon); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
+func (r *Reconciler) createOrApplyService(ctx context.Context, istiocsr *v1alpha1.IstioCSR, svc *corev1.Service, istioCSRCreateRecon bool) error {
 	serviceName := fmt.Sprintf("%s/%s", svc.GetNamespace(), svc.GetName())
 	r.log.V(4).Info("reconciling service resource", "name", serviceName)
 	fetched := &corev1.Service{}
-	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(svc), fetched)
+	exist, err := r.Exists(ctx, client.ObjectKeyFromObject(svc), fetched)
 	if err != nil {
 		return common.FromClientError(err, "failed to check %s service resource already exists", serviceName)
 	}
@@ -47,7 +48,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 		}
 		if hasObjectChanged(svc, fetched) {
 			r.log.V(1).Info("service has been modified, updating to desired state", "name", serviceName)
-			if err := r.UpdateWithRetry(r.ctx, svc); err != nil {
+			if err := r.UpdateWithRetry(ctx, svc); err != nil {
 				return common.FromClientError(err, "failed to update %s service resource", serviceName)
 			}
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s reconciled back to desired state", serviceName)
@@ -57,7 +58,7 @@ func (r *Reconciler) createOrApplyService(istiocsr *v1alpha1.IstioCSR, svc *core
 	}
 
 	if !exist {
-		if err := r.Create(r.ctx, svc); err != nil {
+		if err := r.Create(ctx, svc); err != nil {
 			return common.FromClientError(err, "failed to create %s service resource", serviceName)
 		}
 		r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "service resource %s created", serviceName)
@@ -90,7 +91,7 @@ func updateServicePort(service *corev1.Service, port int32) {
 	}
 }
 
-func (r *Reconciler) updateGRPCEndpointInStatus(istiocsr *v1alpha1.IstioCSR, service *corev1.Service) error {
+func (r *Reconciler) updateGRPCEndpointInStatus(ctx context.Context, istiocsr *v1alpha1.IstioCSR, service *corev1.Service) error {
 	for _, servicePort := range service.Spec.Ports {
 		if servicePort.Name == grpcServicePortName {
 			endpoint := fmt.Sprintf(istiocsrGRPCEndpointFmt, service.Name, service.Namespace, servicePort.Port)
@@ -100,5 +101,5 @@ func (r *Reconciler) updateGRPCEndpointInStatus(istiocsr *v1alpha1.IstioCSR, ser
 			istiocsr.Status.IstioCSRGRPCEndpoint = endpoint
 		}
 	}
-	return r.updateStatus(r.ctx, istiocsr)
+	return r.updateStatus(ctx, istiocsr)
 }

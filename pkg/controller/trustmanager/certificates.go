@@ -2,6 +2,7 @@ package trustmanager
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"maps"
 	"reflect"
@@ -21,13 +22,13 @@ import (
 )
 
 // createOrApplyIssuer reconciles the self-signed Issuer used for trust-manager's webhook TLS.
-func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyIssuer(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getIssuerObject(resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling issuer resource", "name", resourceName)
 
 	existing := &certmanagerv1.Issuer{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
 	}
@@ -37,7 +38,7 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 	}
 
 	r.log.V(2).Info("issuer resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply issuer %q", resourceName)
 	}
 
@@ -55,13 +56,13 @@ func getIssuerObject(resourceLabels, resourceAnnotations map[string]string) *cer
 }
 
 // createOrApplyCertificate reconciles the Certificate used for trust-manager's webhook TLS.
-func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyCertificate(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getCertificateObject(resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling certificate resource", "name", resourceName)
 
 	existing := &certmanagerv1.Certificate{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if certificate %q exists", resourceName)
 	}
@@ -71,7 +72,7 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 	}
 
 	r.log.V(2).Info("certificate resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply certificate %q", resourceName)
 	}
 

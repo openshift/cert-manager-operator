@@ -174,7 +174,7 @@ func TestCreateOrApplyServiceAccounts(t *testing.T) {
 			}
 			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
-			err := r.createOrApplyServiceAccounts(istiocsr, controllerDefaultResourceLabels, tt.istioCSRCreateRecon)
+			err := r.createOrApplyServiceAccounts(context.Background(), istiocsr, controllerDefaultResourceLabels, tt.istioCSRCreateRecon)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyServiceAccounts() err: %v, wantErr: %v", err, tt.wantErr)
 			}
