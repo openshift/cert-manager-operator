@@ -105,14 +105,8 @@ func TestNetworkPolicyFromAsset(t *testing.T) {
 				if _, ok := gotPorts[6443]; !ok {
 					t.Errorf("missing egress port 6443: %v", gotPorts)
 				}
-				to := policy.Spec.Egress[0].To
-				if len(to) != 1 || to[0].NamespaceSelector == nil {
-					t.Fatalf("expected one namespaceSelector peer, got %#v", to)
-				}
-				labels := to[0].NamespaceSelector.MatchLabels
-				v, ok := labels["policy-group.network.openshift.io/host-network"]
-				if !ok || v != "" || len(labels) != 1 {
-					t.Errorf("host-network selector: got %v", labels)
+				if len(policy.Spec.Egress[0].To) != 0 {
+					t.Errorf("expected no egress peers, got %#v", policy.Spec.Egress[0].To)
 				}
 			}
 		})

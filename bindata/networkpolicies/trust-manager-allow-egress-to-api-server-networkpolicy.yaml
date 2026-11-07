@@ -12,11 +12,7 @@ spec:
   policyTypes:
   - Egress
   egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          policy-group.network.openshift.io/host-network: ""
-    ports:
+  - ports:
     - protocol: TCP
       port: 443
     - protocol: TCP

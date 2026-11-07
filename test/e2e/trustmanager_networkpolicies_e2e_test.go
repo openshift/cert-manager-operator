@@ -265,14 +265,7 @@ func expectTrustManagerAPIServerEgressPolicy(np *networkingv1.NetworkPolicy) {
 		gotPorts = append(gotPorts, rule.Ports[i].Port.IntVal)
 	}
 	Expect(gotPorts).To(ConsistOf(int32(443), int32(6443)))
-	Expect(rule.To).To(HaveLen(1))
-	peer := rule.To[0]
-	Expect(peer.IPBlock).To(BeNil())
-	Expect(peer.PodSelector).To(BeNil())
-	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
-	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
-		"policy-group.network.openshift.io/host-network": "",
-	}))
+	Expect(rule.To).To(BeEmpty())
 }
 
 func expectTrustManagerWebhookIngressPolicy(np *networkingv1.NetworkPolicy) {
