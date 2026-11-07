@@ -79,6 +79,10 @@
 // bindata/networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml
 // bindata/networkpolicies/istio-csr-deny-all-networkpolicy.yaml
+// bindata/networkpolicies/trust-manager-allow-egress-to-api-server-networkpolicy.yaml
+// bindata/networkpolicies/trust-manager-allow-ingress-to-metrics-networkpolicy.yaml
+// bindata/networkpolicies/trust-manager-allow-ingress-to-webhook-networkpolicy.yaml
+// bindata/networkpolicies/trust-manager-deny-all-networkpolicy.yaml
 // bindata/trust-manager/resources/certificate_trust-manager.yml
 // bindata/trust-manager/resources/clusterrole_trust-manager-cluster-view.yml
 // bindata/trust-manager/resources/clusterrole_trust-manager.yml
@@ -4000,6 +4004,149 @@ func networkpoliciesIstioCsrDenyAllNetworkpolicyYaml() (*asset, error) {
 	return a, nil
 }
 
+var _networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-allow-egress-to-api-server
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 6443
+`)
+
+func networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYaml, nil
+}
+
+func networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/trust-manager-allow-egress-to-api-server-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-allow-ingress-to-metrics
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    ports:
+    - protocol: TCP
+      port: 9402
+`)
+
+func networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYaml, nil
+}
+
+func networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/trust-manager-allow-ingress-to-metrics-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-allow-ingress-to-webhook
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          policy-group.network.openshift.io/host-network: ""
+    ports:
+    - protocol: TCP
+      port: 6443
+`)
+
+func networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYaml, nil
+}
+
+func networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/trust-manager-allow-ingress-to-webhook-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _networkpoliciesTrustManagerDenyAllNetworkpolicyYaml = []byte(`apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-deny-all
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Ingress
+  - Egress
+`)
+
+func networkpoliciesTrustManagerDenyAllNetworkpolicyYamlBytes() ([]byte, error) {
+	return _networkpoliciesTrustManagerDenyAllNetworkpolicyYaml, nil
+}
+
+func networkpoliciesTrustManagerDenyAllNetworkpolicyYaml() (*asset, error) {
+	bytes, err := networkpoliciesTrustManagerDenyAllNetworkpolicyYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "networkpolicies/trust-manager-deny-all-networkpolicy.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _trustManagerResourcesCertificate_trustManagerYml = []byte(`---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -4745,6 +4892,10 @@ var _bindata = map[string]func() (*asset, error){
 	"networkpolicies/istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":                               networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml,
 	"networkpolicies/istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":                            networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml,
 	"networkpolicies/istio-csr-deny-all-networkpolicy.yaml":                                            networkpoliciesIstioCsrDenyAllNetworkpolicyYaml,
+	"networkpolicies/trust-manager-allow-egress-to-api-server-networkpolicy.yaml":                      networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYaml,
+	"networkpolicies/trust-manager-allow-ingress-to-metrics-networkpolicy.yaml":                        networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYaml,
+	"networkpolicies/trust-manager-allow-ingress-to-webhook-networkpolicy.yaml":                        networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYaml,
+	"networkpolicies/trust-manager-deny-all-networkpolicy.yaml":                                        networkpoliciesTrustManagerDenyAllNetworkpolicyYaml,
 	"trust-manager/resources/certificate_trust-manager.yml":                                            trustManagerResourcesCertificate_trustManagerYml,
 	"trust-manager/resources/clusterrole_trust-manager-cluster-view.yml":                               trustManagerResourcesClusterrole_trustManagerClusterViewYml,
 	"trust-manager/resources/clusterrole_trust-manager.yml":                                            trustManagerResourcesClusterrole_trustManagerYml,
@@ -4897,15 +5048,19 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"istiod-certificate.yaml":                        {istioCsrIstiodCertificateYaml, map[string]*bintree{}},
 	}},
 	"networkpolicies": {nil, map[string]*bintree{
-		"cert-manager-allow-egress-to-api-server-networkpolicy.yaml": {networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
-		"cert-manager-allow-egress-to-dns-networkpolicy.yaml":        {networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml, map[string]*bintree{}},
-		"cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
-		"cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":   {networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml, map[string]*bintree{}},
-		"cert-manager-deny-all-networkpolicy.yaml":                   {networkpoliciesCertManagerDenyAllNetworkpolicyYaml, map[string]*bintree{}},
-		"istio-csr-allow-egress-to-api-server-networkpolicy.yaml":    {networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
-		"istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":         {networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml, map[string]*bintree{}},
-		"istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":      {networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
-		"istio-csr-deny-all-networkpolicy.yaml":                      {networkpoliciesIstioCsrDenyAllNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-egress-to-api-server-networkpolicy.yaml":  {networkpoliciesCertManagerAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-egress-to-dns-networkpolicy.yaml":         {networkpoliciesCertManagerAllowEgressToDnsNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-ingress-to-metrics-networkpolicy.yaml":    {networkpoliciesCertManagerAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-allow-ingress-to-webhook-networkpolicy.yaml":    {networkpoliciesCertManagerAllowIngressToWebhookNetworkpolicyYaml, map[string]*bintree{}},
+		"cert-manager-deny-all-networkpolicy.yaml":                    {networkpoliciesCertManagerDenyAllNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-egress-to-api-server-networkpolicy.yaml":     {networkpoliciesIstioCsrAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-ingress-to-grpc-networkpolicy.yaml":          {networkpoliciesIstioCsrAllowIngressToGrpcNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-allow-ingress-to-metrics-networkpolicy.yaml":       {networkpoliciesIstioCsrAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
+		"istio-csr-deny-all-networkpolicy.yaml":                       {networkpoliciesIstioCsrDenyAllNetworkpolicyYaml, map[string]*bintree{}},
+		"trust-manager-allow-egress-to-api-server-networkpolicy.yaml": {networkpoliciesTrustManagerAllowEgressToApiServerNetworkpolicyYaml, map[string]*bintree{}},
+		"trust-manager-allow-ingress-to-metrics-networkpolicy.yaml":   {networkpoliciesTrustManagerAllowIngressToMetricsNetworkpolicyYaml, map[string]*bintree{}},
+		"trust-manager-allow-ingress-to-webhook-networkpolicy.yaml":   {networkpoliciesTrustManagerAllowIngressToWebhookNetworkpolicyYaml, map[string]*bintree{}},
+		"trust-manager-deny-all-networkpolicy.yaml":                   {networkpoliciesTrustManagerDenyAllNetworkpolicyYaml, map[string]*bintree{}},
 	}},
 	"trust-manager": {nil, map[string]*bintree{
 		"resources": {nil, map[string]*bintree{

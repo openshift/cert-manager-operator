@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trust-manager-allow-ingress-to-metrics
+  namespace: cert-manager
+  labels:
+    trustmanager.operator.openshift.io/owned-by: trust-manager
+spec:
+  podSelector:
+    matchLabels:
+      app: cert-manager-trust-manager
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    ports:
+    - protocol: TCP
+      port: 9402
