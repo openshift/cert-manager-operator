@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/go-logr/logr/testr"
+
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/testutil"
@@ -84,12 +87,17 @@ func (b *trustManagerBuilder) WithTrustNamespace(ns string) *trustManagerBuilder
 	return b
 }
 
-func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.FilterExpiredCertificatesPolicy) *trustManagerBuilder {
+func (b *trustManagerBuilder) WithFilterExpiredCertificates(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.FilterExpiredCertificates = policy
 	return b
 }
 
-func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.DefaultCAPackagePolicy) *trustManagerBuilder {
+func (b *trustManagerBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.FilterNonCACerts = policy
+	return b
+}
+
+func (b *trustManagerBuilder) WithDefaultCAPackage(policy v1alpha1.Mode) *trustManagerBuilder {
 	b.Spec.TrustManagerConfig.DefaultCAPackage.Policy = policy
 	return b
 }
@@ -99,6 +107,37 @@ func (b *trustManagerBuilder) WithSecretTargets(policy v1alpha1.SecretTargetsPol
 		Policy:            policy,
 		AuthorizedSecrets: authorizedSecrets,
 	}
+	return b
+}
+
+func (b *trustManagerBuilder) WithWebhookCertificateDuration(d time.Duration) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.CertificateDuration = &metav1.Duration{Duration: d}
+	return b
+}
+
+func (b *trustManagerBuilder) WithWebhookIssuerRef(name, kind, group string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.IssuerRef = &certmanagermetav1.IssuerReference{
+		Name:  name,
+		Kind:  kind,
+		Group: group,
+	}
+	return b
+}
+
+func (b *trustManagerBuilder) WithWebhookPrivateKey(algorithm, rotationPolicy string, size int32) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeyAlgorithm = algorithm
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeyRotationPolicy = rotationPolicy
+	b.Spec.TrustManagerConfig.WebhookTLS.CertManager.PrivateKeySize = size
+	return b
+}
+
+func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
+	return b
+}
+
+func (b *trustManagerBuilder) WithCertificateRequestPolicyStatus(name string) *trustManagerBuilder {
+	b.Status.CertificateRequestPolicy = name
 	return b
 }
 

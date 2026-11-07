@@ -56,7 +56,7 @@ func getIssuerObject(resourceLabels, resourceAnnotations map[string]string) *cer
 
 // createOrApplyCertificate reconciles the Certificate used for trust-manager's webhook TLS.
 func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	desired := getCertificateObject(resourceLabels, resourceAnnotations)
+	desired := getCertificateObject(trustManager.Spec.TrustManagerConfig, resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling certificate resource", "name", resourceName)
 
@@ -79,7 +79,7 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 	return nil
 }
 
-func getCertificateObject(resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Certificate {
+func getCertificateObject(config v1alpha1.TrustManagerConfig, resourceLabels, resourceAnnotations map[string]string) *certmanagerv1.Certificate {
 	certificate := common.DecodeObjBytes[*certmanagerv1.Certificate](codecs, certmanagerv1.SchemeGroupVersion, assets.MustAsset(certificateAssetName))
 	common.UpdateName(certificate, trustManagerCertificateName)
 	common.UpdateNamespace(certificate, operandNamespace)
@@ -90,14 +90,77 @@ func getCertificateObject(resourceLabels, resourceAnnotations map[string]string)
 	certificate.Spec.CommonName = dnsName
 	certificate.Spec.DNSNames = []string{dnsName}
 	certificate.Spec.SecretName = trustManagerTLSSecretName
-	certificate.Spec.IssuerRef = certmanagermetav1.IssuerReference{
-		Name:  trustManagerIssuerName,
-		Kind:  "Issuer",
-		Group: "cert-manager.io",
-	}
+	// Copy managed labels and annotations onto secretTemplate. Manifest annotations
+	// such as cert-manager.io/allow-direct-injection are reapplied so cainjector
+	// can fill the webhook caBundle. webhookTLS.certManager does not replace this template.
+	applyWebhookCertConfig(certificate, config.WebhookTLS.CertManager)
 	certificate.Spec.SecretTemplate = certificateSecretTemplate(certificate.Spec.SecretTemplate, resourceLabels, resourceAnnotations)
 
 	return certificate
+}
+
+// applyWebhookCertConfig copies webhookTLS.certManager onto the Certificate.
+// Unset fields keep the operator default (self-signed Issuer) or are left for cert-manager to default.
+func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig) {
+	certificate.Spec.IssuerRef = webhookCertificateIssuerRef(certConfig)
+	if certConfig.CertificateDuration != nil {
+		certificate.Spec.Duration = certConfig.CertificateDuration
+	}
+	if certConfig.CertificateRenewBefore != nil {
+		certificate.Spec.RenewBefore = certConfig.CertificateRenewBefore
+	}
+	if certConfig.CertificateSignatureAlgorithm != "" {
+		certificate.Spec.SignatureAlgorithm = certmanagerv1.SignatureAlgorithm(certConfig.CertificateSignatureAlgorithm)
+	} else {
+		certificate.Spec.SignatureAlgorithm = certmanagerv1.PureEd25519
+	}
+	overlayPrivateKeyFromCertConfig(certificate, certConfig)
+}
+
+// webhookCertificateIssuerRef is the issuer for the webhook Certificate and for
+// the CertificateRequestPolicy selector. An unset issuerRef uses the operator's
+// self-signed Issuer. Both must match or approver-policy never approves the request.
+func webhookCertificateIssuerRef(certConfig v1alpha1.TrustManagerCertConfig) certmanagermetav1.IssuerReference {
+	if certConfig.IssuerRef == nil {
+		return certmanagermetav1.IssuerReference{
+			Name:  trustManagerIssuerName,
+			Kind:  "Issuer",
+			Group: "cert-manager.io",
+		}
+	}
+	ref := *certConfig.IssuerRef
+	if ref.Kind == "" {
+		ref.Kind = "Issuer"
+	}
+	if ref.Group == "" {
+		ref.Group = "cert-manager.io"
+	}
+	return ref
+}
+
+// overlayPrivateKeyFromCertConfig copies configured private-key fields onto the
+// Certificate decoded from bindata. Unset algorithm defaults to Ed25519 (API default).
+// Unset rotation policy and size keep bindata or cert-manager defaults.
+func overlayPrivateKeyFromCertConfig(certificate *certmanagerv1.Certificate, certConfig v1alpha1.TrustManagerCertConfig) {
+	if certConfig.PrivateKeyRotationPolicy == "" && certConfig.PrivateKeySize == 0 && certConfig.PrivateKeyAlgorithm == "" {
+		if certificate.Spec.PrivateKey == nil {
+			certificate.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{}
+		}
+		certificate.Spec.PrivateKey.Algorithm = certmanagerv1.Ed25519KeyAlgorithm
+		return
+	}
+	if certificate.Spec.PrivateKey == nil {
+		certificate.Spec.PrivateKey = &certmanagerv1.CertificatePrivateKey{}
+	}
+	if certConfig.PrivateKeyAlgorithm != "" {
+		certificate.Spec.PrivateKey.Algorithm = certmanagerv1.PrivateKeyAlgorithm(certConfig.PrivateKeyAlgorithm)
+	}
+	if certConfig.PrivateKeyRotationPolicy != "" {
+		certificate.Spec.PrivateKey.RotationPolicy = certmanagerv1.PrivateKeyRotationPolicy(certConfig.PrivateKeyRotationPolicy)
+	}
+	if certConfig.PrivateKeySize != 0 {
+		certificate.Spec.PrivateKey.Size = int(certConfig.PrivateKeySize)
+	}
 }
 
 // certificateSecretTemplate copies operator-managed labels and annotations onto
@@ -133,7 +196,12 @@ func issuerModified(desired, existing *certmanagerv1.Issuer) bool {
 
 // certificateModified compares only the fields we manage via SSA.
 // We compare individual spec fields rather than the full Spec because
-// cert-manager's webhook may default fields we don't set (e.g. Duration).
+// cert-manager's webhook may default fields we don't set.
+// A field webhookTLS.certManager sets is drift when it differs. A field it
+// leaves unset is applied away only while trust-manager-controller still owns
+// it, so server-side apply drops that field and cert-manager can restore its
+// default. A webhook-defaulted value is left alone. IssuerRef is always set,
+// either from certManager.issuerRef or the operator's self-signed Issuer.
 func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 	if managedMetadataModified(desired, existing) {
 		return true
@@ -147,12 +215,59 @@ func certificateModified(desired, existing *certmanagerv1.Certificate) bool {
 		certificatePrivateKeyRotationPolicy(desired.Spec.PrivateKey) != certificatePrivateKeyRotationPolicy(existing.Spec.PrivateKey) {
 		return true
 	}
+	if certificateFieldDrift(desired.Spec.Duration != nil, ptr.Equal(desired.Spec.Duration, existing.Spec.Duration), existing, "spec", "duration") {
+		return true
+	}
+	if certificateFieldDrift(desired.Spec.RenewBefore != nil, ptr.Equal(desired.Spec.RenewBefore, existing.Spec.RenewBefore), existing, "spec", "renewBefore") {
+		return true
+	}
+	if certificateFieldDrift(certificatePrivateKeyAlgorithm(desired.Spec.PrivateKey) != "", certificatePrivateKeyAlgorithm(desired.Spec.PrivateKey) == certificatePrivateKeyAlgorithm(existing.Spec.PrivateKey), existing, "spec", "privateKey", "algorithm") {
+		return true
+	}
+	if certificateFieldDrift(certificatePrivateKeySize(desired.Spec.PrivateKey) != 0, certificatePrivateKeySize(desired.Spec.PrivateKey) == certificatePrivateKeySize(existing.Spec.PrivateKey), existing, "spec", "privateKey", "size") {
+		return true
+	}
+	if certificateFieldDrift(desired.Spec.SignatureAlgorithm != "", desired.Spec.SignatureAlgorithm == existing.Spec.SignatureAlgorithm, existing, "spec", "signatureAlgorithm") {
+		return true
+	}
 	return false
 }
 
+// certificateFieldDrift reports whether a Certificate field should be applied.
+// A field the desired object sets is drift when it differs. A field the desired
+// object leaves unset is drift only while trust-manager-controller still owns it,
+// so server-side apply can drop it and cert-manager can restore its default.
+func certificateFieldDrift(desiredSet, equal bool, existing *certmanagerv1.Certificate, parts ...string) bool {
+	if desiredSet {
+		return !equal
+	}
+	return !equal && ownsPath(controllerOwnedFields(existing), parts...)
+}
+
+// ownsPath reports whether owned includes path or one of its children.
+func ownsPath(owned *fieldpath.Set, parts ...string) bool {
+	if owned == nil || owned.Empty() {
+		return false
+	}
+	pathElems := make([]any, len(parts))
+	for i, part := range parts {
+		pathElems[i] = part
+	}
+	if owned.Has(fieldpath.MakePathOrDie(pathElems...)) {
+		return true
+	}
+	subset := owned
+	for _, part := range parts {
+		name := part
+		subset = subset.WithPrefix(fieldpath.PathElement{FieldName: &name})
+	}
+	return subset != nil && !subset.Empty()
+}
+
 // certificatePrivateKeyRotationPolicy returns the rotation policy we manage on
-// the webhook Certificate. Other PrivateKey fields (algorithm, encoding, size)
-// are omitted from the comparison because cert-manager may default them.
+// the webhook Certificate. Bindata always sets RotationPolicy, so it is compared
+// directly. Algorithm and size use certificateFieldDrift so webhook defaults are
+// left alone until the user sets them.
 func certificatePrivateKeyRotationPolicy(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyRotationPolicy {
 	if pk == nil {
 		return ""
@@ -240,4 +355,18 @@ func controllerOwnedFields(obj *certmanagerv1.Certificate) *fieldpath.Set {
 		owned = owned.Union(&fields)
 	}
 	return owned
+}
+
+func certificatePrivateKeyAlgorithm(pk *certmanagerv1.CertificatePrivateKey) certmanagerv1.PrivateKeyAlgorithm {
+	if pk == nil {
+		return ""
+	}
+	return pk.Algorithm
+}
+
+func certificatePrivateKeySize(pk *certmanagerv1.CertificatePrivateKey) int {
+	if pk == nil {
+		return 0
+	}
+	return pk.Size
 }

@@ -15,7 +15,7 @@ type DefaultCAPackageConfigApplyConfiguration struct {
 	// When set to "Enabled", the operator will inject OpenShift's trusted CA bundle
 	// into trust-manager, enabling the "useDefaultCAs: true" source in Bundle resources.
 	// When set to "Disabled", no default CA package is configured and Bundles cannot use useDefaultCAs (default behavior).
-	Policy *operatorv1alpha1.DefaultCAPackagePolicy `json:"policy,omitempty"`
+	Policy *operatorv1alpha1.Mode `json:"policy,omitempty"`
 }
 
 // DefaultCAPackageConfigApplyConfiguration constructs a declarative configuration of the DefaultCAPackageConfig type for use with
@@ -27,7 +27,7 @@ func DefaultCAPackageConfig() *DefaultCAPackageConfigApplyConfiguration {
 // WithPolicy sets the Policy field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Policy field is set to the value of the last call.
-func (b *DefaultCAPackageConfigApplyConfiguration) WithPolicy(value operatorv1alpha1.DefaultCAPackagePolicy) *DefaultCAPackageConfigApplyConfiguration {
+func (b *DefaultCAPackageConfigApplyConfiguration) WithPolicy(value operatorv1alpha1.Mode) *DefaultCAPackageConfigApplyConfiguration {
 	b.Policy = &value
 	return b
 }

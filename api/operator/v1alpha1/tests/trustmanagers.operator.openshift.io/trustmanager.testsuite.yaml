@@ -22,6 +22,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow creating TrustManager with invalid name
     resourceName: invalid-name
@@ -52,6 +56,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow logLevel below minimum
     resourceName: cluster
@@ -93,6 +101,10 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid logFormat
     resourceName: cluster
@@ -124,6 +136,10 @@ tests:
           logFormat: text
           trustNamespace: custom-namespace
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   # ==========================================
   # FilterExpiredCertificates Tests
@@ -136,6 +152,7 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -145,6 +162,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid filterExpiredCertificates value
     resourceName: cluster
@@ -154,7 +175,43 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Invalid
+          filterNonCACerts: Disabled
     expectedError: "filterExpiredCertificates"
+
+  # ==========================================
+  # FilterNonCACerts Tests
+  # ==========================================
+  - name: Should create with filterNonCACerts Enabled
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Enabled
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+
+  - name: Should not allow invalid filterNonCACerts value
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Invalid
+    expectedError: "filterNonCACerts"
 
   # ==========================================
   # DefaultCAPackage Tests
@@ -177,6 +234,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -215,6 +276,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -282,6 +347,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           resources:
             requests:
               cpu: 100m
@@ -315,6 +384,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -345,6 +418,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           tolerations:
             - key: node-role.kubernetes.io/master
               operator: Exists
@@ -368,6 +445,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           nodeSelector:
             kubernetes.io/os: linux
 
@@ -393,6 +474,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
         controllerConfig:
           labels:
             app.kubernetes.io/managed-by: cert-manager-operator
@@ -416,9 +501,341 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
         controllerConfig:
           annotations:
             custom-annotation: custom-value
+
+  # ==========================================
+  # WebhookTLS certificateDuration Tests
+  # ==========================================
+  - name: Should create with a valid webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 8760h
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
+              certificateDuration: 8760h
+
+  - name: Should not allow a malformed webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: not-a-duration
+    expectedError: "certificateDuration"
+
+  - name: Should create with the minimum webhookTLS certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
+              certificateDuration: 1h
+
+  - name: Should not allow a webhookTLS certificateDuration below 1h
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 30m
+    expectedError: "certificateDuration must be at least 1h"
+
+  - name: Should create with the minimum webhookTLS certificateRenewBefore
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 5m
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
+              certificateRenewBefore: 5m
+
+  - name: Should not allow a webhookTLS certificateRenewBefore below 5m
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 4m
+    expectedError: "certificateRenewBefore must be at least 5m"
+
+  - name: Should not allow webhookTLS certificateRenewBefore at the default duration when certificateDuration is unset
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateRenewBefore: 2160h
+    expectedError: "certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
+
+  - name: Should not allow webhookTLS certificateRenewBefore greater than or equal to certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+              certificateRenewBefore: 2h
+    expectedError: "certificateRenewBefore must be less than certificateDuration, or less than 2160h when certificateDuration is unset"
+
+  - name: Should create when webhookTLS certificateRenewBefore is less than certificateDuration
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              certificateDuration: 1h
+              certificateRenewBefore: 30m
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
+              certificateDuration: 1h
+              certificateRenewBefore: 30m
+
+  - name: Should create with a name-only webhookTLS issuerRef
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              privateKeyRotationPolicy: Always
+              certificateSignatureAlgorithm: PureEd25519
+              issuerRef:
+                name: corp-ca
+
+  - name: Should not allow webhookTLS issuerRef kind other than Issuer or ClusterIssuer
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+                kind: InvalidKind
+                group: cert-manager.io
+    expectedError: "kind must be either 'Issuer' or 'ClusterIssuer'"
+
+  - name: Should not allow webhookTLS issuerRef group other than cert-manager.io
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              issuerRef:
+                name: corp-ca
+                kind: Issuer
+                group: invalid-group.io
+    expectedError: "group must be 'cert-manager.io'"
+
+  - name: Should not allow an RSA private key with an ECDSA size
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 256
+    expectedError: "privateKeySize"
+
+  - name: Should not allow Ed25519 private key with an RSA signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: Ed25519
+              certificateSignatureAlgorithm: SHA256WithRSA
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should not allow ECDSA private key with PureEd25519 signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: ECDSA
+              privateKeySize: 256
+              certificateSignatureAlgorithm: PureEd25519
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should not allow RSA private key with PureEd25519 signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: PureEd25519
+    expectedError: "certificateSignatureAlgorithm must match privateKeyAlgorithm"
+
+  - name: Should create with matching RSA private key and signature algorithm
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: SHA256WithRSA
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+            certManager:
+              privateKeyAlgorithm: RSA
+              privateKeyRotationPolicy: Always
+              privateKeySize: 2048
+              certificateSignatureAlgorithm: SHA256WithRSA
 
   # ==========================================
   # Immutability Tests (onUpdate)
@@ -463,6 +880,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating logFormat
     resourceName: cluster
@@ -487,6 +908,10 @@ tests:
           logFormat: json
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating filterExpiredCertificates
     resourceName: cluster
@@ -496,12 +921,14 @@ tests:
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Disabled
     updated: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
       spec:
         trustManagerConfig:
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
     expected: |
       apiVersion: operator.openshift.io/v1alpha1
       kind: TrustManager
@@ -511,6 +938,38 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Enabled
+          filterNonCACerts: Disabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
+
+  - name: Should allow updating filterNonCACerts
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Disabled
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          filterNonCACerts: Enabled
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster
@@ -537,6 +996,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           defaultCAPackage:
             policy: Enabled
 
@@ -567,6 +1030,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -602,6 +1069,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -635,6 +1106,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Disabled
 
@@ -710,6 +1185,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
           secretTargets:
             policy: Custom
             authorizedSecrets:

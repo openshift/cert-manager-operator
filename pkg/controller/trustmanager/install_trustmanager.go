@@ -57,6 +57,17 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	// Create the CertificateRequestPolicy and RBAC before the Certificate.
+	// The Certificate's CertificateRequest is approved only when those resources
+	// already exist, and a denied CertificateRequest is not retried.
+	// When bootstrapResources is Disabled, this deletes them only if
+	// status.certificateRequestPolicy records them and the live objects carry
+	// this operator's managed-by label.
+	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
+		r.log.Error(err, "failed to reconcile approver-policy resources")
+		return err
+	}
+
 	if err := r.createOrApplyCertificate(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile certificate resource")
 		return err
@@ -97,23 +108,12 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 		changed = true
 	}
 
-	if ns := getTrustNamespace(trustManager); trustManager.Status.TrustNamespace != ns {
-		trustManager.Status.TrustNamespace = ns
-		changed = true
+	policyName := ""
+	if approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
+		policyName = trustManagerCertificateRequestPolicyName
 	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.SecretTargets.Policy; trustManager.Status.SecretTargetsPolicy != policy {
-		trustManager.Status.SecretTargetsPolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.DefaultCAPackage.Policy; trustManager.Status.DefaultCAPackagePolicy != policy {
-		trustManager.Status.DefaultCAPackagePolicy = policy
-		changed = true
-	}
-
-	if policy := trustManager.Spec.TrustManagerConfig.FilterExpiredCertificates; trustManager.Status.FilterExpiredCertificatesPolicy != policy {
-		trustManager.Status.FilterExpiredCertificatesPolicy = policy
+	if trustManager.Status.CertificateRequestPolicy != policyName {
+		trustManager.Status.CertificateRequestPolicy = policyName
 		changed = true
 	}
 
