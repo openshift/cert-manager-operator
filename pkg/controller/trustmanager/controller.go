@@ -200,6 +200,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to update %q trustmanager.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
 	}
 
+	// The finalizer read may observe deletion starting after the initial read.
+	if !trustManager.DeletionTimestamp.IsZero() {
+		return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
+	}
+
 	return r.processReconcileRequest(trustManager, req.NamespacedName)
 }
 

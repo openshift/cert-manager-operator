@@ -6,9 +6,11 @@ import (
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -145,4 +147,47 @@ func (c *ctrlClientImpl) Exists(ctx context.Context, key client.ObjectKey, obj c
 		return false, err
 	}
 	return true, nil
+}
+
+// UpdateFinalizer adds or removes a finalizer, re-reading the object and applying
+// only that change on each conflict retry. It rejects replacement objects and
+// skips adding a finalizer once deletion has started.
+// It leaves instance unchanged and returns the observed object on success, so
+// callers can use its updated spec, metadata, and deletion timestamp.
+func UpdateFinalizer[T client.Object](ctx context.Context, c CtrlClient, instance T, resource schema.GroupResource, finalizer string, add bool) (T, error) {
+	if controllerutil.ContainsFinalizer(instance, finalizer) == add {
+		return instance, nil
+	}
+	key := client.ObjectKeyFromObject(instance)
+	updated := instance
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, ok := reflect.New(reflect.TypeOf(instance).Elem()).Interface().(T)
+		if !ok {
+			return fmt.Errorf("failed to create finalizer update object for %T", instance)
+		}
+		if err := c.Get(ctx, key, current); err != nil {
+			return err
+		}
+		if current.GetUID() != instance.GetUID() {
+			return errors.NewConflict(resource, key.Name, fmt.Errorf("object was replaced during reconciliation"))
+		}
+		if add && !current.GetDeletionTimestamp().IsZero() {
+			updated = current
+			return nil
+		}
+		var changed bool
+		if add {
+			changed = controllerutil.AddFinalizer(current, finalizer)
+		} else {
+			changed = controllerutil.RemoveFinalizer(current, finalizer)
+		}
+		if changed {
+			if err := c.Update(ctx, current); err != nil {
+				return err
+			}
+		}
+		updated = current
+		return nil
+	})
+	return updated, err
 }

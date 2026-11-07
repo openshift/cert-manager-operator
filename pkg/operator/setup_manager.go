@@ -30,6 +30,7 @@ import (
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/approverpolicy"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/http01proxy"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
@@ -100,6 +101,17 @@ var trustManagerManagedResources = []client.Object{
 	&admissionregistrationv1.ValidatingWebhookConfiguration{},
 }
 
+var approverPolicyManagedResources = []client.Object{
+	&appsv1.Deployment{},
+	&rbacv1.ClusterRole{},
+	&rbacv1.ClusterRoleBinding{},
+	&rbacv1.Role{},
+	&rbacv1.RoleBinding{},
+	&corev1.Service{},
+	&corev1.ServiceAccount{},
+	&admissionregistrationv1.ValidatingWebhookConfiguration{},
+}
+
 func init() {
 	utilruntime.Must(clientscheme.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
@@ -121,9 +133,14 @@ type Manager struct {
 
 // ControllerConfig specifies which controllers to enable in the unified manager.
 type ControllerConfig struct {
-	EnableIstioCSR     bool
-	EnableTrustManager bool
-	EnableHTTP01Proxy  bool
+	EnableIstioCSR              bool
+	EnableTrustManager          bool
+	EnableHTTP01Proxy           bool
+	EnableApproverPolicyManager bool
+}
+
+func (config ControllerConfig) enabled() bool {
+	return config.EnableIstioCSR || config.EnableTrustManager || config.EnableHTTP01Proxy || config.EnableApproverPolicyManager
 }
 
 // NewControllerManager creates a unified manager for all enabled operand controllers.
@@ -131,7 +148,8 @@ type ControllerConfig struct {
 func NewControllerManager(config ControllerConfig) (*Manager, error) {
 	setupLog.Info("setting up unified operator manager")
 	setupLog.Info("controller", "version", version.Get())
-	setupLog.Info("enabled controllers", "istioCSR", config.EnableIstioCSR, "trustManager", config.EnableTrustManager, "http01Proxy", config.EnableHTTP01Proxy)
+	setupLog.Info("enabled controllers", "istioCSR", config.EnableIstioCSR, "trustManager", config.EnableTrustManager,
+		"http01Proxy", config.EnableHTTP01Proxy, "approverPolicyManager", config.EnableApproverPolicyManager)
 
 	cacheBuilder := newUnifiedCacheBuilder(config)
 
@@ -156,6 +174,11 @@ func NewControllerManager(config ControllerConfig) (*Manager, error) {
 
 	if config.EnableTrustManager {
 		if err := setupTrustManagerController(mgr); err != nil {
+			return nil, err
+		}
+	}
+	if config.EnableApproverPolicyManager {
+		if err := setupApproverPolicyManagerController(mgr); err != nil {
 			return nil, err
 		}
 	}
@@ -253,6 +276,19 @@ func setupHTTP01ProxyController(mgr ctrl.Manager) error {
 	return nil
 }
 
+// setupApproverPolicyManagerController registers the approver-policy controller.
+func setupApproverPolicyManagerController(mgr ctrl.Manager) error {
+	setupLog.Info("setting up controller", "name", approverpolicy.ControllerName)
+	r, err := approverpolicy.New(mgr)
+	if err != nil {
+		return fmt.Errorf("failed to create %s reconciler object: %w", approverpolicy.ControllerName, err)
+	}
+	if err := r.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("failed to create %s controller: %w", approverpolicy.ControllerName, err)
+	}
+	return nil
+}
+
 // newUnifiedCacheBuilder creates a cache builder that combines cache configurations
 // for all enabled controllers into a single unified cache.
 func newUnifiedCacheBuilder(config ControllerConfig) cache.NewCacheFunc {
@@ -293,6 +329,12 @@ func buildCacheObjectList(config ControllerConfig) (map[client.Object]cache.ByOb
 
 	if config.EnableHTTP01Proxy {
 		objectList[&v1alpha1.HTTP01Proxy{}] = cache.ByObject{}
+	}
+	if config.EnableApproverPolicyManager {
+		if err := addControllerCacheConfig(objectList, approverpolicy.RequestEnqueueLabelValue, approverPolicyManagedResources); err != nil {
+			return nil, fmt.Errorf("failed to configure ApproverPolicyManager cache: %w", err)
+		}
+		objectList[&v1alpha1.ApproverPolicyManager{}] = cache.ByObject{}
 	}
 
 	return objectList, nil

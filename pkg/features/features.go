@@ -159,6 +159,12 @@ func (f *FeatureGateState) IsTrustManagerFeatureGateEnabled() bool {
 	return true
 }
 
+// IsApproverPolicyManagerFeatureGateEnabled reports whether the internal operator
+// gate is enabled.
+func IsApproverPolicyManagerFeatureGateEnabled() bool {
+	return DefaultFeatureGate.Enabled(v1alpha1.FeatureApproverPolicyManager)
+}
+
 // Err returns the failure recorded during [NewFeatureGateState], or nil if none.
 func (f *FeatureGateState) Err() error {
 	if f == nil {

@@ -6,6 +6,7 @@ package e2e
 import (
 	"strings"
 	"testing"
+	"time"
 
 	opv1 "github.com/openshift/api/operator/v1"
 	operatorv1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -149,7 +150,7 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 				{controllerPrefix, tt.matchAny},
 			}, tt.expectedConditions)
 
-			err := verifyOperatorStatusCondition(fakeClient.OperatorV1alpha1(), matchers)
+			err := verifyOperatorStatusConditionWithTimeout(fakeClient.OperatorV1alpha1(), matchers, 100*time.Millisecond)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected an error, but got nil")
