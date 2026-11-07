@@ -1,0 +1,23 @@
+title = "cert-manager-operator"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated, vendored, tool-output paths, and documented example credentials"
+paths = [
+  '''(^|/)vendor/''',
+  '''(^|/)bindata/''',
+  '''(^|/)bundle/''',
+  '''(^|/)bin/''',
+  '''(^|/)_output/''',
+  '''(^|/)testbin/''',
+  '''(^|/)pkg/operator/assets/''',
+  '''(^|/)pkg/operator/clientset/''',
+  '''(^|/)pkg/operator/informers/''',
+  '''(^|/)pkg/operator/listers/''',
+  '''(^|/)pkg/operator/applyconfigurations/''',
+]
+regexes = [
+  '''admin:admin@exampleproxy\.com''',
+]
