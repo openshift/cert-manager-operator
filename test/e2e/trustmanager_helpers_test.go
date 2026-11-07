@@ -365,7 +365,7 @@ func createBundleWithCleanup(ctx context.Context, bundle *trustapi.Bundle) {
 	Eventually(func() error {
 		return bundleClient.Create(ctx, bundle)
 	}, lowTimeout, fastPollInterval).Should(Succeed(), "failed to create Bundle %q (webhook may not be ready yet)", bundle.Name)
-	DeferCleanup(func() { deleteBundle(ctx, bundle.Name) })
+	DeferCleanup(func(ctx SpecContext) { deleteBundle(ctx, bundle.Name) })
 }
 
 func createNamespaceWithCleanup(ctx context.Context, prefix string, labels map[string]string) *corev1.Namespace {
@@ -373,7 +373,7 @@ func createNamespaceWithCleanup(ctx context.Context, prefix string, labels map[s
 		ObjectMeta: metav1.ObjectMeta{GenerateName: prefix, Labels: labels},
 	}, metav1.CreateOptions{})
 	Expect(err).ShouldNot(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = k8sClientSet.CoreV1().Namespaces().Delete(ctx, ns.Name, metav1.DeleteOptions{})
 	})
 	return ns
@@ -384,7 +384,7 @@ func createSourceConfigMap(ctx context.Context, namespace, name, key, data strin
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Data:       map[string]string{key: data},
 	})).ShouldNot(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = k8sClientSet.CoreV1().ConfigMaps(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	})
 }
@@ -394,7 +394,7 @@ func createSourceSecret(ctx context.Context, namespace, name, key, data string) 
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Data:       map[string][]byte{key: []byte(data)},
 	})).ShouldNot(HaveOccurred())
-	DeferCleanup(func() {
+	DeferCleanup(func(ctx SpecContext) {
 		_ = k8sClientSet.CoreV1().Secrets(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	})
 }

@@ -149,7 +149,7 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 				{controllerPrefix, tt.matchAny},
 			}, tt.expectedConditions)
 
-			err := verifyOperatorStatusCondition(fakeClient.OperatorV1alpha1(), matchers)
+			err := verifyOperatorStatusCondition(t.Context(), fakeClient.OperatorV1alpha1(), matchers)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected an error, but got nil")

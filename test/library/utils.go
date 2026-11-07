@@ -23,7 +23,7 @@ import (
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
-func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix bool) (*corev1.Namespace, error) {
+func (d DynamicResourceLoader) CreateTestingNS(ctx context.Context, namespacePrefix string, noSuffix bool) (*corev1.Namespace, error) {
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -40,9 +40,9 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 	}
 
 	var got *corev1.Namespace
-	if err := wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
 		var err error
-		got, err = d.KubeClient.CoreV1().Namespaces().Create(context.Background(), namespace, metav1.CreateOptions{})
+		got, err = d.KubeClient.CoreV1().Namespaces().Create(ctx, namespace, metav1.CreateOptions{})
 		if err != nil {
 			log.Printf("Error creating namespace: %v", err)
 			return false, nil
@@ -54,10 +54,9 @@ func (d DynamicResourceLoader) CreateTestingNS(namespacePrefix string, noSuffix 
 	return got, nil
 }
 
-func (d DynamicResourceLoader) DeleteTestingNS(name string, shouldDumpEvents func() bool) (bool, error) {
-	ctx := context.Background()
+func (d DynamicResourceLoader) DeleteTestingNS(ctx context.Context, name string, shouldDumpEvents func() bool) (bool, error) {
 	if shouldDumpEvents() {
-		d.DumpEventsInNamespace(name)
+		d.DumpEventsInNamespace(ctx, name)
 	}
 
 	err := d.KubeClient.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
@@ -65,7 +64,7 @@ func (d DynamicResourceLoader) DeleteTestingNS(name string, shouldDumpEvents fun
 		log.Printf("Error deleting namespace %v, err: %v", name, err)
 	}
 
-	if err := wait.PollUntilContextTimeout(context.TODO(), 1*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Poll until namespace is deleted
 		_, err := d.KubeClient.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 		if err != nil && k8serrors.IsNotFound(err) {
@@ -79,9 +78,9 @@ func (d DynamicResourceLoader) DeleteTestingNS(name string, shouldDumpEvents fun
 	return false, nil
 }
 
-func (d DynamicResourceLoader) DumpEventsInNamespace(name string) {
+func (d DynamicResourceLoader) DumpEventsInNamespace(ctx context.Context, name string) {
 	log.Printf("Dumping events in namespace %s...", name)
-	events, err := d.KubeClient.CoreV1().Events(name).List(context.TODO(), metav1.ListOptions{})
+	events, err := d.KubeClient.CoreV1().Events(name).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Printf("Error listing events in namespace %s: %v", name, err)
 		return
