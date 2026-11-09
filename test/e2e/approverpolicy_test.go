@@ -93,6 +93,49 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 					verifyApproverPolicyResourceRecreated(ctx, client, obj)
 				}
 			})
+
+			It("should roll out fresh pods after ServiceAccount recreation", Label("Reconciliation"), func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				verifyAddonServiceAccountRollout(ctx, client,
+					&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: approverPolicyName, Namespace: operandNamespace}},
+					&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: approverPolicyName, Namespace: operandNamespace}},
+					"operator.openshift.io/approver-policy-service-account-uid")
+				waitForApproverPolicyReady(ctx)
+			})
+		})
+
+		Context("resource spec reconciliation", Label("Reconciliation"), func() {
+			It("should restore workload, Service, RBAC and webhook fields changed externally", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				verifyAddonSpecDrift(ctx, client, approverPolicyResources())
+				waitForApproverPolicyReady(ctx)
+			})
+
+			It("should report an ownership conflict without adopting an unlabeled existing resource", func() {
+				account := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+					Name: approverPolicyName, Namespace: operandNamespace,
+					Annotations: map[string]string{addonForeignMetadataKey: "keep"},
+				}}
+				Expect(client.Create(ctx, account)).To(Succeed())
+				DeferCleanup(func() { Expect(crclient.IgnoreNotFound(client.Delete(ctx, account))).To(Succeed()) })
+				uid := account.UID
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().Build(), metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Eventually(func(g Gomega) {
+					current, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					degraded := meta.FindStatusCondition(current.Status.Conditions, v1alpha1.Degraded)
+					g.Expect(degraded).NotTo(BeNil())
+					g.Expect(degraded.Status).To(Equal(metav1.ConditionTrue))
+					g.Expect(degraded.Message).To(ContainSubstring("ownership conflict"))
+					g.Expect(degraded.ObservedGeneration).To(Equal(current.Generation))
+				}, lowTimeout, fastPollInterval).Should(Succeed())
+				Expect(client.Get(ctx, crclient.ObjectKeyFromObject(account), account)).To(Succeed())
+				Expect(account.UID).To(Equal(uid))
+				Expect(account.OwnerReferences).To(BeEmpty())
+				Expect(account.Labels).NotTo(HaveKey("app"))
+				Expect(account.Annotations).To(HaveKeyWithValue(addonForeignMetadataKey, "keep"))
+			})
 		})
 
 		// ---------------------------------------------------------------------
@@ -223,7 +266,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				Expect(deployment.Spec.Template.Spec.Tolerations).To(Equal(tolerations))
 			})
 
-			It("should merge a custom nodeSelector with the default kubernetes.io/os selector", func() {
+			It("should merge and remove a custom nodeSelector while keeping the default OS selector", Label("Reconciliation"), func() {
 				// This synthetic label need not exist on any cluster node. Verify the
 				// rendered Pod template without requiring the operand to schedule.
 				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithNodeSelector(map[string]string{"disktype": "ssd"}).Build(), metav1.CreateOptions{})
@@ -235,6 +278,13 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 					g.Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("disktype", "ssd"))
 					g.Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/os", "linux"))
 				}, lowTimeout, fastPollInterval).Should(Succeed())
+
+				By("clearing the configured selector and recovering the rollout")
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) { current.Spec.ApproverPolicyConfig.NodeSelector = nil })
+				waitForApproverPolicyReady(ctx)
+				Expect(client.Get(ctx, deploymentKey, deployment)).To(Succeed())
+				Expect(deployment.Spec.Template.Spec.NodeSelector).NotTo(HaveKey("disktype"))
+				Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/os", "linux"))
 			})
 
 			It("should apply custom affinity to the pod spec", func() {
@@ -318,6 +368,57 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		Context("webhook and certificate configuration", func() {
 			secretKey := crclient.ObjectKey{Namespace: operandNamespace, Name: approverPolicyName + "-tls"}
 			webhookKey := crclient.ObjectKey{Name: approverPolicyName}
+
+			It("should delay initial webhook registration until ready and retain it during later rollouts", Label("Reconciliation"), func() {
+				selector := map[string]string{"e2e.cert-manager-operator.openshift.io/unschedulable": string(uuid.NewUUID())}
+				nodes := &corev1.NodeList{}
+				Expect(client.List(ctx, nodes, crclient.MatchingLabels(selector))).To(Succeed())
+				Expect(nodes.Items).To(BeEmpty(), "the test selector must prevent scheduling")
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithNodeSelector(selector).Build(), metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: approverPolicyName, Namespace: operandNamespace}}
+				waitForBlockedRollout := func() {
+					Eventually(func(g Gomega) {
+						g.Expect(client.Get(ctx, crclient.ObjectKeyFromObject(deployment), deployment)).To(Succeed())
+						g.Expect(deployment.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue("e2e.cert-manager-operator.openshift.io/unschedulable", selector["e2e.cert-manager-operator.openshift.io/unschedulable"]))
+						current, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+						g.Expect(err).NotTo(HaveOccurred())
+						ready := meta.FindStatusCondition(current.Status.Conditions, v1alpha1.Ready)
+						g.Expect(ready).NotTo(BeNil())
+						g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+						g.Expect(ready.Reason).To(Equal(v1alpha1.ReasonInProgress))
+						g.Expect(ready.ObservedGeneration).To(Equal(current.Generation))
+					}, lowTimeout, fastPollInterval).Should(Succeed())
+				}
+				waitForBlockedRollout()
+				Consistently(func() bool {
+					return apierrors.IsNotFound(client.Get(ctx, webhookKey, &admissionregistrationv1.ValidatingWebhookConfiguration{}))
+				}, 40*time.Second, fastPollInterval).Should(BeTrue())
+
+				By("allowing the first rollout and observing webhook registration")
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) { current.Spec.ApproverPolicyConfig.NodeSelector = nil })
+				waitForApproverPolicyReady(ctx)
+				webhook := &admissionregistrationv1.ValidatingWebhookConfiguration{}
+				Eventually(func(g Gomega) {
+					g.Expect(client.Get(ctx, webhookKey, webhook)).To(Succeed())
+					g.Expect(webhook.Webhooks).NotTo(BeEmpty())
+					g.Expect(webhook.Webhooks[0].ClientConfig.CABundle).NotTo(BeEmpty())
+				}, highTimeout, fastPollInterval).Should(Succeed())
+				original := webhook.DeepCopy()
+
+				By("blocking a subsequent rollout while keeping the existing webhook")
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) {
+					current.Spec.ApproverPolicyConfig.NodeSelector = selector
+				})
+				waitForBlockedRollout()
+				Consistently(func(g Gomega) {
+					g.Expect(client.Get(ctx, webhookKey, webhook)).To(Succeed())
+					g.Expect(webhook.UID).To(Equal(original.UID))
+					g.Expect(webhook.Webhooks[0].ClientConfig.CABundle).To(Equal(original.Webhooks[0].ClientConfig.CABundle))
+				}, 40*time.Second, fastPollInterval).Should(Succeed())
+				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) { current.Spec.ApproverPolicyConfig.NodeSelector = nil })
+				waitForApproverPolicyReady(ctx)
+			})
 
 			It("should provision TLS secret data and a webhook CA bundle", func() {
 				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
@@ -409,23 +510,17 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				}, lowTimeout, fastPollInterval).Should(Succeed())
 			})
 
-			It("should remove a previously configured label when dropped from the spec", func() {
-				createApproverPolicyManager(ctx, newApproverPolicyManagerCR().WithLabels(map[string]string{"e2e.example/remove": "value"}))
-
-				secretKey := crclient.ObjectKey{Namespace: operandNamespace, Name: approverPolicyName + "-tls"}
-				secret := &corev1.Secret{}
-				Eventually(func(g Gomega) {
-					g.Expect(client.Get(ctx, secretKey, secret)).To(Succeed())
-					g.Expect(secret.Labels).To(HaveKeyWithValue("e2e.example/remove", "value"))
-				}, lowTimeout, fastPollInterval).Should(Succeed())
-
-				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) {
-					current.Spec.ControllerConfig.Labels = nil
+			It("should remove managed labels and annotations while preserving foreign metadata without repeated rollouts", Label("Reconciliation"), func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR().
+					WithLabels(map[string]string{addonManagedMetadataKey: "remove"}).
+					WithAnnotations(map[string]string{addonManagedMetadataKey: "remove"}))
+				verifyAddonMetadataRemoval(ctx, client, approverPolicyResources(), func() {
+					updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) {
+						current.Spec.ControllerConfig.Labels = nil
+						current.Spec.ControllerConfig.Annotations = nil
+					})
 				})
 				waitForApproverPolicyReady(ctx)
-
-				Expect(client.Get(ctx, secretKey, secret)).To(Succeed())
-				Expect(secret.Labels).NotTo(HaveKey("e2e.example/remove"))
 			})
 		})
 
@@ -450,6 +545,15 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		// ---------------------------------------------------------------------
 
 		Context("finalizer-gated cleanup", func() {
+			It("should preserve a foreign CR finalizer while adding and removing its own", Label("Reconciliation"), func() {
+				verifyAddonForeignFinalizer(ctx, newAddonTestClient(), newApproverPolicyManagerCR().Build(),
+					"approverpolicymanager.operator.openshift.io/cert-manager-approver-policy-controller",
+					func() { waitForApproverPolicyReady(ctx) })
+				for _, obj := range approverPolicyResources() {
+					Expect(apierrors.IsNotFound(client.Get(ctx, crclient.ObjectKeyFromObject(obj), obj))).To(BeTrue())
+				}
+			})
+
 			It("should wait for a held managed resource before completing cleanup, leaving unrelated resources untouched", func() {
 				instance := createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
 

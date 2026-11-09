@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,7 +18,10 @@ import (
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/test/library"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -107,6 +111,29 @@ func (b *trustManagerCRBuilder) Build() *v1alpha1.TrustManager {
 
 func trustManagerClient() operatorclientv1alpha1.TrustManagerInterface {
 	return certmanageroperatorclient.OperatorV1alpha1().TrustManagers()
+}
+
+// trustManagerResources lists the resources created by the default configuration.
+// The optional default CA package ConfigMap is added by tests that enable it.
+func trustManagerResources() []crclient.Object {
+	namespaced := metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: trustManagerNamespace}
+	leaderElection := metav1.ObjectMeta{Name: trustManagerLeaderElectionRoleName, Namespace: trustManagerNamespace}
+	cluster := metav1.ObjectMeta{Name: trustManagerClusterRoleName}
+	return []crclient.Object{
+		&appsv1.Deployment{ObjectMeta: namespaced},
+		&corev1.ServiceAccount{ObjectMeta: namespaced},
+		&rbacv1.Role{ObjectMeta: namespaced},
+		&rbacv1.RoleBinding{ObjectMeta: namespaced},
+		&rbacv1.Role{ObjectMeta: leaderElection},
+		&rbacv1.RoleBinding{ObjectMeta: leaderElection},
+		&rbacv1.ClusterRole{ObjectMeta: cluster},
+		&rbacv1.ClusterRoleBinding{ObjectMeta: cluster},
+		&corev1.Service{ObjectMeta: namespaced},
+		&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: trustManagerMetricsServiceName, Namespace: trustManagerNamespace}},
+		&certmanagerv1.Issuer{ObjectMeta: namespaced},
+		&certmanagerv1.Certificate{ObjectMeta: namespaced},
+		&admissionregistrationv1.ValidatingWebhookConfiguration{ObjectMeta: cluster},
+	}
 }
 
 func waitForTrustManagerReady(ctx context.Context) v1alpha1.TrustManagerStatus {
