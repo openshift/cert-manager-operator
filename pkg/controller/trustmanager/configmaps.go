@@ -69,6 +69,7 @@ func (r *Reconciler) createOrApplyDefaultCAPackageConfigMap(trustManager *v1alph
 }
 
 // readTrustedCABundle reads the CNO-injected CA bundle from the operator namespace.
+// The ConfigMap must be labeled app=cert-manager-operator so it is visible in the filtered cache.
 // Returns the PEM bundle, the ConfigMap's resource version, and any error.
 func (r *Reconciler) readTrustedCABundle() (string, string, error) {
 	injectionCM := &corev1.ConfigMap{}
