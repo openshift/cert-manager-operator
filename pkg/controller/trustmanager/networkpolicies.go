@@ -63,7 +63,7 @@ func (r *Reconciler) createOrApplyNetworkPolicy(trustManager *v1alpha1.TrustMana
 }
 
 func networkPolicyModified(desired, existing *networkingv1.NetworkPolicy) bool {
-	if managedMetadataModified(desired, existing) {
+	if common.ManagedMetadataModified(desired, existing, fieldOwner) {
 		return true
 	}
 	return !reflect.DeepEqual(desired.Spec, existing.Spec)
