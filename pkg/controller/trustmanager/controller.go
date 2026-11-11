@@ -237,9 +237,9 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 }
 
 // targetNamespaceWatchPredicate enqueues TrustManager when a namespace listed
-// in targetNamespaces is created or deleted. The Role for that namespace is
-// applied on create. Updates are ignored: namespace metadata changes do not
-// affect target RBAC, and a namespace entering Terminating deletes its Role,
+// in targetNamespaces is created. The Role for that namespace is applied on
+// create. Deletes and updates are ignored: deleting a namespace already GCs
+// its namespaced RBAC, and a namespace entering Terminating deletes its Role,
 // which the Role watch already enqueues.
 //
 // Namespaces are not labeled by this controller, so this watch uses the
@@ -249,8 +249,8 @@ func (r *Reconciler) targetNamespaceWatchPredicate() predicate.Funcs {
 		CreateFunc: func(e event.CreateEvent) bool {
 			return r.isListedTargetNamespace(e.Object)
 		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return r.isListedTargetNamespace(e.Object)
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return false
 		},
 		UpdateFunc: func(event.UpdateEvent) bool {
 			return false

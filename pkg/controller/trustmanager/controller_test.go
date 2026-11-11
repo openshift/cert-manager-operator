@@ -466,11 +466,8 @@ func TestTargetNamespaceWatchPredicate(t *testing.T) {
 	if p.Create(event.CreateEvent{}) {
 		t.Fatal("create with no object should not match")
 	}
-	if !p.Delete(event.DeleteEvent{Object: listed}) {
-		t.Fatal("delete of a listed target namespace should match")
-	}
-	if p.Delete(event.DeleteEvent{Object: unlisted}) {
-		t.Fatal("delete of an unlisted namespace should not match")
+	if p.Delete(event.DeleteEvent{Object: listed}) {
+		t.Fatal("delete of a listed target namespace should not match")
 	}
 	if p.Update(event.UpdateEvent{ObjectOld: listed, ObjectNew: listed}) {
 		t.Fatal("namespace update should not match")
