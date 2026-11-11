@@ -96,15 +96,36 @@ func TestAutoApproverRejectsConflictingOverride(t *testing.T) {
 	}
 }
 
+func TestAutoApproverEnabledCSVParsing(t *testing.T) {
+	tests := []struct {
+		name, selection string
+		enabled         bool
+	}{
+		{name: "wildcard", selection: "*", enabled: true},
+		{name: "quoted wildcard matches pflag/cert-manager", selection: `"*"`, enabled: true},
+		{name: "csv-quoted field pair", selection: `"*","-certificaterequests-approver"`, enabled: false},
+		{name: "fully quoted disable list is a single opaque name", selection: `"*,-certificaterequests-approver"`, enabled: false},
+		{name: "explicit exclusion", selection: "*,-certificaterequests-approver", enabled: false},
+		{name: "unparseable fails closed as enabled", selection: `"unterminated`, enabled: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.enabled, autoApproverEnabled(tt.selection))
+		})
+	}
+}
+
 func TestAutoApproverControllerSelections(t *testing.T) {
 	tests := []struct {
 		name, selection string
 		conflict        bool
 	}{
 		{name: "wildcard", selection: "*", conflict: true},
+		{name: "quoted wildcard", selection: `"*"`, conflict: true},
 		{name: "explicit approver", selection: "issuers,certificaterequests-approver", conflict: true},
 		{name: "negative-only implicitly enables defaults", selection: "-ingress-shim", conflict: true},
 		{name: "explicit exclusion", selection: "*,-certificaterequests-approver"},
+		{name: "csv-quoted exclusion", selection: `"*","-certificaterequests-approver"`},
 		{name: "negative-only excludes approver", selection: "-certificaterequests-approver"},
 		{name: "exclusion wins regardless of order", selection: "-certificaterequests-approver,certificaterequests-approver,*"},
 		{name: "allowlist without approver", selection: "issuers,certificates"},
@@ -167,6 +188,36 @@ func TestAutoApproverIncompleteRolloutStatus(t *testing.T) {
 			f.assertState(true, false)
 		})
 	}
+}
+
+func TestAutoApproverWaitsForQuotedWildcardPod(t *testing.T) {
+	f := newAutoApproverTest(t)
+	f.setPolicy(policyWithReady(metav1.ConditionTrue))
+	require.NoError(t, f.sync())
+	require.NoError(t, f.syncDeployment())
+	f.completeRollout()
+	deployment, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// A Pod whose args look "disabled" to naive Split parsing still enables the
+	// approver under pflag CSV rules (`"*"` → `*`).
+	old := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "quoted-wildcard", Namespace: deployment.Namespace, Labels: deployment.Spec.Selector.MatchLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name: deployment.Spec.Template.Spec.Containers[0].Name,
+			Args: []string{`--controllers="*"`},
+		}}},
+	}
+	_, err = f.kube.CoreV1().Pods(old.Namespace).Create(t.Context(), old, metav1.CreateOptions{})
+	require.NoError(t, err)
+	require.NoError(t, f.sync())
+	f.assertState(false, false)
+	f.assertTransitionEvents()
+
+	require.NoError(t, f.kube.CoreV1().Pods(old.Namespace).Delete(t.Context(), old.Name, metav1.DeleteOptions{}))
+	require.NoError(t, f.sync())
+	f.assertState(true, false)
+	f.assertTransitionEvents("AutoApproverDisabled")
 }
 
 func TestAutoApproverWaitsForOldPods(t *testing.T) {

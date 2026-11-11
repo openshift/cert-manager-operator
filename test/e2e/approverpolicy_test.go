@@ -70,7 +70,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		})
 
 		Context("CertManager auto-approver linkage", func() {
-			It("should wait for readiness, reject built-in approval, and stay disabled through a later failure", func() {
+			It("should wait for readiness, emit handoff signals, reject built-in approval, and stay latched through failure", func() {
 				By("creating an operand that cannot yet be scheduled")
 				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithNodeSelector(map[string]string{"e2e.example/no-such-node": string(uuid.NewUUID())}).Build(), metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred())
@@ -81,6 +81,9 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				updateApproverPolicyManager(ctx, func(current *v1alpha1.ApproverPolicyManager) { current.Spec.ApproverPolicyConfig.NodeSelector = nil })
 				waitForApproverPolicyReady(ctx)
 				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
+				waitForAutoApproverTransitionEvent(ctx, "AutoApproverDisabled")
+				disabledEvents := autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")
+				Expect(disabledEvents).To(BeNumerically(">=", 1))
 
 				By("attempting an actual approval as the cert-manager ServiceAccount")
 				ns, err := loader.CreateTestingNS("auto-approver-rejection", false)
@@ -113,7 +116,175 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 					current.Spec.ApproverPolicyConfig.NodeSelector = map[string]string{"e2e.example/no-such-node": string(uuid.NewUUID())}
 				})
 				waitForApproverPolicyNotReady(ctx)
+				Consistently(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					g.Expect(autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")).To(Equal(disabledEvents))
+				}, 5*time.Second, fastPollInterval).Should(Succeed())
+			})
+
+			It("should leave requests pending until a matching policy exists, then approve and sign", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
+
+				ns, err := loader.CreateTestingNS("auto-approver-policy-sign", false)
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+
+				issuerName := "handoff-selfsigned-" + string(uuid.NewUUID())
+				createSelfSignedClusterIssuer(ctx, issuerName)
+
+				const (
+					certName   = "pending-then-signed"
+					secretName = "pending-then-signed-tls"
+					dnsName    = "policy-sign.handoff.example.com"
+				)
+				By("creating a Certificate with no CertificateRequestPolicy")
+				createDNSCertificate(ctx, ns.Name, certName, secretName, issuerName, dnsName)
+				request := waitForCertificateOwnedRequest(ctx, ns.Name, certName)
+				Consistently(func(g Gomega) {
+					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(certificateRequestHasDecision(current)).To(BeFalse())
+				}, 15*time.Second, fastPollInterval).Should(Succeed())
+
+				By("creating a matching CertificateRequestPolicy and use RBAC")
+				policyName := "handoff-allow-" + string(uuid.NewUUID())
+				createAllowingCertificateRequestPolicy(ctx, client, policyName)
+				createCertificateRequestPolicyUseRBAC(ctx, policyName)
+
+				By("waiting for approver-policy to approve and cert-manager to sign")
+				Eventually(func(g Gomega) {
+					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					approved := false
+					for _, condition := range current.Status.Conditions {
+						if condition.Type == cmv1.CertificateRequestConditionApproved && condition.Status == cmmeta.ConditionTrue {
+							approved = true
+							break
+						}
+					}
+					g.Expect(approved).To(BeTrue())
+				}, highTimeout, fastPollInterval).Should(Succeed())
+				Expect(waitForCertificateReadiness(ctx, certName, ns.Name)).To(Succeed())
+			})
+
+			It("should restore built-in auto-approval after ApproverPolicyManager deletion", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				waitForAutoApproverHandoff(ctx)
+				waitForAutoApproverTransitionEvent(ctx, "AutoApproverDisabled")
+
+				By("deleting ApproverPolicyManager and waiting for built-in approval to return")
+				Expect(approverPolicyClient().Delete(ctx, "cluster", metav1.DeleteOptions{})).To(Succeed())
+				Eventually(func() bool {
+					_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+					return apierrors.IsNotFound(err)
+				}, highTimeout, fastPollInterval).Should(BeTrue())
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
+				waitForAutoApproverTransitionEvent(ctx, "AutoApproverEnabled")
+
+				ns, err := loader.CreateTestingNS("auto-approver-restored", false)
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
+
+				issuerName := "restored-selfsigned-" + string(uuid.NewUUID())
+				createSelfSignedClusterIssuer(ctx, issuerName)
+				const (
+					certName   = "built-in-approved"
+					secretName = "built-in-approved-tls"
+					dnsName    = "restored.handoff.example.com"
+				)
+				By("issuing a Certificate with the restored built-in approver and no policy")
+				createDNSCertificate(ctx, ns.Name, certName, secretName, issuerName, dnsName)
+				Expect(waitForCertificateReadiness(ctx, certName, ns.Name)).To(Succeed())
+			})
+
+			It("should repair RBAC and Deployment drift while the handoff latch is held", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				waitForAutoApproverHandoff(ctx)
+
+				By("recreating the built-in approve RBAC and waiting for the operator to delete it again")
+				recreateBuiltinApproveRBAC(ctx)
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
+
+				By("stripping the controllers exclusion from the Deployment and waiting for reinjection")
+				stripCertManagerControllersArg(ctx)
+				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
 				Consistently(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, 5*time.Second, fastPollInterval).Should(Succeed())
+			})
+
+			It("should preserve compatible controller overrides and reject conflicting ones", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				waitForAutoApproverHandoff(ctx)
+				DeferCleanup(func() { clearCertManagerControllerOverrides(context.Background()) })
+
+				By("applying a compatible controller selection that already excludes the built-in approver")
+				compatible := []string{"--controllers=*,-certificaterequests-approver,-certificates-trigger", "--max-concurrent-challenges=4"}
+				setCertManagerControllerOverrideArgs(ctx, compatible)
+				Eventually(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					verifyCertManagerControllerArg(ctx, g, "--controllers=*,-certificaterequests-approver,-certificates-trigger")
+					verifyCertManagerControllerArg(ctx, g, "--max-concurrent-challenges=4")
+					verifyAutoApproverOverrideConflictReported(ctx, g, false)
+				}, highTimeout, fastPollInterval).Should(Succeed())
+
+				By("replacing it with a conflicting override that re-enables the built-in approver")
+				setCertManagerControllerOverrideArgs(ctx, []string{"--controllers=*"})
+				Eventually(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					verifyAutoApproverOverrideConflictReported(ctx, g, true)
+					// The Deployment must not adopt the conflicting selection.
+					verifyCertManagerControllerArg(ctx, g, "--controllers=*,-certificaterequests-approver,-certificates-trigger")
+				}, highTimeout, fastPollInterval).Should(Succeed())
+				Consistently(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					verifyAutoApproverOverrideConflictReported(ctx, g, true)
+				}, 5*time.Second, fastPollInterval).Should(Succeed())
+
+				By("clearing the conflict and confirming the handoff remains intact")
+				clearCertManagerControllerOverrides(ctx)
+				Eventually(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					verifyAutoApproverOverrideConflictReported(ctx, g, false)
+					verifyCertManagerControllerArg(ctx, g, "--controllers=*,-certificaterequests-approver")
+				}, highTimeout, fastPollInterval).Should(Succeed())
+			})
+
+			It("should retain the handoff latch across an operator restart", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				waitForAutoApproverHandoff(ctx)
+				waitForAutoApproverTransitionEvent(ctx, "AutoApproverDisabled")
+				disabledEvents := autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")
+				enabledEvents := autoApproverTransitionEventCount(ctx, "AutoApproverEnabled")
+
+				By("restarting the operator controller pods")
+				Expect(deleteOperatorControllerPods(ctx)).To(Succeed())
+				Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+
+				Consistently(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					g.Expect(autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")).To(Equal(disabledEvents))
+					g.Expect(autoApproverTransitionEventCount(ctx, "AutoApproverEnabled")).To(Equal(enabledEvents))
+				}, 15*time.Second, fastPollInterval).Should(Succeed())
+			})
+
+			It("should retain the handoff latch when the ApproverPolicyManager feature gate is turned off", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+				waitForAutoApproverHandoff(ctx)
+				waitForAutoApproverTransitionEvent(ctx, "AutoApproverDisabled")
+				disabledEvents := autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")
+				enabledEvents := autoApproverTransitionEventCount(ctx, "AutoApproverEnabled")
+
+				By("disabling the ApproverPolicyManager feature gate while the CR still exists")
+				setApproverPolicyManagerFeatureGate(ctx, false)
+
+				Consistently(func(g Gomega) {
+					verifyAutoApproverState(ctx, g, true)
+					g.Expect(autoApproverTransitionEventCount(ctx, "AutoApproverDisabled")).To(Equal(disabledEvents))
+					g.Expect(autoApproverTransitionEventCount(ctx, "AutoApproverEnabled")).To(Equal(enabledEvents))
+				}, 15*time.Second, fastPollInterval).Should(Succeed())
+
+				By("re-enabling the feature gate so AfterEach can finalize ApproverPolicyManager deletion")
+				setApproverPolicyManagerFeatureGate(ctx, true)
 			})
 		})
 
