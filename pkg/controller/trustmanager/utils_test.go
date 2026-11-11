@@ -1,17 +1,77 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
+
+func TestFinalizersPreserveConcurrentChanges(t *testing.T) {
+	for _, add := range []bool{true, false} {
+		t.Run(map[bool]string{true: "add", false: "remove"}[add], func(t *testing.T) {
+			stored := testTrustManager().Build()
+			stored.UID = "original"
+			if !add {
+				stored.Finalizers = []string{finalizer}
+			}
+			instance := stored.DeepCopy()
+			r := testReconciler(t)
+			c := &fakes.FakeCtrlClient{}
+			r.CtrlClient = c
+			c.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
+				stored.DeepCopyInto(obj.(*v1alpha1.TrustManager))
+				return nil
+			})
+			c.UpdateCalls(func(_ context.Context, obj client.Object, _ ...client.UpdateOption) error {
+				if c.UpdateCallCount() == 1 {
+					stored.Finalizers = append(stored.Finalizers, "other.example/finalizer")
+					stored.Labels = map[string]string{"other-writer": "keep"}
+					stored.Spec.TrustManagerConfig.LogLevel = 5
+					stored.Generation++
+					return apierrors.NewConflict(v1alpha1.Resource("trustmanagers"), stored.Name, errTestClient)
+				}
+				obj.(*v1alpha1.TrustManager).DeepCopyInto(stored)
+				return nil
+			})
+			update := func() error {
+				if add {
+					return r.addFinalizer(t.Context(), instance)
+				}
+				return r.removeFinalizer(t.Context(), instance, finalizer)
+			}
+
+			require.NoError(t, update())
+			assert.Equal(t, 2, c.UpdateCallCount())
+			assert.Contains(t, stored.Finalizers, "other.example/finalizer")
+			assert.Equal(t, map[string]string{"other-writer": "keep"}, stored.Labels)
+			assert.Equal(t, int32(5), stored.Spec.TrustManagerConfig.LogLevel)
+			if add {
+				assert.Contains(t, stored.Finalizers, finalizer)
+			} else {
+				assert.NotContains(t, stored.Finalizers, finalizer)
+			}
+			assert.Equal(t, stored, instance, "the controller continues with the updated CR")
+
+			require.NoError(t, update())
+			assert.Equal(t, 2, c.GetCallCount())
+			assert.Equal(t, 2, c.UpdateCallCount())
+			assert.Equal(t, stored, instance, "a no-op preserves the CR's maps and slices")
+		})
+	}
+}
 
 func TestGetTrustNamespace(t *testing.T) {
 	tests := []struct {
@@ -167,7 +227,7 @@ func TestManagedLabelsModified(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
 			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.existing}}
-			got := managedLabelsModified(desired, existing)
+			got := common.ManagedMapModified(desired.Labels, existing.Labels, existing, fieldOwner, "f:metadata", "f:labels")
 			if got != tt.want {
 				t.Errorf("managedLabelsModified() = %v, want %v", got, tt.want)
 			}
@@ -408,7 +468,7 @@ func TestManagedAnnotationsModified(t *testing.T) {
 			existing := testTrustManager().Build()
 			existing.SetAnnotations(tt.currentAnnotations)
 
-			got := managedAnnotationsModified(desired, existing)
+			got := common.ManagedMapModified(desired.Annotations, existing.Annotations, existing, fieldOwner, "f:metadata", "f:annotations")
 			if got != tt.wantModified {
 				t.Errorf("expected modified=%v, got %v", tt.wantModified, got)
 			}

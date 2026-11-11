@@ -15,7 +15,6 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
@@ -71,41 +70,21 @@ func (r *Reconciler) updateStatus(ctx context.Context, changed *v1alpha1.TrustMa
 
 // addFinalizer adds finalizer to trustmanager.openshift.operator.io resource.
 func (r *Reconciler) addFinalizer(ctx context.Context, trustManager *v1alpha1.TrustManager) error {
-	namespacedName := client.ObjectKeyFromObject(trustManager)
-	if !controllerutil.ContainsFinalizer(trustManager, finalizer) {
-		if !controllerutil.AddFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to add finalizer %q on trustmanager.openshift.operator.io %q", finalizer, namespacedName)
-		}
-
-		// update trustmanager.openshift.operator.io on adding finalizer.
-		if err := r.UpdateWithRetry(ctx, trustManager); err != nil {
-			return fmt.Errorf("failed to add finalizers on %q trustmanager.openshift.operator.io with %w", namespacedName, err)
-		}
-
-		updated := &v1alpha1.TrustManager{}
-		if err := r.Get(ctx, namespacedName, updated); err != nil {
-			return fmt.Errorf("failed to fetch trustmanager.openshift.operator.io %q after updating finalizers: %w", namespacedName, err)
-		}
-		updated.DeepCopyInto(trustManager)
-		return nil
+	updated, err := common.UpdateFinalizer(ctx, r.CtrlClient, trustManager, v1alpha1.Resource("trustmanagers"), finalizer, true)
+	if err != nil {
+		return fmt.Errorf("failed to add finalizers on %q trustmanager.openshift.operator.io: %w", client.ObjectKeyFromObject(trustManager), err)
 	}
+	*trustManager = *updated
 	return nil
 }
 
 // removeFinalizer removes finalizers added to trustmanager.openshift.operator.io resource.
 func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1.TrustManager, finalizer string) error {
-	namespacedName := client.ObjectKeyFromObject(trustManager)
-	if controllerutil.ContainsFinalizer(trustManager, finalizer) {
-		if !controllerutil.RemoveFinalizer(trustManager, finalizer) {
-			return fmt.Errorf("failed to remove finalizer %q from trustmanager.openshift.operator.io %q", finalizer, namespacedName)
-		}
-
-		if err := r.UpdateWithRetry(ctx, trustManager); err != nil {
-			return fmt.Errorf("failed to remove finalizers on %q trustmanager.openshift.operator.io with %w", namespacedName, err)
-		}
-		return nil
+	updated, err := common.UpdateFinalizer(ctx, r.CtrlClient, trustManager, v1alpha1.Resource("trustmanagers"), finalizer, false)
+	if err != nil {
+		return fmt.Errorf("failed to remove finalizers on %q trustmanager.openshift.operator.io: %w", client.ObjectKeyFromObject(trustManager), err)
 	}
-
+	*trustManager = *updated
 	return nil
 }
 
@@ -191,37 +170,6 @@ func updateResourceAnnotations(obj client.Object, annotations map[string]string)
 	}
 	maps.Copy(existing, annotations)
 	obj.SetAnnotations(existing)
-}
-
-// managedLabelsModified checks whether all labels present in desired exist
-// with matching values in existing. Extra labels on existing (added by users
-// or other controllers) are allowed and do not count as modified.
-func managedLabelsModified(desired, existing client.Object) bool {
-	existingLabels := existing.GetLabels()
-	for k, v := range desired.GetLabels() {
-		if existingLabels[k] != v {
-			return true
-		}
-	}
-	return false
-}
-
-// managedAnnotationsModified checks whether all annotations present in desired
-// exist with matching values in existing. Extra annotations on existing are
-// allowed and do not count as modified.
-func managedAnnotationsModified(desired, existing client.Object) bool {
-	existingAnnotations := existing.GetAnnotations()
-	for k, v := range desired.GetAnnotations() {
-		if existingAnnotations[k] != v {
-			return true
-		}
-	}
-	return false
-}
-
-// managedMetadataModified returns true if any managed label or annotation has drifted.
-func managedMetadataModified(desired, existing client.Object) bool {
-	return managedLabelsModified(desired, existing) || managedAnnotationsModified(desired, existing)
 }
 
 // namespaceExists checks if a namespace exists in the cluster.

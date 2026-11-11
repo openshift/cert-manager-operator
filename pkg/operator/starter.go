@@ -175,17 +175,15 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWa
 	if err != nil {
 		return err
 	}
-	istioCSREnabled := features.IsIstioCSRFeatureGateEnabled()
-	trustManagerEnabled := featureStatus.IsTrustManagerFeatureGateEnabled()
-	http01ProxyEnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureHTTP01Proxy)
-
-	if istioCSREnabled || trustManagerEnabled || http01ProxyEnabled {
+	controllerConfig := ControllerConfig{
+		EnableIstioCSR:              features.IsIstioCSRFeatureGateEnabled(),
+		EnableTrustManager:          featureStatus.IsTrustManagerFeatureGateEnabled(),
+		EnableHTTP01Proxy:           features.DefaultFeatureGate.Enabled(v1alpha1.FeatureHTTP01Proxy),
+		EnableApproverPolicyManager: features.IsApproverPolicyManagerFeatureGateEnabled(),
+	}
+	if controllerConfig.enabled() {
 		// Create unified manager for all enabled operand controllers
-		manager, err := NewControllerManager(ControllerConfig{
-			EnableIstioCSR:     istioCSREnabled,
-			EnableTrustManager: trustManagerEnabled,
-			EnableHTTP01Proxy:  http01ProxyEnabled,
-		})
+		manager, err := NewControllerManager(controllerConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create unified controller manager: %w", err)
 		}
