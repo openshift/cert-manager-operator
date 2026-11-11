@@ -361,8 +361,9 @@ func TestControllerConfigAndCacheCombinations(t *testing.T) {
 					wantTrustManager: tt.config.EnableTrustManager,
 				},
 				{
-					object:       &networkingv1.NetworkPolicy{},
-					wantIstioCSR: tt.config.EnableIstioCSR,
+					object:           &networkingv1.NetworkPolicy{},
+					wantIstioCSR:     tt.config.EnableIstioCSR,
+					wantTrustManager: tt.config.EnableTrustManager,
 				},
 				{
 					object:             &admissionregistrationv1.ValidatingWebhookConfiguration{},
