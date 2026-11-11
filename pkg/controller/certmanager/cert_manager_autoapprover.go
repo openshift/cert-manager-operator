@@ -2,6 +2,7 @@ package certmanager
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"slices"
@@ -110,10 +111,26 @@ func approverControllerSelection(args []string, disabled bool) string {
 	return selection + ",-" + certificateRequestApprover
 }
 
+// parseControllersSelection decodes a --controllers value the same way pflag's
+// StringSlice / cert-manager do: as a single CSV record. Quoted fields are
+// unescaped (e.g. `"*"` → `*`). Unparseable input fails closed as ["*"] so we
+// never treat a still-enabled approver as disabled.
+func parseControllersSelection(selection string) []string {
+	if selection == "" {
+		return nil
+	}
+	controllers, err := csv.NewReader(strings.NewReader(selection)).Read()
+	if err != nil {
+		return []string{"*"}
+	}
+	return controllers
+}
+
 // Match cert-manager's selection rules: exclusions win regardless of ordering,
 // and a list containing only exclusions implicitly enables the default set.
+// Selection values are CSV-decoded to match the operand's flag parser.
 func autoApproverEnabled(selection string) bool {
-	controllers := strings.Split(selection, ",")
+	controllers := parseControllersSelection(selection)
 	if slices.Contains(controllers, "-"+certificateRequestApprover) {
 		return false
 	}
