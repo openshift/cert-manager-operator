@@ -176,6 +176,11 @@ func getCertificateRequestPolicyObject(certConfig v1alpha1.TrustManagerCertConfi
 					Kind:  ptr.To(issuerRef.Kind),
 					Group: ptr.To(issuerRef.Group),
 				},
+				// Scope to the operand namespace where the webhook CertificateRequest is created.
+				// A nil selector namespace serializes as JSON null and fails CRD validation on apply.
+				Namespace: &policyv1alpha1.CertificateRequestPolicySelectorNamespace{
+					MatchNames: []string{operandNamespace},
+				},
 			},
 		},
 	}

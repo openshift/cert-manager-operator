@@ -50,6 +50,7 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 	assertPolicyIssuerRef(t, obj, certmanagermetav1.IssuerReference{
 		Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io",
 	})
+	assertPolicyNamespaceSelector(t, obj)
 }
 
 func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
@@ -77,6 +78,7 @@ func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			obj := getCertificateRequestPolicyObject(v1alpha1.TrustManagerCertConfig{IssuerRef: tt.ref}, nil, nil)
 			assertPolicyIssuerRef(t, obj, tt.want)
+			assertPolicyNamespaceSelector(t, obj)
 		})
 	}
 }
@@ -87,6 +89,14 @@ func assertPolicyIssuerRef(t *testing.T, obj *policyv1alpha1.CertificateRequestP
 	if got == nil || got.Name == nil || got.Kind == nil || got.Group == nil ||
 		*got.Name != want.Name || *got.Kind != want.Kind || *got.Group != want.Group {
 		t.Errorf("selector issuerRef = %#v, want %#v", got, want)
+	}
+}
+
+func assertPolicyNamespaceSelector(t *testing.T, obj *policyv1alpha1.CertificateRequestPolicy) {
+	t.Helper()
+	ns := obj.Spec.Selector.Namespace
+	if ns == nil || len(ns.MatchNames) != 1 || ns.MatchNames[0] != operandNamespace {
+		t.Errorf("selector namespace matchNames = %#v, want [%q]", ns, operandNamespace)
 	}
 }
 
