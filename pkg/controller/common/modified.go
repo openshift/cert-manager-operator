@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
-	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,35 +15,11 @@ import (
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 )
 
-// ManagedMapModified reports whether any key in desired is missing or different
-// on existing. Extra keys on existing are ignored. A missing key is drift even
-// when the desired value is empty.
-func ManagedMapModified(desired, existing map[string]string) bool {
-	for k, v := range desired {
-		existingValue, ok := existing[k]
-		if !ok || existingValue != v {
-			return true
-		}
-	}
-	return false
-}
-
-// ManagedLabelsModified reports whether any label on desired is missing or
-// different on existing. Extra labels on existing are ignored.
-func ManagedLabelsModified(desired, existing client.Object) bool {
-	return ManagedMapModified(desired.GetLabels(), existing.GetLabels())
-}
-
-// ManagedAnnotationsModified reports whether any annotation on desired is
-// missing or different on existing. Extra annotations on existing are ignored.
-func ManagedAnnotationsModified(desired, existing client.Object) bool {
-	return ManagedMapModified(desired.GetAnnotations(), existing.GetAnnotations())
-}
-
-// ManagedMetadataModified reports whether any managed label or annotation has drifted.
-func ManagedMetadataModified(desired, existing client.Object) bool {
-	return ManagedLabelsModified(desired, existing) || ManagedAnnotationsModified(desired, existing)
-}
+// istioCSRFieldOwner is empty because istio-csr still updates objects with
+// Update, so managedFields do not record this controller as the field owner.
+// Desired-key drift is still detected. Cleared keys that were never recorded
+// are covered by the full-equality checks in DeploymentSpecModified.
+const istioCSRFieldOwner = ""
 
 // CertificateSpecModified reports whether the full Certificate specs differ.
 func CertificateSpecModified(desired, existing *certmanagerv1.Certificate) bool {
@@ -93,209 +68,115 @@ func NetworkPolicySpecModified(desired, existing *networkingv1.NetworkPolicy) bo
 	return !reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
-// ServiceAccountModified reports whether AutomountServiceAccountToken differs.
-func ServiceAccountModified(desired, existing *corev1.ServiceAccount) bool {
-	return !ptr.Equal(desired.AutomountServiceAccountToken, existing.AutomountServiceAccountToken)
-}
-
 // HasObjectChanged reports whether desired and fetched differ in managed
-// labels or annotations, or in the spec fields the operand controllers reconcile.
-// desired and fetched must be the same concrete type.
+// labels or annotations, or in the spec fields istio-csr reconciles.
+// Types that pkg/controller/common/resource_diff.go already compares are
+// delegated there. desired and fetched must be the same concrete type.
 func HasObjectChanged(desired, fetched client.Object) bool {
 	if reflect.TypeOf(desired) != reflect.TypeOf(fetched) {
 		panic("both objects to be compared must be of same type")
 	}
 
-	var objectModified bool
 	switch desiredObj := desired.(type) {
 	case *certmanagerv1.Certificate:
 		fetchedCert, ok := fetched.(*certmanagerv1.Certificate)
 		if !ok {
 			panic("failed to convert fetched to *certmanagerv1.Certificate")
 		}
-		objectModified = CertificateSpecModified(desiredObj, fetchedCert)
+		return CertificateSpecModified(desiredObj, fetchedCert) || ManagedMetadataModified(desired, fetched, istioCSRFieldOwner)
 	case *certmanagerv1.Issuer:
 		fetchedIssuer, ok := fetched.(*certmanagerv1.Issuer)
 		if !ok {
 			panic("failed to convert fetched to *certmanagerv1.Issuer")
 		}
-		objectModified = IssuerSpecModified(desiredObj, fetchedIssuer)
+		return IssuerSpecModified(desiredObj, fetchedIssuer) || ManagedMetadataModified(desired, fetched, istioCSRFieldOwner)
 	case *rbacv1.ClusterRole:
 		fetchedClusterRole, ok := fetched.(*rbacv1.ClusterRole)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.ClusterRole")
 		}
-		objectModified = RBACRulesModified(desiredObj.Rules, fetchedClusterRole.Rules)
+		return ClusterRoleModified(desiredObj, fetchedClusterRole, istioCSRFieldOwner)
 	case *rbacv1.ClusterRoleBinding:
 		fetchedClusterRoleBinding, ok := fetched.(*rbacv1.ClusterRoleBinding)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.ClusterRoleBinding")
 		}
-		objectModified = RBACRoleRefModified(desiredObj.RoleRef, fetchedClusterRoleBinding.RoleRef) ||
-			RBACSubjectsModified(desiredObj.Subjects, fetchedClusterRoleBinding.Subjects)
+		return ClusterRoleBindingModified(desiredObj, fetchedClusterRoleBinding, istioCSRFieldOwner)
 	case *appsv1.Deployment:
 		fetchedDeployment, ok := fetched.(*appsv1.Deployment)
 		if !ok {
 			panic("failed to convert fetched to *appsv1.Deployment")
 		}
-		objectModified = DeploymentSpecModified(desiredObj, fetchedDeployment)
+		return DeploymentSpecModified(desiredObj, fetchedDeployment)
 	case *rbacv1.Role:
 		fetchedRole, ok := fetched.(*rbacv1.Role)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.Role")
 		}
-		objectModified = RBACRulesModified(desiredObj.Rules, fetchedRole.Rules)
+		return RoleModified(desiredObj, fetchedRole, istioCSRFieldOwner)
 	case *rbacv1.RoleBinding:
 		fetchedRoleBinding, ok := fetched.(*rbacv1.RoleBinding)
 		if !ok {
 			panic("failed to convert fetched to *rbacv1.RoleBinding")
 		}
-		objectModified = RBACRoleRefModified(desiredObj.RoleRef, fetchedRoleBinding.RoleRef) ||
-			RBACSubjectsModified(desiredObj.Subjects, fetchedRoleBinding.Subjects)
+		return RoleBindingModified(desiredObj, fetchedRoleBinding, istioCSRFieldOwner)
 	case *corev1.Service:
 		fetchedService, ok := fetched.(*corev1.Service)
 		if !ok {
 			panic("failed to convert fetched to *corev1.Service")
 		}
-		objectModified = ServiceSpecModified(desiredObj, fetchedService)
+		return ServiceModified(desiredObj, fetchedService, istioCSRFieldOwner)
 	case *corev1.ConfigMap:
 		fetchedConfigMap, ok := fetched.(*corev1.ConfigMap)
 		if !ok {
 			panic("failed to convert fetched to *corev1.ConfigMap")
 		}
-		objectModified = ConfigMapDataModified(desiredObj, fetchedConfigMap)
+		return ConfigMapModified(desiredObj, fetchedConfigMap, istioCSRFieldOwner)
 	case *networkingv1.NetworkPolicy:
 		fetchedNetworkPolicy, ok := fetched.(*networkingv1.NetworkPolicy)
 		if !ok {
 			panic("failed to convert fetched to *networkingv1.NetworkPolicy")
 		}
-		objectModified = NetworkPolicySpecModified(desiredObj, fetchedNetworkPolicy)
+		return NetworkPolicySpecModified(desiredObj, fetchedNetworkPolicy) || ManagedMetadataModified(desired, fetched, istioCSRFieldOwner)
 	case *corev1.ServiceAccount:
 		fetchedServiceAccount, ok := fetched.(*corev1.ServiceAccount)
 		if !ok {
 			panic("failed to convert fetched to *corev1.ServiceAccount")
 		}
-		objectModified = ServiceAccountModified(desiredObj, fetchedServiceAccount)
+		return ServiceAccountModified(desiredObj, fetchedServiceAccount, istioCSRFieldOwner)
 	default:
 		panic(fmt.Sprintf("unsupported object type: %T", desired))
 	}
-	return objectModified || ManagedMetadataModified(desired, fetched)
 }
 
-// DeploymentSpecModified compares the Deployment fields the operand controllers set.
-// NodeSelector, Affinity, Tolerations, and RevisionHistoryLimit are always compared
-// so clearing them in the operand spec is still detected as drift (stale values are
-// not left on the live Deployment). maps.Equal and ptr.Equal treat nil/empty sensibly.
-// Pod template labels use full equality; template annotations use ManagedMapModified
-// so extra annotations on the live Pod template (e.g. from tooling) are ignored.
+// DeploymentSpecModified compares istio-csr Deployment drift.
+// Shared fields go through DeploymentModified. Revision history, volumes, and
+// volume mounts are istio-csr specific. Template labels and node selectors use
+// full map equality so a cleared key is drift even though istio-csr does not
+// record a field owner.
 func DeploymentSpecModified(desired, fetched *appsv1.Deployment) bool {
-	if !ptr.Equal(desired.Spec.Replicas, fetched.Spec.Replicas) ||
-		!reflect.DeepEqual(desired.Spec.Selector, fetched.Spec.Selector) {
+	if DeploymentModified(desired, fetched, istioCSRFieldOwner) {
 		return true
 	}
-
 	if !ptr.Equal(desired.Spec.RevisionHistoryLimit, fetched.Spec.RevisionHistoryLimit) {
 		return true
 	}
-
 	if !maps.Equal(desired.Spec.Template.Labels, fetched.Spec.Template.Labels) ||
-		ManagedMapModified(desired.Spec.Template.Annotations, fetched.Spec.Template.Annotations) {
+		!maps.Equal(desired.Spec.Template.Spec.NodeSelector, fetched.Spec.Template.Spec.NodeSelector) {
 		return true
 	}
-
-	desiredPodSpec := desired.Spec.Template.Spec
-	fetchedPodSpec := fetched.Spec.Template.Spec
-
-	if desiredPodSpec.ServiceAccountName != fetchedPodSpec.ServiceAccountName ||
-		!reflect.DeepEqual(desiredPodSpec.Volumes, fetchedPodSpec.Volumes) {
+	if !reflect.DeepEqual(desired.Spec.Template.Spec.Volumes, fetched.Spec.Template.Spec.Volumes) {
 		return true
 	}
-
-	if !maps.Equal(desiredPodSpec.NodeSelector, fetchedPodSpec.NodeSelector) {
+	desiredContainers := desired.Spec.Template.Spec.Containers
+	fetchedContainers := fetched.Spec.Template.Spec.Containers
+	if len(desiredContainers) != len(fetchedContainers) {
 		return true
 	}
-	if !reflect.DeepEqual(desiredPodSpec.Affinity, fetchedPodSpec.Affinity) {
-		return true
-	}
-	if !reflect.DeepEqual(desiredPodSpec.Tolerations, fetchedPodSpec.Tolerations) {
-		return true
-	}
-
-	if len(desiredPodSpec.Containers) != len(fetchedPodSpec.Containers) {
-		return true
-	}
-	for i := range desiredPodSpec.Containers {
-		if containerModified(&desiredPodSpec.Containers[i], &fetchedPodSpec.Containers[i]) {
+	for i := range desiredContainers {
+		if !reflect.DeepEqual(desiredContainers[i].VolumeMounts, fetchedContainers[i].VolumeMounts) {
 			return true
 		}
-	}
-	return false
-}
-
-func containerModified(desired, existing *corev1.Container) bool {
-	if desired.Name != existing.Name ||
-		desired.Image != existing.Image ||
-		desired.ImagePullPolicy != existing.ImagePullPolicy {
-		return true
-	}
-
-	if !slices.Equal(desired.Args, existing.Args) ||
-		!reflect.DeepEqual(desired.Resources, existing.Resources) ||
-		!reflect.DeepEqual(desired.SecurityContext, existing.SecurityContext) ||
-		!reflect.DeepEqual(desired.VolumeMounts, existing.VolumeMounts) {
-		return true
-	}
-
-	if !containerPortsMatch(desired.Ports, existing.Ports) {
-		return true
-	}
-
-	if readinessProbeModified(desired.ReadinessProbe, existing.ReadinessProbe) {
-		return true
-	}
-
-	return false
-}
-
-func containerPortsMatch(desired, existing []corev1.ContainerPort) bool {
-	if len(desired) != len(existing) {
-		return false
-	}
-	for _, dp := range desired {
-		matched := false
-		for _, ep := range existing {
-			if dp.ContainerPort == ep.ContainerPort && dp.Name == ep.Name {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	return true
-}
-
-// readinessProbeModified compares the probe fields set in operand bindata.
-// API-defaulted scalars such as TimeoutSeconds are ignored.
-func readinessProbeModified(desired, existing *corev1.Probe) bool {
-	if desired == nil && existing == nil {
-		return false
-	}
-	if desired == nil || existing == nil {
-		return true
-	}
-	if desired.InitialDelaySeconds != existing.InitialDelaySeconds ||
-		desired.PeriodSeconds != existing.PeriodSeconds {
-		return true
-	}
-	if desired.HTTPGet != nil && existing.HTTPGet != nil {
-		if desired.HTTPGet.Path != existing.HTTPGet.Path ||
-			desired.HTTPGet.Port != existing.HTTPGet.Port {
-			return true
-		}
-	} else if desired.HTTPGet != existing.HTTPGet {
-		return true
 	}
 	return false
 }

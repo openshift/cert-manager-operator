@@ -70,7 +70,7 @@ func TestManagedLabelsModified(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			desired := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.desired}}
 			existing := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Labels: tt.existing}}
-			assert.Equal(t, tt.want, ManagedLabelsModified(desired, existing))
+			assert.Equal(t, tt.want, ManagedMetadataModified(desired, existing, ""))
 		})
 	}
 }
@@ -111,7 +111,7 @@ func TestManagedAnnotationsModified(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			desired := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Annotations: tt.desired}}
 			existing := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Annotations: tt.existing}}
-			assert.Equal(t, tt.want, ManagedAnnotationsModified(desired, existing))
+			assert.Equal(t, tt.want, ManagedMetadataModified(desired, existing, ""))
 		})
 	}
 }
@@ -156,7 +156,7 @@ func TestManagedMetadataModified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ManagedMetadataModified(tt.desired, tt.existing))
+			assert.Equal(t, tt.want, ManagedMetadataModified(tt.desired, tt.existing, ""))
 		})
 	}
 }
@@ -337,25 +337,6 @@ func TestNetworkPolicySpecModified(t *testing.T) {
 	egress := &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}}}
 	assert.False(t, NetworkPolicySpecModified(ingress, ingress.DeepCopy()))
 	assert.True(t, NetworkPolicySpecModified(ingress, egress))
-}
-
-func TestServiceAccountModified(t *testing.T) {
-	assert.False(t, ServiceAccountModified(
-		&corev1.ServiceAccount{},
-		&corev1.ServiceAccount{},
-	))
-	assert.False(t, ServiceAccountModified(
-		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(false)},
-		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(false)},
-	))
-	assert.True(t, ServiceAccountModified(
-		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(true)},
-		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(false)},
-	))
-	assert.True(t, ServiceAccountModified(
-		&corev1.ServiceAccount{},
-		&corev1.ServiceAccount{AutomountServiceAccountToken: ptr.To(true)},
-	))
 }
 
 func baseDeployment() *appsv1.Deployment {
