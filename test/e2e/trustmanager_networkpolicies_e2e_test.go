@@ -7,8 +7,6 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,12 +14,11 @@ import (
 	testutils "github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -31,7 +28,6 @@ const (
 	tmNPAllowIngressMetricsName  = "trust-manager-allow-ingress-to-metrics"
 	tmNPOwnedByLabelKey          = "trustmanager.operator.openshift.io/owned-by"
 	tmNPOwnedByLabelValue        = "trust-manager"
-	uwmNamespace                 = "openshift-user-workload-monitoring"
 )
 
 var trustManagerNetworkPolicyNames = []string{
@@ -173,62 +169,9 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		}, highTimeout, fastPollInterval).Should(Succeed())
 	})
 
-	It("CJ-4: allows metrics scrape on TCP 9402 with policies applied", func() {
+	It("CJ-4: allows HTTP GET to trust-manager-metrics on TCP 9402", func() {
 		createTrustManagerReadyWithPolicies()
-
-		_, err := clientset.CoreV1().Namespaces().Get(ctx, uwmNamespace, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			Skip("namespace openshift-user-workload-monitoring not present")
-		}
-		Expect(err).NotTo(HaveOccurred())
-
-		pods, err := clientset.CoreV1().Pods(uwmNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/name=prometheus",
-		})
-		Expect(err).NotTo(HaveOccurred())
-		ready := false
-		for i := range pods.Items {
-			if isPodReady(&pods.Items[i]) {
-				ready = true
-				break
-			}
-		}
-		if !ready {
-			Skip("user-workload-monitoring Prometheus is not ready")
-		}
-
-		By("creating a ServiceMonitor for trust-manager-metrics")
-		smFile := filepath.Join("testdata", "observe", "trust-manager-servicemonitor.yaml")
-		loader.CreateFromFile(testassets.ReadFile, smFile, trustManagerNamespace)
-		DeferCleanup(func() {
-			loader.DeleteFromFile(testassets.ReadFile, smFile, trustManagerNamespace)
-		})
-
-		By("waiting for user-workload monitoring to scrape trust-manager")
-		route, err := routeClient.Routes("openshift-monitoring").Get(ctx, "thanos-querier", metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(route.Status.Ingress).NotTo(BeEmpty())
-		queryURL := fmt.Sprintf("https://%s/api/v1/query", route.Status.Ingress[0].Host)
-		token, err := getSAToken(ctx, "prometheus-k8s", "openshift-monitoring")
-		Expect(err).NotTo(HaveOccurred())
-
-		err = wait.PollUntilContextTimeout(ctx, slowPollInterval, highTimeout, false, func(pollCtx context.Context) (bool, error) {
-			promPod, podErr := readyPrometheusPod(pollCtx, clientset)
-			if podErr != nil {
-				return false, nil
-			}
-			output, queryErr := execInPod(pollCtx, cfg, clientset, "openshift-monitoring", promPod, "prometheus",
-				"curl", "-s", "-S", "-k",
-				"-H", fmt.Sprintf("Authorization: Bearer %s", token),
-				"--data-urlencode", `query=up{namespace="cert-manager",service="trust-manager-metrics"}==1`,
-				queryURL,
-			)
-			if queryErr != nil {
-				return false, nil
-			}
-			return strings.Contains(output, `"status":"success"`) && !strings.Contains(output, `"result":[]`), nil
-		})
-		Expect(err).NotTo(HaveOccurred(), "timeout waiting for trust-manager metrics scrape")
+		expectTrustManagerMetricsReachable(ctx, clientset)
 	})
 })
 
@@ -286,17 +229,56 @@ func expectTrustManagerDenyAllPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(np.Spec.Egress).To(BeEmpty())
 }
 
-func readyPrometheusPod(ctx context.Context, clientset kubernetes.Interface) (string, error) {
-	pods, err := clientset.CoreV1().Pods("openshift-monitoring").List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=prometheus",
-	})
-	if err != nil {
-		return "", err
+func expectTrustManagerMetricsReachable(ctx context.Context, clientset kubernetes.Interface) {
+	By("waiting for Service " + trustManagerMetricsServiceName)
+	Eventually(func() error {
+		_, err := clientset.CoreV1().Services(trustManagerNamespace).Get(ctx, trustManagerMetricsServiceName, metav1.GetOptions{})
+		return err
+	}, lowTimeout, fastPollInterval).Should(Succeed())
+
+	ns := createNamespaceWithCleanup(ctx, "tm-np-metrics-", nil)
+	const podName = "metrics-probe"
+	allowPrivilegeEscalation := false
+	runAsNonRoot := true
+	runAsUser := int64(65534)
+	privileged := false
+	metricsURL := fmt.Sprintf("http://%s.%s.svc:9402/metrics", trustManagerMetricsServiceName, trustManagerNamespace)
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: ns.Name},
+		Spec: corev1.PodSpec{
+			RestartPolicy:                corev1.RestartPolicyNever,
+			AutomountServiceAccountToken: ptr.To(false),
+			Containers: []corev1.Container{{
+				Name:            "probe",
+				Image:           "quay.io/openshifttest/helm:3.17.0",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{"sh", "-c",
+					`if ! command -v wget >/dev/null 2>&1; then echo no-wget; exit 1; fi; ` +
+						`if wget -T 15 -q -O /tmp/metrics ` + metricsURL + `; then echo allowed; cat /tmp/metrics; exit 0; else echo denied; exit 1; fi`,
+				},
+				SecurityContext: &corev1.SecurityContext{
+					AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+					RunAsNonRoot:             &runAsNonRoot,
+					RunAsUser:                &runAsUser,
+					Privileged:               &privileged,
+					SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+					Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+				},
+			}},
+		},
 	}
-	for i := range pods.Items {
-		if isPodReady(&pods.Items[i]) {
-			return pods.Items[i].Name, nil
-		}
-	}
-	return "", fmt.Errorf("no ready Prometheus pod")
+	_, err := clientset.CoreV1().Pods(ns.Name).Create(ctx, pod, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	Eventually(func(g Gomega) {
+		got, getErr := clientset.CoreV1().Pods(ns.Name).Get(ctx, podName, metav1.GetOptions{})
+		g.Expect(getErr).NotTo(HaveOccurred())
+		g.Expect(got.Status.Phase).To(Equal(corev1.PodSucceeded), "metrics probe phase=%s", got.Status.Phase)
+	}, highTimeout, fastPollInterval).Should(Succeed())
+
+	logs, err := clientset.CoreV1().Pods(ns.Name).GetLogs(podName, &corev1.PodLogOptions{}).DoRaw(ctx)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(string(logs)).To(ContainSubstring("allowed"))
+	Expect(string(logs)).NotTo(ContainSubstring("denied"))
+	Expect(string(logs)).NotTo(ContainSubstring("no-wget"))
 }
