@@ -461,7 +461,7 @@ func (r *Reconciler) createOrApplyTargetNamespaceRole(trustManager *v1alpha1.Tru
 	if err != nil {
 		return common.FromClientError(err, "failed to check if target namespace role %q exists", resourceName)
 	}
-	if exists && !roleModified(desired, existing) {
+	if exists && !common.RoleModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("target namespace role resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -495,7 +495,7 @@ func (r *Reconciler) createOrApplyTargetNamespaceRoleBinding(trustManager *v1alp
 	if err != nil {
 		return common.FromClientError(err, "failed to check if target namespace rolebinding %q exists", resourceName)
 	}
-	if exists && !roleBindingModified(desired, existing) {
+	if exists && !common.RoleBindingModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("target namespace rolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
