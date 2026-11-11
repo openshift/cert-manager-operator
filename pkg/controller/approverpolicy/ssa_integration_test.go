@@ -109,6 +109,28 @@ func TestServerSideApply(t *testing.T) {
 		require.NoError(t, live.Get(t.Context(), client.ObjectKey{Name: operandName}, &admissionregistrationv1.ValidatingWebhookConfiguration{}))
 	})
 
+	t.Run("removing an unschedulable node selector allows the next rollout", func(t *testing.T) {
+		instance.Spec.ApproverPolicyConfig.NodeSelector = map[string]string{"e2e.example/no-such-node": "test"}
+		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
+		require.NoError(t, live.Get(t.Context(), client.ObjectKeyFromObject(deployment), deployment))
+		require.Equal(t, "test", deployment.Spec.Template.Spec.NodeSelector["e2e.example/no-such-node"])
+		generation := deployment.Generation
+
+		instance.Spec.ApproverPolicyConfig.NodeSelector = nil
+		require.True(t, common.IsRetryRequiredError(r.reconcileApproverPolicy(t.Context(), instance)))
+		// Decode into an empty object so the previous map contents cannot survive a GET.
+		deployment = &appsv1.Deployment{}
+		require.NoError(t, live.Get(t.Context(), client.ObjectKey{Namespace: operandNamespace, Name: operandName}, deployment))
+		require.Equal(t, map[string]string{"kubernetes.io/os": "linux"}, deployment.Spec.Template.Spec.NodeSelector)
+		require.Greater(t, deployment.Generation, generation)
+
+		deployment.Status = availableDeploymentStatus(deployment.Generation)
+		require.NoError(t, live.Status().Update(t.Context(), deployment))
+		patches := c.PatchCallCount()
+		require.NoError(t, r.reconcileApproverPolicy(t.Context(), instance))
+		assert.Equal(t, patches, c.PatchCallCount(), "the cleared selector must converge without repeated applies")
+	})
+
 	var secret *corev1.Secret
 	var webhook *admissionregistrationv1.ValidatingWebhookConfiguration
 	t.Run("fields owned by other writers survive reconciliation", func(t *testing.T) {

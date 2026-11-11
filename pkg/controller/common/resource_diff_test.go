@@ -203,12 +203,20 @@ func TestDeploymentModified(t *testing.T) {
 			c.ReadinessProbe.FailureThreshold = 3
 			c.ReadinessProbe.HTTPGet.Scheme = corev1.URISchemeHTTP
 		}, false},
-		{"foreign metadata and scheduling keys", func(d *appsv1.Deployment) {
+		{"foreign metadata", func(d *appsv1.Deployment) {
 			d.Labels["external"] = "keep"
 			d.Spec.Template.Labels["external"] = "keep"
 			d.Spec.Template.Annotations = map[string]string{"external": "keep"}
-			d.Spec.Template.Spec.NodeSelector["external"] = "keep"
 		}, false},
+		{"removed node selector key still present", func(d *appsv1.Deployment) {
+			d.Spec.Template.Spec.NodeSelector["e2e.example/no-such-node"] = "old"
+		}, true},
+		{"node selector key missing", func(d *appsv1.Deployment) {
+			delete(d.Spec.Template.Spec.NodeSelector, "kubernetes.io/os")
+		}, true},
+		{"node selector value changed", func(d *appsv1.Deployment) {
+			d.Spec.Template.Spec.NodeSelector["kubernetes.io/os"] = "windows"
+		}, true},
 		{"port order", func(d *appsv1.Deployment) {
 			p := d.Spec.Template.Spec.Containers[0].Ports
 			p[0], p[1] = p[1], p[0]
@@ -267,11 +275,6 @@ func TestDeploymentModified(t *testing.T) {
 			mutate:      func(d *appsv1.Deployment) { d.Spec.Template.Annotations = map[string]string{"removed": "old"} },
 			ownedFields: `{"f:spec":{"f:template":{"f:metadata":{"f:annotations":{"f:removed":{}}}}}}`,
 		},
-		{
-			name:        "node selector",
-			mutate:      func(d *appsv1.Deployment) { d.Spec.Template.Spec.NodeSelector["removed"] = "old" },
-			ownedFields: `{"f:spec":{"f:template":{"f:spec":{"f:nodeSelector":{"f:removed":{}}}}}}`,
-		},
 	} {
 		t.Run("field ownership for "+tc.name, func(t *testing.T) {
 			existing := desired.DeepCopy()
@@ -284,6 +287,17 @@ func TestDeploymentModified(t *testing.T) {
 			assert.False(t, DeploymentModified(desired, existing, "operand-b"), "preserve a key belonging to another controller")
 		})
 	}
+
+	t.Run("node selector ownership covers the whole map", func(t *testing.T) {
+		existing := desired.DeepCopy()
+		existing.Spec.Template.Spec.NodeSelector["removed"] = "old"
+		existing.ManagedFields = []metav1.ManagedFieldsEntry{{
+			Manager:  testFieldOwner,
+			FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{"f:template":{"f:spec":{"f:nodeSelector":{}}}}}`)},
+		}}
+		assert.True(t, DeploymentModified(desired, existing, testFieldOwner))
+		assert.True(t, DeploymentModified(desired, existing, "another-controller"), "SSA cannot preserve individually owned keys in an atomic map")
+	})
 }
 
 func TestServiceModified(t *testing.T) {

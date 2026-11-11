@@ -131,6 +131,7 @@ func TestDeploymentModified(t *testing.T) {
 		{"dnsPolicy changed", func(d *appsv1.Deployment) { d.Spec.Template.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet }, true},
 		{"nodeSelector tampered", func(d *appsv1.Deployment) { d.Spec.Template.Spec.NodeSelector["kubernetes.io/os"] = "windows" }, true},
 		{"nodeSelector managed key missing", func(d *appsv1.Deployment) { delete(d.Spec.Template.Spec.NodeSelector, "kubernetes.io/os") }, true},
+		{"removed nodeSelector key still present", func(d *appsv1.Deployment) { d.Spec.Template.Spec.NodeSelector["e2e.example/no-such-node"] = "old" }, true},
 		{"affinity changed", func(d *appsv1.Deployment) {
 			d.Spec.Template.Spec.Affinity = &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}}
 		}, true},
