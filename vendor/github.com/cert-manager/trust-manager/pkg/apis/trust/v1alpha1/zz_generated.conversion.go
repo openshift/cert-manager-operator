@@ -128,7 +128,8 @@ func autoConvert_v1alpha2_BundleSpec_To_v1alpha1_BundleSpec(in *v1alpha2.BundleS
 }
 
 func autoConvert_v1alpha1_BundleStatus_To_v1alpha2_BundleStatus(in *BundleStatus, out *v1alpha2.BundleStatus, s conversion.Scope) error {
-	*out = *(*v1alpha2.BundleStatus)(unsafe.Pointer(in))
+	out.Conditions = *(*[]v1.Condition)(unsafe.Pointer(&in.Conditions))
+	out.DefaultCAPackageVersion = in.DefaultCAPackageVersion
 	return nil
 }
 
@@ -138,7 +139,8 @@ func Convert_v1alpha1_BundleStatus_To_v1alpha2_BundleStatus(in *BundleStatus, ou
 }
 
 func autoConvert_v1alpha2_BundleStatus_To_v1alpha1_BundleStatus(in *v1alpha2.BundleStatus, out *BundleStatus, s conversion.Scope) error {
-	*out = *(*BundleStatus)(unsafe.Pointer(in))
+	out.Conditions = *(*[]v1.Condition)(unsafe.Pointer(&in.Conditions))
+	out.DefaultCAPackageVersion = in.DefaultCAPackageVersion
 	return nil
 }
 
@@ -213,7 +215,8 @@ func Convert_v1alpha2_PKCS12_To_v1alpha1_PKCS12(in *v1alpha2.PKCS12, out *PKCS12
 }
 
 func autoConvert_v1alpha1_TargetMetadata_To_v1alpha2_TargetMetadata(in *TargetMetadata, out *v1alpha2.TargetMetadata, s conversion.Scope) error {
-	*out = *(*v1alpha2.TargetMetadata)(unsafe.Pointer(in))
+	out.Annotations = *(*map[string]string)(unsafe.Pointer(&in.Annotations))
+	out.Labels = *(*map[string]string)(unsafe.Pointer(&in.Labels))
 	return nil
 }
 
@@ -223,7 +226,8 @@ func Convert_v1alpha1_TargetMetadata_To_v1alpha2_TargetMetadata(in *TargetMetada
 }
 
 func autoConvert_v1alpha2_TargetMetadata_To_v1alpha1_TargetMetadata(in *v1alpha2.TargetMetadata, out *TargetMetadata, s conversion.Scope) error {
-	*out = *(*TargetMetadata)(unsafe.Pointer(in))
+	out.Annotations = *(*map[string]string)(unsafe.Pointer(&in.Annotations))
+	out.Labels = *(*map[string]string)(unsafe.Pointer(&in.Labels))
 	return nil
 }
 

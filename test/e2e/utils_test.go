@@ -11,6 +11,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -969,6 +970,56 @@ func waitForDeploymentEnvVarRemovedAndRollout(ctx context.Context, namespace, de
 	}, timeout)
 }
 
+// enableOperatorFeatureGateForSuite patches the operator Subscription's UNSUPPORTED_ADDON_FEATURES
+// to set featureGate=enabled, preserving any other feature gates already present, and waits for
+// the operator deployment to roll out with the new value. When enabled and bumpLogLevel are both
+// true, it also raises OPERATOR_LOG_LEVEL to 4 for the suite's duration, for easier diagnosis of
+// CI failures. The Subscription's pre-existing UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL
+// values are written to originalGates/originalOperatorLogLevel so a later call to
+// restoreOperatorFeatureGateForSuite can restore them.
+func enableOperatorFeatureGateForSuite(ctx context.Context, loader library.DynamicResourceLoader, featureGate string, enabled, bumpLogLevel bool, originalGates, originalOperatorLogLevel *string) {
+	By("capturing the Subscription's current UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL")
+	var err error
+	*originalGates, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+	Expect(err).NotTo(HaveOccurred())
+	*originalOperatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
+	Expect(err).NotTo(HaveOccurred())
+
+	var gates []string
+	for _, gate := range strings.Split(*originalGates, ",") {
+		if gate = strings.TrimSpace(gate); gate != "" && !strings.HasPrefix(gate, featureGate+"=") {
+			gates = append(gates, gate)
+		}
+	}
+	gates = append(gates, fmt.Sprintf("%s=%t", featureGate, enabled))
+	value := strings.Join(gates, ",")
+
+	envVars := map[string]string{"UNSUPPORTED_ADDON_FEATURES": value}
+	if enabled && bumpLogLevel {
+		envVars["OPERATOR_LOG_LEVEL"] = "4"
+	}
+
+	By(fmt.Sprintf("setting %s=%t via the operator Subscription, preserving other feature gates", featureGate, enabled))
+	Expect(patchSubscriptionWithEnvVars(ctx, loader, envVars)).To(Succeed())
+	Expect(waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", value, lowTimeout)).To(Succeed())
+}
+
+// restoreOperatorFeatureGateForSuite restores the Subscription's UNSUPPORTED_ADDON_FEATURES and
+// OPERATOR_LOG_LEVEL to the values captured by a prior enableOperatorFeatureGateForSuite call.
+// Intended for use from a feature's e2e suite AfterAll.
+func restoreOperatorFeatureGateForSuite(ctx context.Context, loader library.DynamicResourceLoader, originalGates, originalOperatorLogLevel *string) {
+	By("restoring the Subscription's original UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL")
+	Expect(patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		"UNSUPPORTED_ADDON_FEATURES": *originalGates,
+		"OPERATOR_LOG_LEVEL":         *originalOperatorLogLevel,
+	})).To(Succeed())
+	if *originalGates == "" {
+		Expect(waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)).To(Succeed())
+	} else {
+		Expect(waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", *originalGates, lowTimeout)).To(Succeed())
+	}
+}
+
 // waitForDeploymentArgAndRollout waits for a deployment to have a specific
 // argument in any container and for the rollout to complete. This is useful when
 // waiting for operator-driven changes to propagate to operand deployments,
@@ -1597,6 +1648,18 @@ func VerifyContainerResources(pod corev1.Pod, containerName string, expectedReso
 	return nil
 }
 
+// verifyManagedResourceLabels asserts the standard set of labels the operator's library-go/SSA
+// resource builders stamp onto every resource they manage for a given operand, keyed by the
+// operand's common name (e.g. "cert-manager-approver-policy", "trust-manager").
+func verifyManagedResourceLabels(labels map[string]string, name string) {
+	Expect(labels).Should(HaveKeyWithValue("app", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/name", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/instance", name))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/managed-by", "cert-manager-operator"))
+	Expect(labels).Should(HaveKeyWithValue("app.kubernetes.io/part-of", "cert-manager-operator"))
+	Expect(labels).Should(HaveKey("app.kubernetes.io/version"))
+}
+
 // resetCertManagerNetworkPolicyState resets the CertManager to have defaultNetworkPolicy="true"
 func resetCertManagerNetworkPolicyState(ctx context.Context, client *certmanoperatorclient.Clientset) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -1942,14 +2005,64 @@ func restoreClusterAPIServerTLSConfig(ctx context.Context, original *apiserverTL
 	return updateClusterAPIServerTLSConfig(ctx, original.tlsProfile, adherence)
 }
 
+// waitForCertManagerOperandsHealthy waits until the cert-manager operand Deployments have
+// finished rolling out and operator status conditions are healthy. Call this after mutating
+// apiserver TLS settings so later tests do not race a webhook/controller restart.
+func waitForCertManagerOperandsHealthy(ctx context.Context) error {
+	for _, name := range []string{
+		certmanagerControllerDeployment,
+		certmanagerWebhookDeployment,
+		certmanagerCAinjectorDeployment,
+	} {
+		if err := waitForDeploymentRollout(ctx, operandNamespace, name, highTimeout); err != nil {
+			return fmt.Errorf("waiting for %s/%s rollout after TLS change: %w", operandNamespace, name, err)
+		}
+	}
+	if err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1()); err != nil {
+		return fmt.Errorf("waiting for cert-manager operator healthy conditions after TLS change: %w", err)
+	}
+	return nil
+}
+
+// tlsAdherenceUnknownField is the strict-decoding phrase the generic Update
+// handler places in a BadRequest status message. That response has no field cause.
+const tlsAdherenceUnknownField = `unknown field "spec.tlsAdherence"`
+
+// isTLSAdherenceUnsupported reports whether err is an API status that says
+// spec.tlsAdherence is not supported on this cluster. A status cause for that
+// field matches, as does an Update BadRequest whose message contains
+// tlsAdherenceUnknownField. Other Invalid, BadRequest, and Forbidden errors,
+// including RBAC denials and validation of unrelated fields, return false so
+// the caller fails the test.
 func isTLSAdherenceUnsupported(err error) bool {
-	if err == nil {
+	var status apierrors.APIStatus
+	if err == nil || !stderrors.As(err, &status) {
 		return false
 	}
-	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) {
+	st := status.Status()
+	if st.Reason == metav1.StatusReasonBadRequest && strings.Contains(st.Message, tlsAdherenceUnknownField) {
 		return true
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "tlsadherence")
+	if st.Details == nil {
+		return false
+	}
+	for _, cause := range st.Details.Causes {
+		if tlsAdherenceCauseUnsupported(cause) {
+			return true
+		}
+	}
+	return false
+}
+
+func tlsAdherenceCauseUnsupported(cause metav1.StatusCause) bool {
+	if cause.Field != "spec.tlsAdherence" {
+		return false
+	}
+	if cause.Type == metav1.CauseTypeFieldValueNotSupported {
+		return true
+	}
+	msg := strings.ToLower(cause.Message)
+	return strings.Contains(msg, "unknown field") || strings.Contains(msg, "unrecognized field")
 }
 
 func expectedOperandTLSArgs(deploymentName string, spec *configapiv1.TLSProfileSpec) []string {
@@ -2099,9 +2212,10 @@ func verifyOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 
 // waitForOperandProfileTLSArgKeysAbsent polls until profile-managed TLS flags are gone.
 // Transient read failures keep polling. A timeout includes the last verification error.
+// highTimeout covers operator container restart backoff after a tlsAdherence flip.
 func waitForOperandProfileTLSArgKeysAbsent(deploymentName string) error {
 	var lastErr error
-	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, lowTimeout, true, func(context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
 		lastErr = verifyOperandProfileTLSArgKeysAbsent(deploymentName)
 		return lastErr == nil, nil
 	})
@@ -2159,12 +2273,16 @@ func verifyOperandMetricsHTTPS(deploymentName string) error {
 // given per-test namespace) exposes the gRPC serving TLS flags derived from the cluster profile, using the
 // same mapping as Reconciler.clusterTLSProfileArgs in pkg/controller/istiocsr.
 func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clientset, namespace string, spec *configapiv1.TLSProfileSpec) error {
-	expected := tlsprofile.IstioCSRServingTLSArgs(spec)
+	expected, err := tlsprofile.IstioCSRServingTLSArgs(spec)
+	if err != nil {
+		return fmt.Errorf("istio-csr serving TLS args: %w", err)
+	}
 	if len(expected) == 0 {
 		return fmt.Errorf("no istio-csr serving TLS args resolved from profile")
 	}
 
-	// highTimeout covers one in-flight kube-apiserver rollout after the profile patch.
+	// highTimeout covers one in-flight kube-apiserver rollout. The profile patch
+	// itself does not wait for that rollout, so this poll must outlast a 504.
 	if err := verifyDeploymentArgsInNamespaceWithTimeout(k8sclient, namespace, istioCSRGRPCServiceName, expected, true, highTimeout); err != nil {
 		return fmt.Errorf("deployment %q TLS args: %w", istioCSRGRPCServiceName, err)
 	}
@@ -2173,10 +2291,10 @@ func verifyIstioCSRServingTLSArgsMatchClusterProfile(k8sclient *kubernetes.Clien
 		return nil
 	}
 
-	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(context.Context) (bool, error) {
-		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(context.TODO(), istioCSRGRPCServiceName, metav1.GetOptions{})
+	return wait.PollUntilContextTimeout(context.TODO(), fastPollInterval, highTimeout, true, func(ctx context.Context) (bool, error) {
+		deployment, err := k8sclient.AppsV1().Deployments(namespace).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
 		if err != nil {
-			if apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || isRetriableAPIError(err) {
 				return false, nil
 			}
 			return false, err

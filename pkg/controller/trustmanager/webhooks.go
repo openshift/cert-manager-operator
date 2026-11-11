@@ -3,11 +3,8 @@ package trustmanager
 import (
 	"fmt"
 	"maps"
-	"reflect"
-	"slices"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -27,7 +24,7 @@ func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v
 	if err != nil {
 		return common.FromClientError(err, "failed to check if validatingwebhookconfiguration %q exists", resourceName)
 	}
-	if exists && !webhookConfigModified(desired, existing) {
+	if exists && !common.ValidatingWebhookConfigurationModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("validatingwebhookconfiguration resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -71,41 +68,4 @@ func updateWebhookAnnotations(webhookConfig *admissionregistrationv1.ValidatingW
 	maps.Copy(mergedAnnotations, resourceAnnotations)
 	mergedAnnotations["cert-manager.io/inject-ca-from-secret"] = fmt.Sprintf("%s/%s", operandNamespace, trustManagerTLSSecretName)
 	webhookConfig.SetAnnotations(mergedAnnotations)
-}
-
-// webhookConfigModified compares only the fields we manage via SSA.
-// Individual webhook fields are compared explicitly because the API server
-// defaults fields like matchPolicy, namespaceSelector, and objectSelector.
-func webhookConfigModified(desired, existing *admissionregistrationv1.ValidatingWebhookConfiguration) bool {
-	if managedMetadataModified(desired, existing) {
-		return true
-	}
-	if len(desired.Webhooks) != len(existing.Webhooks) {
-		return true
-	}
-	for i := range desired.Webhooks {
-		if validatingWebhookModified(&desired.Webhooks[i], &existing.Webhooks[i]) {
-			return true
-		}
-	}
-	return false
-}
-
-func validatingWebhookModified(desired, existing *admissionregistrationv1.ValidatingWebhook) bool {
-	if desired.Name != existing.Name {
-		return true
-	}
-	if !reflect.DeepEqual(desired.Rules, existing.Rules) ||
-		!slices.Equal(desired.AdmissionReviewVersions, existing.AdmissionReviewVersions) {
-		return true
-	}
-	if !ptr.Equal(desired.FailurePolicy, existing.FailurePolicy) ||
-		!ptr.Equal(desired.SideEffects, existing.SideEffects) ||
-		!ptr.Equal(desired.TimeoutSeconds, existing.TimeoutSeconds) {
-		return true
-	}
-	if !reflect.DeepEqual(desired.ClientConfig.Service, existing.ClientConfig.Service) {
-		return true
-	}
-	return false
 }

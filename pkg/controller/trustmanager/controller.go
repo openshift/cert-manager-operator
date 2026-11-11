@@ -142,7 +142,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Reconcile when the cluster APIServer is created/deleted, or when TLS
 	// profile / adherence actually change. Status and unrelated spec updates
 	// (encryption, namedCertificates, etc.) are ignored.
-	clusterAPIServerPredicate := clusterAPIServerWatchPredicate()
+	clusterAPIServerPredicate := tlsprofile.ClusterAPIServerWatchPredicate()
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
@@ -207,6 +207,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to update %q trustmanager.openshift.operator.io with finalizers: %w", req.NamespacedName, err)
 	}
 
+	// The finalizer read may observe deletion starting after the initial read.
+	if !trustManager.DeletionTimestamp.IsZero() {
+		return ctrl.Result{RequeueAfter: defaultRequeueTime}, nil
+	}
+
 	return r.processReconcileRequest(trustManager, req.NamespacedName)
 }
 
@@ -234,30 +239,4 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 	// trust-manager deployment or its associated resources.
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, "RemoveDeployment", "%s trustmanager marked for deletion, remove all resources created for trustmanager deployment manually", trustManager.GetName())
 	return false, nil
-}
-
-func isClusterAPIServer(obj client.Object) bool {
-	return obj != nil && obj.GetName() == tlsprofile.APIServerClusterName
-}
-
-func clusterAPIServerWatchPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return isClusterAPIServer(e.Object)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return isClusterAPIServer(e.Object)
-		},
-		GenericFunc: func(e event.GenericEvent) bool {
-			return isClusterAPIServer(e.Object)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldObj, okOld := e.ObjectOld.(*configv1.APIServer)
-			newObj, okNew := e.ObjectNew.(*configv1.APIServer)
-			if !okOld || !okNew || newObj.GetName() != tlsprofile.APIServerClusterName {
-				return false
-			}
-			return tlsprofile.ClusterAPIServerTLSConfigChanged(oldObj, newObj)
-		},
-	}
 }

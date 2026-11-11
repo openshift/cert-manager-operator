@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,13 +17,9 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-
-	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
-	"github.com/openshift/cert-manager-operator/pkg/tlsprofile"
 )
 
 func TestReconcile(t *testing.T) {
@@ -78,7 +76,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -95,7 +93,7 @@ func TestReconcile(t *testing.T) {
 					}
 					return nil
 				})
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+				m.UpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return errTestClient
 				})
 			},
@@ -139,6 +137,33 @@ func TestReconcile(t *testing.T) {
 			assertError(t, err, tt.wantErr)
 		})
 	}
+}
+
+func TestReconcileSkipsInstallationWhenDeletionStartsDuringFinalizerUpdate(t *testing.T) {
+	r := testReconciler(t)
+	c := &fakes.FakeCtrlClient{}
+	r.CtrlClient = c
+	stored := testTrustManager().Build()
+	stored.UID = "original"
+	stored.Finalizers = []string{"example.test/other"}
+	c.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
+		stored.DeepCopyInto(obj.(*v1alpha1.TrustManager))
+		if c.GetCallCount() == 1 {
+			// Deletion starts between the initial read and the finalizer read.
+			now := metav1.Now()
+			stored.DeletionTimestamp = &now
+		}
+		return nil
+	})
+
+	result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKey{Name: trustManagerObjectName}})
+	require.NoError(t, err)
+	assert.Equal(t, defaultRequeueTime, result.RequeueAfter)
+	assert.Equal(t, []string{"example.test/other"}, stored.Finalizers)
+	assert.Zero(t, c.UpdateCallCount())
+	assert.Zero(t, c.ExistsCallCount(), "do not begin reconciling operand resources")
+	assert.Zero(t, c.PatchCallCount())
+	assert.Zero(t, c.StatusUpdateCallCount())
 }
 
 func TestProcessReconcileRequest(t *testing.T) {
@@ -259,7 +284,6 @@ func TestProcessReconcileRequest(t *testing.T) {
 					Reason: v1alpha1.ReasonInProgress,
 				},
 			},
-			wantErr: "failed to check if serviceaccount",
 		},
 		{
 			name: "trust namespace does not exist sets degraded true",
@@ -407,47 +431,5 @@ func TestCleanUp(t *testing.T) {
 				t.Errorf("cleanUp() requeue = %v, want %v", requeue, tt.wantRequeue)
 			}
 		})
-	}
-}
-
-func TestClusterAPIServerWatchPredicate(t *testing.T) {
-	p := clusterAPIServerWatchPredicate()
-	cluster := &configv1.APIServer{
-		ObjectMeta: metav1.ObjectMeta{Name: tlsprofile.APIServerClusterName},
-		Spec: configv1.APIServerSpec{
-			TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
-			TLSSecurityProfile: &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType},
-		},
-	}
-	other := cluster.DeepCopy()
-	other.Name = "not-cluster"
-
-	if !p.Create(event.CreateEvent{Object: cluster}) {
-		t.Fatal("create of cluster APIServer should match")
-	}
-	if p.Create(event.CreateEvent{Object: other}) {
-		t.Fatal("create of non-cluster APIServer should not match")
-	}
-	if !p.Delete(event.DeleteEvent{Object: cluster}) {
-		t.Fatal("delete of cluster APIServer should match")
-	}
-
-	statusOnly := cluster.DeepCopy()
-	statusOnly.ResourceVersion = "2"
-	if p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: statusOnly}) {
-		t.Fatal("status-only update should not match")
-	}
-
-	adherenceChanged := cluster.DeepCopy()
-	adherenceChanged.Spec.TLSAdherence = configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly
-	if !p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: adherenceChanged}) {
-		t.Fatal("adherence change should match")
-	}
-
-	if p.Update(event.UpdateEvent{ObjectOld: cluster, ObjectNew: other}) {
-		t.Fatal("update of non-cluster APIServer should not match")
-	}
-	if p.Update(event.UpdateEvent{ObjectOld: &corev1.ConfigMap{}, ObjectNew: cluster}) {
-		t.Fatal("update with wrong old type should not match")
 	}
 }

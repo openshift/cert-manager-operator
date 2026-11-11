@@ -1,11 +1,11 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-4.23 AS builder
+FROM registry.redhat.io/openshift/golang-builder:golang-builder-v1.26-rhel9 AS builder
 WORKDIR /go/src/github.com/openshift/cert-manager-operator
 
 # build operator
 COPY . .
 RUN make build --warn-undefined-variables
 
-FROM registry.access.redhat.com/ubi9-minimal:9.4
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc:latest
 COPY --from=builder /go/src/github.com/openshift/cert-manager-operator/cert-manager-operator /usr/bin/
 
 USER 65532:65532

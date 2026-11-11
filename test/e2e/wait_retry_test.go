@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,5 +134,32 @@ func TestGetConfigMapRetryingRetriesTransientError(t *testing.T) {
 	}
 	if configMap.Data["root-cert.pem"] != "cert" {
 		t.Fatalf("getConfigMapRetrying() = %v, want the ConfigMap carrying root-cert.pem", configMap)
+	}
+}
+
+func TestDeploymentArgsContain(t *testing.T) {
+	args := []string{
+		"--acme-http01-solver-resource-limits-cpu=150m",
+		"--acme-http01-solver-resource-request-memory=100Mi",
+	}
+	withArgs := &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Args: append([]string{"--v=2"}, args...),
+					}},
+				},
+			},
+		},
+	}
+	if !deploymentArgsContain(withArgs, args) {
+		t.Fatal("expected deployment args to contain the solver resource flags")
+	}
+	if deploymentArgsContain(withArgs, []string{"--acme-http01-solver-resource-limits-memory=200Mi"}) {
+		t.Fatal("expected a missing solver resource flag to fail the check")
+	}
+	if deploymentArgsContain(nil, args) || deploymentArgsContain(&appsv1.Deployment{}, args) {
+		t.Fatal("expected a deployment without containers to fail the check")
 	}
 }

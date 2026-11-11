@@ -110,6 +110,11 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 		Eventually(func() error {
 			return setWebhookUnsupportedArgs(ctx, nil)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
+
+		By("waiting for cert-manager operands to finish TLS-driven rollout")
+		Eventually(func() error {
+			return waitForCertManagerOperandsHealthy(ctx)
+		}, highTimeout, slowPollInterval).Should(Succeed())
 	})
 
 	BeforeEach(func() {
@@ -762,6 +767,14 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 				Type: configapiv1.TLSProfileIntermediateType,
 			})
 
+			// Flipping tlsAdherence restarts the operator container. This spec
+			// runs late in the Ordered suite after several such restarts, so
+			// kubelet backoff can exceed lowTimeout before trust-manager can
+			// strip leftover Intermediate flags.
+			By("waiting for operator to become healthy after tlsAdherence restart")
+			err = verifyHealthyOperatorConditionsWithTimeout(certmanageroperatorclient.OperatorV1alpha1(), highTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
 			expectProfileManagedTLSFlagsGone(tmCtx, []string{trustManagerDeploymentName})
 
 			By("handshaking trust-manager webhook: TLS 1.2 succeeds after Strict → Legacy")
@@ -815,6 +828,11 @@ func restoreAPIServerTLSConfigCleanup(ctx context.Context, original *apiserverTL
 		Eventually(func() error {
 			return restoreClusterAPIServerTLSConfig(ctx, original)
 		}, lowTimeout, fastPollInterval).Should(Succeed())
+
+		By("[cleanup] waiting for cert-manager operands to finish TLS-driven rollout")
+		Eventually(func() error {
+			return waitForCertManagerOperandsHealthy(ctx)
+		}, highTimeout, slowPollInterval).Should(Succeed())
 	}
 }
 
@@ -936,13 +954,13 @@ func trustManagerWebhookEndpoint() certManagerTLSEndpoint {
 }
 
 // customTLS13SecurityProfile returns a Custom profile whose minimum version is TLS 1.3.
+// TLS 1.3 cipher suites are not configurable on apiserver/cluster; leave Ciphers unset.
 func customTLS13SecurityProfile() *configapiv1.TLSSecurityProfile {
 	return &configapiv1.TLSSecurityProfile{
 		Type: configapiv1.TLSProfileCustomType,
 		Custom: &configapiv1.CustomTLSProfile{
 			TLSProfileSpec: configapiv1.TLSProfileSpec{
 				MinTLSVersion: configapiv1.VersionTLS13,
-				Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
 			},
 		},
 	}

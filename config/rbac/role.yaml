@@ -91,6 +91,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - cert-manager.io
   resources:
   - certificaterequests
@@ -114,6 +120,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - signers
+  verbs:
+  - approve
 - apiGroups:
   - cert-manager.io
   resourceNames:
@@ -245,10 +257,10 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
-  - certmanagers
+  - approverpolicymanagers
+  - istiocsrs
+  - trustmanagers
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -257,6 +269,7 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
+  - approverpolicymanagers/finalizers
   - certmanagers/finalizers
   - http01proxies/finalizers
   - istiocsrs/finalizers
@@ -266,6 +279,7 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
+  - approverpolicymanagers/status
   - certmanagers/status
   - istiocsrs/status
   - trustmanagers/status
@@ -273,6 +287,18 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - certmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - operator.openshift.io
   resources:
@@ -290,16 +316,18 @@ rules:
   - get
   - update
 - apiGroups:
-  - operator.openshift.io
+  - policy.cert-manager.io
   resources:
-  - istiocsrs
-  - trustmanagers
+  - certificaterequestpolicies
   verbs:
-  - get
   - list
-  - patch
-  - update
   - watch
+- apiGroups:
+  - policy.cert-manager.io
+  resources:
+  - certificaterequestpolicies/status
+  verbs:
+  - patch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:

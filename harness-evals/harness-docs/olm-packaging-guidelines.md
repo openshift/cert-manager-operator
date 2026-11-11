@@ -37,9 +37,9 @@ make catalog-build / catalog-push
 | `IMG_VERSION` | Operator image tag (`IMG`). |
 | `CATALOG_VERSION` | Catalog/index image tag. |
 | `CERT_MANAGER_VERSION`, `ISTIO_CSR_VERSION`, `TRUST_MANAGER_VERSION`, `APPROVER_POLICY_VERSION` | Operand image versions; consumed by `make update-manifests` to pull upstream manifests into `bindata/`. Must be kept **manually** in sync with the hardcoded `RELATED_IMAGE_*`/`*_OPERAND_IMAGE_VERSION` values in `config/manager/manager.yaml` — bumping this variable alone does not update the Deployment/CSV. |
-| `CHANNELS` / `DEFAULT_CHANNEL` | e.g. `stable-v1,stable-v1.20` / `stable-v1`, must match `bundle/metadata/annotations.yaml`. |
+| `CHANNELS` / `DEFAULT_CHANNEL` | e.g. `stable-v1,stable-v1.21` / `stable-v1`, must match `bundle/metadata/annotations.yaml`. |
 
-All are overridable, e.g. `make bundle BUNDLE_VERSION=1.21.0 CERT_MANAGER_VERSION=v1.21.0`.
+All are overridable, e.g. `make bundle BUNDLE_VERSION=1.21.0 CERT_MANAGER_VERSION=v1.21.3`.
 
 ## `replaces` / `skipRange`
 
@@ -48,18 +48,18 @@ Set in `config/manifests/bases/cert-manager-operator.clusterserviceversion.yaml`
 ```yaml
 metadata:
   annotations:
-    olm.skipRange: '>=1.19.0 <1.20.0'
+    olm.skipRange: '>=1.20.1 <1.21.0'
 spec:
-  replaces: cert-manager-operator.v1.19.0
-  version: 1.20.0
+  replaces: cert-manager-operator.v1.20.1
+  version: 1.21.0
 ```
 
 - `replaces` must point at the exact previous CSV name shipped in the same channel (upgrade edge).
 - `olm.skipRange` should cover all previously-published versions so upgrades from any older
   installed version resolve correctly; bump the lower bound as old minors are dropped.
   Set the exclusive upper bound to the **candidate version** being released: `<X.Y.Z>` for a
-  z-stream (e.g. `>=1.20.0 <1.20.1` when shipping `1.20.1`), or `<X.Y.0>` for a new minor
-  (e.g. `>=1.19.0 <1.20.0` when shipping `1.20.0`).
+  z-stream (e.g. `>=1.21.0 <1.21.1` when shipping `1.21.1`), or `<X.Y.0>` for a new minor
+  (e.g. `>=1.20.1 <1.21.0` when shipping `1.21.0`).
 - Update **both** when cutting a new minor/z-stream; keep `bundle/metadata/annotations.yaml`
   channel labels consistent with the release train.
 
@@ -92,12 +92,13 @@ reads it, and re-running `make bundle` so the corresponding `relatedImages` entr
 unit test; a missing map entry can pass bundle validate and still break disconnected operand
 image resolution.
 
-For approver-policy, `APPROVER_POLICY_VERSION=v0.27.0` corresponds to
-`RELATED_IMAGE_APPROVER_POLICY=quay.io/jetstack/cert-manager-approver-policy:v0.27.0`
-and packaged `APPROVERPOLICY_OPERAND_IMAGE_VERSION=0.27.0`. `make local-run` supplies
-both variables from `APPROVER_POLICY_VERSION`, retaining `v` in the version env
-value just as it does for TrustManager. Neither approver-policy env variable has
-a runtime consumer yet; the controller implementation must add those consumers.
+For approver-policy, `APPROVER_POLICY_VERSION=v0.29.0` corresponds to
+`RELATED_IMAGE_APPROVER_POLICY=quay.io/jetstack/cert-manager-approver-policy:v0.29.0`
+and packaged `APPROVERPOLICY_OPERAND_IMAGE_VERSION=0.29.0`. `make local-run` supplies
+both variables from `APPROVER_POLICY_VERSION`, stripping the leading `v` from
+`*_OPERAND_IMAGE_VERSION` values to match packaged env literals. Neither
+approver-policy env variable has a runtime consumer yet; the controller
+implementation must add those consumers.
 
 ## RBAC changes
 

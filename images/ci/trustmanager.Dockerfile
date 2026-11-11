@@ -1,6 +1,6 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-4.23 AS builder
+FROM registry.redhat.io/openshift/golang-builder:golang-builder-v1.26-rhel9 AS builder
 
-ARG RELEASE_BRANCH=v0.25.0
+ARG RELEASE_BRANCH=v0.26.0
 
 ARG GO_BUILD_TAGS=strictfipsruntime,openssl
 ENV GOEXPERIMENT strictfipsruntime
@@ -13,7 +13,7 @@ WORKDIR /go/src/github.com/cert-manager/trust-manager
 RUN go mod vendor
 RUN go build -mod=vendor -tags $GO_BUILD_TAGS -ldflags '-w -s' -o /app/cert-manager-trust-manager ./cmd/trust-manager
 
-FROM registry.access.redhat.com/ubi9-minimal:latest
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc:latest
 COPY --from=builder /app/cert-manager-trust-manager /usr/local/bin/cert-manager-trust-manager
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/cert-manager-trust-manager"]
