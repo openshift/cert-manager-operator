@@ -77,15 +77,9 @@ func TestNetworkPolicyFromAsset(t *testing.T) {
 					t.Errorf("port: got %d want %d", port, tt.wantPort)
 				}
 			}
-			if tt.assetPath == trustManagerAllowIngressWebhookNetworkPolicyAssetName {
-				from := policy.Spec.Ingress[0].From
-				if len(from) != 1 || from[0].NamespaceSelector == nil {
-					t.Fatalf("expected one webhook namespaceSelector peer, got %#v", from)
-				}
-				labels := from[0].NamespaceSelector.MatchLabels
-				v, ok := labels["policy-group.network.openshift.io/host-network"]
-				if !ok || v != "" || len(labels) != 1 {
-					t.Errorf("webhook host-network selector: got %v", labels)
+			if !tt.wantEgress && tt.wantPort != 0 {
+				if len(policy.Spec.Ingress[0].From) != 0 {
+					t.Errorf("expected no ingress peers, got %#v", policy.Spec.Ingress[0].From)
 				}
 			}
 			if tt.wantEgress {

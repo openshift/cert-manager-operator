@@ -4054,11 +4054,7 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: openshift-user-workload-monitoring
-    ports:
+  - ports:
     - protocol: TCP
       port: 9402
 `)
@@ -4092,11 +4088,7 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          policy-group.network.openshift.io/host-network: ""
-    ports:
+  - ports:
     - protocol: TCP
       port: 6443
 `)

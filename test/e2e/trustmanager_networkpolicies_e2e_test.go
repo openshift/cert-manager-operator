@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -174,11 +173,8 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 		}, highTimeout, fastPollInterval).Should(Succeed())
 	})
 
-	It("CJ-4: allows metrics scrape from openshift-user-workload-monitoring and denies other clients", func() {
+	It("CJ-4: allows metrics scrape on TCP 9402 with policies applied", func() {
 		createTrustManagerReadyWithPolicies()
-
-		By("confirming a client outside openshift-user-workload-monitoring cannot reach metrics")
-		expectTrustManagerMetricsDenied(ctx, clientset)
 
 		_, err := clientset.CoreV1().Namespaces().Get(ctx, uwmNamespace, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
@@ -236,14 +232,6 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 	})
 })
 
-// expectNonEmptyNamespaceSelector fails when namespaceSelector is missing or matches every
-// namespace ({} / empty label selector), which would allow overly broad policy peers.
-func expectNonEmptyNamespaceSelector(ns *metav1.LabelSelector) {
-	Expect(ns).NotTo(BeNil(), "namespace selector must be set (empty {} matches all namespaces)")
-	Expect(ns.MatchExpressions).To(BeEmpty(), "unexpected namespace matchExpressions on trust-manager operator policy")
-	Expect(ns.MatchLabels).NotTo(BeEmpty(), "namespace selector must not be empty (matches all namespaces)")
-}
-
 // expectNetworkPolicyTCPPort compares the NetworkPolicyPort.Port value. Port is a
 // *intstr.IntOrString; comparing the pointer to intstr.FromInt32() always fails.
 func expectNetworkPolicyTCPPort(port *intstr.IntOrString, want int32) {
@@ -277,14 +265,7 @@ func expectTrustManagerWebhookIngressPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
 	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
 	expectNetworkPolicyTCPPort(rule.Ports[0].Port, 6443)
-	Expect(rule.From).To(HaveLen(1))
-	peer := rule.From[0]
-	Expect(peer.IPBlock).To(BeNil())
-	Expect(peer.PodSelector).To(BeNil())
-	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
-	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
-		"policy-group.network.openshift.io/host-network": "",
-	}))
+	Expect(rule.From).To(BeEmpty())
 }
 
 func expectTrustManagerMetricsIngressPolicy(np *networkingv1.NetworkPolicy) {
@@ -296,14 +277,7 @@ func expectTrustManagerMetricsIngressPolicy(np *networkingv1.NetworkPolicy) {
 	Expect(rule.Ports[0].Protocol).NotTo(BeNil())
 	Expect(*rule.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
 	expectNetworkPolicyTCPPort(rule.Ports[0].Port, 9402)
-	Expect(rule.From).To(HaveLen(1))
-	peer := rule.From[0]
-	Expect(peer.IPBlock).To(BeNil())
-	Expect(peer.PodSelector).To(BeNil())
-	expectNonEmptyNamespaceSelector(peer.NamespaceSelector)
-	Expect(peer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
-		"kubernetes.io/metadata.name": uwmNamespace,
-	}))
+	Expect(rule.From).To(BeEmpty())
 }
 
 func expectTrustManagerDenyAllPolicy(np *networkingv1.NetworkPolicy) {
@@ -325,50 +299,4 @@ func readyPrometheusPod(ctx context.Context, clientset kubernetes.Interface) (st
 		}
 	}
 	return "", fmt.Errorf("no ready Prometheus pod")
-}
-
-func expectTrustManagerMetricsDenied(ctx context.Context, clientset kubernetes.Interface) {
-	ns := createNamespaceWithCleanup(ctx, "tm-np-deny-", nil)
-	const podName = "metrics-probe"
-	allowPrivilegeEscalation := false
-	runAsNonRoot := true
-	runAsUser := int64(65534)
-	privileged := false
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: ns.Name},
-		Spec: corev1.PodSpec{
-			RestartPolicy:                corev1.RestartPolicyNever,
-			AutomountServiceAccountToken: ptr.To(false),
-			Containers: []corev1.Container{{
-				Name:            "probe",
-				Image:           "quay.io/openshifttest/helm:3.17.0",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{"sh", "-c",
-					`if ! command -v wget >/dev/null 2>&1; then echo no-wget; exit 1; fi; ` +
-						`if wget -T 5 -q -O /dev/null http://trust-manager-metrics.cert-manager.svc:9402/metrics; then echo allowed; exit 1; else echo denied; exit 0; fi`,
-				},
-				SecurityContext: &corev1.SecurityContext{
-					AllowPrivilegeEscalation: &allowPrivilegeEscalation,
-					RunAsNonRoot:             &runAsNonRoot,
-					RunAsUser:                &runAsUser,
-					Privileged:               &privileged,
-					SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-					Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-				},
-			}},
-		},
-	}
-	_, err := clientset.CoreV1().Pods(ns.Name).Create(ctx, pod, metav1.CreateOptions{})
-	Expect(err).NotTo(HaveOccurred())
-
-	Eventually(func(g Gomega) {
-		got, getErr := clientset.CoreV1().Pods(ns.Name).Get(ctx, podName, metav1.GetOptions{})
-		g.Expect(getErr).NotTo(HaveOccurred())
-		g.Expect(got.Status.Phase).To(Equal(corev1.PodSucceeded))
-	}, highTimeout, fastPollInterval).Should(Succeed())
-
-	logs, err := clientset.CoreV1().Pods(ns.Name).GetLogs(podName, &corev1.PodLogOptions{}).DoRaw(ctx)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(string(logs)).To(ContainSubstring("denied"))
-	Expect(string(logs)).NotTo(ContainSubstring("allowed"))
 }
