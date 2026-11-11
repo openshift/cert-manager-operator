@@ -190,7 +190,7 @@ func getCertificateRequestPolicyObject(certConfig v1alpha1.TrustManagerCertConfi
 }
 
 func certificateRequestPolicyModified(desired, existing *policyv1alpha1.CertificateRequestPolicy) bool {
-	return managedMetadataModified(desired, existing) ||
+	return common.ManagedMetadataModified(desired, existing, fieldOwner) ||
 		!reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
@@ -204,7 +204,7 @@ func (r *Reconciler) createOrApplyPolicyClusterRole(trustManager *v1alpha1.Trust
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
-	if exists && !clusterRoleModified(desired, existing) {
+	if exists && !common.ClusterRoleModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("approver-policy clusterrole resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
@@ -253,7 +253,7 @@ func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
 	}
-	if exists && !clusterRoleBindingModified(desired, existing) {
+	if exists && !common.ClusterRoleBindingModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("approver-policy clusterrolebinding resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
