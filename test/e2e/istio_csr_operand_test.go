@@ -28,7 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -403,24 +402,36 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		createIstioCSR(ns.Name, istioCSR)
 		expectIstioCSROperandReady(ctx, clientset, loader, ns.Name)
 
-		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Wait until desired args are stable before mutating. Mutating while the
+		// operand is still writing the Deployment is what flakes CI with 409s.
+		By("waiting for desired log arguments on the deployment")
+		Eventually(func(g Gomega) {
 			deployment, getErr := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
-			if getErr != nil {
-				return getErr
-			}
-			Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
-			Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
-			Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
+			g.Expect(getErr).NotTo(HaveOccurred())
+			g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+			g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
+			g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
+		}, lowTimeout, fastPollInterval).Should(Succeed())
+
+		// Apply drift with a fresh Get+Update on every attempt. Eventually retries
+		// conflicts (and other transient write errors) far longer than
+		// retry.DefaultRetry, which only covers a few short steps.
+		By("introducing deployment arg drift")
+		Eventually(func(g Gomega) {
+			deployment, getErr := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
+			g.Expect(getErr).NotTo(HaveOccurred())
+			g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 
 			deployment.Spec.Template.Spec.Containers[0].Args = []string{"--log-level=1", "--log-format=text"}
 			_, updateErr := clientset.AppsV1().Deployments(ns.Name).Update(ctx, deployment, metav1.UpdateOptions{})
-			return updateErr
-		})
-		Expect(err).NotTo(HaveOccurred())
+			g.Expect(updateErr).NotTo(HaveOccurred())
+		}, lowTimeout, fastPollInterval).Should(Succeed())
 
+		By("verifying controller restores custom log arguments")
 		Eventually(func(g Gomega) {
-			current, err := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
-			g.Expect(err).NotTo(HaveOccurred())
+			current, getErr := clientset.AppsV1().Deployments(ns.Name).Get(ctx, istioCSRGRPCServiceName, metav1.GetOptions{})
+			g.Expect(getErr).NotTo(HaveOccurred())
+			g.Expect(current.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 			g.Expect(current.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-level=5"))
 			g.Expect(current.Spec.Template.Spec.Containers[0].Args).To(ContainElement("--log-format=json"))
 		}, highTimeout, slowPollInterval).Should(Succeed())
