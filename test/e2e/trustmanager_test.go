@@ -58,19 +58,15 @@ const (
 	trustedCABundleKey           = "ca-bundle.crt"
 )
 
-// TrustManager is deployed and reconciled when --unsupported-addon-features=TrustManager=true.
-var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
+// TrustManager is GA (default enabled), same as IstioCSR.
+var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	var (
 		ctx = context.Background()
 
-		clientset                        *kubernetes.Clientset
-		originalUnsupportedAddonFeatures string
-		originalOperatorLogLevel         string
+		clientset *kubernetes.Clientset
 	)
 
-	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
-
-	AfterAll(trustManagerAfterAll(ctx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset))
 
 	BeforeEach(trustManagerBeforeEach())
 
@@ -1567,56 +1563,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	})
 })
 
-// TrustManager operator feature gate defaults to disabled (unlike IstioCSR). Creating a TrustManager CR
-// must not deploy the operand when --unsupported-addon-features does not enable TrustManager.
-// TechPreview:Inverted labels test scenarios that invert the main TrustManager suite (feature gate off).
-var _ = Describe("TrustManager with operator feature gate disabled", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview:Inverted"), func() {
-	var (
-		ctx = context.Background()
-
-		clientset                        *kubernetes.Clientset
-		originalUnsupportedAddonFeatures string
-		originalOperatorLogLevel         string
-	)
-
-	BeforeAll(trustManagerFeatureGateDisabledBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
-
-	AfterAll(trustManagerAfterAll(ctx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
-
-	BeforeEach(trustManagerBeforeEach())
-
-	AfterEach(trustManagerAfterEach(ctx))
-
-	It("should not create ServiceAccount or populate status when operator feature gate is disabled", func() {
-		By("creating TrustManager CR with default settings")
-		_, err := trustManagerClient().Create(ctx, &v1alpha1.TrustManager{
-			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-			Spec: v1alpha1.TrustManagerSpec{
-				TrustManagerConfig: v1alpha1.TrustManagerConfig{},
-			},
-		}, metav1.CreateOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("verifying TrustManager CR exists")
-		_, err = trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("verifying ServiceAccount is not created and TrustManager status stays unset (controller not running without feature gate)")
-		Consistently(func(g Gomega) {
-			_, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
-			g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "ServiceAccount %s/%s must not exist when TrustManager feature gate is disabled", trustManagerNamespace, trustManagerServiceAccountName)
-
-			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-			g.Expect(err).NotTo(HaveOccurred())
-			st := tm.Status
-			if len(st.Conditions) == 0 {
-				st.Conditions = nil
-			}
-			g.Expect(st).To(Equal(v1alpha1.TrustManagerStatus{}), "TrustManager status must remain unset when controller is disabled")
-		}, lowTimeout, fastPollInterval).Should(Succeed())
-	})
-})
-
 // pollTillTrustManagerAvailable polls the TrustManager object and returns its status
 // once the TrustManager is available, otherwise returns a time-out error.
 func pollTillTrustManagerAvailable(ctx context.Context, client operatorclientv1alpha1.TrustManagerInterface, trustManagerName string) (v1alpha1.TrustManagerStatus, error) {
@@ -1737,29 +1683,17 @@ func findSecretRule(rules []rbacv1.PolicyRule, verb string) *rbacv1.PolicyRule {
 	return nil
 }
 
-func trustManagerFeatureGateDisabledBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, unsupportedAddonFeatures, operatorLogLevel *string) func() {
+func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset) func() {
 	return func() {
 		cs, err := kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 		*clientset = cs
 
-		enableOperatorFeatureGateForSuite(ctx, loader, "TrustManager", false, false, unsupportedAddonFeatures, operatorLogLevel)
-	}
-}
-
-func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, unsupportedAddonFeatures, operatorLogLevel *string) func() {
-	return func() {
-		cs, err := kubernetes.NewForConfig(cfg)
-		Expect(err).Should(BeNil())
-		*clientset = cs
-
-		enableOperatorFeatureGateForSuite(ctx, loader, "TrustManager", true, true, unsupportedAddonFeatures, operatorLogLevel)
-	}
-}
-
-func trustManagerAfterAll(ctx context.Context, unsupportedAddonFeatures, operatorLogLevel *string) func() {
-	return func() {
-		restoreOperatorFeatureGateForSuite(ctx, loader, unsupportedAddonFeatures, operatorLogLevel)
+		By("increase operator log verbosity when operator is OLM-managed")
+		err = tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"OPERATOR_LOG_LEVEL": "4",
+		})
+		Expect(err).NotTo(HaveOccurred())
 	}
 }
 

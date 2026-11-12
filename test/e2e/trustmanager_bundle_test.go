@@ -73,37 +73,19 @@ const (
 	bundleSourceKey          = "ca.crt"
 )
 
-var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
+var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	ctx := context.TODO()
 
 	var (
 		testNS                                     *corev1.Namespace
 		testCertPEM1, testCertPEM2, expiredCertPEM string
-
-		originalUnsupportedAddonFeatures string
-		originalOperatorLogLevel         string
 	)
 
 	BeforeAll(func() {
-		By("capturing original UNSUPPORTED_ADDON_FEATURES from subscription before patching")
-		var err error
-		originalUnsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("capturing original OPERATOR_LOG_LEVEL from subscription before patching")
-		originalOperatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("enabling TrustManager feature gate via subscription")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": "TrustManager=true",
-			"OPERATOR_LOG_LEVEL":         "4",
+		By("increase operator log verbosity when operator is OLM-managed")
+		err := tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"OPERATOR_LOG_LEVEL": "4",
 		})
-		Expect(err).ShouldNot(HaveOccurred())
-
-		By("waiting for operator deployment rollout with feature gate")
-		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName,
-			"UNSUPPORTED_ADDON_FEATURES", "TrustManager=true", highTimeout)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("generating test certificates")
@@ -124,23 +106,6 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 		By("creating test namespace for target verification")
 		testNS = createNamespaceWithCleanup(ctx, "bundle-e2e-", map[string]string{bundleTestNamespaceLabel: "true"})
-	})
-
-	AfterAll(func() {
-		By("restoring UNSUPPORTED_ADDON_FEATURES and OPERATOR_LOG_LEVEL on subscription to pre-suite values")
-		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": originalUnsupportedAddonFeatures,
-			"OPERATOR_LOG_LEVEL":         originalOperatorLogLevel,
-		})
-		Expect(err).ShouldNot(HaveOccurred())
-		if originalUnsupportedAddonFeatures == "" {
-			By("waiting for operator deployment to rollout after removing UNSUPPORTED_ADDON_FEATURES")
-			err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
-		} else {
-			By("waiting for operator deployment to rollout with restored UNSUPPORTED_ADDON_FEATURES")
-			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", originalUnsupportedAddonFeatures, lowTimeout)
-		}
-		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	// ===== Group 1: Default TrustManager =====

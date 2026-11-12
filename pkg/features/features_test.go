@@ -59,12 +59,12 @@ var expectedDefaultFeatureState = map[bool][]featuregate.Feature{
 	// list of features which are expected to be enabled at runtime.
 	true: {
 		featuregate.Feature("IstioCSR"),
+		featuregate.Feature("TrustManager"),
 	},
 
 	// features DISABLED by default,
 	// list of features which are expected to be disabled at runtime.
 	false: {
-		featuregate.Feature("TrustManager"),
 		featuregate.Feature("HTTP01Proxy"),
 		featuregate.Feature("ApproverPolicyManager"),
 	},
@@ -170,7 +170,8 @@ func TestAllowedPreviewClusterFeatureSets(t *testing.T) {
 // (--unsupported-addon-features).
 func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 	defer func() {
-		_ = SetupWithFlagValue("TrustManager=false")
+		// TrustManager defaults to true; restore after test
+		_ = SetupWithFlagValue("TrustManager=true")
 	}()
 
 	tests := []struct {
@@ -304,7 +305,7 @@ func TestIsTrustManagerFeatureGateEnabled(t *testing.T) {
 
 // TestIsIstioCSRFeatureGateEnabled covers the IstioCSR operator featuregate
 // (--unsupported-addon-features). IstioCSR is GA and enabled by default,
-// so it does not depend on cluster FeatureSet (unlike TrustManager).
+// so it does not depend on cluster FeatureSet.
 func TestIsIstioCSRFeatureGateEnabled(t *testing.T) {
 	defer func() {
 		// IstioCSR defaults to true; restore after test

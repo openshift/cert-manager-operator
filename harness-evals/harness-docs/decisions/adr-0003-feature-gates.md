@@ -12,7 +12,7 @@ TrustManager was TechPreview and previously interacted with cluster `featuregate
 
 ## Decision
 
-- Expose operator-local gates: `IstioCSR` (GA, default true), `TrustManager` (TechPreview, default false).  
+- Expose operator-local gates: `IstioCSR` (GA, default true), `TrustManager` (GA, default true).  
 - Wire enablement through `--unsupported-addon-features` (and CSV/deployment args in OLM).  
 - Do **not** require cluster FeatureSet for TrustManager after CM-1141.  
 - Retry FeatureGate discovery failures in `setupFeatureGates`; on persistent failure keep the operator running and gate optional controllers from `--unsupported-addon-features` only (cluster FeatureGate errors do not disable them).
@@ -31,8 +31,8 @@ Do not resurrect unused `passesClusterPreviewGating` without a new ADR.
 ## Consequences
 
 **Positive**:
-- Operators can enable TechPreview TrustManager on standard clusters via flag/CSV without FeatureSet flips.
-- IstioCSR remains on by default as GA.
+- TrustManager and IstioCSR are both on by default as GA; users can still disable either via `--unsupported-addon-features`.
+- No cluster FeatureSet flip is required for TrustManager (CM-1141).
 
 **Negative / Trade-offs**:
 - Name `unsupported-addon-features` is easy to miss when searching for “featuregate”.

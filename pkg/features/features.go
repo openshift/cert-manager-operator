@@ -146,10 +146,10 @@ func IsIstioCSRFeatureGateEnabled() bool {
 
 // IsTrustManagerFeatureGateEnabled reports whether the TrustManager operand may run.
 //
-// TrustManager remains a TechPreview feature and is gated by the internal operator featuregate
-// (--unsupported-addon-features=TrustManager=true). The cluster FeatureSet check
-// (featuregates.config.openshift.io/cluster spec.featureSet) was removed: for increased adoption.
-// Cluster FeatureSet state is still tracked via FeatureGateState but does not gate TrustManager.
+// FeatureTrustManager is GA and enabled by default; it does not depend on the cluster FeatureSet.
+// The featuregate remains available so users can disable it when unused
+// (--unsupported-addon-features=TrustManager=false). Cluster FeatureSet state is still tracked via
+// FeatureGateState but does not gate TrustManager.
 func (f *FeatureGateState) IsTrustManagerFeatureGateEnabled() bool {
 	if !DefaultFeatureGate.Enabled(v1alpha1.FeatureTrustManager) {
 		log.V(1).Info("TrustManager feature: internal featuregate is not enabled")
