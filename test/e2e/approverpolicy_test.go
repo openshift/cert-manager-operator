@@ -219,7 +219,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 				By("applying a compatible controller selection that already excludes the built-in approver")
 				compatible := []string{"--controllers=*,-certificaterequests-approver,-certificates-trigger", "--max-concurrent-challenges=4"}
-				setCertManagerControllerOverrideArgs(ctx, compatible)
+				setCertManagerControllerUnsupportedArgs(ctx, compatible)
 				Eventually(func(g Gomega) {
 					verifyAutoApproverState(ctx, g, true)
 					verifyCertManagerControllerArg(ctx, g, "--controllers=*,-certificaterequests-approver,-certificates-trigger")
@@ -228,7 +228,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				}, highTimeout, fastPollInterval).Should(Succeed())
 
 				By("replacing it with a conflicting override that re-enables the built-in approver")
-				setCertManagerControllerOverrideArgs(ctx, []string{"--controllers=*"})
+				setCertManagerControllerUnsupportedArgs(ctx, []string{"--controllers=*"})
 				Eventually(func(g Gomega) {
 					verifyAutoApproverState(ctx, g, true)
 					verifyAutoApproverOverrideConflictReported(ctx, g, true)

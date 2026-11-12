@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -564,8 +565,26 @@ func waitForAutoApproverHandoff(ctx context.Context) {
 	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
 }
 
-func setCertManagerControllerOverrideArgs(ctx context.Context, args []string) {
-	Expect(addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, args)).To(Succeed())
+// setCertManagerControllerUnsupportedArgs sets break-glass controller args via
+// UnsupportedConfigOverrides. --controllers is intentionally not allowlisted on
+// ControllerConfig.OverrideArgs, so conflict/compatible handoff tests must use this path.
+func setCertManagerControllerUnsupportedArgs(ctx context.Context, args []string) {
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		updated := cm.DeepCopy()
+		raw, err := json.Marshal(&v1alpha1.UnsupportedConfigOverrides{
+			Controller: v1alpha1.UnsupportedConfigOverridesForCertManagerController{Args: args},
+		})
+		if err != nil {
+			return err
+		}
+		updated.Spec.UnsupportedConfigOverrides = runtime.RawExtension{Raw: raw}
+		_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
 }
 
 func clearCertManagerControllerOverrides(ctx context.Context) {
