@@ -158,8 +158,8 @@ duplicating logic per-package is an anti-pattern.
 
 ## 9. Feature-Gate Wiring — the full chain
 
-1. Define in `api/operator/v1alpha1/features.go` (`IstioCSR` GA/default-true,
-   `TrustManager` TechPreview/default-false).
+1. Define in `api/operator/v1alpha1/features.go` (`IstioCSR` and `TrustManager`
+   both GA/default-true).
 2. Register in `pkg/features` (`SetupWithFlagValue`, `NewFeatureGateState`).
 3. `pkg/operator/starter.go`: `setupFeatureGates` parses `--unsupported-addon-features`
    and (best-effort, fail-open with retries) reads `featuregates/cluster`; never aborts

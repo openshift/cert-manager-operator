@@ -121,11 +121,10 @@ objects — a new namespaced singleton needs the same controller-side check.
 
 ## 5. Feature-Gated CRDs
 
-`IstioCSR` (GA, default **true**) and `TrustManager` (TechPreview, default **false**)
-are gated in `api/operator/v1alpha1/features.go` via
-`featuregate.Feature`/`OperatorFeatureGates`, enabled at runtime through
-`--unsupported-addon-features` (see `decisions/adr-0003-feature-gates.md`).
-`CertManager` is always on and ungated.
+`IstioCSR` and `TrustManager` are both GA (default **true**) and gated in
+`api/operator/v1alpha1/features.go` via `featuregate.Feature`/`OperatorFeatureGates`,
+with optional disable through `--unsupported-addon-features` (see
+`decisions/adr-0003-feature-gates.md`). `CertManager` is always on and ungated.
 
 Rules for a new feature-gated CR:
 

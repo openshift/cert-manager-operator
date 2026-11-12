@@ -18,7 +18,7 @@ Deploys/configures upstream **cert-manager** (and optionally **istio-csr** / **t
 |----|--------------|-------|------|
 | [CertManager](harness-evals/harness-docs/domain/certmanager.md) | Cluster / `cluster` | library-go `resourceapply` | Always on |
 | [IstioCSR](harness-evals/harness-docs/domain/istiocsr.md) | Namespaced / `default` | Create+Update | `IstioCSR` GA default true |
-| [TrustManager](harness-evals/harness-docs/domain/trustmanager.md) | Cluster / `cluster` | **SSA** | `TrustManager` TP default false |
+| [TrustManager](harness-evals/harness-docs/domain/trustmanager.md) | Cluster / `cluster` | **SSA** | `TrustManager` GA default true |
 
 **Operands**: Certificate/Issuer/… → cert-manager; Bundle → trust-manager.  
 **Quick Start**: `oc get certmanager cluster -o yaml` | `make local-run`

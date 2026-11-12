@@ -54,7 +54,7 @@ Note: Informers start **before** library-go controllers run — do not assume fi
 | Apply | `resourceapply` / DeploymentController | Create + `UpdateWithRetry` | **SSA** `client.Apply` + `ForceOwnership` |
 | Field owner | n/a (library-go) | n/a | `trust-manager-controller` |
 | Status | `operatorv1.OperatorStatus` | `ConditionalStatus` | `ConditionalStatus` |
-| Gate | Always on | `IstioCSR` GA default true | `TrustManager` TP default false |
+| Gate | Always on | `IstioCSR` GA default true | `TrustManager` GA default true |
 | Finalizer cleanup | library-go | TODO warn-only | TODO warn-only |
 
 Evidence: TrustManager `services.go` / `deployments.go` (`Patch` + `client.Apply`); IstioCSR `services.go` / `deployments.go` (`UpdateWithRetry`); CertManager `cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`).
@@ -80,7 +80,7 @@ Defined in `api/operator/v1alpha1/features.go`; registered in `pkg/features`.
 | Gate | Default | PreRelease | Runtime check |
 |------|---------|------------|---------------|
 | `IstioCSR` | true | GA | `IsIstioCSRFeatureGateEnabled()` — internal only |
-| `TrustManager` | false | TechPreview | `FeatureGateState.IsTrustManagerFeatureGateEnabled()` — internal only; cluster FeatureSet gating **removed** (CM-1141) |
+| `TrustManager` | true | GA | `FeatureGateState.IsTrustManagerFeatureGateEnabled()` — internal only; cluster FeatureSet gating **removed** (CM-1141) |
 
 `passesClusterPreviewGating` still exists in `features.go` but is **unused** — do not resurrect without an ADR.
 

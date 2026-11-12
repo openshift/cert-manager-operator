@@ -37,37 +37,14 @@ var trustManagerNetworkPolicyNames = []string{
 	tmNPAllowIngressMetricsName,
 }
 
-var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() {
+var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	var (
 		ctx = context.Background()
 
-		clientset                        *kubernetes.Clientset
-		originalUnsupportedAddonFeatures string
-		originalOperatorLogLevel         string
-		hasOLMSubscription               bool
+		clientset *kubernetes.Clientset
 	)
 
-	BeforeAll(func() {
-		cs, err := kubernetes.NewForConfig(cfg)
-		Expect(err).NotTo(HaveOccurred())
-		clientset = cs
-
-		installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
-		Expect(err).NotTo(HaveOccurred())
-		hasOLMSubscription = installed
-		if !hasOLMSubscription {
-			By("no OLM subscription in cert-manager-operator; using local operator with TrustManager already enabled")
-			return
-		}
-		trustManagerBeforeAll(ctx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel)()
-	})
-
-	AfterAll(func() {
-		if !hasOLMSubscription {
-			return
-		}
-		trustManagerAfterAll(ctx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel)()
-	})
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset))
 
 	BeforeEach(trustManagerBeforeEach())
 	AfterEach(trustManagerAfterEach(ctx))
