@@ -325,6 +325,7 @@ rules:
   - get
   - list
   - patch
+  - use
   - watch
 - apiGroups:
   - policy.cert-manager.io
