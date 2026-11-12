@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -508,7 +510,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
-		It("should apply custom nodeSelector to deployment", func() {
+		It("should apply and remove a custom nodeSelector", Label("Reconciliation"), func() {
 			createTrustManager(ctx, newTrustManagerCR().WithNodeSelector(map[string]string{
 				"test-node-label": "test-value",
 			}))
@@ -519,6 +521,17 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(dep.Spec.Template.Spec.NodeSelector).Should(HaveKeyWithValue("test-node-label", "test-value"))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("clearing the configured selector and recovering the rollout")
+			client := newAddonTestClient()
+			instance := &v1alpha1.TrustManager{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+			updateAddonObject(ctx, client, instance, func() { instance.Spec.TrustManagerConfig.NodeSelector = nil })
+			deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: trustManagerNamespace}}
+			Eventually(func(g Gomega) {
+				g.Expect(client.Get(ctx, crclient.ObjectKeyFromObject(deployment), deployment)).To(Succeed())
+				g.Expect(deployment.Spec.Template.Spec.NodeSelector).NotTo(HaveKey("test-node-label"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+			waitForAddonDeploymentReady(ctx, client, deployment)
 		})
 
 		It("should apply custom affinity to deployment", func() {
@@ -1550,6 +1563,50 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	// -------------------------------------------------------------------------
 	// Singleton validation
 	// -------------------------------------------------------------------------
+
+	Context("reconciliation regressions", Label("Reconciliation"), func() {
+		It("should restore workload, ServiceAccount, Service, RBAC and webhook fields changed externally", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+			verifyAddonSpecDrift(ctx, newAddonTestClient(), trustManagerResources())
+		})
+
+		It("should remove managed labels and annotations while preserving foreign metadata without repeated rollouts", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).
+				WithLabels(map[string]string{addonManagedMetadataKey: "remove"}).
+				WithAnnotations(map[string]string{addonManagedMetadataKey: "remove"}))
+			client := newAddonTestClient()
+			resources := append(trustManagerResources(), &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+				Name: defaultCAPackageConfigMapName, Namespace: trustManagerNamespace,
+			}})
+			instance := &v1alpha1.TrustManager{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+			verifyAddonMetadataRemoval(ctx, client, resources, func() {
+				updateAddonObject(ctx, client, instance, func() {
+					instance.Spec.ControllerConfig.Labels = nil
+					instance.Spec.ControllerConfig.Annotations = nil
+				})
+			})
+		})
+
+		It("should roll out fresh pods after ServiceAccount recreation", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+			verifyAddonServiceAccountRollout(ctx, newAddonTestClient(),
+				&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: trustManagerServiceAccountName, Namespace: trustManagerNamespace}},
+				&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: trustManagerDeploymentName, Namespace: trustManagerNamespace}},
+				"operator.openshift.io/trust-manager-service-account-uid")
+		})
+
+		It("should preserve a foreign CR finalizer and retain operand resources after CR deletion", func() {
+			client := newAddonTestClient()
+			verifyAddonForeignFinalizer(ctx, client, newTrustManagerCR().Build(),
+				"trustmanager.openshift.operator.io/cert-manager-trust-manager-controller",
+				func() { waitForTrustManagerReady(ctx) })
+			// TrustManager deliberately leaves operands for manual cleanup.
+			for _, obj := range trustManagerResources() {
+				Expect(client.Get(ctx, crclient.ObjectKeyFromObject(obj), obj)).To(Succeed())
+			}
+		})
+	})
 
 	Context("singleton validation", func() {
 		It("should reject TrustManager with name other than 'cluster'", func(ctx SpecContext) {
