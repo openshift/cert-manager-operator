@@ -14,13 +14,8 @@ import (
 func TestUpdateStatusObservedState(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 
-	// Observed status after sync from testTrustManager() defaults (empty status fields + default spec).
-	wantStatusSyncedFromDefaultSpec := v1alpha1.TrustManagerStatus{
-		TrustManagerImage:               testImage,
-		TrustNamespace:                  defaultTrustNamespace,
-		SecretTargetsPolicy:             "",
-		DefaultCAPackagePolicy:          "",
-		FilterExpiredCertificatesPolicy: "",
+	wantImageStatus := v1alpha1.TrustManagerStatus{
+		TrustManagerImage: testImage,
 	}
 
 	tests := []struct {
@@ -30,45 +25,36 @@ func TestUpdateStatusObservedState(t *testing.T) {
 		wantStatus       v1alpha1.TrustManagerStatus
 	}{
 		{
-			name: "updates all observed fields when status is empty",
+			name: "sets trust-manager image when status is empty",
 			trustManager: func() *v1alpha1.TrustManager {
 				return testTrustManager().Build()
 			},
 			wantStatusUpdate: 1,
-			wantStatus:       wantStatusSyncedFromDefaultSpec,
+			wantStatus:       wantImageStatus,
 		},
 		{
-			name: "updates all observed fields for custom spec",
+			name: "does not echo spec fields into status",
 			trustManager: func() *v1alpha1.TrustManager {
 				return testTrustManager().
 					WithTrustNamespace("custom-trust-ns").
 					WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"allowed-secret"}).
-					WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled).
-					WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled).
+					WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicy(v1alpha1.Enabled)).
+					WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicy(v1alpha1.Enabled)).
+					WithFilterNonCACerts(v1alpha1.FilterNonCACertsPolicy(v1alpha1.Enabled)).
 					Build()
 			},
 			wantStatusUpdate: 1,
-			wantStatus: v1alpha1.TrustManagerStatus{
-				TrustManagerImage:               testImage,
-				TrustNamespace:                  "custom-trust-ns",
-				SecretTargetsPolicy:             v1alpha1.SecretTargetsPolicyCustom,
-				DefaultCAPackagePolicy:          v1alpha1.DefaultCAPackagePolicyEnabled,
-				FilterExpiredCertificatesPolicy: v1alpha1.FilterExpiredCertificatesPolicyEnabled,
-			},
+			wantStatus:       wantImageStatus,
 		},
 		{
-			name: "no-op when observed state already matches spec and env",
+			name: "no-op when image already matches env",
 			trustManager: func() *v1alpha1.TrustManager {
 				tm := testTrustManager().Build()
 				tm.Status.TrustManagerImage = testImage
-				tm.Status.TrustNamespace = defaultTrustNamespace
-				tm.Status.SecretTargetsPolicy = tm.Spec.TrustManagerConfig.SecretTargets.Policy
-				tm.Status.DefaultCAPackagePolicy = tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy
-				tm.Status.FilterExpiredCertificatesPolicy = tm.Spec.TrustManagerConfig.FilterExpiredCertificates
 				return tm
 			},
 			wantStatusUpdate: 0,
-			wantStatus:       wantStatusSyncedFromDefaultSpec,
+			wantStatus:       wantImageStatus,
 		},
 	}
 

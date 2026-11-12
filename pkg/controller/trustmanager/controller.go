@@ -3,6 +3,7 @@ package trustmanager
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -60,7 +61,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch
@@ -156,6 +157,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&corev1.Namespace{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(r.targetNamespaceWatchPredicate())).
 		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
@@ -239,4 +241,43 @@ func (r *Reconciler) cleanUp(trustManager *v1alpha1.TrustManager) (bool, error) 
 	// trust-manager deployment or its associated resources.
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeWarning, "RemoveDeployment", "%s trustmanager marked for deletion, remove all resources created for trustmanager deployment manually", trustManager.GetName())
 	return false, nil
+}
+
+// targetNamespaceWatchPredicate enqueues TrustManager when a namespace listed
+// in targetNamespaces is created. The Role for that namespace is applied on
+// create. Deletes and updates are ignored: deleting a namespace already GCs
+// its namespaced RBAC, and a namespace entering Terminating deletes its Role,
+// which the Role watch already enqueues.
+//
+// Namespaces are not labeled by this controller, so this watch uses the
+// default cache informer and selects names here.
+func (r *Reconciler) targetNamespaceWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return r.isListedTargetNamespace(e.Object)
+		},
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return false
+		},
+		UpdateFunc: func(event.UpdateEvent) bool {
+			return false
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+// isListedTargetNamespace reports whether obj is named in the current
+// TrustManager targetNamespaces list.
+func (r *Reconciler) isListedTargetNamespace(obj client.Object) bool {
+	if obj == nil || obj.GetName() == "" {
+		return false
+	}
+	trustManager := &v1alpha1.TrustManager{}
+	if err := r.Get(r.ctx, types.NamespacedName{Name: trustManagerObjectName}, trustManager); err != nil {
+		r.log.V(4).Info("target namespace watch skipped", "namespace", obj.GetName(), "error", err)
+		return false
+	}
+	return slices.Contains(trustManager.Spec.TrustManagerConfig.TargetNamespaces, obj.GetName())
 }
