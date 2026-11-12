@@ -46,8 +46,6 @@ const (
 	istioCSRServiceName        = "cert-manager-istio-csr"
 	istioCSRServiceAccountName = "cert-manager-istio-csr"
 
-	bothOperandsFeatureGates = "IstioCSR=true,TrustManager=true"
-
 	multiOperandTestLabelKey   = "cert-manager.operator.openshift.io/e2e-test"
 	multiOperandTestLabelValue = "multi-operands"
 
@@ -72,15 +70,13 @@ var coreOperandDeployments = []operandDeployment{
 	{operandNamespace, trustManagerDeploymentName},
 }
 
-var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Feature:MultipleOperands", "TechPreview", "Skipped:MicroShift"), func() {
+var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Feature:MultipleOperands", "Skipped:MicroShift"), func() {
 	var (
 		ctx = context.Background()
 
-		clientset                        *kubernetes.Clientset
-		originalUnsupportedAddonFeatures string
-		originalOperatorLogLevel         string
-		istioNS                          *corev1.Namespace
-		multiOperandBundlePEM            string
+		clientset             *kubernetes.Clientset
+		istioNS               *corev1.Namespace
+		multiOperandBundlePEM string
 	)
 
 	BeforeAll(func() {
@@ -92,21 +88,10 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 			Skip("MicroShift: OLM not available")
 		}
 
-		originalUnsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
-		Expect(err).NotTo(HaveOccurred())
-
-		originalOperatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("enabling IstioCSR and TrustManager feature gates")
-		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": bothOperandsFeatureGates,
-			"OPERATOR_LOG_LEVEL":         "4",
+		By("increase operator log verbosity when operator is OLM-managed")
+		err = tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"OPERATOR_LOG_LEVEL": "4",
 		})
-		Expect(err).NotTo(HaveOccurred())
-
-		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName,
-			"UNSUPPORTED_ADDON_FEATURES", bothOperandsFeatureGates, highTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		caTweak := func(cert *x509.Certificate) {
@@ -125,20 +110,6 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 				fmt.Sprintf("IstioCSR %s/%s", istioNS.Name, istioCSRResourceName),
 			)
 		}
-
-		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"UNSUPPORTED_ADDON_FEATURES": originalUnsupportedAddonFeatures,
-			"OPERATOR_LOG_LEVEL":         originalOperatorLogLevel,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		if originalUnsupportedAddonFeatures == "" {
-			err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
-		} else {
-			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName,
-				"UNSUPPORTED_ADDON_FEATURES", originalUnsupportedAddonFeatures, lowTimeout)
-		}
-		Expect(err).NotTo(HaveOccurred())
 	})
 
 	Context("with operands installed concurrently", Ordered, func() {

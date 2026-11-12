@@ -549,14 +549,11 @@ var _ = Describe("Cluster TLS security profile", Label("Platform:Generic", "Feat
 
 	Context("trust-manager webhook TLS", Ordered, func() {
 		var (
-			tmCtx                            = context.Background()
-			clientset                        *kubernetes.Clientset
-			originalUnsupportedAddonFeatures string
-			originalOperatorLogLevel         string
+			tmCtx     = context.Background()
+			clientset *kubernetes.Clientset
 		)
 
-		BeforeAll(trustManagerBeforeAll(tmCtx, &clientset, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
-		AfterAll(trustManagerAfterAll(tmCtx, &originalUnsupportedAddonFeatures, &originalOperatorLogLevel))
+		BeforeAll(trustManagerBeforeAll(tmCtx, &clientset))
 		AfterEach(trustManagerAfterEach(tmCtx))
 
 		// Journey 1 — E2E-001
