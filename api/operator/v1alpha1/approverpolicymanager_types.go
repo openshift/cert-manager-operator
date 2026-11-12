@@ -132,19 +132,27 @@ type ApproverPolicyManagerConfig struct {
 // ApproverPolicyManagerControllerConfig configures the operator's behavior for resource creation.
 type ApproverPolicyManagerControllerConfig struct {
 	// labels to apply to resources created for approver-policy, in addition to operator defaults.
+	// The following label keys are reserved for controller use and cannot be configured:
+	// app, app.kubernetes.io/name, app.kubernetes.io/instance, app.kubernetes.io/version,
+	// app.kubernetes.io/managed-by, app.kubernetes.io/part-of.
+	// Labels with prefix rbac.authorization.k8s.io/aggregate-to- are also forbidden.
 	// This field can have at most 20 entries.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=20
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !(k in ['app', 'app.kubernetes.io/name', 'app.kubernetes.io/instance', 'app.kubernetes.io/version', 'app.kubernetes.io/managed-by', 'app.kubernetes.io/part-of']))",message="reserved label keys cannot be configured via controllerConfig"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('rbac.authorization.k8s.io/aggregate-to-'))",message="label keys with prefix rbac.authorization.k8s.io/aggregate-to- cannot be configured via controllerConfig"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// annotations to apply to resources created for approver-policy.
+	// The annotation key "cert-manager.io/inject-ca-from-secret" is reserved for controller use.
 	// This field can have at most 20 entries.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=20
+	// +kubebuilder:validation:XValidation:rule="!('cert-manager.io/inject-ca-from-secret' in self)",message="annotation key 'cert-manager.io/inject-ca-from-secret' is reserved for controller use"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`

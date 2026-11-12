@@ -1545,6 +1545,145 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(secret.Data["tls.crt"]).Should(Equal(issuedCert), "tls.crt changed, so removal did not happen as a metadata update")
 			}, highTimeout, slowPollInterval).Should(Succeed())
 		})
+
+		It("should remove custom labels from managed resources when removed from controllerConfig", func() {
+			const customLabelKey = "custom-label"
+			const customLabelValue = "custom-value"
+
+			By("creating TrustManager CR with custom labels")
+			createTrustManager(ctx, newTrustManagerCR().WithLabels(map[string]string{
+				customLabelKey: customLabelValue,
+			}))
+
+			By("waiting for custom label on ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Labels).Should(HaveKeyWithValue(customLabelKey, customLabelValue))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom label on Deployment")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Labels).Should(HaveKeyWithValue(customLabelKey, customLabelValue))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("removing custom labels from TrustManager controllerConfig")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.ControllerConfig.Labels = map[string]string{}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom label to be removed from ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Labels).ShouldNot(HaveKey(customLabelKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom label to be removed from Deployment")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Labels).ShouldNot(HaveKey(customLabelKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should remove custom annotations from managed resources when removed from controllerConfig", func() {
+			const customAnnotationKey = "custom-annotation"
+			const customAnnotationValue = "annotation-value"
+
+			By("creating TrustManager CR with custom annotations")
+			createTrustManager(ctx, newTrustManagerCR().WithAnnotations(map[string]string{
+				customAnnotationKey: customAnnotationValue,
+			}))
+
+			By("waiting for custom annotation on ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Annotations).Should(HaveKeyWithValue(customAnnotationKey, customAnnotationValue))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom annotation on Deployment")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Annotations).Should(HaveKeyWithValue(customAnnotationKey, customAnnotationValue))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("removing custom annotations from TrustManager controllerConfig")
+			Eventually(func() error {
+				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				tm.Spec.ControllerConfig.Annotations = map[string]string{}
+				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+				return err
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom annotation to be removed from ServiceAccount")
+			Eventually(func(g Gomega) {
+				sa, err := clientset.CoreV1().ServiceAccounts(trustManagerNamespace).Get(ctx, trustManagerServiceAccountName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(sa.Annotations).ShouldNot(HaveKey(customAnnotationKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+
+			By("waiting for custom annotation to be removed from Deployment")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Annotations).ShouldNot(HaveKey(customAnnotationKey))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+	})
+
+	// -------------------------------------------------------------------------
+	// controllerConfig API validation (CEL)
+	// -------------------------------------------------------------------------
+
+	Context("controllerConfig API validation", func() {
+		It("should reject reserved controllerConfig labels on create", func() {
+			_, err := trustManagerClient().Create(ctx, newTrustManagerCR().WithLabels(map[string]string{
+				"app": "custom-value",
+			}).Build(), metav1.CreateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("reserved label keys cannot be configured via controllerConfig"))
+		})
+
+		It("should reject RBAC aggregate controllerConfig labels on create", func() {
+			_, err := trustManagerClient().Create(ctx, newTrustManagerCR().WithLabels(map[string]string{
+				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
+			}).Build(), metav1.CreateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("rbac.authorization.k8s.io/aggregate-to-"))
+		})
+
+		It("should reject reserved controllerConfig annotations on create", func() {
+			_, err := trustManagerClient().Create(ctx, newTrustManagerCR().WithAnnotations(map[string]string{
+				"cert-manager.io/inject-ca-from-secret": "cert-manager/trust-manager-tls",
+			}).Build(), metav1.CreateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("cert-manager.io/inject-ca-from-secret"))
+		})
+
+		It("should reject reserved controllerConfig labels on update", func() {
+			createTrustManager(ctx, newTrustManagerCR())
+
+			tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			tm.Spec.ControllerConfig.Labels = map[string]string{"app": "custom-value"}
+			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("reserved label keys cannot be configured via controllerConfig"))
+		})
 	})
 
 	// -------------------------------------------------------------------------

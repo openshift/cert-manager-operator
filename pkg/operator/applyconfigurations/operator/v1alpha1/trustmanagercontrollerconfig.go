@@ -9,8 +9,13 @@ package v1alpha1
 // creating trust-manager resources.
 type TrustManagerControllerConfigApplyConfiguration struct {
 	// labels to apply to all resources created for the trust-manager deployment.
+	// The following label keys are reserved for controller use and cannot be configured:
+	// app, app.kubernetes.io/name, app.kubernetes.io/instance, app.kubernetes.io/version,
+	// app.kubernetes.io/managed-by, app.kubernetes.io/part-of.
+	// Labels with prefix rbac.authorization.k8s.io/aggregate-to- are also forbidden.
 	Labels map[string]string `json:"labels,omitempty"`
 	// annotations to apply to all resources created for the trust-manager deployment.
+	// The annotation key "cert-manager.io/inject-ca-from-secret" is reserved for controller use.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
