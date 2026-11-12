@@ -179,7 +179,7 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 		existingLabels = existing.Labels
 		existingAnnotations = existing.Annotations
 	}
-	if managedMapModified(desiredLabels, existingLabels) || managedMapModified(desiredAnnotations, existingAnnotations) {
+	if secretTemplateMapDrift(desiredLabels, existingLabels) || secretTemplateMapDrift(desiredAnnotations, existingAnnotations) {
 		return true
 	}
 	if existingCert == nil || (!mapHasKeyAbsentFrom(existingLabels, desiredLabels) && !mapHasKeyAbsentFrom(existingAnnotations, desiredAnnotations)) {
@@ -190,10 +190,13 @@ func secretTemplateModified(desired, existing *certmanagerv1.CertificateSecretTe
 		ownedSecretTemplateKeyRemoved(owned, "annotations", desiredAnnotations, existingAnnotations)
 }
 
-func managedMapModified(desired, existing map[string]string) bool {
-	for k, v := range desired {
-		existingValue, ok := existing[k]
-		if !ok || existingValue != v {
+// secretTemplateMapDrift reports whether a desired key is missing or has a
+// different value. Extra live keys are ignored; ownership of removed keys is
+// handled by the caller.
+func secretTemplateMapDrift(desired, existing map[string]string) bool {
+	for key, value := range desired {
+		actual, ok := existing[key]
+		if !ok || actual != value {
 			return true
 		}
 	}

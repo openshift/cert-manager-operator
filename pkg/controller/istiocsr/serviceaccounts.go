@@ -26,7 +26,7 @@ func (r *Reconciler) createOrApplyServiceAccounts(istiocsr *v1alpha1.IstioCSR, r
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s serviceaccount resource already exists, maybe from previous installation", serviceAccountName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("serviceaccount has been modified, updating to desired state", "name", serviceAccountName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s serviceaccount resource", serviceAccountName)
