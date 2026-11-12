@@ -457,19 +457,19 @@ var _ = Describe("Istio-CSR operand coverage [apigroup:operator.openshift.io]", 
 		}
 		strictAdherence := configapiv1.TLSAdherencePolicyStrictAllComponents
 
-		By("patching apiserver cluster to enforce StrictAllComponents with Modern TLS profile")
-		err = updateClusterAPIServerTLSConfig(ctx, testProfile, strictAdherence)
+		By("probing whether apiserver stores spec.tlsAdherence without changing the TLS profile")
+		storedAdherence, err := dryRunClusterAPIServerTLSConfig(ctx, original.tlsProfile, strictAdherence)
 		if isTLSAdherenceUnsupported(err) {
 			Skip(fmt.Sprintf("apiserver tlsAdherence is not available on this cluster: %v", err))
 		}
-		Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
-
-		// A disabled TLSAdherence gate accepts the update and drops spec.tlsAdherence.
-		stored, err := getClusterAPIServerTLSConfig(ctx)
-		Expect(err).NotTo(HaveOccurred(), "failed to read apiserver TLS configuration after patch")
-		if stored.adherence != strictAdherence {
-			Skip(fmt.Sprintf("apiserver did not store spec.tlsAdherence=%s (got %q)", strictAdherence, stored.adherence))
+		Expect(err).NotTo(HaveOccurred(), "failed to dry-run probe apiserver tlsAdherence")
+		if storedAdherence != strictAdherence {
+			Skip(fmt.Sprintf("apiserver did not store spec.tlsAdherence=%s (dry-run got %q)", strictAdherence, storedAdherence))
 		}
+
+		By("patching apiserver cluster to enforce StrictAllComponents with Modern TLS profile")
+		err = updateClusterAPIServerTLSConfig(ctx, testProfile, strictAdherence)
+		Expect(err).NotTo(HaveOccurred(), "failed to patch apiserver TLS configuration")
 
 		expectedSpec, err := tlsprofile.EffectiveSpec(testProfile)
 		Expect(err).NotTo(HaveOccurred(), "failed to resolve expected TLS profile spec")
