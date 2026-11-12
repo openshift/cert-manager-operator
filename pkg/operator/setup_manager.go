@@ -99,6 +99,7 @@ var trustManagerManagedResources = []client.Object{
 	&corev1.Service{},
 	&corev1.ServiceAccount{},
 	&admissionregistrationv1.ValidatingWebhookConfiguration{},
+	&networkingv1.NetworkPolicy{},
 }
 
 var approverPolicyManagedResources = []client.Object{

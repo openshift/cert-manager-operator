@@ -147,4 +147,19 @@ const (
 	certificateAssetName = "trust-manager/resources/certificate_trust-manager.yml"
 
 	validatingWebhookConfigAssetName = "trust-manager/resources/validatingwebhookconfiguration_trust-manager.yml"
+
+	trustManagerDenyAllNetworkPolicyAssetName              = "networkpolicies/trust-manager-deny-all-networkpolicy.yaml"
+	trustManagerAllowEgressAPIServerNetworkPolicyAssetName = "networkpolicies/trust-manager-allow-egress-to-api-server-networkpolicy.yaml"
+	trustManagerAllowIngressWebhookNetworkPolicyAssetName  = "networkpolicies/trust-manager-allow-ingress-to-webhook-networkpolicy.yaml"
+	trustManagerAllowIngressMetricsNetworkPolicyAssetName  = "networkpolicies/trust-manager-allow-ingress-to-metrics-networkpolicy.yaml"
+
+	trustManagerNetworkPolicyOwnedByLabelKey = "trustmanager.operator.openshift.io/owned-by"
+	trustManagerNetworkPolicyOwnedByValue    = "trust-manager"
 )
+
+var trustManagerNetworkPolicyAssets = []string{
+	trustManagerDenyAllNetworkPolicyAssetName,
+	trustManagerAllowEgressAPIServerNetworkPolicyAssetName,
+	trustManagerAllowIngressWebhookNetworkPolicyAssetName,
+	trustManagerAllowIngressMetricsNetworkPolicyAssetName,
+}

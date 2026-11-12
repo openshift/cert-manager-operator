@@ -9,6 +9,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -38,6 +39,9 @@ func init() {
 		panic(err)
 	}
 	if err := admissionregistrationv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := networkingv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := certmanagerv1.AddToScheme(scheme); err != nil {
