@@ -413,11 +413,11 @@ func TestReconcile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := testReconciler(t)
 			mock := &fakes.FakeCtrlClient{}
+			istiocsr := testIstioCSR()
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.CtrlClient = mock
-			istiocsr := testIstioCSR()
+			attachTestIssuerClient(r, mock, istiocsr, mock.GetStub)
 			result, err := r.Reconcile(context.Background(),
 				ctrl.Request{
 					NamespacedName: types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()},
@@ -755,11 +755,11 @@ func TestProcessReconcileRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := testReconciler(t)
 			mock := &fakes.FakeCtrlClient{}
+			istiocsr := tt.getIstioCSR()
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.CtrlClient = mock
-			istiocsr := tt.getIstioCSR()
+			attachTestIssuerClient(r, mock, istiocsr, mock.GetStub)
 			_, err := r.processReconcileRequest(istiocsr,
 				types.NamespacedName{Name: istiocsr.GetName(), Namespace: istiocsr.GetNamespace()})
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {

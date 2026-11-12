@@ -1009,7 +1009,13 @@ spec:
                       issuerRef:
                         description: |-
                           issuerRef contains details of the referenced object used for obtaining certificates.
-                          When `issuerRef.Kind` is `Issuer`, it must exist in the `.spec.istioCSRConfig.istio.namespace`.
+                          When kind is omitted it defaults to Issuer. When group is omitted it defaults to cert-manager.io.
+                          When `issuerRef.Kind` is `Issuer`, the referenced object must exist in `.spec.istioCSRConfig.istio.namespace`.
+                          External cert-manager issuers (for example GoogleCASIssuer or AWSPCAClusterIssuer) are supported by setting
+                          the appropriate group and kind. When the issuer does not expose a CA via `spec.ca.secretName`, configure
+                          `istioCACertificate` or rely on the istiod certificate Secret for the root CA bundle.
+                          The operator service account must be granted get and update on the external issuer API group; apply and bind
+                          config/rbac/istiocsr_external_issuer_clusterrole.yaml when using third-party issuer CRDs.
                           This field is immutable once set.
                         properties:
                           group:
@@ -1031,11 +1037,6 @@ spec:
                         x-kubernetes-validations:
                         - message: issuerRef is immutable once set
                           rule: self == oldSelf
-                        - message: kind must be either 'Issuer' or 'ClusterIssuer'
-                          rule: self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii()
-                            == 'clusterissuer'
-                        - message: group must be 'cert-manager.io'
-                          rule: self.group.lowerAscii() == 'cert-manager.io'
                       istioCACertificate:
                         description: |-
                           istioCACertificate when provided, the operator will use the CA certificate from the specified ConfigMap.

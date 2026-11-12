@@ -160,11 +160,15 @@ type IstioCSRConfig struct {
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.issuerRef) && !has(self.issuerRef) || has(oldSelf.issuerRef) && has(self.issuerRef)",message="issuerRef may only be configured during creation"
 type CertManagerConfig struct {
 	// issuerRef contains details of the referenced object used for obtaining certificates.
-	// When `issuerRef.Kind` is `Issuer`, it must exist in the `.spec.istioCSRConfig.istio.namespace`.
+	// When kind is omitted it defaults to Issuer. When group is omitted it defaults to cert-manager.io.
+	// When `issuerRef.Kind` is `Issuer`, the referenced object must exist in `.spec.istioCSRConfig.istio.namespace`.
+	// External cert-manager issuers (for example GoogleCASIssuer or AWSPCAClusterIssuer) are supported by setting
+	// the appropriate group and kind. When the issuer does not expose a CA via `spec.ca.secretName`, configure
+	// `istioCACertificate` or rely on the istiod certificate Secret for the root CA bundle.
+	// The operator service account must be granted get and update on the external issuer API group; apply and bind
+	// config/rbac/istiocsr_external_issuer_clusterrole.yaml when using third-party issuer CRDs.
 	// This field is immutable once set.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="issuerRef is immutable once set"
-	// +kubebuilder:validation:XValidation:rule="self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii() == 'clusterissuer'",message="kind must be either 'Issuer' or 'ClusterIssuer'"
-	// +kubebuilder:validation:XValidation:rule="self.group.lowerAscii() == 'cert-manager.io'",message="group must be 'cert-manager.io'"
 	// +kubebuilder:validation:Required
 	// +required
 	IssuerRef certmanagerv1.IssuerReference `json:"issuerRef"`
