@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -335,7 +336,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "029c90a5348d04dd0ce8d98ae2ce52d7771a002b6037890be28e0f647e49c668"
+	const wantFingerprint = "f8e00a0d1897b71ef86df0d4079ea93129eac78db93e35efb7dc708e44ca7bf7"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -693,6 +694,23 @@ func TestDeleteMachineConfigNotFound(t *testing.T) {
 	}
 }
 
+// TestDeleteMachineConfigNoMatch covers clusters that don't serve the
+// MachineConfig API (for example MicroShift). There is nothing to clean up,
+// so deleting the HTTP01Proxy CR must not get stuck on its finalizer.
+func TestDeleteMachineConfigNoMatch(t *testing.T) {
+	fakeClient := &fakes.FakeCtrlClient{}
+	fakeClient.DeleteReturns(&meta.NoKindMatchError{
+		GroupKind:        schema.GroupKind{Group: "machineconfiguration.openshift.io", Kind: "MachineConfig"},
+		SearchedVersions: []string{"v1"},
+	})
+
+	r := newTestReconciler(fakeClient)
+
+	if err := r.deleteMachineConfig(context.Background()); err != nil {
+		t.Fatalf("deleteMachineConfig should succeed when the MachineConfig API is not served, got: %v", err)
+	}
+}
+
 func TestDeleteMachineConfigError(t *testing.T) {
 	fakeClient := &fakes.FakeCtrlClient{}
 	fakeClient.DeleteReturns(fmt.Errorf("permission denied"))
@@ -733,7 +751,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "b3345862711a3dc6dfe0a5afa045e876c187242e83c97b41816e34a5efe46ecf"
+	const wantFingerprint = "420dd9d069bc8059981f1f38dedcc31b04222ed160056d78f04de07f3243861d"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -774,7 +792,7 @@ table inet crtmgr_http01_dnat {
 		t.Errorf("nftables rules mismatch\ngot:\n%s\nwant:\n%s", got, wantNFT)
 	}
 
-	const wantFingerprint = "1c0c667c84b8825bf4f1de40c6e3cc57fca51a26efd8647106d15110129956cd"
+	const wantFingerprint = "f84434dda70a9942667dd7f534049ce4d4549bdd11fdc6a34857f91eecaef582"
 	if got := mc.Annotations[machineConfigFingerprintAnnotation]; got != wantFingerprint {
 		t.Errorf("fingerprint = %q, want %q", got, wantFingerprint)
 	}
@@ -1015,6 +1033,77 @@ func TestCreateOrApplyMachineConfigFamilyTransitions(t *testing.T) {
 			}
 			if !bytes.Equal(updated.Spec.Config.Raw, want.Spec.Config.Raw) {
 				t.Error("updated spec.config should match the newly rendered config")
+			}
+		})
+	}
+}
+
+// TestRenderMachineConfigUnitCommands checks the unit's command set for every
+// family layout. MCO never runs "systemctl reload" for a MachineConfig change;
+// it drains and reboots the node. An ExecReload line would therefore be dead
+// code and would make it look as if changes were applied live. The checks
+// also confirm that removing ExecReload left the ExecStart and ExecStop pairs
+// for each family intact.
+func TestRenderMachineConfigUnitCommands(t *testing.T) {
+	tests := []struct {
+		name      string
+		families  []vipFamily
+		iptables  []string
+		forwardKV []string
+	}{
+		{
+			name:      "IPv4",
+			families:  vipFamilies(t, "10.0.0.254", "10.0.0.1"),
+			iptables:  []string{"/usr/sbin/iptables"},
+			forwardKV: []string{"net.ipv4.ip_forward=1"},
+		},
+		{
+			name:      "IPv6",
+			families:  vipFamilies(t, "fd00::254", "fd00::1"),
+			iptables:  []string{"/usr/sbin/ip6tables"},
+			forwardKV: []string{"net.ipv6.conf.all.forwarding=1"},
+		},
+		{
+			name:      "dual-stack",
+			families:  append(vipFamilies(t, "10.0.0.254", "10.0.0.1"), vipFamilies(t, "fd00::254", "fd00::1")...),
+			iptables:  []string{"/usr/sbin/iptables", "/usr/sbin/ip6tables"},
+			forwardKV: []string{"net.ipv4.ip_forward=1", "net.ipv6.conf.all.forwarding=1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc, err := renderMachineConfig(tt.families)
+			if err != nil {
+				t.Fatalf("renderMachineConfig() error: %v", err)
+			}
+			unit := extractUnitContents(t, mc)
+
+			if strings.Contains(unit, "ExecReload") {
+				t.Errorf("unit must not define ExecReload (MCO reboots instead of reloading):\n%s", unit)
+			}
+			if got := strings.Count(unit, "ExecStart=/sbin/nft -f /etc/sysconfig/nftables-crtmgr-http01.conf"); got != 1 {
+				t.Errorf("nft load ExecStart count = %d, want 1", got)
+			}
+			if got := strings.Count(unit, "ExecStop=/sbin/nft 'add table inet crtmgr_http01_dnat; delete table inet crtmgr_http01_dnat'"); got != 1 {
+				t.Errorf("nft cleanup ExecStop count = %d, want 1", got)
+			}
+			for _, kv := range tt.forwardKV {
+				if !strings.Contains(unit, "ExecStartPre=/sbin/sysctl -w "+kv) {
+					t.Errorf("unit missing ExecStartPre for %s", kv)
+				}
+			}
+			for _, ipt := range tt.iptables {
+				// Each family inserts and removes a request rule and a reply rule.
+				if got := strings.Count(unit, "|| "+ipt+" -I FORWARD 1 "); got != 2 {
+					t.Errorf("%s FORWARD inserts = %d, want 2", ipt, got)
+				}
+				if got := strings.Count(unit, "ExecStop=/bin/bash -c '"+ipt+" -D FORWARD "); got != 2 {
+					t.Errorf("%s FORWARD deletes = %d, want 2", ipt, got)
+				}
+			}
+			if !strings.Contains(unit, "RemainAfterExit=yes") {
+				t.Error("oneshot unit must set RemainAfterExit=yes so ExecStop runs when the MachineConfig is removed")
 			}
 		})
 	}

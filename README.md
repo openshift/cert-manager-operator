@@ -177,3 +177,7 @@ spec:
 ## Metrics and Monitoring
 
 The guide to [enable the cert-manager metrics and monitoring](docs/operand_metrics.md) will help you get started.
+
+## HTTP01 challenge proxy (BareMetal)
+
+The [HTTP01 challenge proxy guide](docs/http01_proxy.md) explains how to enable ACME HTTP-01 challenges for the API endpoint on BareMetal clusters. It also covers the control plane reboots that enabling the proxy causes.

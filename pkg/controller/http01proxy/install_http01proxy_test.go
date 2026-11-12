@@ -25,6 +25,7 @@ func TestReconcileHTTP01ProxyDeploymentPlatformDiscoveryError(t *testing.T) {
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
@@ -55,6 +56,7 @@ func TestReconcileHTTP01ProxyDeploymentCleanupAfterValidationFails(t *testing.T)
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
@@ -85,6 +87,7 @@ func TestReconcileHTTP01ProxyDeploymentUnsupportedPlatform(t *testing.T) {
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
@@ -107,6 +110,7 @@ func TestReconcileHTTP01ProxyDeploymentHappyPath(t *testing.T) {
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
@@ -141,6 +145,7 @@ func TestReconcileHTTP01ProxyDeploymentMachineConfigError(t *testing.T) {
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
@@ -160,6 +165,7 @@ func TestReconcileHTTP01ProxyDeploymentAnnotationUpdateError(t *testing.T) {
 
 	r := &Reconciler{
 		CtrlClient:    fakeClient,
+		mcReader:      readerFor(fakeClient),
 		eventRecorder: record.NewFakeRecorder(10),
 		log:           logr.Discard(),
 	}
