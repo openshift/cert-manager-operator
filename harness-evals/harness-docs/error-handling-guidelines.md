@@ -158,7 +158,7 @@ classify it.
 
 ## 8. Adding a new ctrl-runtime operand
 
-Per [ADR-0002](./decisions/adr-0002-apply-strategies.md) and the repo's greenfield rule,
+Per [ADR-0002](../../docs/adr/0002-apply-strategies.md) and the repo's greenfield rule,
 copy **TrustManager**, not IstioCSR, for both apply strategy and error handling — IstioCSR's
 Create+Update path and its `updateCondition` aggregation quirk (§6) are legacy, not the target
 pattern. At minimum: wrap every client call in `FromClientError`, classify programmatic/validation
