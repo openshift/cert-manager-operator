@@ -175,12 +175,13 @@ type CertManagerScheduling struct {
 // CertManagerStatus defines the observed state of CertManager.
 type CertManagerStatus struct {
 	apiv1.OperatorStatus `json:",inline"`
-	// autoApproverDisabled reports whether the built-in CertificateRequest approver
-	// handoff has completed: approval RBAC is absent, the disabling Deployment
-	// rollout is observed, and old approver-enabled Pods are gone. It remains true
-	// until ApproverPolicyManager is fully deleted, including finalizer cleanup.
-	// False means completion is unconfirmed; disable intent may already be active
-	// in the AutoApproverDisableRequested condition.
+	// autoApproverDisabled reports whether disabling cert-manager's built-in
+	// CertificateRequest approver has completed.
+	// It becomes true after approval permissions are removed, the cert-manager
+	// controller rollout completes, and no Pods remain running the built-in approver.
+	// Once true, it remains true until ApproverPolicyManager deletion completes.
+	// False does not necessarily mean approval is enabled: disabling may still be
+	// in progress, as recorded by the AutoApproverDisableRequested condition.
 	// +optional
 	AutoApproverDisabled bool `json:"autoApproverDisabled,omitempty"`
 }

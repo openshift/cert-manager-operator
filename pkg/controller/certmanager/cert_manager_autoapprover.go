@@ -77,15 +77,16 @@ func NewCertManagerAutoApproverController(
 		ToController(autoApproverControllerName, recorder.WithComponentSuffix("auto-approver"))
 }
 
-// autoApproverState holds the intent through readiness failures and finalization.
-// A nil policy means the API server has confirmed NotFound.
-func autoApproverState(cm *v1alpha1.CertManager, policy *v1alpha1.ApproverPolicyManager) (disabled, waiting bool) {
+// autoApproverState decides whether built-in approval should be disabled,
+// retaining persisted intent through readiness failures and finalization.
+// The policy's controller reports Ready after checking its Deployment.
+// Handoff completion is checked separately. A nil policy means confirmed NotFound.
+func autoApproverState(cm *v1alpha1.CertManager, policy *v1alpha1.ApproverPolicyManager) bool {
 	if policy == nil {
-		return false, false
+		return false
 	}
 	ready := meta.FindStatusCondition(policy.Status.Conditions, v1alpha1.Ready)
-	disabled = disableIntentPersisted(cm) || (ready != nil && ready.Status == metav1.ConditionTrue && ready.ObservedGeneration == policy.Generation)
-	return disabled, !disabled
+	return disableIntentPersisted(cm) || (ready != nil && ready.Status == metav1.ConditionTrue && ready.ObservedGeneration == policy.Generation)
 }
 
 func disableIntentPersisted(cm *v1alpha1.CertManager) bool {
@@ -98,51 +99,60 @@ func disableIntentPersisted(cm *v1alpha1.CertManager) bool {
 
 // approverControllerSelection injects the disabling selection only when needed.
 // Compatible explicit controller selections are preserved unchanged.
-func approverControllerSelection(args []string, disabled bool) string {
+func approverControllerSelection(args []string, disabled bool) (string, error) {
 	argMap := map[string]string{}
 	common.ParseArgMap(argMap, args)
 	selection, found := argMap["--controllers"]
 	if !found {
 		selection = "*"
 	}
-	if !disabled || !autoApproverEnabled(selection) {
-		return selection
+	if !disabled {
+		return selection, nil
 	}
-	return selection + ",-" + certificateRequestApprover
+	enabled, err := autoApproverEnabled(selection)
+	if err != nil {
+		return "", err
+	}
+	if !enabled {
+		return selection, nil
+	}
+	return selection + ",-" + certificateRequestApprover, nil
 }
 
 // parseControllersSelection decodes a --controllers value the same way pflag's
 // StringSlice / cert-manager do: as a single CSV record. Quoted fields are
-// unescaped (e.g. `"*"` → `*`). Unparseable input fails closed as ["*"] so we
-// never treat a still-enabled approver as disabled.
-func parseControllersSelection(selection string) []string {
+// unescaped (e.g. `"*"` → `*`). Malformed input is returned as an error.
+func parseControllersSelection(selection string) ([]string, error) {
 	if selection == "" {
-		return nil
+		return nil, nil
 	}
 	controllers, err := csv.NewReader(strings.NewReader(selection)).Read()
 	if err != nil {
-		return []string{"*"}
+		return nil, fmt.Errorf("invalid --controllers value %q: %w", selection, err)
 	}
-	return controllers
+	return controllers, nil
 }
 
 // Match cert-manager's selection rules: exclusions win regardless of ordering,
 // and a list containing only exclusions implicitly enables the default set.
 // Selection values are CSV-decoded to match the operand's flag parser.
-func autoApproverEnabled(selection string) bool {
-	controllers := parseControllersSelection(selection)
+func autoApproverEnabled(selection string) (bool, error) {
+	controllers, err := parseControllersSelection(selection)
+	if err != nil {
+		return false, err
+	}
 	if slices.Contains(controllers, "-"+certificateRequestApprover) {
-		return false
+		return false, nil
 	}
 	if slices.Contains(controllers, "*") || slices.Contains(controllers, certificateRequestApprover) {
-		return true
+		return true, nil
 	}
 	for _, controller := range controllers {
 		if !strings.HasPrefix(controller, "-") {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 func desiredAutoApproverSelection(cm *v1alpha1.CertManager, disabled bool) (string, error) {
@@ -159,10 +169,16 @@ func desiredAutoApproverSelection(cm *v1alpha1.CertManager, disabled bool) (stri
 	}
 	argMap := map[string]string{}
 	common.ParseArgMap(argMap, args)
-	if selection, overridden := argMap["--controllers"]; disabled && overridden && autoApproverEnabled(selection) {
-		return "", fmt.Errorf("AutoApproverOverrideConflict: --controllers=%s enables %s while ApproverPolicyManager disable intent is active; remove the controller selection override or exclude %s", selection, certificateRequestApprover, certificateRequestApprover)
+	if selection, overridden := argMap["--controllers"]; disabled && overridden {
+		enabled, err := autoApproverEnabled(selection)
+		if err != nil {
+			return "", err
+		}
+		if enabled {
+			return "", fmt.Errorf("AutoApproverOverrideConflict: --controllers=%s enables %s while ApproverPolicyManager disable intent is active; remove the controller selection override or exclude %s", selection, certificateRequestApprover, certificateRequestApprover)
+		}
 	}
-	return approverControllerSelection(args, disabled), nil
+	return approverControllerSelection(args, disabled)
 }
 
 func withAutoApprover(informers certmanoperatorinformers.SharedInformerFactory, kubeClient kubernetes.Interface) deploymentcontroller.DeploymentHookFunc {
@@ -212,37 +228,45 @@ func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx fa
 	} else if err != nil {
 		return err
 	}
-	disabled, waiting := autoApproverState(cm, policy)
-	cm, err = c.persistDisableIntent(ctx, cm, disabled)
+	shouldDisable := autoApproverState(cm, policy)
+	cm, err = c.persistDisableIntent(ctx, cm, shouldDisable)
 	if err != nil {
 		return err
 	}
-	if err := c.reconcileRBAC(ctx, syncCtx.Recorder(), disabled); err != nil {
+	if err := c.reconcileRBAC(ctx, syncCtx.Recorder(), shouldDisable); err != nil {
 		return err
 	}
 
-	expected, err := desiredAutoApproverSelection(cm, disabled)
+	expected, err := desiredAutoApproverSelection(cm, shouldDisable)
 	if err != nil {
 		return err
 	}
 	deployment, err := c.kubeClient.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		// Wait for the Deployment controller to create or recreate the operand.
+		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), time.Second)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	actual := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	actual, err := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	if err != nil {
+		return err
+	}
 	if actual != expected {
 		// Deployment apply errors are retried by its existing controller. Wait for
 		// its successful write before publishing the completed transition.
 		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), time.Second)
 		return nil
 	}
-	if waiting {
+	if policy != nil && !shouldDisable {
 		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), 30*time.Second)
 	}
-	if cm.Status.AutoApproverDisabled == disabled {
+	if cm.Status.AutoApproverDisabled == shouldDisable {
 		return nil
 	}
-	if disabled {
+	if shouldDisable {
 		complete, err := c.disableRolloutComplete(ctx, deployment)
 		if err != nil {
 			return err
@@ -257,7 +281,7 @@ func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx fa
 			return err
 		}
 	}
-	cm.Status.AutoApproverDisabled = disabled
+	cm.Status.AutoApproverDisabled = shouldDisable
 	if _, err := c.configClient.CertManagers().UpdateStatus(ctx, cm, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
@@ -267,7 +291,7 @@ func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx fa
 	recorder := events.NewRecorder(c.kubeClient.CoreV1().Events(metav1.NamespaceDefault), autoApproverControllerName, &corev1.ObjectReference{
 		APIVersion: v1alpha1.SchemeGroupVersion.String(), Kind: "CertManager", Name: cm.Name, UID: cm.UID,
 	}, clock.RealClock{}).WithContext(ctx)
-	if disabled {
+	if shouldDisable {
 		recorder.Event("AutoApproverDisabled", "built-in CertificateRequest auto-approver has been disabled; approver-policy is now responsible for approvals")
 	} else {
 		recorder.Event("AutoApproverEnabled", "built-in CertificateRequest auto-approver has been re-enabled")
@@ -292,7 +316,18 @@ func (c *CertManagerAutoApproverController) disableRolloutComplete(ctx context.C
 	for _, pod := range pods.Items {
 		// Do not skip terminating Pods: they may still be running the approver.
 		for _, container := range pod.Spec.Containers {
-			if container.Name == deployment.Spec.Template.Spec.Containers[0].Name && autoApproverEnabled(approverControllerSelection(container.Args, false)) {
+			if container.Name != deployment.Spec.Template.Spec.Containers[0].Name {
+				continue
+			}
+			selection, err := approverControllerSelection(container.Args, false)
+			if err != nil {
+				return false, err
+			}
+			enabled, err := autoApproverEnabled(selection)
+			if err != nil {
+				return false, fmt.Errorf("cannot determine auto-approver state for Pod %s/%s: %w", pod.Namespace, pod.Name, err)
+			}
+			if enabled {
 				return false, nil
 			}
 		}

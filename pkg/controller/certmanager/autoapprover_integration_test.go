@@ -2,6 +2,7 @@ package certmanager
 
 import (
 	"context"
+	"encoding/csv"
 	"os"
 	"strings"
 	"testing"
@@ -73,6 +74,8 @@ func TestAutoApproverIntegration(t *testing.T) {
 		Spec:       v1alpha1.CertManagerSpec{OperatorSpec: operatorv1.OperatorSpec{ManagementState: operatorv1.Managed}},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
+	// Seed observedGeneration to verify that handoff status updates preserve
+	// the existing CertManager status value.
 	cm.Status.ObservedGeneration = 7
 	_, err = cmClient.UpdateStatus(ctx, cm, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -97,6 +100,17 @@ func TestAutoApproverIntegration(t *testing.T) {
 		controllers[2].Run(handoffCtx, 1)
 		close(handoffStopped)
 	}()
+	// The handoff controller must not report Degraded while waiting for the
+	// independently started Deployment controller to create the operand.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		current, err := cmClient.Get(ctx, "cluster", metav1.GetOptions{})
+		require.NoError(c, err)
+		condition := v1helpers.FindOperatorCondition(current.Status.Conditions, autoApproverControllerName+"Degraded")
+		require.NotNil(c, condition)
+		assert.Equal(c, operatorv1.ConditionFalse, condition.Status)
+		_, err = kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+		assert.True(c, apierrors.IsNotFound(err))
+	}, 20*time.Second, 100*time.Millisecond)
 	// Create the initial Deployment, then hold its controller until we have
 	// exercised a readiness failure while the handoff is still incomplete.
 	deploymentSync := factory.NewSyncContext("deployment", recorder)
@@ -117,7 +131,9 @@ func TestAutoApproverIntegration(t *testing.T) {
 			if disabled {
 				expected += ",-certificaterequests-approver"
 			}
-			assert.Equal(c, expected, approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false))
+			selection, err := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+			require.NoError(c, err)
+			assert.Equal(c, expected, selection)
 			_, roleErr := kube.RbacV1().ClusterRoles().Get(ctx, autoApproverRBACName, metav1.GetOptions{})
 			_, bindingErr := kube.RbacV1().ClusterRoleBindings().Get(ctx, autoApproverRBACName, metav1.GetOptions{})
 			if disabled {
@@ -194,7 +210,24 @@ func TestAutoApproverIntegration(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 	blockedDeployment, err := kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, "*", approverControllerSelection(blockedDeployment.Spec.Template.Spec.Containers[0].Args, false))
+	selection, err := approverControllerSelection(blockedDeployment.Spec.Template.Spec.Containers[0].Args, false)
+	require.NoError(t, err)
+	assert.Equal(t, "*", selection)
+
+	// A malformed override must report the parse error while retaining intent.
+	setOverride(`{"controller":{"args":["--controllers=\"unterminated"]}}`)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		current, err := cmClient.Get(ctx, "cluster", metav1.GetOptions{})
+		require.NoError(c, err)
+		condition := v1helpers.FindOperatorCondition(current.Status.Conditions, autoApproverControllerName+"Degraded")
+		require.NotNil(c, condition)
+		assert.Equal(c, operatorv1.ConditionTrue, condition.Status)
+		assert.Contains(c, condition.Message, "invalid --controllers value")
+		assert.Contains(c, condition.Message, csv.ErrQuote.Error())
+		assert.True(c, v1helpers.IsOperatorConditionTrue(current.Status.Conditions, autoApproverDisableRequested))
+		assert.False(c, current.Status.AutoApproverDisabled)
+		require.ErrorIs(c, controllers[1].Sync(ctx, deploymentSync), csv.ErrQuote)
+	}, 20*time.Second, 100*time.Millisecond)
 
 	// Restart the coordinator after Ready drops, before the Deployment changes
 	// or completion is recorded. Only the API-persisted intent survives.
@@ -233,7 +266,9 @@ func TestAutoApproverIntegration(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		deployment, err := kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
 		require.NoError(c, err)
-		assert.Equal(c, "*,-certificaterequests-approver", approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false))
+		selection, err := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+		require.NoError(c, err)
+		assert.Equal(c, "*,-certificaterequests-approver", selection)
 	}, 20*time.Second, 100*time.Millisecond)
 	current, err := cmClient.Get(ctx, "cluster", metav1.GetOptions{})
 	require.NoError(t, err)

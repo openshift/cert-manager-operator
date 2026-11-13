@@ -149,7 +149,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 
 				By("creating a matching CertificateRequestPolicy and use RBAC")
 				policyName := "handoff-allow-" + string(uuid.NewUUID())
-				createAllowingCertificateRequestPolicy(ctx, client, policyName)
+				createAllowingCertificateRequestPolicy(ctx, client, policyName, ns.Name, issuerName, dnsName)
 				createCertificateRequestPolicyUseRBAC(ctx, policyName)
 
 				By("waiting for approver-policy to approve and cert-manager to sign")

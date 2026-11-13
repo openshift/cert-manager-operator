@@ -3,6 +3,7 @@ package certmanager
 import (
 	"errors"
 	"testing"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
@@ -34,23 +35,22 @@ import (
 
 func TestAutoApproverState(t *testing.T) {
 	tests := []struct {
-		name     string
-		policy   *v1alpha1.ApproverPolicyManager
-		latched  bool
-		intent   operatorv1.ConditionStatus
-		disabled bool
-		waiting  bool
+		name          string
+		policy        *v1alpha1.ApproverPolicyManager
+		latched       bool
+		intent        operatorv1.ConditionStatus
+		shouldDisable bool
 	}{
 		{name: "no policy leaves approval enabled"},
 		{name: "policy deletion releases the latch", latched: true},
 		{name: "policy deletion releases incomplete handoff", intent: operatorv1.ConditionTrue},
-		{name: "missing Ready waits", policy: &v1alpha1.ApproverPolicyManager{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}, waiting: true},
-		{name: "Ready False waits", policy: policyWithReady(metav1.ConditionFalse), waiting: true},
-		{name: "Ready Unknown waits", policy: policyWithReady(metav1.ConditionUnknown), waiting: true},
-		{name: "Ready True starts handoff", policy: policyWithReady(metav1.ConditionTrue), disabled: true},
-		{name: "readiness failure holds latch", policy: policyWithReady(metav1.ConditionFalse), latched: true, disabled: true},
-		{name: "intent holds incomplete handoff", policy: policyWithReady(metav1.ConditionFalse), intent: operatorv1.ConditionTrue, disabled: true},
-		{name: "explicit release overrides pending completion", policy: policyWithReady(metav1.ConditionFalse), intent: operatorv1.ConditionFalse, latched: true, waiting: true},
+		{name: "missing Ready keeps approval enabled", policy: &v1alpha1.ApproverPolicyManager{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}},
+		{name: "Ready False keeps approval enabled", policy: policyWithReady(metav1.ConditionFalse)},
+		{name: "Ready Unknown keeps approval enabled", policy: policyWithReady(metav1.ConditionUnknown)},
+		{name: "Ready True starts handoff", policy: policyWithReady(metav1.ConditionTrue), shouldDisable: true},
+		{name: "readiness failure holds latch", policy: policyWithReady(metav1.ConditionFalse), latched: true, shouldDisable: true},
+		{name: "intent holds incomplete handoff", policy: policyWithReady(metav1.ConditionFalse), intent: operatorv1.ConditionTrue, shouldDisable: true},
+		{name: "explicit release overrides pending completion", policy: policyWithReady(metav1.ConditionFalse), intent: operatorv1.ConditionFalse, latched: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -59,17 +59,15 @@ func TestAutoApproverState(t *testing.T) {
 			if tt.intent != "" {
 				cm.Status.Conditions = []operatorv1.OperatorCondition{{Type: autoApproverDisableRequested, Status: tt.intent}}
 			}
-			disabled, waiting := autoApproverState(cm, tt.policy)
-			assert.Equal(t, tt.disabled, disabled)
-			assert.Equal(t, tt.waiting, waiting)
+			shouldDisable := autoApproverState(cm, tt.policy)
+			assert.Equal(t, tt.shouldDisable, shouldDisable)
 		})
 	}
 	t.Run("Ready for a previous generation cannot start handoff", func(t *testing.T) {
 		policy := policyWithReady(metav1.ConditionTrue)
 		policy.Generation++
-		disabled, waiting := autoApproverState(&v1alpha1.CertManager{}, policy)
-		assert.False(t, disabled)
-		assert.True(t, waiting)
+		shouldDisable := autoApproverState(&v1alpha1.CertManager{}, policy)
+		assert.False(t, shouldDisable)
 	})
 }
 
@@ -130,6 +128,72 @@ func TestAutoApproverLifecycle(t *testing.T) {
 	f.assertState(false, true)
 	require.NoError(t, f.sync())
 	f.assertTransitionEvents("AutoApproverDisabled", "AutoApproverEnabled")
+}
+
+func TestAutoApproverWaitsForMissingDeployment(t *testing.T) {
+	tests := []struct {
+		name   string
+		policy *v1alpha1.ApproverPolicyManager
+	}{
+		{name: "initial installation"},
+		{name: "active handoff", policy: policyWithReady(metav1.ConditionTrue)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newAutoApproverTest(t)
+			if tt.policy != nil {
+				f.setPolicy(tt.policy)
+			}
+			require.NoError(t, f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Delete(t.Context(), certmanagerControllerDeployment, metav1.DeleteOptions{}))
+
+			// Missing the Deployment is a waiting state, not a completed handoff.
+			require.NoError(t, f.sync())
+			f.assertState(false, tt.policy == nil)
+			f.assertTransitionEvents()
+			if tt.policy != nil {
+				f.assertIntent(operatorv1.ConditionTrue)
+			}
+
+			// A retry is queued even if no Deployment informer event arrives.
+			require.Eventually(t, func() bool { return f.syncCtx.Queue().Len() == 1 }, 5*time.Second, 10*time.Millisecond)
+			key, shutdown := f.syncCtx.Queue().Get()
+			require.False(t, shutdown)
+			assert.Equal(t, f.syncCtx.QueueKey(), key)
+			f.syncCtx.Queue().Done(key)
+
+			// Once the Deployment is created and ready, reconciliation can finish.
+			require.NoError(t, f.syncDeployment())
+			f.completeRollout()
+			require.NoError(t, f.sync())
+			f.assertState(tt.policy != nil, tt.policy == nil)
+			if tt.policy != nil {
+				f.assertTransitionEvents("AutoApproverDisabled")
+			} else {
+				f.assertTransitionEvents()
+			}
+		})
+	}
+}
+
+func TestAutoApproverReturnsDeploymentReadErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "forbidden", err: apierrors.NewForbidden(appsv1.Resource("deployments"), certmanagerControllerDeployment, errors.New("access denied"))},
+		{name: "timeout", err: apierrors.NewTimeoutError("Deployment read timed out", 1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newAutoApproverTest(t)
+			f.kube.PrependReactor("get", "deployments", func(clienttesting.Action) (bool, runtime.Object, error) {
+				return true, nil, tt.err
+			})
+			require.ErrorIs(t, f.sync(), tt.err)
+			f.assertState(false, true)
+			f.assertTransitionEvents()
+		})
+	}
 }
 
 func TestAutoApproverReadinessFlickerBeforeCompletion(t *testing.T) {
@@ -438,7 +502,9 @@ func TestAutoApproverPreservesCompatibleOverrides(t *testing.T) {
 	f.assertState(true, false)
 	deployment, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, "issuers,certificates", approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false))
+	selection, err := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	require.NoError(t, err)
+	assert.Equal(t, "issuers,certificates", selection)
 	assert.Contains(t, deployment.Spec.Template.Spec.Containers[0].Args, "--tls-min-version=VersionTLS13")
 	assert.Equal(t, cm.Spec.UnsupportedConfigOverrides, f.certManager().Spec.UnsupportedConfigOverrides)
 
@@ -450,7 +516,9 @@ func TestAutoApproverPreservesCompatibleOverrides(t *testing.T) {
 	f.assertState(false, true)
 	deployment, err = f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, "issuers,certificates", approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false))
+	selection, err = approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	require.NoError(t, err)
+	assert.Equal(t, "issuers,certificates", selection)
 }
 
 type autoApproverTest struct {
@@ -575,7 +643,9 @@ func (f *autoApproverTest) assertDeploymentSelection(expected string) {
 	f.t.Helper()
 	deployment, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(f.t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
 	require.NoError(f.t, err)
-	assert.Equal(f.t, expected, approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false))
+	selection, err := approverControllerSelection(deployment.Spec.Template.Spec.Containers[0].Args, false)
+	require.NoError(f.t, err)
+	assert.Equal(f.t, expected, selection)
 }
 
 func (f *autoApproverTest) assertTransitionEvents(reasons ...string) {

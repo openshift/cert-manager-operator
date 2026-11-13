@@ -292,8 +292,9 @@ func approverPolicyManagerAfterEach(ctx context.Context, client crclient.Client)
 	// AfterEach runs before It-scoped DeferCleanup. If a spec disabled the feature gate and
 	// failed before re-enabling it, finalizer-gated APM deletion would hang without this.
 	ensureApproverPolicyManagerFeatureGateEnabled(ctx)
-	// Drop any controller overrides left by a failed conflict/compatible override scenario so
-	// the next Spec is not stuck Degraded on AutoApproverOverrideConflict.
+	// Drop controller overrides left by a failed conflict/compatible override scenario so
+	// the next Spec is not stuck Degraded on AutoApproverOverrideConflict. Non-controller
+	// UnsupportedConfigOverrides (webhook/CA-injector) are preserved.
 	clearCertManagerControllerOverrides(ctx)
 
 	_ = approverPolicyClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
@@ -449,15 +450,14 @@ func certificateRequestHasDecision(cr *cmv1.CertificateRequest) bool {
 	return false
 }
 
-func createAllowingCertificateRequestPolicy(ctx context.Context, client crclient.Client, name string) {
+func createAllowingCertificateRequestPolicy(ctx context.Context, client crclient.Client, name, namespace, issuerName, dnsName string) {
 	policy := &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "policy.cert-manager.io/v1alpha1",
 		"kind":       "CertificateRequestPolicy",
 		"metadata":   map[string]interface{}{"name": name},
 		"spec": map[string]interface{}{
 			"allowed": map[string]interface{}{
-				"dnsNames":   map[string]interface{}{"values": []interface{}{"*"}},
-				"commonName": map[string]interface{}{"value": "*"},
+				"dnsNames": map[string]interface{}{"values": []interface{}{dnsName}, "required": true},
 				"usages": []interface{}{
 					"digital signature",
 					"key encipherment",
@@ -467,7 +467,14 @@ func createAllowingCertificateRequestPolicy(ctx context.Context, client crclient
 				},
 			},
 			"selector": map[string]interface{}{
-				"issuerRef": map[string]interface{}{},
+				"issuerRef": map[string]interface{}{
+					"name":  issuerName,
+					"kind":  "ClusterIssuer",
+					"group": "cert-manager.io",
+				},
+				"namespace": map[string]interface{}{
+					"matchNames": []interface{}{namespace},
+				},
 			},
 		},
 	}}
@@ -497,9 +504,8 @@ func createAllowingCertificateRequestPolicy(ctx context.Context, client crclient
 	}, highTimeout, fastPollInterval).Should(Succeed())
 }
 
-// createCertificateRequestPolicyUseRBAC grants "use" on the named policy to authenticated
-// identities so Certificate-owned CertificateRequests (username = Certificate creator) can
-// be evaluated by approver-policy.
+// createCertificateRequestPolicyUseRBAC grants "use" on the named policy only to
+// cert-manager's ServiceAccount, which creates CertificateRequests for Certificates.
 func createCertificateRequestPolicyUseRBAC(ctx context.Context, policyName string) {
 	roleName := policyName + "-use"
 	role := &rbacv1.ClusterRole{
@@ -514,7 +520,7 @@ func createCertificateRequestPolicyUseRBAC(ctx context.Context, policyName strin
 	binding := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{Name: roleName},
 		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: roleName},
-		Subjects:   []rbacv1.Subject{{Kind: "Group", APIGroup: rbacv1.GroupName, Name: "system:authenticated"}},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "cert-manager", Namespace: operandNamespace}},
 	}
 	_, err := k8sClientSet.RbacV1().ClusterRoles().Create(ctx, role, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
@@ -568,6 +574,7 @@ func waitForAutoApproverHandoff(ctx context.Context) {
 // setCertManagerControllerUnsupportedArgs sets break-glass controller args via
 // UnsupportedConfigOverrides. --controllers is intentionally not allowlisted on
 // ControllerConfig.OverrideArgs, so conflict/compatible handoff tests must use this path.
+// Webhook and CA-injector overrides already present on the CR are preserved.
 func setCertManagerControllerUnsupportedArgs(ctx context.Context, args []string) {
 	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
@@ -575,18 +582,22 @@ func setCertManagerControllerUnsupportedArgs(ctx context.Context, args []string)
 			return err
 		}
 		updated := cm.DeepCopy()
-		raw, err := json.Marshal(&v1alpha1.UnsupportedConfigOverrides{
-			Controller: v1alpha1.UnsupportedConfigOverridesForCertManagerController{Args: args},
-		})
+		overrides, err := parseUnsupportedConfigOverrides(updated.Spec.UnsupportedConfigOverrides)
 		if err != nil {
 			return err
 		}
-		updated.Spec.UnsupportedConfigOverrides = runtime.RawExtension{Raw: raw}
+		overrides.Controller.Args = args
+		if err := applyUnsupportedConfigOverrides(updated, overrides); err != nil {
+			return err
+		}
 		_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
 		return err
 	})).To(Succeed())
 }
 
+// clearCertManagerControllerOverrides removes only controller OverrideArgs and
+// unsupported controller args installed by these tests. Webhook and CA-injector
+// UnsupportedConfigOverrides are left untouched.
 func clearCertManagerControllerOverrides(ctx context.Context) {
 	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
@@ -597,10 +608,41 @@ func clearCertManagerControllerOverrides(ctx context.Context) {
 		if updated.Spec.ControllerConfig != nil {
 			updated.Spec.ControllerConfig.OverrideArgs = nil
 		}
-		updated.Spec.UnsupportedConfigOverrides = runtime.RawExtension{}
+		overrides, err := parseUnsupportedConfigOverrides(updated.Spec.UnsupportedConfigOverrides)
+		if err != nil {
+			return err
+		}
+		overrides.Controller = v1alpha1.UnsupportedConfigOverridesForCertManagerController{}
+		if err := applyUnsupportedConfigOverrides(updated, overrides); err != nil {
+			return err
+		}
 		_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
 		return err
 	})).To(Succeed())
+}
+
+func parseUnsupportedConfigOverrides(raw runtime.RawExtension) (*v1alpha1.UnsupportedConfigOverrides, error) {
+	overrides := &v1alpha1.UnsupportedConfigOverrides{}
+	if len(raw.Raw) == 0 {
+		return overrides, nil
+	}
+	if err := json.Unmarshal(raw.Raw, overrides); err != nil {
+		return nil, err
+	}
+	return overrides, nil
+}
+
+func applyUnsupportedConfigOverrides(cm *v1alpha1.CertManager, overrides *v1alpha1.UnsupportedConfigOverrides) error {
+	if overrides == nil || (len(overrides.Controller.Args) == 0 && len(overrides.Webhook.Args) == 0 && len(overrides.CAInjector.Args) == 0) {
+		cm.Spec.UnsupportedConfigOverrides = runtime.RawExtension{}
+		return nil
+	}
+	raw, err := json.Marshal(overrides)
+	if err != nil {
+		return err
+	}
+	cm.Spec.UnsupportedConfigOverrides = runtime.RawExtension{Raw: raw}
+	return nil
 }
 
 func verifyAutoApproverOverrideConflictReported(ctx context.Context, g Gomega, expected bool) {

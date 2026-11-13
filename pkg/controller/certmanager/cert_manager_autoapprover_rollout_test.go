@@ -1,6 +1,7 @@
 package certmanager
 
 import (
+	"encoding/csv"
 	"errors"
 	"testing"
 
@@ -96,21 +97,78 @@ func TestAutoApproverRejectsConflictingOverride(t *testing.T) {
 	}
 }
 
+func TestAutoApproverRejectsMalformedOverride(t *testing.T) {
+	f := newAutoApproverTest(t)
+	cm := f.certManager()
+	cm.Spec.UnsupportedConfigOverrides.Raw = []byte(`{"controller":{"args":["--controllers=\"unterminated"]}}`)
+	_, err := f.operator.OperatorV1alpha1().CertManagers().Update(t.Context(), cm, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// Without an active handoff, keep the existing GA override behavior.
+	require.NoError(t, f.sync())
+	require.NoError(t, f.syncDeployment())
+	require.NoError(t, f.sync())
+	f.assertState(false, true)
+	f.assertDeploymentSelection(`"unterminated`)
+	before, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Starting the handoff must report the parse error and block Deployment changes.
+	f.setPolicy(policyWithReady(metav1.ConditionTrue))
+	require.ErrorIs(t, f.sync(), csv.ErrQuote)
+	require.ErrorIs(t, f.syncDeployment(), csv.ErrQuote)
+	f.assertIntent(operatorv1.ConditionTrue)
+	f.assertState(false, false)
+	f.assertTransitionEvents()
+	assert.Equal(t, cm.Spec.UnsupportedConfigOverrides, f.certManager().Spec.UnsupportedConfigOverrides)
+	after, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, before.Spec, after.Spec)
+
+	// A readiness change while blocked must not restore approval permissions.
+	f.setPolicy(policyWithReady(metav1.ConditionFalse))
+	require.ErrorIs(t, f.sync(), csv.ErrQuote)
+	f.assertIntent(operatorv1.ConditionTrue)
+	f.assertState(false, false)
+
+	// Removing the invalid override lets the same handoff finish.
+	cm = f.certManager()
+	cm.Spec.UnsupportedConfigOverrides.Raw = nil
+	_, err = f.operator.OperatorV1alpha1().CertManagers().Update(t.Context(), cm, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	require.NoError(t, f.sync())
+	require.NoError(t, f.syncDeployment())
+	f.completeRollout()
+	require.NoError(t, f.sync())
+	f.assertState(true, false)
+	f.assertTransitionEvents("AutoApproverDisabled")
+}
+
 func TestAutoApproverEnabledCSVParsing(t *testing.T) {
 	tests := []struct {
 		name, selection string
 		enabled         bool
+		wantErr         error
 	}{
 		{name: "wildcard", selection: "*", enabled: true},
 		{name: "quoted wildcard matches pflag/cert-manager", selection: `"*"`, enabled: true},
 		{name: "csv-quoted field pair", selection: `"*","-certificaterequests-approver"`, enabled: false},
 		{name: "fully quoted disable list is a single opaque name", selection: `"*,-certificaterequests-approver"`, enabled: false},
 		{name: "explicit exclusion", selection: "*,-certificaterequests-approver", enabled: false},
-		{name: "unparseable fails closed as enabled", selection: `"unterminated`, enabled: true},
+		{name: "unterminated quote", selection: `"unterminated`, wantErr: csv.ErrQuote},
+		{name: "bare quote", selection: `issu"ers`, wantErr: csv.ErrBareQuote},
+		{name: "malformed field after exclusion", selection: `-certificaterequests-approver,"unterminated`, wantErr: csv.ErrQuote},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.enabled, autoApproverEnabled(tt.selection))
+			enabled, err := autoApproverEnabled(tt.selection)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.ErrorContains(t, err, "invalid --controllers value")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.enabled, enabled)
 		})
 	}
 }
@@ -188,6 +246,39 @@ func TestAutoApproverIncompleteRolloutStatus(t *testing.T) {
 			f.assertState(true, false)
 		})
 	}
+}
+
+func TestAutoApproverReportsMalformedPodSelection(t *testing.T) {
+	f := newAutoApproverTest(t)
+	f.setPolicy(policyWithReady(metav1.ConditionTrue))
+	require.NoError(t, f.sync())
+	require.NoError(t, f.syncDeployment())
+	f.completeRollout()
+	deployment, err := f.kube.AppsV1().Deployments(operatorclient.TargetNamespace).Get(t.Context(), certmanagerControllerDeployment, metav1.GetOptions{})
+	require.NoError(t, err)
+	old := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "malformed-controller", Namespace: deployment.Namespace, Labels: deployment.Spec.Selector.MatchLabels},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{
+			Name: deployment.Spec.Template.Spec.Containers[0].Name,
+			Args: []string{`--controllers=-certificaterequests-approver,"unterminated`},
+		}}},
+	}
+	_, err = f.kube.CoreV1().Pods(old.Namespace).Create(t.Context(), old, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Even a partially parsed exclusion must not allow handoff completion.
+	err = f.sync()
+	require.ErrorIs(t, err, csv.ErrQuote)
+	assert.ErrorContains(t, err, "invalid --controllers value")
+	assert.ErrorContains(t, err, "Pod "+old.Namespace+"/"+old.Name)
+	f.assertState(false, false)
+	f.assertIntent(operatorv1.ConditionTrue)
+	f.assertTransitionEvents()
+
+	require.NoError(t, f.kube.CoreV1().Pods(old.Namespace).Delete(t.Context(), old.Name, metav1.DeleteOptions{}))
+	require.NoError(t, f.sync())
+	f.assertState(true, false)
+	f.assertTransitionEvents("AutoApproverDisabled")
 }
 
 func TestAutoApproverWaitsForQuotedWildcardPod(t *testing.T) {
