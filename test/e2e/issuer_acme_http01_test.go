@@ -51,7 +51,7 @@ func acmeHTTP01OpenShiftIngress() *acmev1.ACMEChallengeSolverHTTP01Ingress {
 	}
 }
 
-var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered, func() {
+var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic", "Requires:PublicAppsDomain"), Ordered, func() {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	var ns *corev1.Namespace
