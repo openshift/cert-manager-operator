@@ -4,12 +4,15 @@ package e2e
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	opv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,10 +20,17 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	clientscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/retry"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	operatorclientv1alpha1 "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 )
 
@@ -128,6 +138,110 @@ func waitForApproverPolicyReady(ctx context.Context) {
 	}, highTimeout, fastPollInterval).Should(Succeed())
 }
 
+func waitForApproverPolicyNotReady(ctx context.Context) {
+	Eventually(func(g Gomega) {
+		current, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		ready := meta.FindStatusCondition(current.Status.Conditions, v1alpha1.Ready)
+		g.Expect(ready).NotTo(BeNil())
+		g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(ready.ObservedGeneration).To(Equal(current.Generation))
+	}, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+func verifyAutoApproverState(ctx context.Context, g Gomega, disabled bool) {
+	cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cm.Status.AutoApproverDisabled).To(Equal(disabled))
+	verifyAutoApproverIntent(g, cm, disabled)
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	args := map[string]string{}
+	common.ParseArgMap(args, deployment.Spec.Template.Spec.Containers[0].Args)
+	if disabled {
+		g.Expect(args).To(HaveKey("--controllers"))
+		g.Expect(controllersSelectionEnablesAutoApprover(args["--controllers"])).To(BeFalse())
+	} else if selection, ok := args["--controllers"]; ok {
+		g.Expect(controllersSelectionEnablesAutoApprover(selection)).To(BeTrue())
+	}
+	const roleName = "cert-manager-controller-approve:cert-manager-io"
+	_, roleErr := k8sClientSet.RbacV1().ClusterRoles().Get(ctx, roleName, metav1.GetOptions{})
+	_, bindingErr := k8sClientSet.RbacV1().ClusterRoleBindings().Get(ctx, roleName, metav1.GetOptions{})
+	if disabled {
+		g.Expect(apierrors.IsNotFound(roleErr)).To(BeTrue())
+		g.Expect(apierrors.IsNotFound(bindingErr)).To(BeTrue())
+	} else {
+		g.Expect(roleErr).NotTo(HaveOccurred())
+		g.Expect(bindingErr).NotTo(HaveOccurred())
+	}
+}
+
+// verifyAutoApproverIntent checks the durable handoff latch condition. While the built-in
+// approver is disabled, intent must be True. Once restored (or never started), intent must
+// not be True — either absent, or explicitly False after ApproverPolicyManager deletion.
+func verifyAutoApproverIntent(g Gomega, cm *v1alpha1.CertManager, disabled bool) {
+	g.Expect(cm).NotTo(BeNil())
+	var intent *opv1.OperatorCondition
+	for i := range cm.Status.Conditions {
+		if cm.Status.Conditions[i].Type == "AutoApproverDisableRequested" {
+			intent = &cm.Status.Conditions[i]
+			break
+		}
+	}
+	if disabled {
+		g.Expect(intent).NotTo(BeNil())
+		g.Expect(intent.Status).To(Equal(opv1.ConditionTrue))
+		return
+	}
+	if intent != nil {
+		g.Expect(intent.Status).NotTo(Equal(opv1.ConditionTrue))
+	}
+}
+
+func listAutoApproverTransitionEvents(ctx context.Context, reason string) ([]corev1.Event, error) {
+	cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	// Cluster-scoped CertManager events are stored in the default namespace.
+	events, err := k8sClientSet.CoreV1().Events(metav1.NamespaceDefault).List(ctx, metav1.ListOptions{
+		FieldSelector: "involvedObject.kind=CertManager,involvedObject.name=cluster",
+	})
+	if err != nil {
+		return nil, err
+	}
+	matched := make([]corev1.Event, 0, len(events.Items))
+	for _, event := range events.Items {
+		if event.InvolvedObject.UID != cm.UID || event.Reason != reason || event.Type != corev1.EventTypeNormal {
+			continue
+		}
+		matched = append(matched, event)
+	}
+	return matched, nil
+}
+
+func waitForAutoApproverTransitionEvent(ctx context.Context, reason string) {
+	Eventually(func(g Gomega) {
+		events, err := listAutoApproverTransitionEvents(ctx, reason)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(events).NotTo(BeEmpty())
+	}, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+func autoApproverTransitionEventCount(ctx context.Context, reason string) int {
+	events, err := listAutoApproverTransitionEvents(ctx, reason)
+	Expect(err).NotTo(HaveOccurred())
+	total := 0
+	for _, event := range events {
+		count := int(event.Count)
+		if count == 0 {
+			count = 1
+		}
+		total += count
+	}
+	return total
+}
+
 // updateApproverPolicyManager retries on update conflicts: it re-fetches the current CR,
 // applies mutate to it, and attempts the update until it succeeds.
 func updateApproverPolicyManager(ctx context.Context, mutate func(*v1alpha1.ApproverPolicyManager)) {
@@ -175,11 +289,31 @@ func approverPolicyManagerAfterAll(ctx context.Context, originalGates, originalO
 func approverPolicyManagerAfterEach(ctx context.Context, client crclient.Client) {
 	releaseApproverPolicyTLSSecretHold(ctx, client)
 
+	// AfterEach runs before It-scoped DeferCleanup. If a spec disabled the feature gate and
+	// failed before re-enabling it, finalizer-gated APM deletion would hang without this.
+	ensureApproverPolicyManagerFeatureGateEnabled(ctx)
+	// Drop controller overrides left by a failed conflict/compatible override scenario so
+	// the next Spec is not stuck Degraded on AutoApproverOverrideConflict. Non-controller
+	// UnsupportedConfigOverrides (webhook/CA-injector) are preserved.
+	clearCertManagerControllerOverrides(ctx)
+
 	_ = approverPolicyClient().Delete(ctx, "cluster", metav1.DeleteOptions{})
 	Eventually(func() bool {
 		_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
 		return apierrors.IsNotFound(err)
 	}, highTimeout, fastPollInterval).Should(BeTrue())
+	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+func ensureApproverPolicyManagerFeatureGateEnabled(ctx context.Context) {
+	current, err := getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+	Expect(err).NotTo(HaveOccurred())
+	for _, gate := range strings.Split(current, ",") {
+		if strings.TrimSpace(gate) == approverPolicyManagerFeatureGate+"=false" {
+			setApproverPolicyManagerFeatureGate(ctx, true)
+			return
+		}
+	}
 }
 
 // releaseApproverPolicyTLSSecretHold removes approverPolicyHoldFinalizer from the TLS Secret, if
@@ -256,4 +390,340 @@ func findSignerRule(rules []rbacv1.PolicyRule) (rbacv1.PolicyRule, bool) {
 		}
 	}
 	return rbacv1.PolicyRule{}, false
+}
+
+// ---------------------------------------------------------------------------
+// Auto-approver handoff certificate helpers
+// ---------------------------------------------------------------------------
+
+func createSelfSignedClusterIssuer(ctx context.Context, name string) {
+	_, err := certmanagerClient.CertmanagerV1().ClusterIssuers().Create(ctx, &cmv1.ClusterIssuer{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: cmv1.IssuerSpec{
+			IssuerConfig: cmv1.IssuerConfig{SelfSigned: &cmv1.SelfSignedIssuer{}},
+		},
+	}, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() {
+		_ = certmanagerClient.CertmanagerV1().ClusterIssuers().Delete(context.Background(), name, metav1.DeleteOptions{})
+	})
+	Expect(waitForClusterIssuerReadiness(ctx, name)).To(Succeed())
+}
+
+func createDNSCertificate(ctx context.Context, namespace, name, secretName, issuerName, dnsName string) {
+	_, err := certmanagerClient.CertmanagerV1().Certificates(namespace).Create(ctx, &cmv1.Certificate{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: cmv1.CertificateSpec{
+			SecretName: secretName,
+			DNSNames:   []string{dnsName},
+			IssuerRef:  cmmeta.IssuerReference{Name: issuerName, Kind: "ClusterIssuer", Group: "cert-manager.io"},
+		},
+	}, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+}
+
+func waitForCertificateOwnedRequest(ctx context.Context, namespace, certificateName string) *cmv1.CertificateRequest {
+	var request *cmv1.CertificateRequest
+	Eventually(func(g Gomega) {
+		list, err := certmanagerClient.CertmanagerV1().CertificateRequests(namespace).List(ctx, metav1.ListOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		for i := range list.Items {
+			if list.Items[i].Annotations["cert-manager.io/certificate-name"] == certificateName {
+				request = &list.Items[i]
+				return
+			}
+		}
+		g.Expect(request).NotTo(BeNil(), "expected a CertificateRequest owned by Certificate %s", certificateName)
+	}, highTimeout, fastPollInterval).Should(Succeed())
+	return request
+}
+
+func certificateRequestHasDecision(cr *cmv1.CertificateRequest) bool {
+	for _, condition := range cr.Status.Conditions {
+		if condition.Status != cmmeta.ConditionTrue {
+			continue
+		}
+		if condition.Type == cmv1.CertificateRequestConditionApproved || condition.Type == cmv1.CertificateRequestConditionDenied {
+			return true
+		}
+	}
+	return false
+}
+
+func createAllowingCertificateRequestPolicy(ctx context.Context, client crclient.Client, name, namespace, issuerName, dnsName string) {
+	policy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "policy.cert-manager.io/v1alpha1",
+		"kind":       "CertificateRequestPolicy",
+		"metadata":   map[string]interface{}{"name": name},
+		"spec": map[string]interface{}{
+			"allowed": map[string]interface{}{
+				"dnsNames": map[string]interface{}{"values": []interface{}{dnsName}, "required": true},
+				"usages": []interface{}{
+					"digital signature",
+					"key encipherment",
+					"server auth",
+					"client auth",
+					"signing",
+				},
+			},
+			"selector": map[string]interface{}{
+				"issuerRef": map[string]interface{}{
+					"name":  issuerName,
+					"kind":  "ClusterIssuer",
+					"group": "cert-manager.io",
+				},
+				"namespace": map[string]interface{}{
+					"matchNames": []interface{}{namespace},
+				},
+			},
+		},
+	}}
+	Expect(client.Create(ctx, policy)).To(Succeed())
+	DeferCleanup(func() {
+		_ = client.Delete(context.Background(), policy)
+	})
+	Eventually(func(g Gomega) {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(policy.GroupVersionKind())
+		g.Expect(client.Get(ctx, crclient.ObjectKey{Name: name}, current)).To(Succeed())
+		conditions, found, err := unstructured.NestedSlice(current.Object, "status", "conditions")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(found).To(BeTrue())
+		ready := false
+		for _, raw := range conditions {
+			condition, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if condition["type"] == "Ready" && condition["status"] == "True" {
+				ready = true
+				break
+			}
+		}
+		g.Expect(ready).To(BeTrue())
+	}, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+// createCertificateRequestPolicyUseRBAC grants "use" on the named policy only to
+// cert-manager's ServiceAccount, which creates CertificateRequests for Certificates.
+func createCertificateRequestPolicyUseRBAC(ctx context.Context, policyName string) {
+	roleName := policyName + "-use"
+	role := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: roleName},
+		Rules: []rbacv1.PolicyRule{{
+			APIGroups:     []string{"policy.cert-manager.io"},
+			Resources:     []string{"certificaterequestpolicies"},
+			ResourceNames: []string{policyName},
+			Verbs:         []string{"use"},
+		}},
+	}
+	binding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: roleName},
+		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: roleName},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "cert-manager", Namespace: operandNamespace}},
+	}
+	_, err := k8sClientSet.RbacV1().ClusterRoles().Create(ctx, role, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	_, err = k8sClientSet.RbacV1().ClusterRoleBindings().Create(ctx, binding, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() {
+		_ = k8sClientSet.RbacV1().ClusterRoleBindings().Delete(context.Background(), roleName, metav1.DeleteOptions{})
+		_ = k8sClientSet.RbacV1().ClusterRoles().Delete(context.Background(), roleName, metav1.DeleteOptions{})
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Auto-approver handoff edge-case helpers
+// ---------------------------------------------------------------------------
+
+const (
+	autoApproverRBACName             = "cert-manager-controller-approve:cert-manager-io"
+	certificateRequestApproverName   = "certificaterequests-approver"
+	autoApproverOverrideConflictText = "AutoApproverOverrideConflict"
+	approverPolicyManagerFeatureGate = "ApproverPolicyManager"
+)
+
+// controllersSelectionEnablesAutoApprover mirrors the operator's CSV-aware
+// --controllers parsing (pflag StringSlice / cert-manager): exclusions win, and
+// a list of only exclusions implicitly enables the default set.
+func controllersSelectionEnablesAutoApprover(selection string) bool {
+	controllers := []string{"*"}
+	if selection != "" {
+		if parsed, err := csv.NewReader(strings.NewReader(selection)).Read(); err == nil {
+			controllers = parsed
+		}
+	}
+	if slices.Contains(controllers, "-"+certificateRequestApproverName) {
+		return false
+	}
+	if slices.Contains(controllers, "*") || slices.Contains(controllers, certificateRequestApproverName) {
+		return true
+	}
+	for _, controller := range controllers {
+		if !strings.HasPrefix(controller, "-") {
+			return false
+		}
+	}
+	return true
+}
+
+func waitForAutoApproverHandoff(ctx context.Context) {
+	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+// setCertManagerControllerUnsupportedArgs sets break-glass controller args via
+// UnsupportedConfigOverrides. --controllers is intentionally not allowlisted on
+// ControllerConfig.OverrideArgs, so conflict/compatible handoff tests must use this path.
+// Webhook and CA-injector overrides already present on the CR are preserved.
+func setCertManagerControllerUnsupportedArgs(ctx context.Context, args []string) {
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		updated := cm.DeepCopy()
+		overrides, err := parseUnsupportedConfigOverrides(updated.Spec.UnsupportedConfigOverrides)
+		if err != nil {
+			return err
+		}
+		overrides.Controller.Args = args
+		if err := applyUnsupportedConfigOverrides(updated, overrides); err != nil {
+			return err
+		}
+		_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
+}
+
+// clearCertManagerControllerOverrides removes only controller OverrideArgs and
+// unsupported controller args installed by these tests. Webhook and CA-injector
+// UnsupportedConfigOverrides are left untouched.
+func clearCertManagerControllerOverrides(ctx context.Context) {
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		updated := cm.DeepCopy()
+		if updated.Spec.ControllerConfig != nil {
+			updated.Spec.ControllerConfig.OverrideArgs = nil
+		}
+		overrides, err := parseUnsupportedConfigOverrides(updated.Spec.UnsupportedConfigOverrides)
+		if err != nil {
+			return err
+		}
+		overrides.Controller = v1alpha1.UnsupportedConfigOverridesForCertManagerController{}
+		if err := applyUnsupportedConfigOverrides(updated, overrides); err != nil {
+			return err
+		}
+		_, err = certmanageroperatorclient.OperatorV1alpha1().CertManagers().Update(ctx, updated, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
+}
+
+func parseUnsupportedConfigOverrides(raw runtime.RawExtension) (*v1alpha1.UnsupportedConfigOverrides, error) {
+	overrides := &v1alpha1.UnsupportedConfigOverrides{}
+	if len(raw.Raw) == 0 {
+		return overrides, nil
+	}
+	if err := json.Unmarshal(raw.Raw, overrides); err != nil {
+		return nil, err
+	}
+	return overrides, nil
+}
+
+func applyUnsupportedConfigOverrides(cm *v1alpha1.CertManager, overrides *v1alpha1.UnsupportedConfigOverrides) error {
+	if overrides == nil || (len(overrides.Controller.Args) == 0 && len(overrides.Webhook.Args) == 0 && len(overrides.CAInjector.Args) == 0) {
+		cm.Spec.UnsupportedConfigOverrides = runtime.RawExtension{}
+		return nil
+	}
+	raw, err := json.Marshal(overrides)
+	if err != nil {
+		return err
+	}
+	cm.Spec.UnsupportedConfigOverrides = runtime.RawExtension{Raw: raw}
+	return nil
+}
+
+func verifyAutoApproverOverrideConflictReported(ctx context.Context, g Gomega, expected bool) {
+	cm, err := certmanageroperatorclient.OperatorV1alpha1().CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	found := false
+	for _, condition := range cm.Status.Conditions {
+		if condition.Status == opv1.ConditionTrue && strings.Contains(condition.Message, autoApproverOverrideConflictText) {
+			found = true
+			break
+		}
+	}
+	g.Expect(found).To(Equal(expected))
+}
+
+func recreateBuiltinApproveRBAC(ctx context.Context) {
+	role := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: autoApproverRBACName},
+		Rules: []rbacv1.PolicyRule{{
+			APIGroups:     []string{"cert-manager.io"},
+			Resources:     []string{"signers"},
+			ResourceNames: []string{"issuers.cert-manager.io/*", "clusterissuers.cert-manager.io/*"},
+			Verbs:         []string{"approve"},
+		}},
+	}
+	binding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: autoApproverRBACName},
+		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: autoApproverRBACName},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "cert-manager", Namespace: operandNamespace}},
+	}
+	_, err := k8sClientSet.RbacV1().ClusterRoles().Create(ctx, role, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	_, err = k8sClientSet.RbacV1().ClusterRoleBindings().Create(ctx, binding, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+}
+
+func stripCertManagerControllersArg(ctx context.Context) {
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return fmt.Errorf("cert-manager Deployment has no containers")
+		}
+		args := deployment.Spec.Template.Spec.Containers[0].Args
+		filtered := make([]string, 0, len(args))
+		for _, arg := range args {
+			if strings.HasPrefix(arg, "--controllers=") {
+				continue
+			}
+			filtered = append(filtered, arg)
+		}
+		deployment.Spec.Template.Spec.Containers[0].Args = filtered
+		_, err = k8sClientSet.AppsV1().Deployments(operandNamespace).Update(ctx, deployment, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
+}
+
+func verifyCertManagerControllerArg(ctx context.Context, g Gomega, arg string) {
+	deployment, err := k8sClientSet.AppsV1().Deployments(operandNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(deployment.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+	g.Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(ContainElement(arg))
+}
+
+// setApproverPolicyManagerFeatureGate updates only ApproverPolicyManager in the live
+// Subscription env, preserving other gates. Callers that disable the gate mid-test must
+// re-enable it before AfterEach deletes ApproverPolicyManager (finalizer needs the controller).
+func setApproverPolicyManagerFeatureGate(ctx context.Context, enabled bool) {
+	current, err := getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+	Expect(err).NotTo(HaveOccurred())
+	var gates []string
+	for _, gate := range strings.Split(current, ",") {
+		if gate = strings.TrimSpace(gate); gate != "" && !strings.HasPrefix(gate, approverPolicyManagerFeatureGate+"=") {
+			gates = append(gates, gate)
+		}
+	}
+	gates = append(gates, fmt.Sprintf("%s=%t", approverPolicyManagerFeatureGate, enabled))
+	value := strings.Join(gates, ",")
+	By(fmt.Sprintf("setting %s=%t on the operator Subscription", approverPolicyManagerFeatureGate, enabled))
+	Expect(patchSubscriptionWithEnvVars(ctx, loader, map[string]string{"UNSUPPORTED_ADDON_FEATURES": value})).To(Succeed())
+	Expect(waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", value, highTimeout)).To(Succeed())
 }

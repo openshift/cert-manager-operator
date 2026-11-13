@@ -12,6 +12,14 @@ import (
 // CertManagerStatus defines the observed state of CertManager.
 type CertManagerStatusApplyConfiguration struct {
 	v1.OperatorStatusApplyConfiguration `json:",inline"`
+	// autoApproverDisabled reports whether disabling cert-manager's built-in
+	// CertificateRequest approver has completed.
+	// It becomes true after approval permissions are removed, the cert-manager
+	// controller rollout completes, and no Pods remain running the built-in approver.
+	// Once true, it remains true until ApproverPolicyManager deletion completes.
+	// False does not necessarily mean approval is enabled: disabling may still be
+	// in progress, as recorded by the AutoApproverDisableRequested condition.
+	AutoApproverDisabled *bool `json:"autoApproverDisabled,omitempty"`
 }
 
 // CertManagerStatusApplyConfiguration constructs a declarative configuration of the CertManagerStatus type for use with
@@ -75,5 +83,13 @@ func (b *CertManagerStatusApplyConfiguration) WithGenerations(values ...*v1.Gene
 		}
 		b.OperatorStatusApplyConfiguration.Generations = append(b.OperatorStatusApplyConfiguration.Generations, *values[i])
 	}
+	return b
+}
+
+// WithAutoApproverDisabled sets the AutoApproverDisabled field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AutoApproverDisabled field is set to the value of the last call.
+func (b *CertManagerStatusApplyConfiguration) WithAutoApproverDisabled(value bool) *CertManagerStatusApplyConfiguration {
+	b.AutoApproverDisabled = &value
 	return b
 }

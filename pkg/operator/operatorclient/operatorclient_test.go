@@ -176,6 +176,39 @@ func TestGetOperatorState(t *testing.T) {
 	}
 }
 
+func TestUpdateOperatorStatusPreservesAutoApproverState(t *testing.T) {
+	for _, disabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("live autoApproverDisabled=%t", disabled), func(t *testing.T) {
+			cached := newCertManager(func(cm *v1alpha1.CertManager) {
+				cm.Status.AutoApproverDisabled = !disabled
+			})
+			client, fake := newTestOperatorClient(t, cached)
+			live := cached.DeepCopy()
+			live.ResourceVersion = "2"
+			live.Status.AutoApproverDisabled = disabled
+			if err := fake.Tracker().Update(v1alpha1.SchemeGroupVersion.WithResource("certmanagers"), live, ""); err != nil {
+				t.Fatal(err)
+			}
+
+			// A conflict retry has read version 2 directly; the informer is still at 1.
+			status := &operatorv1.OperatorStatus{ObservedGeneration: 9}
+			if _, err := client.UpdateOperatorStatus(t.Context(), "2", status); err != nil {
+				t.Fatal(err)
+			}
+			updated, err := fake.OperatorV1alpha1().CertManagers().Get(t.Context(), "cluster", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if updated.Status.AutoApproverDisabled != disabled {
+				t.Fatalf("stale informer overwrote autoApproverDisabled: got %t, want %t", updated.Status.AutoApproverDisabled, disabled)
+			}
+			if updated.Status.ObservedGeneration != 9 {
+				t.Fatalf("OperatorStatus update was lost: %#v", updated.Status)
+			}
+		})
+	}
+}
+
 // finalizerTestCase describes a single EnsureFinalizer or RemoveFinalizer case.
 type finalizerTestCase struct {
 	name              string
