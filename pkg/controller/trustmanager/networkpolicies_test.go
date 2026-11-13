@@ -214,7 +214,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
-			err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm), getResourceAnnotations(tm))
+			err := r.createOrApplyNetworkPolicies(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
@@ -302,7 +302,7 @@ func TestReconcileTrustManagerDeployment_appliesFourPoliciesWithoutCertManager(t
 	})
 	r.CtrlClient = mock
 
-	if err := r.reconcileTrustManagerDeployment(testTrustManager().Build()); err != nil {
+	if err := r.reconcileTrustManagerDeployment(context.Background(), testTrustManager().Build()); err != nil {
 		t.Fatalf("reconcileTrustManagerDeployment: %v", err)
 	}
 	if got := mock.DeleteCallCount(); got != 0 {
@@ -355,7 +355,7 @@ func TestCreateOrApplyNetworkPolicies_doesNotDeleteUnrelatedNetworkPolicy(t *tes
 	r.CtrlClient = mock
 
 	tm := testTrustManager().Build()
-	if err := r.createOrApplyNetworkPolicies(tm, getResourceLabels(tm), getResourceAnnotations(tm)); err != nil {
+	if err := r.createOrApplyNetworkPolicies(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm)); err != nil {
 		t.Fatalf("createOrApplyNetworkPolicies: %v", err)
 	}
 	if got := mock.DeleteCallCount(); got != 0 {
