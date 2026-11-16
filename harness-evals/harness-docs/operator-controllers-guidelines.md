@@ -160,15 +160,12 @@ duplicating logic per-package is an anti-pattern.
 
 1. Define in `api/operator/v1alpha1/features.go` (`IstioCSR` and `TrustManager`
    both GA/default-true).
-2. Register in `pkg/features` (`SetupWithFlagValue`, `NewFeatureGateState`).
+2. Register in `pkg/features` (`SetupWithFlagValue` + package-level `Is*FeatureGateEnabled`).
 3. `pkg/operator/starter.go`: `setupFeatureGates` parses `--unsupported-addon-features`
-   and (best-effort, fail-open with retries) reads `featuregates/cluster`; never aborts
-   startup on persistent failure.
+   only; it does not consult cluster `featuregates/cluster` / FeatureSet.
 4. Runtime checks are **internal-only** — `features.IsIstioCSRFeatureGateEnabled()` and
-   `(*FeatureGateState).IsTrustManagerFeatureGateEnabled()`. `passesClusterPreviewGating`
-   in `features.go` still exists but is **unused** by the TrustManager enable path
-   (cluster `FeatureSet` gating was removed, CM-1141) — don't resurrect it without
-   confirming intent.
+   `features.IsTrustManagerFeatureGateEnabled()`. Do not reintroduce cluster FeatureSet
+   gating without a new ADR.
 5. `starter.go` only calls `NewControllerManager` (§1) if **either** gate is enabled; each
    enabled gate adds its resource list to the shared cache (§4) and its reconciler to the
    manager via `setup{IstioCSR,TrustManager}Controller` in `setup_manager.go`.

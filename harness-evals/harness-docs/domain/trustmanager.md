@@ -71,7 +71,7 @@ Same `Ready` / `Degraded` condition types as IstioCSR (`conditions.go`).
 | Bundle CRD | Shipped in `config/crd/`; reconciled by trust-manager operand, not operator primary loop | `config/crd/bases/customresourcedefinition_bundles...` |
 | Finalizer | `trustmanager.openshift.operator.io/cert-manager-trust-manager-controller` | `constants.go` |
 
-**Cluster FeatureSet**: Previously required for TechPreview; **removed** (CM-1141 / `pkg/features` comments). Enablement is internal gate only.
+**Cluster FeatureSet**: Previously required for TechPreview; **removed**. Enablement is internal gate only (`IsTrustManagerFeatureGateEnabled`).
 
 ## Common Mistakes
 

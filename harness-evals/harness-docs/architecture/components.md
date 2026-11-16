@@ -19,7 +19,7 @@ pkg/
     istiocsr/              # ctrl-runtime Create+Update
     trustmanager/          # ctrl-runtime SSA (reference)
     common/                # CtrlClient, ReconcileError, HandleReconcileResult, validation, TLS hook
-  features/                # --unsupported-addon-features + FeatureGateState
+  features/                # --unsupported-addon-features (internal gates only)
   operator/                # RunOperator, setup_manager, bindata.go, generated clients
   tlsprofile/              # APIServer TLS profile → operand args
 test/{apis,e2e}/           # envtest CRD suites + Ginkgo e2e
@@ -37,7 +37,7 @@ test/{apis,e2e}/           # envtest CRD suites + Ginkgo e2e
 2. **Construct** `NewCertManagerControllerSet` + `NewDefaultCertManagerController` (controllers not running yet)
 3. **Start informers** (`informer.Start`, including optional infra factory when `Applicable()`)
 4. **Run** each library-go controller (`go controller.Run`)
-5. `setupFeatureGates` from `--unsupported-addon-features` + optional `featuregates/cluster` read (retries discovery failures; does not abort operator on persistent FeatureGate errors; optional controllers follow internal flags only)
+5. `setupFeatureGates` parses `--unsupported-addon-features` (optional controllers follow internal flags only; no cluster FeatureSet consult)
 6. If IstioCSR and/or TrustManager enabled → `NewControllerManager` → Start in goroutine
 7. Block on `ctx.Done()`
 
@@ -80,9 +80,7 @@ Defined in `api/operator/v1alpha1/features.go`; registered in `pkg/features`.
 | Gate | Default | PreRelease | Runtime check |
 |------|---------|------------|---------------|
 | `IstioCSR` | true | GA | `IsIstioCSRFeatureGateEnabled()` — internal only |
-| `TrustManager` | true | GA | `FeatureGateState.IsTrustManagerFeatureGateEnabled()` — internal only; cluster FeatureSet gating **removed** (CM-1141) |
-
-`passesClusterPreviewGating` still exists in `features.go` but is **unused** — do not resurrect without an ADR.
+| `TrustManager` | true | GA | `IsTrustManagerFeatureGateEnabled()` — internal only |
 
 **Wire a new gate (all five)**: (1) `features.go` Default+PreRelease → (2) `pkg/features` → (3) `starter.go` `--unsupported-addon-features` → (4) runtime `Is*Enabled` → (5) `setup_manager.go` cache + reconciler. CRDs ship unconditionally; only the controller is gated.
 
@@ -123,7 +121,7 @@ Use `pkg/controller/common` (`ReconcileError`, `FromClientError`, `HandleReconci
 
 **`pkg/controller/common`**: `ManagedResourceLabelKey` (`app`), `OperatorNamespace`, `TrustedCABundleConfigMapName`, `TrustedCABundleKey`; `CtrlClient`, `NewClient`, `UpdateWithRetry`; error constructors/predicates; `HandleReconcileResult`; `MergeContainerArgs`, `ParseArgMap`, `StripArgsByKeys`, `ArgKeysSet`; `WithClusterTLSProfileFromAPIServer`; validation helpers; metadata helpers (`UpdateName`/`UpdateNamespace`/`UpdateResourceLabels`, `ObjectMetadataModified`, …).
 
-**`pkg/features`**: `SetupWithFlagValue`, `NewFeatureGateState`, `IsIstioCSRFeatureGateEnabled`, `(*FeatureGateState).IsTrustManagerFeatureGateEnabled`, `DefaultFeatureGate`, `FeatureSetOKD`.
+**`pkg/features`**: `SetupWithFlagValue`, `IsIstioCSRFeatureGateEnabled`, `IsTrustManagerFeatureGateEnabled`, `IsApproverPolicyManagerFeatureGateEnabled`, `DefaultFeatureGate`.
 
 **`pkg/tlsprofile`**: `EffectiveSpec`, `CertManagerWebhookTLSArgs`, `CertManagerOperandMetricsTLSArgs`, `CertManagerCipherSuiteArgKeys`, `ClientTLSConfig`.
 

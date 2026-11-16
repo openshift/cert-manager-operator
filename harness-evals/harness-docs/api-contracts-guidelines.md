@@ -131,8 +131,8 @@ Rules for a new feature-gated CR:
 - The **CRD itself is always installed** (shipped unconditionally in
   `config/crd/bases/` + `kustomization.yaml`); only the **controller** is gated.
   Do not try to conditionally install the CRD based on the feature gate.
-  - Note: TrustManager's cluster `FeatureSet` gating requirement was **removed**
-    (CM-1141) — new gates should follow the `TrustManager`/`IstioCSR` pattern of
+  - Note: TrustManager's cluster `FeatureSet` gating requirement was **removed** —
+    new gates should follow the `TrustManager`/`IstioCSR` pattern of
     operator-local flag gating only, not cluster `FeatureSet` allow-listing, unless a
     new ADR says otherwise.
 - Add the gate to `OperatorFeatureGates` in `features.go` with an explicit `Default`
