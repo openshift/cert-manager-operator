@@ -137,6 +137,7 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWa
 		*optInfraInformer,
 		operatorClient,
 		certManagerInformers,
+		certManagerOperatorClient.OperatorV1alpha1(),
 		resourceapply.NewKubeClientHolder(kubeClient).WithAPIExtensionsClient(apiExtensionsClient),
 		consoleClient,
 		cc.EventRecorder,

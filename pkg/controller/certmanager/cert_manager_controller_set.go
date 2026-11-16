@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	operatorconfigclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/typed/operator/v1alpha1"
 	certmanoperatorinformers "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
 	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
 )
@@ -26,6 +27,7 @@ type CertManagerControllerSet struct {
 	certManagerNetworkPolicyStaticResourcesController factory.Controller
 	certManagerNetworkPolicyUserDefinedController     factory.Controller
 	consoleResourcesController                        factory.Controller
+	certManagerAutoApproverController                 factory.Controller
 }
 
 func NewCertManagerControllerSet(
@@ -35,6 +37,7 @@ func NewCertManagerControllerSet(
 	infraInformers utils.OptionalInformer[configinformers.SharedInformerFactory],
 	operatorClient v1helpers.OperatorClientWithFinalizers,
 	certManagerOperatorInformers certmanoperatorinformers.SharedInformerFactory,
+	operatorConfigClient operatorconfigclient.OperatorV1alpha1Interface,
 	kubeClientContainer *resourceapply.ClientHolder,
 	consoleClient consoleclient.Interface,
 	eventRecorder events.Recorder,
@@ -44,6 +47,7 @@ func NewCertManagerControllerSet(
 	cloudCredentialsSecretName string,
 ) *CertManagerControllerSet {
 	set := &CertManagerControllerSet{
+		certManagerAutoApproverController:                 NewCertManagerAutoApproverController(operatorClient, operatorConfigClient, certManagerOperatorInformers, kubeClient, kubeInformersForNamespaces, eventRecorder),
 		certManagerControllerStaticResourcesController:    NewCertManagerControllerStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
 		certManagerControllerDeploymentController:         NewCertManagerControllerDeploymentController(operatorClient, certManagerOperatorInformers, infraInformers, kubeClient, kubeInformersForTargetNamespace, eventRecorder, targetVersion, versionRecorder, trustedCAConfigmapName, cloudCredentialsSecretName),
 		certManagerWebhookStaticResourcesController:       NewCertManagerWebhookStaticResourcesController(operatorClient, kubeClientContainer, kubeInformersForNamespaces, eventRecorder),
@@ -69,6 +73,7 @@ func (c *CertManagerControllerSet) ToArray() []factory.Controller {
 		c.certManagerCAInjectorDeploymentController,
 		c.certManagerNetworkPolicyStaticResourcesController,
 		c.certManagerNetworkPolicyUserDefinedController,
+		c.certManagerAutoApproverController,
 	}
 	if c.consoleResourcesController != nil {
 		controllers = append(controllers, c.consoleResourcesController)

@@ -74,8 +74,10 @@ func DeploymentModified(desired, existing *appsv1.Deployment, fieldOwner string)
 	}
 
 	a, b := &desired.Spec.Template.Spec, &existing.Spec.Template.Spec
+	// Unlike metadata, nodeSelector is atomic: SSA owns and replaces the whole
+	// map, so removed keys must be compared without per-key managedFields.
 	if a.ServiceAccountName != b.ServiceAccountName ||
-		ManagedMapModified(a.NodeSelector, b.NodeSelector, existing, fieldOwner, "f:spec", "f:template", "f:spec", "f:nodeSelector") ||
+		!maps.Equal(a.NodeSelector, b.NodeSelector) ||
 		!equality.Semantic.DeepEqual(a.Affinity, b.Affinity) ||
 		!equality.Semantic.DeepEqual(a.Tolerations, b.Tolerations) ||
 		len(a.Containers) != len(b.Containers) {

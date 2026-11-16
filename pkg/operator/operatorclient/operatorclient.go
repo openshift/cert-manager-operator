@@ -186,7 +186,17 @@ func (c OperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersio
 	if err != nil {
 		return nil, err
 	}
+	// library-go retries conflicts using GetOperatorStateWithQuorum while the
+	// informer may still be stale. Preserve fields outside OperatorStatus (such
+	// as AutoApproverDisabled) from that newer object, not the old cache entry.
+	if original.ResourceVersion != resourceVersion {
+		original, err = c.Client.CertManagers().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
 	updated := original.DeepCopy()
+	// Retain the caller's precondition even if the live read found a newer version.
 	updated.ResourceVersion = resourceVersion
 	updated.Status.OperatorStatus = *status
 

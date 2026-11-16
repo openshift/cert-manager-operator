@@ -78,6 +78,12 @@ func newGenericDeploymentController(
 	// unsupportedConfigOverrides must run after cluster TLS so break-glass operand args win.
 	hooks = append(hooks, withUnsupportedArgsOverrideHook)
 
+	if deployment.Name == certmanagerControllerDeployment {
+		// Keep one writer for the Deployment. Validate the final controller
+		// selection after overrides and wait for approval RBAC removal.
+		hooks = append(hooks, withAutoApprover(certManagerOperatorInformers, kubeClient))
+	}
+
 	return deploymentcontroller.NewDeploymentController(
 		controllerName,
 		assets.MustAsset(deploymentFile),

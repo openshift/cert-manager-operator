@@ -508,7 +508,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			wantPatchCount:  0,
 		},
 		{
-			name:     "skip apply for unrelated pod metadata and scheduling keys",
+			name:     "skip apply for unrelated pod metadata",
 			setImage: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
@@ -518,13 +518,34 @@ func TestDeploymentReconciliation(t *testing.T) {
 					}
 					dep.Spec.Template.Labels["external"] = "keep"
 					dep.Spec.Template.Annotations["external"] = "keep"
-					dep.Spec.Template.Spec.NodeSelector["external"] = "keep"
 					dep.DeepCopyInto(obj.(*appsv1.Deployment))
 					return true, nil
 				})
 			},
 			wantExistsCount: 1,
 			wantPatchCount:  0,
+		},
+		{
+			name:     "apply to remove a node selector no longer configured",
+			setImage: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					dep, err := r.getDeploymentObject(testTrustManager().Build(), testResourceLabels(), testResourceAnnotations(), "")
+					if err != nil {
+						return false, err
+					}
+					withServiceAccountUID(dep, testServiceAccountUID)
+					dep.Spec.Template.Spec.NodeSelector["e2e.example/no-such-node"] = "old"
+					dep.ManagedFields = []metav1.ManagedFieldsEntry{{
+						Manager:  fieldOwner,
+						FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{"f:template":{"f:spec":{"f:nodeSelector":{}}}}}`)},
+					}}
+					dep.DeepCopyInto(obj.(*appsv1.Deployment))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
 		},
 		{
 			name:     "apply to remove a previously owned pod annotation",
