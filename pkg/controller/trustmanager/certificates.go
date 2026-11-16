@@ -8,6 +8,8 @@ import (
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
@@ -21,7 +23,13 @@ import (
 )
 
 // createOrApplyIssuer reconciles the self-signed Issuer used for trust-manager's webhook TLS.
+// When webhookTLS.certManager.issuerRef is set to a different issuer, the operator does not
+// create this Issuer and deletes it if this operator still manages it.
 func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+	if !usesOperatorSelfSignedIssuer(trustManager.Spec.TrustManagerConfig.WebhookTLS.CertManager) {
+		return r.deleteManagedIssuer(trustManager)
+	}
+
 	desired := getIssuerObject(resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling issuer resource", "name", resourceName)
@@ -42,6 +50,46 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "issuer resource %s applied", resourceName)
+	return nil
+}
+
+// deleteManagedIssuer removes the operator-managed bootstrap Issuer when a custom
+// issuerRef is configured. A same-named Issuer without this operator's managed-by
+// label is left unchanged.
+func (r *Reconciler) deleteManagedIssuer(trustManager *v1alpha1.TrustManager) error {
+	existing := &certmanagerv1.Issuer{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: certmanagerv1.SchemeGroupVersion.String(),
+			Kind:       certmanagerv1.IssuerKind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      trustManagerIssuerName,
+			Namespace: operandNamespace,
+		},
+	}
+	resourceName := fmt.Sprintf("%s/%s", existing.GetNamespace(), existing.GetName())
+	r.log.V(4).Info("ensuring bootstrap issuer is absent", "name", resourceName)
+
+	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(existing), existing)
+	if err != nil {
+		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
+	}
+	if !exists {
+		return nil
+	}
+	if !operatorManagesObject(existing) {
+		r.log.V(2).Info("leaving issuer that this operator does not manage", "name", resourceName)
+		return nil
+	}
+	if err := r.Delete(r.ctx, existing); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return common.FromClientError(err, "failed to delete issuer %q", resourceName)
+	}
+
+	r.log.V(2).Info("deleted bootstrap issuer", "name", resourceName)
+	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "issuer resource %s deleted", resourceName)
 	return nil
 }
 
@@ -115,6 +163,19 @@ func applyWebhookCertConfig(certificate *certmanagerv1.Certificate, certConfig v
 		certificate.Spec.SignatureAlgorithm = certmanagerv1.PureEd25519
 	}
 	overlayPrivateKeyFromCertConfig(certificate, certConfig)
+}
+
+// usesOperatorSelfSignedIssuer reports whether the webhook certificate uses the
+// operator-managed self-signed Issuer. An unset issuerRef uses that Issuer. A
+// configured issuerRef that names the same Issuer (after kind/group defaults)
+// still does, so the operator keeps reconciling it. Any other issuerRef skips
+// create and deletes the managed bootstrap Issuer.
+func usesOperatorSelfSignedIssuer(certConfig v1alpha1.TrustManagerCertConfig) bool {
+	if certConfig.IssuerRef == nil {
+		return true
+	}
+	ref := webhookCertificateIssuerRef(certConfig)
+	return ref.Name == trustManagerIssuerName && ref.Kind == "Issuer" && ref.Group == "cert-manager.io"
 }
 
 // webhookCertificateIssuerRef is the issuer for the webhook Certificate and for

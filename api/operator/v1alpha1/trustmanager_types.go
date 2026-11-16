@@ -254,7 +254,9 @@ type TrustManagerCertConfig struct {
 	CertificateRenewBefore *metav1.Duration `json:"certificateRenewBefore,omitempty"`
 
 	// issuerRef overrides the Issuer used for the webhook certificate.
-	// When unset, the operator uses the self-signed Issuer it creates.
+	// When unset, the operator creates and uses a self-signed Issuer.
+	// When set to a different issuer, the operator does not create that
+	// self-signed Issuer and deletes it if this operator still manages it.
 	// When kind is omitted it defaults to Issuer. When group is omitted it
 	// defaults to cert-manager.io. If set, kind must be Issuer or ClusterIssuer
 	// and group must be cert-manager.io.

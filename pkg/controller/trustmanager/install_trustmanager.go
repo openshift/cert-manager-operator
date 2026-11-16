@@ -59,6 +59,9 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
+	// Applies the self-signed Issuer when issuerRef is unset (or names that
+	// Issuer). When issuerRef is set to a different issuer, this deletes the
+	// operator-managed bootstrap Issuer instead of creating it.
 	if err := r.createOrApplyIssuer(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile issuer resource")
 		return err

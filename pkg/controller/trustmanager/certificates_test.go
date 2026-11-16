@@ -309,6 +309,7 @@ func TestIssuerReconciliation(t *testing.T) {
 		wantErr         string
 		wantExistsCount int
 		wantPatchCount  int
+		wantDeleteCount int
 	}{
 		{
 			name: "successful apply when not found",
@@ -385,6 +386,81 @@ func TestIssuerReconciliation(t *testing.T) {
 			wantExistsCount: 1,
 			wantPatchCount:  1,
 		},
+		{
+			name:            "skips create when custom issuerRef is set and bootstrap issuer is absent",
+			tmBuilder:       testTrustManager().WithWebhookIssuerRef("corp-ca", "ClusterIssuer", "cert-manager.io"),
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "deletes managed bootstrap issuer when custom issuerRef is set",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef("corp-ca", "ClusterIssuer", "cert-manager.io"),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					markOperatorManaged(obj)
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+			wantDeleteCount: 1,
+		},
+		{
+			name:      "leaves unmanaged issuer when custom issuerRef is set",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef("corp-ca", "", ""),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					obj.SetLabels(map[string]string{"app.kubernetes.io/managed-by": "helm"})
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "still applies when issuerRef names the operator bootstrap issuer",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef(trustManagerIssuerName, "", ""),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					return false, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "exists error propagates when deleting bootstrap issuer",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef("corp-ca", "Issuer", "cert-manager.io"),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					return false, errTestClient
+				})
+			},
+			wantErr:         "failed to check if issuer",
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+			wantDeleteCount: 0,
+		},
+		{
+			name:      "delete error propagates when custom issuerRef is set",
+			tmBuilder: testTrustManager().WithWebhookIssuerRef("corp-ca", "Issuer", "cert-manager.io"),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					markOperatorManaged(obj)
+					return true, nil
+				})
+				m.DeleteCalls(func(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+					return errTestClient
+				})
+			},
+			wantErr:         "failed to delete issuer",
+			wantExistsCount: 1,
+			wantPatchCount:  0,
+			wantDeleteCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -409,6 +485,9 @@ func TestIssuerReconciliation(t *testing.T) {
 			}
 			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
 				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			}
+			if got := mock.DeleteCallCount(); got != tt.wantDeleteCount {
+				t.Errorf("expected %d Delete calls, got %d", tt.wantDeleteCount, got)
 			}
 		})
 	}
