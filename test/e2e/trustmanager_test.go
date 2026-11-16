@@ -72,10 +72,13 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	var (
 		ctx = context.Background()
 
-		clientset *kubernetes.Clientset
+		clientset                *kubernetes.Clientset
+		originalOperatorLogLevel string
+		operatorLogLevelPatched  bool
 	)
 
-	BeforeAll(trustManagerBeforeAll(ctx, &clientset))
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalOperatorLogLevel, &operatorLogLevelPatched))
+	AfterAll(trustManagerAfterAll(ctx, originalOperatorLogLevel, operatorLogLevelPatched))
 
 	BeforeEach(trustManagerBeforeEach())
 
@@ -1923,17 +1926,20 @@ func findSecretRule(rules []rbacv1.PolicyRule, verb string) *rbacv1.PolicyRule {
 	return nil
 }
 
-func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset) func() {
+func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, originalOperatorLogLevel *string, operatorLogLevelPatched *bool) func() {
 	return func() {
 		cs, err := kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 		*clientset = cs
 
-		By("increase operator log verbosity when operator is OLM-managed")
-		err = tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"OPERATOR_LOG_LEVEL": "4",
-		})
+		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", originalOperatorLogLevel, operatorLogLevelPatched)
 		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func trustManagerAfterAll(ctx context.Context, originalOperatorLogLevel string, operatorLogLevelPatched bool) func() {
+	return func() {
+		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	}
 }
 

@@ -87,13 +87,12 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	var (
 		testNS                                                  *corev1.Namespace
 		testCertPEM1, testCertPEM2, expiredCertPEM, leafCertPEM string
+		originalOperatorLogLevel                                string
+		operatorLogLevelPatched                                 bool
 	)
 
 	BeforeAll(func() {
-		By("increase operator log verbosity when operator is OLM-managed")
-		err := tryPatchSubscriptionWithEnvVars(ctx, loader, map[string]string{
-			"OPERATOR_LOG_LEVEL": "4",
-		})
+		err := tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &operatorLogLevelPatched)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("generating test certificates")
@@ -115,6 +114,10 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 
 		By("creating test namespace for target verification")
 		testNS = createNamespaceWithCleanup(ctx, "bundle-e2e-", map[string]string{bundleTestNamespaceLabel: "true"})
+	})
+
+	AfterAll(func() {
+		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	})
 
 	// ===== Group 1: Default TrustManager =====

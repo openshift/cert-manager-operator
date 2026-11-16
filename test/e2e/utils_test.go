@@ -778,6 +778,50 @@ func certManagerOperatorSubscriptionInstalled(ctx context.Context, loader librar
 	return len(subs.Items) > 0, nil
 }
 
+const operatorLogLevelEnvVarName = "OPERATOR_LOG_LEVEL"
+
+// tryCaptureAndBumpOperatorLogLevelForSuite records the Subscription's OPERATOR_LOG_LEVEL on
+// OLM-managed clusters, then patches it to level. When no Subscription exists, original is
+// unchanged and hadSubscription is false.
+func tryCaptureAndBumpOperatorLogLevelForSuite(ctx context.Context, loader library.DynamicResourceLoader, level string, original *string, hadSubscription *bool) error {
+	installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
+	if err != nil {
+		return err
+	}
+	*hadSubscription = installed
+	if !installed {
+		fmt.Fprintf(GinkgoWriter, "no OLM Subscription in cert-manager-operator; skipping subscription env patch\n")
+		return nil
+	}
+	By("capturing the Subscription's current OPERATOR_LOG_LEVEL")
+	*original, err = getSubscriptionEnvVar(ctx, loader, operatorLogLevelEnvVarName)
+	if err != nil {
+		return err
+	}
+	By("increase operator log verbosity when operator is OLM-managed")
+	return patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		operatorLogLevelEnvVarName: level,
+	})
+}
+
+// tryRestoreOperatorLogLevelForSuite restores OPERATOR_LOG_LEVEL when tryCaptureAndBumpOperatorLogLevelForSuite
+// had patched the Subscription. An empty original removes the variable.
+func tryRestoreOperatorLogLevelForSuite(ctx context.Context, loader library.DynamicResourceLoader, original string, hadSubscription bool) error {
+	if !hadSubscription {
+		return nil
+	}
+	By("restoring the Subscription's original OPERATOR_LOG_LEVEL")
+	if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		operatorLogLevelEnvVarName: original,
+	}); err != nil {
+		return err
+	}
+	if original == "" {
+		return waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, operatorLogLevelEnvVarName, lowTimeout)
+	}
+	return waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, operatorLogLevelEnvVarName, original, lowTimeout)
+}
+
 // tryPatchSubscriptionWithEnvVars patches subscription env on OLM clusters and is a no-op when
 // the operator was installed without a Subscription (e.g. make deploy + make local-run).
 func tryPatchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {

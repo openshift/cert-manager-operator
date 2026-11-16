@@ -41,10 +41,13 @@ var _ = Describe("TrustManager NetworkPolicies", Ordered, Label("Platform:Generi
 	var (
 		ctx = context.Background()
 
-		clientset *kubernetes.Clientset
+		clientset                *kubernetes.Clientset
+		originalOperatorLogLevel string
+		operatorLogLevelPatched  bool
 	)
 
-	BeforeAll(trustManagerBeforeAll(ctx, &clientset))
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalOperatorLogLevel, &operatorLogLevelPatched))
+	AfterAll(trustManagerAfterAll(ctx, originalOperatorLogLevel, operatorLogLevelPatched))
 
 	BeforeEach(trustManagerBeforeEach())
 	AfterEach(trustManagerAfterEach(ctx))
