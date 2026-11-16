@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -145,7 +146,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// (encryption, namedCertificates, etc.) are ignored.
 	clusterAPIServerPredicate := tlsprofile.ClusterAPIServerWatchPredicate()
 
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
@@ -163,8 +164,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Spec edits and deletes of the reserved policies enqueue Trust Manager
 		// so createOrApplyNetworkPolicies restores them.
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate)).
-		Complete(r)
+		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate))
+
+	// CertificateRequestPolicy is optional (approver-policy CRD). Only watch when
+	// discovery serves it; starting an informer fails when the CRD is absent.
+	// Status-only CRP updates are ignored; spec/metadata drift requeues TrustManager.
+	if _, err := mgr.GetRESTMapper().RESTMapping(certificateRequestPolicyGVK.GroupKind(), certificateRequestPolicyGVK.Version); err == nil {
+		b = b.Watches(&policyv1alpha1.CertificateRequestPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates)
+	} else {
+		r.log.V(1).Info("CertificateRequestPolicy CRD not available, skipping watch")
+	}
+
+	return b.Complete(r)
 }
 
 // Reconcile function to compare the state specified by the TrustManager object against the actual cluster state,

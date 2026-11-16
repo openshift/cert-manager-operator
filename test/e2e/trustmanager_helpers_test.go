@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,11 +35,21 @@ type trustManagerCRBuilder struct {
 }
 
 func newTrustManagerCR() *trustManagerCRBuilder {
+	// TrustManager e2e enables only the TrustManager gate. CertificateRequestPolicy
+	// is served when ApproverPolicyManager/approver-policy is installed. Disable
+	// bootstrap by default so reconciliation succeeds without that CRD. Tests that
+	// cover bootstrap (and the CRP watch) enable it explicitly when the CRD exists.
 	return &trustManagerCRBuilder{
 		tm: &v1alpha1.TrustManager{
 			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
 			Spec: v1alpha1.TrustManagerSpec{
-				TrustManagerConfig: v1alpha1.TrustManagerConfig{},
+				TrustManagerConfig: v1alpha1.TrustManagerConfig{
+					WebhookTLS: v1alpha1.WebhookTLSConfig{
+						ApproverPolicy: v1alpha1.ApproverPolicyConfig{
+							BootstrapResources: v1alpha1.Disabled,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -99,6 +110,11 @@ func (b *trustManagerCRBuilder) WithFilterExpiredCertificates(policy v1alpha1.Mo
 
 func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.FilterNonCACerts = policy
+	return b
+}
+
+func (b *trustManagerCRBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerCRBuilder {
+	b.tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
 	return b
 }
 
@@ -188,6 +204,7 @@ func cleanupTrustManagerOperandLeavings(ctx context.Context) {
 	}, lowTimeout, fastPollInterval).Should(BeTrue())
 
 	deleteTrustManagerDefaultCAPackageConfigMap(ctx)
+	cleanupTrustManagerApproverPolicyResources(ctx)
 }
 
 // deleteTrustManagerDefaultCAPackageConfigMap removes the operand ConfigMap created when
@@ -195,6 +212,45 @@ func cleanupTrustManagerOperandLeavings(ctx context.Context) {
 // or policy is Disabled, so e2e tests must clean it up to avoid cross-suite pollution.
 func deleteTrustManagerDefaultCAPackageConfigMap(ctx context.Context) {
 	_ = k8sClientSet.CoreV1().ConfigMaps(trustManagerNamespace).Delete(ctx, defaultCAPackageConfigMapName, metav1.DeleteOptions{})
+}
+
+var certificateRequestPolicyGVR = schema.GroupVersionResource{
+	Group:    "policy.cert-manager.io",
+	Version:  "v1alpha1",
+	Resource: "certificaterequestpolicies",
+}
+
+// certificateRequestPolicyAPIAvailable reports whether the CertificateRequestPolicy API is served.
+func certificateRequestPolicyAPIAvailable(ctx context.Context) bool {
+	resources, err := k8sClientSet.Discovery().ServerResourcesForGroupVersion(certificateRequestPolicyGVR.GroupVersion().String())
+	if err != nil || resources == nil {
+		return false
+	}
+	for _, r := range resources.APIResources {
+		if r.Name == certificateRequestPolicyGVR.Resource {
+			return true
+		}
+	}
+	return false
+}
+
+func getCertificateRequestPolicy(ctx context.Context, name string) error {
+	_, err := loader.DynamicClient.Resource(certificateRequestPolicyGVR).Get(ctx, name, metav1.GetOptions{})
+	return err
+}
+
+func deleteCertificateRequestPolicy(ctx context.Context, name string) error {
+	return loader.DynamicClient.Resource(certificateRequestPolicyGVR).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
+// cleanupTrustManagerApproverPolicyResources removes bootstrap CRP/RBAC left behind when the
+// TrustManager CR is deleted (operator cleanUp does not tear these down today).
+func cleanupTrustManagerApproverPolicyResources(ctx context.Context) {
+	if certificateRequestPolicyAPIAvailable(ctx) {
+		_ = deleteCertificateRequestPolicy(ctx, trustManagerCertificateRequestPolicyName)
+	}
+	_ = k8sClientSet.RbacV1().ClusterRoleBindings().Delete(ctx, trustManagerPolicyClusterRoleBindingName, metav1.DeleteOptions{})
+	_ = k8sClientSet.RbacV1().ClusterRoles().Delete(ctx, trustManagerPolicyClusterRoleName, metav1.DeleteOptions{})
 }
 
 // ---------------------------------------------------------------------------

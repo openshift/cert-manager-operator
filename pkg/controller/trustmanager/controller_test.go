@@ -2,24 +2,37 @@ package trustmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
+
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
+	"github.com/openshift/cert-manager-operator/pkg/testutil"
 )
 
 func TestReconcile(t *testing.T) {
@@ -430,6 +443,86 @@ func TestCleanUp(t *testing.T) {
 			if requeue != tt.wantRequeue {
 				t.Errorf("cleanUp() requeue = %v, want %v", requeue, tt.wantRequeue)
 			}
+		})
+	}
+}
+
+// registrationManager captures controller registration without starting informers.
+type registrationManager struct {
+	ctrl.Manager
+	scheme     *runtime.Scheme
+	client     client.Client
+	mapper     meta.RESTMapper
+	registered []manager.Runnable
+	addErr     error
+}
+
+func (m *registrationManager) GetScheme() *runtime.Scheme  { return m.scheme }
+func (m *registrationManager) GetClient() client.Client    { return m.client }
+func (m *registrationManager) GetAPIReader() client.Reader { return m.client }
+func (m *registrationManager) GetRESTMapper() meta.RESTMapper {
+	return m.mapper
+}
+func (m *registrationManager) GetEventRecorderFor(string) record.EventRecorder {
+	return record.NewFakeRecorder(100)
+}
+func (m *registrationManager) GetCache() cache.Cache  { return nil }
+func (m *registrationManager) GetLogger() logr.Logger { return logr.Discard() }
+func (m *registrationManager) GetControllerOptions() config.Controller {
+	skip := true
+	return config.Controller{SkipNameValidation: &skip}
+}
+func (m *registrationManager) Add(r manager.Runnable) error {
+	if m.addErr != nil {
+		return m.addErr
+	}
+	m.registered = append(m.registered, r)
+	return nil
+}
+
+func newTestRESTMapper(withCertificateRequestPolicy bool) meta.RESTMapper {
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{
+		policyv1alpha1.SchemeGroupVersion,
+	})
+	if withCertificateRequestPolicy {
+		mapper.Add(certificateRequestPolicyGVK, meta.RESTScopeRoot)
+	}
+	return mapper
+}
+
+func TestSetupWithManager(t *testing.T) {
+	scheme := testutil.Scheme
+	require.NoError(t, admissionregistrationv1.AddToScheme(scheme))
+	require.NoError(t, configv1.Install(scheme))
+
+	for _, tc := range []struct {
+		name       string
+		withCRP    bool
+		addErr     error
+		wantErr    bool
+		wantRegLen int
+	}{
+		{name: "registers when CertificateRequestPolicy CRD is available", withCRP: true, wantRegLen: 1},
+		{name: "registers when CertificateRequestPolicy CRD is absent", withCRP: false, wantRegLen: 1},
+		{name: "propagates manager Add failure", withCRP: false, addErr: errors.New("registration failed"), wantErr: true, wantRegLen: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &registrationManager{
+				scheme: scheme,
+				client: nil,
+				mapper: newTestRESTMapper(tc.withCRP),
+				addErr: tc.addErr,
+			}
+			r, err := New(m)
+			require.NoError(t, err)
+			err = r.SetupWithManager(m)
+			if tc.wantErr {
+				require.ErrorIs(t, err, tc.addErr)
+				assert.Empty(t, m.registered)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, m.registered, tc.wantRegLen)
 		})
 	}
 }
