@@ -763,7 +763,7 @@ tests:
             certManager:
               privateKeyAlgorithm: RSA
               privateKeySize: 256
-    expectedError: "privateKeySize"
+    expectedError: "privateKeySize must match privateKeyAlgorithm"
 
   - name: Should not allow an ECDSA private key with an RSA size
     resourceName: cluster
@@ -776,7 +776,7 @@ tests:
             certManager:
               privateKeyAlgorithm: ECDSA
               privateKeySize: 2048
-    expectedError: "privateKeySize"
+    expectedError: "privateKeySize must match privateKeyAlgorithm"
 
   - name: Should not allow Ed25519 private key with an RSA signature algorithm
     resourceName: cluster

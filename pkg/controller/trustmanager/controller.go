@@ -166,9 +166,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate))
 
-	// CertificateRequestPolicy is optional (approver-policy CRD). Only watch when
-	// discovery serves it; starting an informer fails when the CRD is absent.
-	// Status-only CRP updates are ignored; spec/metadata drift requeues TrustManager.
+	// Watch CertificateRequestPolicy only when discovery serves it. The CRD is in
+	// the operator bundle, but SetupWithManager can run before it is visible (or
+	// after bootstrapResources Disabled + CRD removal); an informer fails if the
+	// type is absent. Status-only updates are ignored; spec/metadata drift
+	// requeues TrustManager.
 	if _, err := mgr.GetRESTMapper().RESTMapping(certificateRequestPolicyGVK.GroupKind(), certificateRequestPolicyGVK.Version); err == nil {
 		b = b.Watches(&policyv1alpha1.CertificateRequestPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates)
 	} else {
