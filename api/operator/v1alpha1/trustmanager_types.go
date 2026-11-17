@@ -263,8 +263,8 @@ type TrustManagerCertConfig struct {
 	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
 	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
 	// inject-ca-from-secret cannot populate the webhook caBundle.
-	// +kubebuilder:validation:XValidation:rule="!has(self.kind) || self.kind.lowerAscii() == 'issuer' || self.kind.lowerAscii() == 'clusterissuer'",message="kind must be either 'Issuer' or 'ClusterIssuer'"
-	// +kubebuilder:validation:XValidation:rule="!has(self.group) || self.group.lowerAscii() == 'cert-manager.io'",message="group must be 'cert-manager.io'"
+	// +kubebuilder:validation:XValidation:rule="!has(self.kind) || self.kind == 'Issuer' || self.kind == 'ClusterIssuer'",message="kind must be either 'Issuer' or 'ClusterIssuer'"
+	// +kubebuilder:validation:XValidation:rule="!has(self.group) || self.group == 'cert-manager.io'",message="group must be 'cert-manager.io'"
 	// +kubebuilder:validation:Optional
 	// +optional
 	IssuerRef *certmanagermetav1.IssuerReference `json:"issuerRef,omitempty"`

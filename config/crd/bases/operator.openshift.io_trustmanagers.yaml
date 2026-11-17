@@ -1334,11 +1334,10 @@ spec:
                             type: object
                             x-kubernetes-validations:
                             - message: kind must be either 'Issuer' or 'ClusterIssuer'
-                              rule: '!has(self.kind) || self.kind.lowerAscii() ==
-                                ''issuer'' || self.kind.lowerAscii() == ''clusterissuer'''
+                              rule: '!has(self.kind) || self.kind == ''Issuer'' ||
+                                self.kind == ''ClusterIssuer'''
                             - message: group must be 'cert-manager.io'
-                              rule: '!has(self.group) || self.group.lowerAscii() ==
-                                ''cert-manager.io'''
+                              rule: '!has(self.group) || self.group == ''cert-manager.io'''
                           privateKeyAlgorithm:
                             default: Ed25519
                             description: |-
