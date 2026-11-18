@@ -74,11 +74,12 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 	var (
 		ctx = context.Background()
 
-		clientset                *kubernetes.Clientset
-		istioNS                  *corev1.Namespace
-		multiOperandBundlePEM    string
-		originalOperatorLogLevel string
-		operatorLogLevelPatched  bool
+		clientset                 *kubernetes.Clientset
+		istioNS                   *corev1.Namespace
+		multiOperandBundlePEM     string
+		originalOperatorLogLevel  string
+		effectiveOperatorLogLevel string
+		operatorLogLevelPatched   bool
 	)
 
 	BeforeAll(func() {
@@ -90,7 +91,7 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 			Skip("MicroShift: OLM not available")
 		}
 
-		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &operatorLogLevelPatched)
+		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &effectiveOperatorLogLevel, &operatorLogLevelPatched)
 		Expect(err).NotTo(HaveOccurred())
 
 		caTweak := func(cert *x509.Certificate) {
@@ -110,7 +111,7 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 			)
 		}
 
-		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
+		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	})
 
 	Context("with operands installed concurrently", Ordered, func() {

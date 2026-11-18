@@ -72,13 +72,14 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 	var (
 		ctx = context.Background()
 
-		clientset                *kubernetes.Clientset
-		originalOperatorLogLevel string
-		operatorLogLevelPatched  bool
+		clientset                 *kubernetes.Clientset
+		originalOperatorLogLevel  string
+		effectiveOperatorLogLevel string
+		operatorLogLevelPatched   bool
 	)
 
-	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalOperatorLogLevel, &operatorLogLevelPatched))
-	AfterAll(trustManagerAfterAll(ctx, originalOperatorLogLevel, operatorLogLevelPatched))
+	BeforeAll(trustManagerBeforeAll(ctx, &clientset, &originalOperatorLogLevel, &effectiveOperatorLogLevel, &operatorLogLevelPatched))
+	AfterAll(trustManagerAfterAll(ctx, originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched))
 
 	BeforeEach(trustManagerBeforeEach())
 
@@ -1926,20 +1927,20 @@ func findSecretRule(rules []rbacv1.PolicyRule, verb string) *rbacv1.PolicyRule {
 	return nil
 }
 
-func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, originalOperatorLogLevel *string, operatorLogLevelPatched *bool) func() {
+func trustManagerBeforeAll(ctx context.Context, clientset **kubernetes.Clientset, originalOperatorLogLevel, effectiveOperatorLogLevel *string, operatorLogLevelPatched *bool) func() {
 	return func() {
 		cs, err := kubernetes.NewForConfig(cfg)
 		Expect(err).Should(BeNil())
 		*clientset = cs
 
-		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", originalOperatorLogLevel, operatorLogLevelPatched)
+		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched)
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
-func trustManagerAfterAll(ctx context.Context, originalOperatorLogLevel string, operatorLogLevelPatched bool) func() {
+func trustManagerAfterAll(ctx context.Context, originalOperatorLogLevel, effectiveOperatorLogLevel string, operatorLogLevelPatched bool) func() {
 	return func() {
-		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
+		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	}
 }
 

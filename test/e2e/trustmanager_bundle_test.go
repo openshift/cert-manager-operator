@@ -88,11 +88,12 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 		testNS                                                  *corev1.Namespace
 		testCertPEM1, testCertPEM2, expiredCertPEM, leafCertPEM string
 		originalOperatorLogLevel                                string
+		effectiveOperatorLogLevel                               string
 		operatorLogLevelPatched                                 bool
 	)
 
 	BeforeAll(func() {
-		err := tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &operatorLogLevelPatched)
+		err := tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &effectiveOperatorLogLevel, &operatorLogLevelPatched)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("generating test certificates")
@@ -117,7 +118,7 @@ var _ = Describe("Bundle", Ordered, Label("Platform:Generic", "Feature:TrustMana
 	})
 
 	AfterAll(func() {
-		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
+		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	})
 
 	// ===== Group 1: Default TrustManager =====
