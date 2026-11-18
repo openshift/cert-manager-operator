@@ -9,8 +9,10 @@ package v1alpha1
 // creating trust-manager resources.
 type TrustManagerControllerConfigApplyConfiguration struct {
 	// labels to apply to all resources created for the trust-manager deployment.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
 	Labels map[string]string `json:"labels,omitempty"`
 	// annotations to apply to all resources created for the trust-manager deployment.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 

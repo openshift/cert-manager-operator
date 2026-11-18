@@ -1137,21 +1137,30 @@ spec:
                       type: string
                     description: |-
                       annotations to apply to resources created for approver-policy.
+                      Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
                       This field can have at most 20 entries.
                     maxProperties: 20
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: annotation key uses a reserved domain
+                      rule: self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/'))
                   labels:
                     additionalProperties:
                       type: string
                     description: |-
                       labels to apply to resources created for approver-policy, in addition to operator defaults.
+                      Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
                       This field can have at most 20 entries.
                     maxProperties: 20
                     minProperties: 0
                     type: object
                     x-kubernetes-map-type: granular
+                    x-kubernetes-validations:
+                    - message: label key uses a reserved domain or the reserved key
+                        'app'
+                      rule: self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/|^app$'))
                 type: object
             required:
             - approverPolicyConfig

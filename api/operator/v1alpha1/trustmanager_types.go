@@ -355,17 +355,21 @@ type DefaultCAPackageConfig struct {
 // creating trust-manager resources.
 type TrustManagerControllerConfig struct {
 	// labels to apply to all resources created for the trust-manager deployment.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/, and the key "app", are reserved and cannot be set.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=25
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/|^app$'))",message="label key uses a reserved domain or the reserved key 'app'"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// annotations to apply to all resources created for the trust-manager deployment.
+	// Keys under kubernetes.io/, k8s.io/, openshift.io/, or cert-manager.io/ are reserved and cannot be set.
 	// +mapType=granular
 	// +kubebuilder:validation:MinProperties:=0
 	// +kubebuilder:validation:MaxProperties:=25
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.matches('^([^/]*[.])?(kubernetes[.]io|k8s[.]io|openshift[.]io)/|^cert-manager[.]io/'))",message="annotation key uses a reserved domain"
 	// +kubebuilder:validation:Optional
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`

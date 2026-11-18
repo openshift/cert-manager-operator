@@ -657,6 +657,47 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		})
 
 		// ---------------------------------------------------------------------
+		// controllerConfig API validation (CEL)
+		// ---------------------------------------------------------------------
+
+		Context("controllerConfig API validation", func() {
+			It("should reject reserved controllerConfig labels on create", func() {
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithLabels(map[string]string{
+					"app": "custom-value",
+				}).Build(), metav1.CreateOptions{})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("label key uses a reserved domain"))
+			})
+
+			It("should reject RBAC aggregate controllerConfig labels on create", func() {
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithLabels(map[string]string{
+					"rbac.authorization.k8s.io/aggregate-to-edit": "true",
+				}).Build(), metav1.CreateOptions{})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("label key uses a reserved domain"))
+			})
+
+			It("should reject reserved controllerConfig annotations on create", func() {
+				_, err := approverPolicyClient().Create(ctx, newApproverPolicyManagerCR().WithAnnotations(map[string]string{
+					"cert-manager.io/inject-ca-from-secret": "cert-manager/cert-manager-approver-policy-tls",
+				}).Build(), metav1.CreateOptions{})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("annotation key uses a reserved domain"))
+			})
+
+			It("should reject reserved controllerConfig labels on update", func() {
+				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
+
+				instance, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				instance.Spec.ControllerConfig.Labels = map[string]string{"app": "custom-value"}
+				_, err = approverPolicyClient().Update(ctx, instance, metav1.UpdateOptions{})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring("label key uses a reserved domain"))
+			})
+		})
+
+		// ---------------------------------------------------------------------
 		// Singleton validation
 		// ---------------------------------------------------------------------
 
