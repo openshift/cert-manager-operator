@@ -110,7 +110,9 @@ type TrustManagerConfig struct {
 	// When empty or omitted, trust-manager writes targets in all namespaces
 	// (default behavior).
 	// When set, Bundle targets are written only in the listed namespaces.
-	// Trust sources are still read from trustNamespace.
+	// Listed namespaces that do not exist yet, or are terminating, are skipped
+	// until they become active; TrustManager can still be Ready while some
+	// entries are pending. Trust sources are still read from trustNamespace.
 	// Removing a namespace from this list does not delete existing target
 	// ConfigMaps or Secrets in that namespace.
 	// +listType=set

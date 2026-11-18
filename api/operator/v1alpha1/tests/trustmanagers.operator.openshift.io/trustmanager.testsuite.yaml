@@ -238,7 +238,10 @@ tests:
             - app-ns
             - other-ns
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should not allow invalid targetNamespaces value
     resourceName: cluster
@@ -1289,7 +1292,10 @@ tests:
             - app-ns
             - other-ns
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow clearing targetNamespaces to restore cluster-wide
     resourceName: cluster
@@ -1314,7 +1320,10 @@ tests:
           logFormat: text
           trustNamespace: cert-manager
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow clearing targetNamespaces with an empty list
     resourceName: cluster
@@ -1341,7 +1350,10 @@ tests:
           trustNamespace: cert-manager
           targetNamespaces: []
           filterExpiredCertificates: Disabled
-          filterNonCACerts: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              bootstrapResources: Enabled
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster
