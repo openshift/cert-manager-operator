@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -49,6 +50,17 @@ func useServiceAccountForDeploymentRender(r *Reconciler) {
 			return nil
 		}
 		return apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, key.Name)
+	})
+	// Render tests that set targetNamespaces treat those names as active so
+	// --target-namespaces still appears unless a test stubs Exists itself.
+	mock.ExistsCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+		ns, ok := obj.(*corev1.Namespace)
+		if !ok {
+			return false, nil
+		}
+		ns.Name = key.Name
+		ns.Status.Phase = corev1.NamespaceActive
+		return true, nil
 	})
 	r.CtrlClient = mock
 }
@@ -173,10 +185,11 @@ func TestDeploymentSpec(t *testing.T) {
 
 func TestDeploymentContainerArgs(t *testing.T) {
 	tests := []struct {
-		name            string
-		tmBuilder       *trustManagerBuilder
-		expectedArgs    []string
-		notExpectedArgs []string
+		name                   string
+		tmBuilder              *trustManagerBuilder
+		expectedArgs           []string
+		notExpectedArgs        []string
+		notExpectedArgPrefixes []string
 	}{
 		{
 			name: "default values",
@@ -194,6 +207,7 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--filter-expired-certificates=true",
 				fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation),
 			},
+			notExpectedArgPrefixes: []string{"--target-namespaces="},
 		},
 		{
 			name: "custom values",
@@ -270,6 +284,20 @@ func TestDeploymentContainerArgs(t *testing.T) {
 				"--filter-non-ca-certs=true",
 			},
 		},
+		{
+			name:      "includes sorted target-namespaces when set",
+			tmBuilder: testTrustManager().WithTargetNamespaces("zeta-ns", "alpha-ns"),
+			expectedArgs: []string{
+				"--target-namespaces=alpha-ns,zeta-ns",
+			},
+		},
+		{
+			name:      "excludes target-namespaces when unset",
+			tmBuilder: testTrustManager(),
+			notExpectedArgPrefixes: []string{
+				"--target-namespaces=",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -298,6 +326,128 @@ func TestDeploymentContainerArgs(t *testing.T) {
 			for _, notExpected := range tt.notExpectedArgs {
 				if slices.Contains(args, notExpected) {
 					t.Errorf("unexpected arg %q found in %v", notExpected, args)
+				}
+			}
+			for _, prefix := range tt.notExpectedArgPrefixes {
+				for _, arg := range args {
+					if strings.HasPrefix(arg, prefix) {
+						t.Errorf("unexpected arg prefix %q found in %v", prefix, args)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDeploymentTargetNamespacesOmitUnavailable(t *testing.T) {
+	t.Setenv(trustManagerImageNameEnvVarName, testImage)
+
+	active := &corev1.Namespace{Status: corev1.NamespaceStatus{Phase: corev1.NamespaceActive}}
+	terminating := &corev1.Namespace{Status: corev1.NamespaceStatus{Phase: corev1.NamespaceTerminating}}
+	deleting := active.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+
+	tests := []struct {
+		name              string
+		namespaces        []string
+		namespaceFor      func(name string) (exists bool, ns *corev1.Namespace, err error)
+		wantArg           string
+		wantErr           string
+		notExpectedPrefix string
+	}{
+		{
+			name:       "omits a missing namespace and keeps active ones, sorted",
+			namespaces: []string{"zeta-ns", "missing-ns", "alpha-ns"},
+			namespaceFor: func(name string) (bool, *corev1.Namespace, error) {
+				if name == "missing-ns" {
+					return false, nil, nil
+				}
+				return true, active, nil
+			},
+			wantArg: "--target-namespaces=alpha-ns,zeta-ns",
+		},
+		{
+			name:       "omits a terminating namespace",
+			namespaces: []string{"going-ns", "app-ns"},
+			namespaceFor: func(name string) (bool, *corev1.Namespace, error) {
+				if name == "going-ns" {
+					return true, terminating, nil
+				}
+				return true, active, nil
+			},
+			wantArg: "--target-namespaces=app-ns",
+		},
+		{
+			name:       "omits a namespace that has a deletion timestamp",
+			namespaces: []string{"going-ns", "app-ns"},
+			namespaceFor: func(name string) (bool, *corev1.Namespace, error) {
+				if name == "going-ns" {
+					return true, deleting, nil
+				}
+				return true, active, nil
+			},
+			wantArg: "--target-namespaces=app-ns",
+		},
+		{
+			name:       "omits the arg when every listed namespace is missing",
+			namespaces: []string{"missing-a", "missing-b"},
+			namespaceFor: func(string) (bool, *corev1.Namespace, error) {
+				return false, nil, nil
+			},
+			notExpectedPrefix: "--target-namespaces=",
+		},
+		{
+			name:       "returns a namespace lookup error",
+			namespaces: []string{"app-ns"},
+			namespaceFor: func(string) (bool, *corev1.Namespace, error) {
+				return false, nil, errTestClient
+			},
+			wantErr: "failed to check if target namespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := testReconciler(t)
+			mock := &fakes.FakeCtrlClient{}
+			mock.GetCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) error {
+				if sa, ok := obj.(*corev1.ServiceAccount); ok {
+					sa.UID = testServiceAccountUID
+					return nil
+				}
+				return apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, key.Name)
+			})
+			mock.ExistsCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+				ns, ok := obj.(*corev1.Namespace)
+				if !ok {
+					return false, nil
+				}
+				exists, found, err := tt.namespaceFor(key.Name)
+				if err != nil || !exists || found == nil {
+					return exists, err
+				}
+				found.DeepCopyInto(ns)
+				return true, nil
+			})
+			r.CtrlClient = mock
+
+			tm := testTrustManager().WithTargetNamespaces(tt.namespaces...).Build()
+			dep, err := r.getDeploymentObject(tm, testResourceLabels(), testResourceAnnotations(), "")
+			assertError(t, err, tt.wantErr)
+			if tt.wantErr != "" {
+				return
+			}
+
+			args := dep.Spec.Template.Spec.Containers[0].Args
+			if tt.wantArg != "" && !slices.Contains(args, tt.wantArg) {
+				t.Errorf("expected arg %q not found in %v", tt.wantArg, args)
+			}
+			if tt.notExpectedPrefix != "" {
+				for _, arg := range args {
+					if strings.HasPrefix(arg, tt.notExpectedPrefix) {
+						t.Errorf("unexpected arg prefix %q found in %v", tt.notExpectedPrefix, args)
+					}
 				}
 			}
 		})

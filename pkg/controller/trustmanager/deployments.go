@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -54,7 +56,9 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	common.UpdateResourceLabels(deployment, resourceLabels)
 	updateResourceAnnotations(deployment, resourceAnnotations)
 	updatePodTemplateLabels(deployment, resourceLabels)
-	updateDeploymentArgs(deployment, trustManager)
+	if err := r.updateDeploymentArgs(deployment, trustManager); err != nil {
+		return nil, err
+	}
 	if err := r.applyClusterTLSProfile(deployment); err != nil {
 		return nil, err
 	}
@@ -123,7 +127,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 	deployment.Spec.Template.Labels = resourceLabels
 }
 
-func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) {
+func (r *Reconciler) updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	config := trustManager.Spec.TrustManagerConfig
 	trustNamespace := getTrustNamespace(trustManager)
 
@@ -155,6 +159,23 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 		args = append(args, "--filter-non-ca-certs=true")
 	}
 
+	// Only pass namespaces that received a Role. A missing or terminating
+	// name in --target-namespaces starts a ConfigMap informer with no
+	// namespaced RBAC, which 403s and blocks cache sync. ClusterRole
+	// narrowing still follows the spec list, so omitting the arg here
+	// does not restore cluster-wide writes. An empty active list omits
+	// the arg until a listed namespace becomes active; the namespace
+	// create watch then reconciles and the Deployment rolls.
+	if len(config.TargetNamespaces) > 0 {
+		ns, err := r.activeTargetNamespaces(config.TargetNamespaces)
+		if err != nil {
+			return err
+		}
+		if len(ns) > 0 {
+			args = append(args, "--target-namespaces="+strings.Join(ns, ","))
+		}
+	}
+
 	if defaultCAPackageEnabled(config.DefaultCAPackage) {
 		args = append(args, fmt.Sprintf("--default-package-location=%s", defaultCAPackageLocation))
 	}
@@ -164,6 +185,24 @@ func updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.
 			deployment.Spec.Template.Spec.Containers[i].Args = args
 		}
 	}
+	return nil
+}
+
+// activeTargetNamespaces is the sorted subset of listed that currently accept
+// a namespaced Role (exist and are not terminating).
+func (r *Reconciler) activeTargetNamespaces(listed []string) ([]string, error) {
+	var active []string
+	for _, ns := range listed {
+		accepts, err := r.targetNamespaceAcceptsRBAC(ns)
+		if err != nil {
+			return nil, common.FromClientError(err, "failed to check if target namespace %q is active", ns)
+		}
+		if accepts {
+			active = append(active, ns)
+		}
+	}
+	slices.Sort(active)
+	return slices.Compact(active), nil
 }
 
 // updateDefaultCAPackageVolume adds the default CA package ConfigMap volume
