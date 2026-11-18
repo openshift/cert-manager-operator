@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 )
 
 const (
@@ -108,7 +110,23 @@ const (
 	trustManagerTLSSecretName   = trustManagerCommonResourceName + "-tls"
 
 	trustManagerWebhookConfigName = trustManagerCommonResourceName
+
+	// trustManagerCertificateRequestPolicyName is created when webhookTLS.approverPolicy.bootstrapResources is Enabled
+	// and removed when it is not.
+	trustManagerCertificateRequestPolicyName = trustManagerCommonResourceName + "-policy"
+	// trustManagerPolicyClusterRoleName grants the cert-manager SA use access to the CRP.
+	trustManagerPolicyClusterRoleName = trustManagerCommonResourceName + "-policy-role"
+	// trustManagerPolicyClusterRoleBindingName binds trust-manager-policy-role to the cert-manager SA.
+	trustManagerPolicyClusterRoleBindingName = trustManagerCommonResourceName + "-policy-binding"
+
+	// certManagerControllerServiceAccountName is the cert-manager controller SA
+	// bound to trust-manager-policy so approver-policy can auto-approve the webhook cert.
+	certManagerControllerServiceAccountName = "cert-manager"
 )
+
+// certificateRequestPolicyGVK is used to detect whether the optional
+// CertificateRequestPolicy CRD is served before registering a watch.
+var certificateRequestPolicyGVK = policyv1alpha1.SchemeGroupVersion.WithKind(policyv1alpha1.CertificateRequestPolicyKind)
 
 var (
 	trustManagerConfigFieldPath     = field.NewPath("spec", "trustManagerConfig")

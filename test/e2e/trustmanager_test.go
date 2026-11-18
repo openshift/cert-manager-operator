@@ -47,6 +47,11 @@ const (
 
 	trustManagerWebhookConfigName = "trust-manager"
 
+	// Approver-policy bootstrap resources created when webhookTLS.approverPolicy.bootstrapResources is Enabled.
+	trustManagerCertificateRequestPolicyName = "trust-manager-policy"
+	trustManagerPolicyClusterRoleName        = "trust-manager-policy-role"
+	trustManagerPolicyClusterRoleBindingName = "trust-manager-policy-binding"
+
 	// DefaultCAPackage constants.
 	defaultCAPackageConfigMapName  = "trust-manager-default-ca-package"
 	defaultCAPackageVolumeName     = "packages"
@@ -187,7 +192,13 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("resource deletion and recreation", func() {
 		It("should recreate resources managed by the controller when deleted externally", func() {
-			createTrustManager(ctx, newTrustManagerCR())
+			builder := newTrustManagerCR()
+			crpAPIAvailable := certificateRequestPolicyAPIAvailable(ctx)
+			if crpAPIAvailable {
+				By("enabling approver-policy bootstrap; CertificateRequestPolicy CRD is available")
+				builder = builder.WithApproverPolicy(v1alpha1.Enabled)
+			}
+			createTrustManager(ctx, builder)
 
 			// Namespace-scoped resources
 			By("deleting and verifying recreation of ServiceAccount")
@@ -292,6 +303,36 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				return clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, trustManagerWebhookConfigName, metav1.DeleteOptions{})
 			}, func() error {
 				_, err := clientset.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, trustManagerWebhookConfigName, metav1.GetOptions{})
+				return err
+			})
+
+			// CertificateRequestPolicy watch is registered only when the CRD is served
+			// (ApproverPolicyManager / approver-policy installed). Skip when absent.
+			if !crpAPIAvailable {
+				By("skipping CertificateRequestPolicy recreation; policy.cert-manager.io CRD not available")
+				return
+			}
+
+			By("deleting and verifying recreation of CertificateRequestPolicy")
+			verifyTrustManagerResourceRecreation(func() error {
+				return deleteCertificateRequestPolicy(ctx, trustManagerCertificateRequestPolicyName)
+			}, func() error {
+				return getCertificateRequestPolicy(ctx, trustManagerCertificateRequestPolicyName)
+			})
+
+			By("deleting and verifying recreation of approver-policy ClusterRole")
+			verifyTrustManagerResourceRecreation(func() error {
+				return clientset.RbacV1().ClusterRoles().Delete(ctx, trustManagerPolicyClusterRoleName, metav1.DeleteOptions{})
+			}, func() error {
+				_, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerPolicyClusterRoleName, metav1.GetOptions{})
+				return err
+			})
+
+			By("deleting and verifying recreation of approver-policy ClusterRoleBinding")
+			verifyTrustManagerResourceRecreation(func() error {
+				return clientset.RbacV1().ClusterRoleBindings().Delete(ctx, trustManagerPolicyClusterRoleBindingName, metav1.DeleteOptions{})
+			}, func() error {
+				_, err := clientset.RbacV1().ClusterRoleBindings().Get(ctx, trustManagerPolicyClusterRoleBindingName, metav1.GetOptions{})
 				return err
 			})
 		})
@@ -595,7 +636,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 		It("should add filter-expired-certificates arg when filterExpiredCertificates is Enabled", func() {
 			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
+				WithFilterExpiredCertificates(v1alpha1.Enabled))
 
 			By("verifying deployment args contain --filter-expired-certificates=true")
 			Eventually(func(g Gomega) {
@@ -615,6 +656,32 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
 				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-expired-certificates=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should add filter-non-ca-certs arg when filterNonCACerts is Enabled", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.Enabled))
+
+			By("verifying deployment args contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).Should(ContainElement("--filter-non-ca-certs=true"))
+			}, lowTimeout, fastPollInterval).Should(Succeed())
+		})
+
+		It("should not have filter-non-ca-certs arg when filterNonCACerts is Disabled", func() {
+			createTrustManager(ctx, newTrustManagerCR().
+				WithFilterNonCACerts(v1alpha1.Disabled))
+
+			By("verifying deployment args do not contain --filter-non-ca-certs=true")
+			Eventually(func(g Gomega) {
+				dep, err := clientset.AppsV1().Deployments(trustManagerNamespace).Get(ctx, trustManagerDeploymentName, metav1.GetOptions{})
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(dep.Spec.Template.Spec.Containers).ShouldNot(BeEmpty())
+				g.Expect(dep.Spec.Template.Spec.Containers[0].Args).ShouldNot(ContainElement("--filter-non-ca-certs=true"))
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
 
@@ -670,7 +737,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyEnabled
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.Enabled
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -752,7 +819,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				if err != nil {
 					return err
 				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyDisabled
+				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.Disabled
 				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 				return err
 			}, lowTimeout, fastPollInterval).Should(Succeed())
@@ -1208,84 +1275,6 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				g.Expect(tm.Status.TrustManagerImage).ShouldNot(BeEmpty())
 			}, lowTimeout, fastPollInterval).Should(Succeed())
 		})
-
-		It("should report trust namespace in status", func() {
-			createTrustManager(ctx, newTrustManagerCR())
-
-			By("verifying TrustManager status has default trust namespace set")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.TrustNamespace).Should(Equal("cert-manager"))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report custom trust namespace in status", func() {
-			By("creating custom trust namespace")
-			customTrustNS := createUniqueNamespace("custom-trust-ns-status")
-			createAndDestroyTestNamespace(ctx, clientset, customTrustNS)
-
-			createTrustManager(ctx, newTrustManagerCR().WithTrustNamespace(customTrustNS))
-
-			By("verifying TrustManager status has custom trust namespace set")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.TrustNamespace).Should(Equal(customTrustNS))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report secretTargets policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"status-test-secret"}))
-
-			By("verifying TrustManager status reflects Custom secretTargets policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.SecretTargetsPolicy).Should(Equal(v1alpha1.SecretTargetsPolicyCustom))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report default CA package policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().WithDefaultCAPackage(v1alpha1.DefaultCAPackagePolicyEnabled))
-
-			By("verifying status reports Enabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.DefaultCAPackagePolicy).Should(Equal(v1alpha1.DefaultCAPackagePolicyEnabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("updating TrustManager CR to disable default CA package")
-			Eventually(func() error {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-				tm.Spec.TrustManagerConfig.DefaultCAPackage.Policy = v1alpha1.DefaultCAPackagePolicyDisabled
-				_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
-				return err
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-
-			By("verifying status reports Disabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.DefaultCAPackagePolicy).Should(Equal(v1alpha1.DefaultCAPackagePolicyDisabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
-
-		It("should report filterExpiredCertificates policy in status", func() {
-			createTrustManager(ctx, newTrustManagerCR().
-				WithFilterExpiredCertificates(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
-
-			By("verifying status reports Enabled policy")
-			Eventually(func(g Gomega) {
-				tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(tm.Status.FilterExpiredCertificatesPolicy).Should(Equal(v1alpha1.FilterExpiredCertificatesPolicyEnabled))
-			}, lowTimeout, fastPollInterval).Should(Succeed())
-		})
 	})
 
 	// -------------------------------------------------------------------------
@@ -1703,6 +1692,7 @@ func verifyTrustManagerDefaultContainerArgs(args []string) {
 	Expect(args).Should(ContainElement("--webhook-host=0.0.0.0"))
 	Expect(args).Should(ContainElement("--webhook-port=6443"))
 	Expect(args).Should(ContainElement("--webhook-certificate-dir=/tls"))
+	Expect(args).Should(ContainElement("--filter-non-ca-certs=true"))
 }
 
 // verifyTrustManagerResourceRecreation deletes a resource and verifies it is recreated

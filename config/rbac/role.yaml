@@ -320,7 +320,12 @@ rules:
   resources:
   - certificaterequestpolicies
   verbs:
+  - create
+  - delete
+  - get
   - list
+  - patch
+  - use
   - watch
 - apiGroups:
   - policy.cert-manager.io

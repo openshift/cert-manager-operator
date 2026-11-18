@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -59,10 +60,11 @@ type Reconciler struct {
 // The trust-manager operand ServiceAccount is not granted this permission.
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups=policy.cert-manager.io,resources=certificaterequestpolicies,verbs=get;list;watch;create;patch;delete;use
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles,verbs=get;list;watch
 // +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles/finalizers,verbs=update
@@ -144,7 +146,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// (encryption, namedCertificates, etc.) are ignored.
 	clusterAPIServerPredicate := tlsprofile.ClusterAPIServerWatchPredicate()
 
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
@@ -162,8 +164,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Spec edits and deletes of the reserved policies enqueue Trust Manager
 		// so createOrApplyNetworkPolicies restores them.
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
-		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate)).
-		Complete(r)
+		Watches(&configv1.APIServer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(clusterAPIServerPredicate))
+
+	// Watch CertificateRequestPolicy only when discovery serves it. The CRD is in
+	// the operator bundle, but SetupWithManager can run before it is visible (or
+	// after bootstrapResources Disabled + CRD removal); an informer fails if the
+	// type is absent. Status-only updates are ignored; spec/metadata drift
+	// requeues TrustManager.
+	if _, err := mgr.GetRESTMapper().RESTMapping(certificateRequestPolicyGVK.GroupKind(), certificateRequestPolicyGVK.Version); err == nil {
+		b = b.Watches(&policyv1alpha1.CertificateRequestPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates)
+	} else {
+		r.log.V(1).Info("CertificateRequestPolicy CRD not available, skipping watch")
+	}
+
+	return b.Complete(r)
 }
 
 // Reconcile function to compare the state specified by the TrustManager object against the actual cluster state,
