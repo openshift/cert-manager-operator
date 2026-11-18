@@ -81,7 +81,7 @@ func (r *Reconciler) createOrUpdateNetworkPolicy(policy *networkingv1.NetworkPol
 		if istioCSRCreateRecon {
 			r.eventRecorder.Eventf(policy, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s network policy resource already exists, maybe from previous installation", policyName)
 		}
-		if hasObjectChanged(desired, fetched) {
+		if common.HasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("network policy has been modified, updating to desired state", "name", policyName)
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return common.FromClientError(err, "failed to update %s network policy resource", policyName)
