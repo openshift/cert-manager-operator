@@ -15,9 +15,9 @@ type TrustManagerStatusApplyConfiguration struct {
 	ConditionalStatusApplyConfiguration `json:",omitempty,inline"`
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage *string `json:"trustManagerImage,omitempty"`
-	// certificateRequestPolicy is the name of the CertificateRequestPolicy created
-	// for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
-	// is Enabled. Empty when bootstrapResources is Disabled.
+	// certificateRequestPolicy is the name of the policy last successfully reconciled
+	// for the webhook certificate. Managed clears it after policy/RBAC cleanup when
+	// built-in approval returns. Unmanaged preserves the last observation.
 	CertificateRequestPolicy *string `json:"certificateRequestPolicy,omitempty"`
 }
 

@@ -30,7 +30,7 @@ type TrustManagerCertConfigApplyConfiguration struct {
 	// When kind is omitted it defaults to Issuer. When group is omitted it
 	// defaults to cert-manager.io. If set, kind must be Issuer or ClusterIssuer
 	// and group must be cert-manager.io.
-	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+	// When approverPolicy is Managed, its CertificateRequestPolicy selector uses this same issuer.
 	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
 	// inject-ca-from-secret cannot populate the webhook caBundle.
 	IssuerRef *metav1.IssuerReference `json:"issuerRef,omitempty"`
