@@ -636,7 +636,7 @@ func TestRBACReconciliation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -858,7 +858,7 @@ func TestRBACReconciliationWithSecretTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			tm := tt.tmBuilder.Build()
 			if tt.preReq != nil {
@@ -1247,7 +1247,7 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -1272,7 +1272,7 @@ func TestRBACReconciliationWithTargetNamespaces(t *testing.T) {
 }
 
 func TestTargetNamespaceRolesAppliedBeforeClusterRoleNarrowing(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 	mock := &fakes.FakeCtrlClient{}
 	mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 		if ns, ok := obj.(*corev1.Namespace); ok {
@@ -1411,7 +1411,7 @@ func TestTargetNamespaceRBACSkipsUnavailableNamespaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 				ns, ok := obj.(*corev1.Namespace)

@@ -28,7 +28,7 @@ func TestFinalizersPreserveConcurrentChanges(t *testing.T) {
 				stored.Finalizers = []string{finalizer}
 			}
 			instance := stored.DeepCopy()
-			r := testReconciler(t)
+			r := testReconciler()
 			c := &fakes.FakeCtrlClient{}
 			r.CtrlClient = c
 			c.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
