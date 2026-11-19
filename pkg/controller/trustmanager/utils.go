@@ -132,10 +132,9 @@ func defaultCAPackageEnabled(config v1alpha1.DefaultCAPackageConfig) bool {
 	return config.Policy == v1alpha1.Enabled
 }
 
-// approverPolicyEnabled returns true when bootstrapResources is not Disabled.
-// The API default is Enabled; unset in the object also counts as Enabled.
-func approverPolicyEnabled(config v1alpha1.ApproverPolicyConfig) bool {
-	return config.BootstrapResources != v1alpha1.Disabled
+// approverPolicyManaged treats an omitted management state as the Managed default.
+func approverPolicyManaged(trustManager *v1alpha1.TrustManager) bool {
+	return trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState != v1alpha1.ApproverPolicyManagementStateUnmanaged
 }
 
 // getTrustNamespace returns the trust namespace from the TrustManager config.

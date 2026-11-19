@@ -6,6 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -296,7 +297,9 @@ func TestReconcileTrustManagerDeployment_appliesFourPoliciesWithoutCertManager(t
 	})
 	mock.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		if _, ok := obj.(*v1alpha1.CertManager); ok {
-			t.Errorf("reconcile consulted CertManager %s; trust-manager policies ignore spec.defaultNetworkPolicy", key)
+			// Approval integration reads CertManager status, but its absence must
+			// not prevent the independent network policies from being applied.
+			return apierrors.NewNotFound(v1alpha1.Resource("certmanagers"), key.Name)
 		}
 		return nil
 	})

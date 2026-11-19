@@ -11,6 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -19,17 +21,41 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 )
 
-// createOrApplyApproverPolicyResources creates the webhook CertificateRequestPolicy
-// and the RBAC that lets the cert-manager ServiceAccount use it, matching upstream
-// Helm app.webhook.tls.approverPolicy. Resources are created when bootstrapResources
-// is not Disabled (the API default is Enabled). They are deleted when it is Disabled
-// by checking fixed resource names; an existing object is deleted only when it carries
-// this operator's managed-by label. If bootstrap is enabled and the CertificateRequestPolicy CRD is missing,
-// reconciliation fails with a CRD-missing error. A missing CRD is ignored while
-// bootstrapResources is Disabled.
+// certManagerAutoApproverPredicate accepts creation and deletion of CertManager/cluster,
+// and updates that change its status.autoApproverDisabled value. Other updates
+// cannot change whether TrustManager needs an approval policy.
+func certManagerAutoApproverPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool { return e.Object.GetName() == "cluster" },
+		DeleteFunc: func(e event.DeleteEvent) bool { return e.Object.GetName() == "cluster" },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return e.ObjectNew.GetName() == "cluster" &&
+				e.ObjectOld.(*v1alpha1.CertManager).Status.AutoApproverDisabled != e.ObjectNew.(*v1alpha1.CertManager).Status.AutoApproverDisabled
+		},
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
+}
+
+// createOrApplyApproverPolicyResources follows the completed auto-approver handoff.
+// Managed creates policy/RBAC when CertManager reports autoApproverDisabled=true
+// and removes operator-managed resources when it is false. Unmanaged skips all
+// CertManager and approval-resource checks, leaving existing resources untouched.
 func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
-	if !approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
-		return r.deleteApproverPolicyResources(trustManager)
+	if !approverPolicyManaged(trustManager) {
+		return nil
+	}
+
+	// A missing CertManager has the same meaning as its default false status.
+	// Other read errors must not trigger cleanup based on an unknown state.
+	certManager := &v1alpha1.CertManager{}
+	if err := r.Get(r.ctx, client.ObjectKey{Name: "cluster"}, certManager); err != nil && !apierrors.IsNotFound(err) {
+		return common.FromClientError(err, "failed to read CertManager auto-approver status")
+	}
+	if !certManager.Status.AutoApproverDisabled {
+		if err := r.deleteApproverPolicyResources(trustManager); err != nil {
+			return err
+		}
+		return r.updateCertificateRequestPolicyStatus(trustManager, "")
 	}
 
 	if err := r.createOrApplyCertificateRequestPolicy(trustManager, resourceLabels, resourceAnnotations); err != nil {
@@ -40,6 +66,20 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	}
 	if err := r.createOrApplyPolicyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		return err
+	}
+	return r.updateCertificateRequestPolicyStatus(trustManager, trustManagerCertificateRequestPolicyName)
+}
+
+// updateCertificateRequestPolicyStatus persists a completed policy/RBAC transition.
+// The condition handler only writes when Ready/Degraded changes, so policy status
+// must be saved separately when an otherwise healthy TrustManager changes approvers.
+func (r *Reconciler) updateCertificateRequestPolicyStatus(trustManager *v1alpha1.TrustManager, policyName string) error {
+	if trustManager.Status.CertificateRequestPolicy == policyName {
+		return nil
+	}
+	trustManager.Status.CertificateRequestPolicy = policyName
+	if err := r.updateStatus(r.ctx, trustManager); err != nil {
+		return common.FromClientError(err, "failed to update certificate request policy status")
 	}
 	return nil
 }
@@ -111,7 +151,7 @@ func operatorManagesObject(obj client.Object) bool {
 // createOrApplyCertificateRequestPolicy applies CertificateRequestPolicy
 // trust-manager-policy so approver-policy can auto-approve the webhook cert.
 // A missing CRP CRD is treated as a reconcile error (install approver-policy
-// or set bootstrapResources to Disabled).
+// or set approverPolicy.managementState to Unmanaged).
 func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getCertificateRequestPolicyObject(trustManager.Spec.TrustManagerConfig.WebhookTLS.CertManager, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
@@ -121,7 +161,7 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
-			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.bootstrapResources to Disabled")
+			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.managementState to Unmanaged")
 		}
 		return common.FromClientError(err, "failed to check if certificaterequestpolicy %q exists", resourceName)
 	}
@@ -133,7 +173,7 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	r.log.V(2).Info("certificaterequestpolicy resource has been modified, updating to desired state", "name", resourceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		if meta.IsNoMatchError(err) {
-			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.bootstrapResources to Disabled")
+			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.managementState to Unmanaged")
 		}
 		return common.FromClientError(err, "failed to apply certificaterequestpolicy %q", resourceName)
 	}

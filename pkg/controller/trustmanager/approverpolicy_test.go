@@ -5,17 +5,24 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
+	"github.com/openshift/cert-manager-operator/pkg/controller/common"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
 )
 
@@ -127,24 +134,80 @@ func markOperatorManaged(obj client.Object) {
 
 func TestApproverPolicyReconciliation(t *testing.T) {
 	tests := []struct {
-		name            string
-		tmBuilder       *trustManagerBuilder
-		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
-		wantErr         string
-		wantExistsCount int
-		wantPatchCount  int
-		wantDeleteCount int
-		wantDeleted     []string
+		name                 string
+		tmBuilder            *trustManagerBuilder
+		autoApproverDisabled bool
+		certManagerReadError error
+		preReq               func(*Reconciler, *fakes.FakeCtrlClient)
+		wantErr              string
+		wantExistsCount      int
+		wantPatchCount       int
+		wantDeleteCount      int
+		wantDeleted          []string
 	}{
 		{
-			name:            "checks approver policy resources when disabled even if status does not record a policy",
-			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.Disabled),
+			name:                 "failed binding apply does not record a completed handoff",
+			autoApproverDisabled: true,
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.PatchCalls(func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) error {
+					if _, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			wantExistsCount: 3,
+			wantPatchCount:  3,
+			wantErr:         "failed to apply clusterrolebinding",
+		},
+		{
+			name:      "failed policy deletion does not record completed cleanup",
+			tmBuilder: testTrustManager().WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) (bool, error) {
+					markOperatorManaged(obj)
+					return true, nil
+				})
+				m.DeleteCalls(func(_ context.Context, obj client.Object, _ ...client.DeleteOption) error {
+					if _, ok := obj.(*policyv1alpha1.CertificateRequestPolicy); ok {
+						return errTestClient
+					}
+					return nil
+				})
+			},
+			wantExistsCount: 3,
+			wantDeleteCount: 3,
+			wantErr:         "failed to delete certificaterequestpolicy",
+		},
+		{
+			name:                 "missing CertManager runs cleanup without creating resources",
+			certManagerReadError: apierrors.NewNotFound(v1alpha1.Resource("certmanagers"), "cluster"),
+			wantExistsCount:      3,
+		},
+		{
+			name:                 "CertManager read failure leaves approval resources unchanged",
+			certManagerReadError: errTestClient,
+			wantErr:              "failed to read CertManager auto-approver status",
+		},
+		{
+			name:                 "Unmanaged skips CertManager and all approval resource checks",
+			tmBuilder:            testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateUnmanaged),
+			autoApproverDisabled: true,
+			certManagerReadError: errTestClient,
+		},
+		{
+			name:      "Unmanaged leaves an existing policy untouched after approval returns",
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateUnmanaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+		},
+		{
+			name:            "checks approver policy resources when built-in approval is active even if status does not record a policy",
+			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged),
 			wantExistsCount: 3,
 			wantDeleteCount: 0,
 		},
 		{
 			name:      "deletes managed approver policy resources recorded in status",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					markOperatorManaged(obj)
@@ -161,13 +224,13 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		},
 		{
 			name:            "skips delete when recorded approver policy resources are already absent",
-			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder:       testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			wantExistsCount: 3,
 			wantDeleteCount: 0,
 		},
 		{
 			name:      "leaves an existing policy that this operator does not manage",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					obj.SetLabels(map[string]string{"app.kubernetes.io/managed-by": "helm"})
@@ -178,8 +241,8 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantDeleteCount: 0,
 		},
 		{
-			name:      "ignores missing CertificateRequestPolicy CRD when disabled",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			name:      "ignores missing CertificateRequestPolicy CRD when built-in approval is active",
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					if _, ok := obj.(*policyv1alpha1.CertificateRequestPolicy); ok {
@@ -193,7 +256,7 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 		},
 		{
 			name:      "returns error when deleting approver policy RBAC fails",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Disabled).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
+			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged).WithCertificateRequestPolicyStatus(trustManagerCertificateRequestPolicyName),
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					markOperatorManaged(obj)
@@ -212,8 +275,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantDeleted:     []string{trustManagerPolicyClusterRoleBindingName},
 		},
 		{
-			name:      "apply policy resources when enabled and missing",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Enabled),
+			name:                 "apply policy resources after handoff and missing",
+			tmBuilder:            testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged),
+			autoApproverDisabled: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
@@ -223,8 +287,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantPatchCount:  3,
 		},
 		{
-			name:      "skip apply when existing policy resources match",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Enabled),
+			name:                 "skip apply when existing policy resources match",
+			tmBuilder:            testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged),
+			autoApproverDisabled: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
@@ -242,8 +307,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantPatchCount:  0,
 		},
 		{
-			name:      "apply when certificate request policy spec drifted",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Enabled),
+			name:                 "apply when certificate request policy spec drifted",
+			tmBuilder:            testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged),
+			autoApproverDisabled: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch dst := obj.(type) {
@@ -263,8 +329,9 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 			wantPatchCount:  1,
 		},
 		{
-			name:      "reports missing CertificateRequestPolicy CRD",
-			tmBuilder: testTrustManager().WithApproverPolicy(v1alpha1.Enabled),
+			name:                 "reports missing CertificateRequestPolicy CRD",
+			tmBuilder:            testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateManaged),
+			autoApproverDisabled: true,
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "policy.cert-manager.io", Kind: "CertificateRequestPolicy"}}
@@ -291,8 +358,26 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 				tmBuilder = testTrustManager()
 			}
 			tm := tmBuilder.Build()
+			mock.GetCalls(func(_ context.Context, key client.ObjectKey, obj client.Object) error {
+				switch dst := obj.(type) {
+				case *v1alpha1.CertManager:
+					assert.Equal(t, "cluster", key.Name)
+					dst.Status.AutoApproverDisabled = tt.autoApproverDisabled
+					return tt.certManagerReadError
+				case *v1alpha1.TrustManager:
+					tm.DeepCopyInto(dst)
+				}
+				return nil
+			})
 			err := r.createOrApplyApproverPolicyResources(tm, getResourceLabels(tm), getResourceAnnotations(tm))
 			assertError(t, err, tt.wantErr)
+			if err != nil {
+				assert.Zero(t, mock.StatusUpdateCallCount(), "failed resource operations must not record completed transitions")
+			}
+			if !approverPolicyManaged(tm) {
+				assert.Zero(t, mock.GetCallCount(), "Unmanaged must not read CertManager")
+				assert.Zero(t, mock.StatusUpdateCallCount(), "Unmanaged preserves policy status")
+			}
 
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
@@ -312,6 +397,136 @@ func TestApproverPolicyReconciliation(t *testing.T) {
 					t.Errorf("delete call %d: expected name %q, got %q", i, name, obj.GetName())
 				}
 			}
+		})
+	}
+}
+
+func TestCertManagerAutoApproverPredicate(t *testing.T) {
+	p := certManagerAutoApproverPredicate()
+	cm := &v1alpha1.CertManager{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+	unrelatedUpdate := cm.DeepCopy()
+	unrelatedUpdate.Generation++
+	unrelatedUpdate.Status.ObservedGeneration = 12
+	disabled := cm.DeepCopy()
+	disabled.Status.AutoApproverDisabled = true
+	other := cm.DeepCopy()
+	other.Name = "other"
+
+	tests := []struct {
+		name       string
+		evaluate   func() bool
+		wantAccept bool
+	}{
+		{
+			name:       "singleton created",
+			evaluate:   func() bool { return p.Create(event.CreateEvent{Object: cm}) },
+			wantAccept: true,
+		},
+		{
+			name:       "singleton deleted",
+			evaluate:   func() bool { return p.Delete(event.DeleteEvent{Object: cm}) },
+			wantAccept: true,
+		},
+		{
+			name:     "generic event ignored",
+			evaluate: func() bool { return p.Generic(event.GenericEvent{Object: cm}) },
+		},
+		{
+			name: "unrelated spec and status updates ignored",
+			evaluate: func() bool {
+				return p.Update(event.UpdateEvent{ObjectOld: cm, ObjectNew: unrelatedUpdate})
+			},
+		},
+		{
+			name: "auto-approver disabled",
+			evaluate: func() bool {
+				return p.Update(event.UpdateEvent{ObjectOld: cm, ObjectNew: disabled})
+			},
+			wantAccept: true,
+		},
+		{
+			name: "auto-approver restored",
+			evaluate: func() bool {
+				return p.Update(event.UpdateEvent{ObjectOld: disabled, ObjectNew: cm})
+			},
+			wantAccept: true,
+		},
+		{
+			name:     "other CertManager created",
+			evaluate: func() bool { return p.Create(event.CreateEvent{Object: other}) },
+		},
+		{
+			name:     "other CertManager deleted",
+			evaluate: func() bool { return p.Delete(event.DeleteEvent{Object: other}) },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.wantAccept, tc.evaluate())
+		})
+	}
+}
+
+func TestApproverPolicyStatusPersistence(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		disabled          bool
+		initial, want     string
+		statusError       error
+		wantStatusUpdates int
+	}{
+		{name: "handoff records the policy", disabled: true, want: trustManagerCertificateRequestPolicyName, wantStatusUpdates: 1},
+		{name: "cleanup clears the policy", initial: trustManagerCertificateRequestPolicyName, wantStatusUpdates: 1},
+		{name: "unchanged policy avoids a status write", disabled: true, initial: trustManagerCertificateRequestPolicyName, want: trustManagerCertificateRequestPolicyName},
+		{name: "failed handoff status write is retried", disabled: true, statusError: errTestClient, wantStatusUpdates: 1},
+		{name: "failed cleanup status write is retried", initial: trustManagerCertificateRequestPolicyName, want: trustManagerCertificateRequestPolicyName, statusError: errTestClient, wantStatusUpdates: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(trustManagerImageNameEnvVarName, testImage)
+			tm := testTrustManager().Build()
+			tm.Status.TrustManagerImage = testImage
+			tm.Status.CertificateRequestPolicy = tc.initial
+			tm.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
+			tm.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
+			stored := tm.DeepCopy()
+			r := testReconciler(t)
+			mock := &fakes.FakeCtrlClient{}
+			r.CtrlClient = mock
+			mock.GetCalls(func(_ context.Context, _ client.ObjectKey, obj client.Object) error {
+				switch dst := obj.(type) {
+				case *v1alpha1.CertManager:
+					dst.Status.AutoApproverDisabled = tc.disabled
+				case *v1alpha1.TrustManager:
+					stored.DeepCopyInto(dst)
+				}
+				return nil
+			})
+			mock.StatusUpdateCalls(func(_ context.Context, obj client.Object, _ ...client.SubResourceUpdateOption) error {
+				if tc.statusError != nil {
+					return tc.statusError
+				}
+				obj.(*v1alpha1.TrustManager).DeepCopyInto(stored)
+				return nil
+			})
+
+			err := r.createOrApplyApproverPolicyResources(tm, testResourceLabels(), nil)
+			if tc.statusError != nil {
+				require.ErrorIs(t, err, tc.statusError)
+				assert.True(t, common.IsRetryRequiredError(err))
+			} else {
+				require.NoError(t, err)
+				// Neither the image update nor the unchanged readiness conditions
+				// should be needed to persist a policy transition.
+				require.NoError(t, r.updateStatusObservedState(tm))
+				_, err = common.HandleReconcileResult(&tm.Status.ConditionalStatus, nil, r.log, func(err error) error {
+					return r.updateCondition(tm, err)
+				}, defaultRequeueTime)
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, stored.Status.CertificateRequestPolicy, "persisted policy status")
+			assert.Equal(t, tc.wantStatusUpdates, mock.StatusUpdateCallCount())
+			assert.Equal(t, tm.Status.Conditions, stored.Status.Conditions, "existing conditions are preserved")
 		})
 	}
 }
