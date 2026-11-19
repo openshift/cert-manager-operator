@@ -66,7 +66,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 		})
 
 		AfterEach(func() {
-			approverPolicyManagerAfterEach(ctx, client)
+			cleanupApproverPolicyManager(ctx, client)
 		})
 
 		Context("CertManager auto-approver linkage", func() {
@@ -140,7 +140,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				)
 				By("creating a Certificate with no CertificateRequestPolicy")
 				createDNSCertificate(ctx, ns.Name, certName, secretName, issuerName, dnsName)
-				request := waitForCertificateOwnedRequest(ctx, ns.Name, certName)
+				request := waitForCertificateOwnedRequest(ctx, ns.Name, certName, "")
 				Consistently(func(g Gomega) {
 					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
 					g.Expect(err).NotTo(HaveOccurred())
@@ -153,18 +153,7 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				createCertificateRequestPolicyUseRBAC(ctx, policyName)
 
 				By("waiting for approver-policy to approve and cert-manager to sign")
-				Eventually(func(g Gomega) {
-					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
-					g.Expect(err).NotTo(HaveOccurred())
-					approved := false
-					for _, condition := range current.Status.Conditions {
-						if condition.Type == cmv1.CertificateRequestConditionApproved && condition.Status == cmmeta.ConditionTrue {
-							approved = true
-							break
-						}
-					}
-					g.Expect(approved).To(BeTrue())
-				}, highTimeout, fastPollInterval).Should(Succeed())
+				waitForApproverPolicyDecision(ctx, request, cmv1.CertificateRequestConditionApproved)
 				Expect(waitForCertificateReadiness(ctx, certName, ns.Name)).To(Succeed())
 			})
 
@@ -807,7 +796,7 @@ var _ = Describe("ApproverPolicyManager with the operator gate disabled", Serial
 		})
 
 		AfterEach(func() {
-			approverPolicyManagerAfterEach(ctx, client)
+			cleanupApproverPolicyManager(ctx, client)
 		})
 
 		It("should leave the singleton without finalizers, conditions, or operand resources", func() {
