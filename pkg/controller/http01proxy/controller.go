@@ -26,6 +26,14 @@ import (
 type Reconciler struct {
 	common.CtrlClient
 
+	// mcReader reads the managed MachineConfig directly from the API server.
+	// MachineConfigs are deliberately kept out of the manager cache: a cached
+	// Get would start a cluster-wide informer over every MachineConfig
+	// (including the large rendered-* objects) and would require list/watch
+	// on all MachineConfigs, while an uncached Get only needs get on the one
+	// object named machineConfigName.
+	mcReader client.Reader
+
 	eventRecorder record.EventRecorder
 	log           logr.Logger
 }
@@ -34,7 +42,11 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=http01proxies/status,verbs=get;update
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=http01proxies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get;list;watch
-// +kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=machineconfigs,verbs=get;list;watch;create;update;delete
+// create cannot be restricted by resourceNames; every other MachineConfig verb is
+// scoped to the single MachineConfig this controller owns. list/watch are not
+// granted because MachineConfigs are read with an uncached client (see mcReader).
+// +kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=machineconfigs,verbs=create
+// +kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=machineconfigs,resourceNames=98-nftables-crtmgr-http01-dnat,verbs=get;update;delete
 
 func New(mgr ctrl.Manager) (*Reconciler, error) {
 	c, err := common.NewClient(mgr)
@@ -43,6 +55,7 @@ func New(mgr ctrl.Manager) (*Reconciler, error) {
 	}
 	return &Reconciler{
 		CtrlClient:    c,
+		mcReader:      mgr.GetAPIReader(),
 		eventRecorder: mgr.GetEventRecorderFor(ControllerName),
 		log:           ctrl.Log.WithName(ControllerName),
 	}, nil

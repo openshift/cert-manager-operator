@@ -235,11 +235,16 @@ rules:
   - machineconfigs
   verbs:
   - create
+- apiGroups:
+  - machineconfiguration.openshift.io
+  resourceNames:
+  - 98-nftables-crtmgr-http01-dnat
+  resources:
+  - machineconfigs
+  verbs:
   - delete
   - get
-  - list
   - update
-  - watch
 - apiGroups:
   - networking.k8s.io
   resources:
