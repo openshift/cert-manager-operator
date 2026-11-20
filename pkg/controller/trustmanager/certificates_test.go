@@ -308,7 +308,7 @@ func TestIssuerReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 		wantDeleteCount int
 	}{
 		{
@@ -319,7 +319,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing matches desired",
@@ -331,7 +331,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -344,7 +344,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -359,7 +359,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates",
@@ -368,9 +368,9 @@ func TestIssuerReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if issuer",
+			wantErr:         "failed to check if Issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patch error propagates",
@@ -378,19 +378,19 @@ func TestIssuerReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply issuer",
+			wantErr:         "failed to apply Issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:            "skips create when custom issuerRef is set and bootstrap issuer is absent",
 			tmBuilder:       testTrustManager().WithWebhookIssuerRef("corp-ca", "ClusterIssuer", "cert-manager.io"),
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 			wantDeleteCount: 0,
 		},
 		{
@@ -403,7 +403,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 			wantDeleteCount: 1,
 		},
 		{
@@ -416,7 +416,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 			wantDeleteCount: 0,
 		},
 		{
@@ -428,7 +428,7 @@ func TestIssuerReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 			wantDeleteCount: 0,
 		},
 		{
@@ -441,7 +441,7 @@ func TestIssuerReconciliation(t *testing.T) {
 			},
 			wantErr:         "failed to check if issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 			wantDeleteCount: 0,
 		},
 		{
@@ -458,7 +458,7 @@ func TestIssuerReconciliation(t *testing.T) {
 			},
 			wantErr:         "failed to delete issuer",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 			wantDeleteCount: 1,
 		},
 	}
@@ -483,8 +483,8 @@ func TestIssuerReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 			if got := mock.DeleteCallCount(); got != tt.wantDeleteCount {
 				t.Errorf("expected %d Delete calls, got %d", tt.wantDeleteCount, got)
@@ -500,7 +500,7 @@ func TestCertificateReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply when not found",
@@ -510,7 +510,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when existing matches desired",
@@ -522,7 +522,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -535,7 +535,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -550,7 +550,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has secret name drift",
@@ -563,7 +563,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has issuer ref drift",
@@ -580,7 +580,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "skip apply when name-only issuerRef matches defaulted kind and group",
@@ -594,7 +594,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing is missing privateKey",
@@ -607,7 +607,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has privateKey rotation policy drift",
@@ -622,7 +622,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing privateKey has cert-manager RSA defaults",
@@ -639,7 +639,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has secretTemplate label drift",
@@ -652,7 +652,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "skip apply when partial privateKey config matches existing",
@@ -667,7 +667,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:      "apply when existing privateKey algorithm differs from configured algorithm",
@@ -681,7 +681,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing privateKey size differs from configured size",
@@ -695,7 +695,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing duration differs from configured duration",
@@ -710,7 +710,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has no secretTemplate",
@@ -723,7 +723,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has secretTemplate annotation drift",
@@ -738,7 +738,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when a controller-owned secretTemplate label was removed",
@@ -752,7 +752,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when an extra secretTemplate label is owned by another manager",
@@ -766,7 +766,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:      "skip apply when existing duration matches configured duration",
@@ -780,7 +780,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing secretTemplate drops the direct-injection annotation",
@@ -793,7 +793,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "skip apply when duration unset and existing has defaulted duration",
@@ -806,7 +806,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when explicit duration is removed and controller owns it",
@@ -825,7 +825,7 @@ func TestCertificateReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates",
@@ -834,9 +834,9 @@ func TestCertificateReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if certificate",
+			wantErr:         "failed to check if Certificate",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "patch error propagates",
@@ -844,13 +844,13 @@ func TestCertificateReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply certificate",
+			wantErr:         "failed to apply Certificate",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 	}
 
@@ -874,8 +874,8 @@ func TestCertificateReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}
