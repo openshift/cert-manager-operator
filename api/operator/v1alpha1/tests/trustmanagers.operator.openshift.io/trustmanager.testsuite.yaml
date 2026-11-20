@@ -25,7 +25,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow creating TrustManager with invalid name
     resourceName: invalid-name
@@ -59,7 +59,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow logLevel below minimum
     resourceName: cluster
@@ -104,7 +104,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow invalid logFormat
     resourceName: cluster
@@ -139,7 +139,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   # ==========================================
   # FilterExpiredCertificates Tests
@@ -165,7 +165,7 @@ tests:
           filterNonCACerts: Disabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow invalid filterExpiredCertificates value
     resourceName: cluster
@@ -201,7 +201,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow invalid filterNonCACerts value
     resourceName: cluster
@@ -241,7 +241,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should not allow invalid targetNamespaces value
     resourceName: cluster
@@ -373,7 +373,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           defaultCAPackage:
             policy: Enabled
 
@@ -415,7 +415,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -486,7 +486,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           resources:
             requests:
               cpu: 100m
@@ -523,7 +523,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -557,7 +557,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           tolerations:
             - key: node-role.kubernetes.io/master
               operator: Exists
@@ -584,7 +584,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           nodeSelector:
             kubernetes.io/os: linux
 
@@ -613,7 +613,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
         controllerConfig:
           labels:
             custom-label: custom-value
@@ -688,7 +688,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
         controllerConfig:
           annotations:
             custom-annotation: custom-value
@@ -718,7 +718,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -759,7 +759,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -800,7 +800,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -867,7 +867,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -898,7 +898,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -1057,7 +1057,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: RSA
               privateKeyRotationPolicy: Always
@@ -1088,7 +1088,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: ECDSA
               privateKeyRotationPolicy: Always
@@ -1129,7 +1129,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: Ed25519
               privateKeyRotationPolicy: Always
@@ -1171,15 +1171,118 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
             certManager:
               privateKeyAlgorithm: RSA
               privateKeyRotationPolicy: Always
               certificateSignatureAlgorithm: SHA256WithRSA
 
   # ==========================================
-  # Immutability Tests (onUpdate)
+  # Approver-policy configuration
   # ==========================================
+  - name: Should default approval management when webhookTLS is empty
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS: {}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed
+
+  - name: Should support empty approval config
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy: {}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed
+
+  - name: Should support explicit Managed
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy: {managementState: Managed}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed
+
+  - name: Should support Unmanaged
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy: {managementState: Unmanaged}
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Unmanaged
+
+  - name: Should reject unknown approval management state
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy:
+              managementState: Removed
+    expectedError: "managementState"
+
   onUpdate:
   - name: Should not allow changing trustNamespace after set
     resourceName: cluster
@@ -1223,7 +1326,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow updating logFormat
     resourceName: cluster
@@ -1251,7 +1354,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow updating filterExpiredCertificates
     resourceName: cluster
@@ -1281,7 +1384,7 @@ tests:
           filterNonCACerts: Disabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow updating filterNonCACerts
     resourceName: cluster
@@ -1309,7 +1412,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow updating targetNamespaces
     resourceName: cluster
@@ -1343,7 +1446,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow clearing targetNamespaces to restore cluster-wide
     resourceName: cluster
@@ -1371,7 +1474,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow clearing targetNamespaces with an empty list
     resourceName: cluster
@@ -1401,7 +1504,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
 
   - name: Should allow updating defaultCAPackage policy
     resourceName: cluster
@@ -1431,7 +1534,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           defaultCAPackage:
             policy: Enabled
 
@@ -1465,7 +1568,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -1504,7 +1607,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           secretTargets:
             policy: Custom
             authorizedSecrets:
@@ -1541,7 +1644,7 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           secretTargets:
             policy: Disabled
 
@@ -1620,8 +1723,72 @@ tests:
           filterNonCACerts: Enabled
           webhookTLS:
             approverPolicy:
-              bootstrapResources: Enabled
+              managementState: Managed
           secretTargets:
             policy: Custom
             authorizedSecrets:
               - secret-one
+
+  - name: Should allow switching approval management from Managed to Unmanaged
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy:
+              managementState: Unmanaged
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Unmanaged
+
+  - name: Should allow switching approval management from Unmanaged to Managed
+    resourceName: cluster
+    initial: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy:
+              managementState: Unmanaged
+    updated: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: TrustManager
+      spec:
+        trustManagerConfig:
+          logLevel: 1
+          logFormat: text
+          trustNamespace: cert-manager
+          filterExpiredCertificates: Disabled
+          filterNonCACerts: Enabled
+          webhookTLS:
+            approverPolicy:
+              managementState: Managed

@@ -9,18 +9,16 @@ import (
 // ApproverPolicyConfigApplyConfiguration represents a declarative configuration of the ApproverPolicyConfig type for use
 // with apply.
 //
-// ApproverPolicyConfig controls creation and removal of a CertificateRequestPolicy for the
-// trust-manager webhook certificate.
+// ApproverPolicyConfig configures approval of trust-manager's webhook TLS certificate.
 type ApproverPolicyConfigApplyConfiguration struct {
-	// bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
-	// and associated RBAC required for approver-policy to approve the webhook certificate.
-	//
-	// Enabled (default) creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
-	// Disabled does not create them. Flipping from Enabled to Disabled deletes those
-	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
-	//
-	// When set to Enabled, cert-manager approver-policy must be installed.
-	BootstrapResources *operatorv1alpha1.Mode `json:"bootstrapResources,omitempty"`
+	// managementState controls whether the operator manages the webhook's approval
+	// policy and RBAC. Managed (default) creates these resources when CertManager's
+	// status.autoApproverDisabled is true and removes them when it is false or the
+	// CertManager CR is absent. The binding always uses the cert-manager ServiceAccount
+	// in the cert-manager namespace.
+	// Unmanaged leaves existing resources untouched, ignores CertManager changes,
+	// and performs no approver-policy checks. The administrator manages approval.
+	ManagementState *operatorv1alpha1.ApproverPolicyManagementState `json:"managementState,omitempty"`
 }
 
 // ApproverPolicyConfigApplyConfiguration constructs a declarative configuration of the ApproverPolicyConfig type for use with
@@ -29,10 +27,10 @@ func ApproverPolicyConfig() *ApproverPolicyConfigApplyConfiguration {
 	return &ApproverPolicyConfigApplyConfiguration{}
 }
 
-// WithBootstrapResources sets the BootstrapResources field in the declarative configuration to the given value
+// WithManagementState sets the ManagementState field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the BootstrapResources field is set to the value of the last call.
-func (b *ApproverPolicyConfigApplyConfiguration) WithBootstrapResources(value operatorv1alpha1.Mode) *ApproverPolicyConfigApplyConfiguration {
-	b.BootstrapResources = &value
+// If called multiple times, the ManagementState field is set to the value of the last call.
+func (b *ApproverPolicyConfigApplyConfiguration) WithManagementState(value operatorv1alpha1.ApproverPolicyManagementState) *ApproverPolicyConfigApplyConfiguration {
+	b.ManagementState = &value
 	return b
 }

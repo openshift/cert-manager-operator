@@ -67,12 +67,8 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return err
 	}
 
-	// Create the CertificateRequestPolicy and RBAC before the Certificate.
-	// The Certificate's CertificateRequest is approved only when those resources
-	// already exist, and a denied CertificateRequest is not retried.
-	// When bootstrapResources is Disabled, this deletes them only if
-	// status.certificateRequestPolicy records them and the live objects carry
-	// this operator's managed-by label.
+	// Reconcile approval before creating the Certificate so initial issuance works
+	// when the built-in approver has already handed over to approver-policy.
 	if err := r.createOrApplyApproverPolicyResources(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile approver-policy resources")
 		return err
@@ -115,15 +111,6 @@ func (r *Reconciler) updateStatusObservedState(trustManager *v1alpha1.TrustManag
 
 	if image := os.Getenv(trustManagerImageNameEnvVarName); trustManager.Status.TrustManagerImage != image {
 		trustManager.Status.TrustManagerImage = image
-		changed = true
-	}
-
-	policyName := ""
-	if approverPolicyEnabled(trustManager.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy) {
-		policyName = trustManagerCertificateRequestPolicyName
-	}
-	if trustManager.Status.CertificateRequestPolicy != policyName {
-		trustManager.Status.CertificateRequestPolicy = policyName
 		changed = true
 	}
 

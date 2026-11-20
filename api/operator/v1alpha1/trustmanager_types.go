@@ -189,9 +189,8 @@ type TrustManagerConfig struct {
 
 	// webhookTLS configures the cert-manager Certificate used for the
 	// trust-manager validating webhook serving certificate.
-	// Default {} so nested defaults (e.g. approverPolicy.bootstrapResources) apply when
-	// users omit webhookTLS entirely (Kubernetes only applies nested defaults after parent
-	// structural defaults are materialized).
+	// Default {} lets approverPolicy.managementState default to Managed even when
+	// webhookTLS is omitted.
 	// +kubebuilder:default:={}
 	// +kubebuilder:validation:Optional
 	// +optional
@@ -233,12 +232,10 @@ type WebhookTLSConfig struct {
 	// +optional
 	CertManager TrustManagerCertConfig `json:"certManager,omitempty"`
 
-	// approverPolicy configures a CertificateRequestPolicy so that
-	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Resources are created when bootstrapResources is Enabled (the default) and removed when it is Disabled.
-	// If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
-	// approver-policy is installed or bootstrapResources is set to Disabled.
-	// Default {} so bootstrapResources defaults to Enabled when approverPolicy is omitted.
+	// approverPolicy configures approval of trust-manager's webhook TLS certificate.
+	// By default, the operator manages the CertificateRequestPolicy and RBAC needed
+	// by approver-policy when CertManager reports autoApproverDisabled=true.
+	// Default {} lets managementState default to Managed when approverPolicy is omitted.
 	// +kubebuilder:default:={}
 	// +kubebuilder:validation:Optional
 	// +optional
@@ -280,7 +277,7 @@ type TrustManagerCertConfig struct {
 	// When kind is omitted it defaults to Issuer. When group is omitted it
 	// defaults to cert-manager.io. If set, kind must be Issuer or ClusterIssuer
 	// and group must be cert-manager.io.
-	// When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+	// When approverPolicy is Managed, its CertificateRequestPolicy selector uses this same issuer.
 	// An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
 	// inject-ca-from-secret cannot populate the webhook caBundle.
 	// +kubebuilder:validation:XValidation:rule="!has(self.kind) || self.kind == 'Issuer' || self.kind == 'ClusterIssuer'",message="kind must be either 'Issuer' or 'ClusterIssuer'"
@@ -320,23 +317,29 @@ type TrustManagerCertConfig struct {
 	CertificateSignatureAlgorithm string `json:"certificateSignatureAlgorithm,omitempty"`
 }
 
-// ApproverPolicyConfig controls creation and removal of a CertificateRequestPolicy for the
-// trust-manager webhook certificate.
+// ApproverPolicyConfig configures approval of trust-manager's webhook TLS certificate.
 type ApproverPolicyConfig struct {
-	// bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
-	// and associated RBAC required for approver-policy to approve the webhook certificate.
-	//
-	// Enabled (default) creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
-	// Disabled does not create them. Flipping from Enabled to Disabled deletes those
-	// resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
-	//
-	// When set to Enabled, cert-manager approver-policy must be installed.
-	// +kubebuilder:default:="Enabled"
-	// +kubebuilder:validation:Enum:=Enabled;Disabled
+	// managementState controls whether the operator manages the webhook's approval
+	// policy and RBAC. Managed (default) creates these resources when CertManager's
+	// status.autoApproverDisabled is true and removes them when it is false or the
+	// CertManager CR is absent. The binding always uses the cert-manager ServiceAccount
+	// in the cert-manager namespace.
+	// Unmanaged leaves existing resources untouched, ignores CertManager changes,
+	// and performs no approver-policy checks. The administrator manages approval.
+	// +kubebuilder:default:="Managed"
 	// +kubebuilder:validation:Optional
 	// +optional
-	BootstrapResources Mode `json:"bootstrapResources,omitempty"`
+	ManagementState ApproverPolicyManagementState `json:"managementState,omitempty"`
 }
+
+// ApproverPolicyManagementState controls management of webhook approval resources.
+// +kubebuilder:validation:Enum:=Managed;Unmanaged
+type ApproverPolicyManagementState string
+
+const (
+	ApproverPolicyManagementStateManaged   ApproverPolicyManagementState = "Managed"
+	ApproverPolicyManagementStateUnmanaged ApproverPolicyManagementState = "Unmanaged"
+)
 
 // DefaultCAPackageConfig configures the default CA package feature for trust-manager.
 type DefaultCAPackageConfig struct {
@@ -394,8 +397,8 @@ type TrustManagerStatus struct {
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage string `json:"trustManagerImage,omitempty"`
 
-	// certificateRequestPolicy is the name of the CertificateRequestPolicy created
-	// for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
-	// is Enabled. Empty when bootstrapResources is Disabled.
+	// certificateRequestPolicy is the name of the policy last successfully reconciled
+	// for the webhook certificate. Managed clears it after policy/RBAC cleanup when
+	// built-in approval returns. Unmanaged preserves the last observation.
 	CertificateRequestPolicy string `json:"certificateRequestPolicy,omitempty"`
 }

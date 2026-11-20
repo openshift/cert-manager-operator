@@ -51,7 +51,7 @@ const (
 
 	trustManagerWebhookConfigName = "trust-manager"
 
-	// Approver-policy bootstrap resources created when webhookTLS.approverPolicy.bootstrapResources is Enabled.
+	// Approval resources created after the CertManager auto-approver handoff.
 	trustManagerCertificateRequestPolicyName = "trust-manager-policy"
 	trustManagerPolicyClusterRoleName        = "trust-manager-policy-role"
 	trustManagerPolicyClusterRoleBindingName = "trust-manager-policy-binding"
@@ -196,13 +196,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 
 	Context("resource deletion and recreation", func() {
 		It("should recreate resources managed by the controller when deleted externally", func() {
-			builder := newTrustManagerCR()
-			crpAPIAvailable := certificateRequestPolicyAPIAvailable(ctx)
-			if crpAPIAvailable {
-				By("enabling approver-policy bootstrap; CertificateRequestPolicy CRD is available")
-				builder = builder.WithApproverPolicy(v1alpha1.Enabled)
-			}
-			createTrustManager(ctx, builder)
+			createTrustManager(ctx, newTrustManagerCR())
 
 			// Namespace-scoped resources
 			By("deleting and verifying recreation of ServiceAccount")
@@ -310,35 +304,8 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 				return err
 			})
 
-			// CertificateRequestPolicy watch is registered only when the CRD is served
-			// (ApproverPolicyManager / approver-policy installed). Skip when absent.
-			if !crpAPIAvailable {
-				By("skipping CertificateRequestPolicy recreation; policy.cert-manager.io CRD not available")
-				return
-			}
-
-			By("deleting and verifying recreation of CertificateRequestPolicy")
-			verifyTrustManagerResourceRecreation(func() error {
-				return deleteCertificateRequestPolicy(ctx, trustManagerCertificateRequestPolicyName)
-			}, func() error {
-				return getCertificateRequestPolicy(ctx, trustManagerCertificateRequestPolicyName)
-			})
-
-			By("deleting and verifying recreation of approver-policy ClusterRole")
-			verifyTrustManagerResourceRecreation(func() error {
-				return clientset.RbacV1().ClusterRoles().Delete(ctx, trustManagerPolicyClusterRoleName, metav1.DeleteOptions{})
-			}, func() error {
-				_, err := clientset.RbacV1().ClusterRoles().Get(ctx, trustManagerPolicyClusterRoleName, metav1.GetOptions{})
-				return err
-			})
-
-			By("deleting and verifying recreation of approver-policy ClusterRoleBinding")
-			verifyTrustManagerResourceRecreation(func() error {
-				return clientset.RbacV1().ClusterRoleBindings().Delete(ctx, trustManagerPolicyClusterRoleBindingName, metav1.DeleteOptions{})
-			}, func() error {
-				_, err := clientset.RbacV1().ClusterRoleBindings().Get(ctx, trustManagerPolicyClusterRoleBindingName, metav1.GetOptions{})
-				return err
-			})
+			// Approval policy/RBAC recreation is exercised by the integration suite
+			// after CertManager reports the built-in approver disabled.
 		})
 	})
 
