@@ -16,12 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
@@ -32,6 +34,51 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/operatorclient"
 	"github.com/openshift/cert-manager-operator/pkg/operator/utils"
 )
+
+func TestAutoApproverResourceEvents(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource runtime.Object
+	}{
+		{name: "Deployment", resource: &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: certmanagerControllerDeployment}}},
+		{name: "ClusterRole", resource: &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: autoApproverRBACName}}},
+		{name: "ClusterRoleBinding", resource: &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: autoApproverRBACName}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var received []string
+			handler := cache.FilteringResourceEventHandler{
+				FilterFunc: autoApproverResourceFilter(tt.resource.(metav1.Object).GetName()),
+				Handler: cache.ResourceEventHandlerFuncs{
+					AddFunc:    func(interface{}) { received = append(received, "add") },
+					UpdateFunc: func(interface{}, interface{}) { received = append(received, "update") },
+					DeleteFunc: func(interface{}) { received = append(received, "delete") },
+				},
+			}
+
+			// Unrelated objects must not trigger reconciliation for any event type.
+			unrelated := tt.resource.DeepCopyObject()
+			unrelated.(metav1.Object).SetName("unrelated")
+			handler.OnAdd(unrelated, false)
+			handler.OnUpdate(unrelated, unrelated.DeepCopyObject())
+			handler.OnDelete(unrelated)
+			handler.OnDelete(cache.DeletedFinalStateUnknown{Obj: unrelated})
+			assert.Empty(t, received)
+
+			// Keep updates without generation changes, including Deployment status.
+			updated := tt.resource.DeepCopyObject()
+			updated.(metav1.Object).SetResourceVersion("2")
+			if deployment, ok := updated.(*appsv1.Deployment); ok {
+				deployment.Status.AvailableReplicas = 1
+			}
+			handler.OnAdd(tt.resource, false)
+			handler.OnUpdate(tt.resource, updated)
+			handler.OnDelete(updated)
+			handler.OnDelete(cache.DeletedFinalStateUnknown{Obj: updated})
+			assert.Equal(t, []string{"add", "update", "delete", "delete"}, received)
+		})
+	}
+}
 
 func TestAutoApproverState(t *testing.T) {
 	tests := []struct {
@@ -130,6 +177,133 @@ func TestAutoApproverLifecycle(t *testing.T) {
 	f.assertTransitionEvents("AutoApproverDisabled", "AutoApproverEnabled")
 }
 
+func TestAutoApproverStableReconciliationSkipsKubeReads(t *testing.T) {
+	tests := []struct {
+		name   string
+		policy *v1alpha1.ApproverPolicyManager
+	}{
+		{name: "no approver-policy installed"},
+		{name: "waiting for approver-policy readiness", policy: policyWithReady(metav1.ConditionFalse)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newAutoApproverTest(t)
+			if tt.policy != nil {
+				f.setPolicy(tt.policy)
+			}
+			require.NoError(t, f.sync())
+			f.cacheApprovalRBAC("1")
+			// Check these resource versions once before reusing the cached result.
+			require.NoError(t, f.sync())
+			f.kube.ClearActions()
+
+			// Event-driven reconciliations and the one-minute resync use this path.
+			for range 3 {
+				require.NoError(t, f.sync())
+			}
+			assert.Empty(t, f.kube.Actions(), "unchanged RBAC and handoff status need no Kubernetes API requests")
+			f.assertState(false, true)
+		})
+	}
+}
+
+func TestAutoApproverRBACCacheMissUsesLiveApply(t *testing.T) {
+	f := newAutoApproverTest(t)
+	require.NoError(t, f.sync())
+	f.kube.ClearActions()
+
+	// The API has the resources, but their informer events have not arrived yet.
+	require.NoError(t, f.sync())
+	actions := f.kube.Actions()
+	require.Len(t, actions, 2)
+	assert.True(t, actions[0].Matches("get", "clusterroles"))
+	assert.True(t, actions[1].Matches("get", "clusterrolebindings"))
+	f.assertState(false, true)
+}
+
+func TestAutoApproverRepairsChangedRBACVersions(t *testing.T) {
+	for _, resource := range []string{"clusterroles", "clusterrolebindings"} {
+		t.Run(resource, func(t *testing.T) {
+			f := newAutoApproverTest(t)
+			require.NoError(t, f.sync())
+			f.cacheApprovalRBAC("1")
+			require.NoError(t, f.sync())
+
+			// Publish a newer, broken object to both the API and the informer.
+			if resource == "clusterroles" {
+				role, err := f.kube.RbacV1().ClusterRoles().Get(t.Context(), autoApproverRBACName, metav1.GetOptions{})
+				require.NoError(t, err)
+				role.Rules = nil
+				role.Labels["user-label"] = "keep"
+				_, err = f.kube.RbacV1().ClusterRoles().Update(t.Context(), role, metav1.UpdateOptions{})
+				require.NoError(t, err)
+			} else {
+				binding, err := f.kube.RbacV1().ClusterRoleBindings().Get(t.Context(), autoApproverRBACName, metav1.GetOptions{})
+				require.NoError(t, err)
+				binding.Subjects = nil
+				binding.Labels["user-label"] = "keep"
+				_, err = f.kube.RbacV1().ClusterRoleBindings().Update(t.Context(), binding, metav1.UpdateOptions{})
+				require.NoError(t, err)
+			}
+			f.cacheApprovalRBAC("2")
+
+			// A failed repair must not mark the broken version as safe to skip.
+			fail := true
+			f.kube.PrependReactor("update", resource, func(clienttesting.Action) (bool, runtime.Object, error) {
+				return fail, nil, errors.New("injected RBAC update failure")
+			})
+			require.ErrorContains(t, f.sync(), "injected RBAC update failure")
+			fail = false
+			require.NoError(t, f.sync())
+
+			if resource == "clusterroles" {
+				role, err := f.kube.RbacV1().ClusterRoles().Get(t.Context(), autoApproverRBACName, metav1.GetOptions{})
+				require.NoError(t, err)
+				required := resourceread.ReadClusterRoleV1OrDie(assets.MustAsset(autoApproverRoleAsset))
+				assert.Equal(t, required.Rules, role.Rules)
+				assert.Equal(t, "keep", role.Labels["user-label"])
+			} else {
+				binding, err := f.kube.RbacV1().ClusterRoleBindings().Get(t.Context(), autoApproverRBACName, metav1.GetOptions{})
+				require.NoError(t, err)
+				required := resourceread.ReadClusterRoleBindingV1OrDie(assets.MustAsset(autoApproverBindingAsset))
+				assert.Equal(t, required.Subjects, binding.Subjects)
+				assert.Equal(t, "keep", binding.Labels["user-label"])
+			}
+		})
+	}
+}
+
+func TestAutoApproverRestoresRBACWithStalePreHandoffCache(t *testing.T) {
+	for _, complete := range []bool{false, true} {
+		name := "incomplete handoff"
+		if complete {
+			name = "completed handoff"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newAutoApproverTest(t)
+			require.NoError(t, f.sync())
+			f.cacheApprovalRBAC("1")
+			require.NoError(t, f.sync())
+			f.setPolicy(policyWithReady(metav1.ConditionTrue))
+			require.NoError(t, f.sync())
+			f.assertState(false, false)
+			if complete {
+				require.NoError(t, f.syncDeployment())
+				f.completeRollout()
+				require.NoError(t, f.sync())
+				f.assertState(true, false)
+			}
+
+			// Leave the pre-deletion objects in the informer. Restoration must
+			// recreate the RBAC rather than trusting those previously checked versions.
+			f.deletePolicy()
+			require.NoError(t, f.sync())
+			f.assertState(complete, true)
+			f.assertIntent(operatorv1.ConditionFalse)
+		})
+	}
+}
+
 func TestAutoApproverWaitsForMissingDeployment(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -154,12 +328,14 @@ func TestAutoApproverWaitsForMissingDeployment(t *testing.T) {
 				f.assertIntent(operatorv1.ConditionTrue)
 			}
 
-			// A retry is queued even if no Deployment informer event arrives.
-			require.Eventually(t, func() bool { return f.syncCtx.Queue().Len() == 1 }, 5*time.Second, 10*time.Millisecond)
-			key, shutdown := f.syncCtx.Queue().Get()
-			require.False(t, shutdown)
-			assert.Equal(t, f.syncCtx.QueueKey(), key)
-			f.syncCtx.Queue().Done(key)
+			if tt.policy != nil {
+				// An active handoff retries even if no Deployment event arrives.
+				require.Eventually(t, func() bool { return f.syncCtx.Queue().Len() == 1 }, 5*time.Second, 10*time.Millisecond)
+				key, shutdown := f.syncCtx.Queue().Get()
+				require.False(t, shutdown)
+				assert.Equal(t, f.syncCtx.QueueKey(), key)
+				f.syncCtx.Queue().Done(key)
+			}
 
 			// Once the Deployment is created and ready, reconciliation can finish.
 			require.NoError(t, f.syncDeployment())
@@ -186,11 +362,12 @@ func TestAutoApproverReturnsDeploymentReadErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newAutoApproverTest(t)
+			f.setPolicy(policyWithReady(metav1.ConditionTrue))
 			f.kube.PrependReactor("get", "deployments", func(clienttesting.Action) (bool, runtime.Object, error) {
 				return true, nil, tt.err
 			})
 			require.ErrorIs(t, f.sync(), tt.err)
-			f.assertState(false, true)
+			f.assertState(false, false)
 			f.assertTransitionEvents()
 		})
 	}
@@ -406,7 +583,10 @@ func TestAutoApproverPartialFailures(t *testing.T) {
 		f.assertTransitionEvents()
 		f.setPolicy(policyWithReady(metav1.ConditionFalse))
 		// Reconstruct the controller and its cache using only persisted objects.
-		f.controller = &CertManagerAutoApproverController{configClient: f.operator.OperatorV1alpha1(), kubeClient: f.kube}
+		f.controller = &CertManagerAutoApproverController{
+			configClient: f.operator.OperatorV1alpha1(), kubeClient: f.kube,
+			rbacInformers: informers.NewSharedInformerFactory(f.kube, 0).Rbac().V1(),
+		}
 		f.informers = operatorinformers.NewSharedInformerFactory(f.operator, 0)
 		require.NoError(t, f.syncDeployment())
 		f.completeRollout()
@@ -548,7 +728,10 @@ func newAutoApproverTest(t *testing.T) *autoApproverTest {
 	syncCtx := factory.NewSyncContext("test-auto-approver", events.NewInMemoryRecorder("test", clock.RealClock{}))
 	t.Cleanup(syncCtx.Queue().ShutDown)
 	return &autoApproverTest{t: t, operator: operator, kube: kube, informers: operatorInformers, syncCtx: syncCtx,
-		controller: &CertManagerAutoApproverController{configClient: operator.OperatorV1alpha1(), kubeClient: kube},
+		controller: &CertManagerAutoApproverController{
+			configClient: operator.OperatorV1alpha1(), kubeClient: kube,
+			rbacInformers: informers.NewSharedInformerFactory(kube, 0).Rbac().V1(),
+		},
 	}
 }
 
@@ -586,6 +769,25 @@ func (f *autoApproverTest) certManager() *v1alpha1.CertManager {
 
 func (f *autoApproverTest) sync() error {
 	return f.controller.sync(f.t.Context(), f.syncCtx)
+}
+
+// cacheApprovalRBAC simulates informer delivery with explicit resource versions;
+// the fake API does not assign resource versions or run informer goroutines.
+func (f *autoApproverTest) cacheApprovalRBAC(resourceVersion string) {
+	f.t.Helper()
+	role, err := f.kube.RbacV1().ClusterRoles().Get(f.t.Context(), autoApproverRBACName, metav1.GetOptions{})
+	require.NoError(f.t, err)
+	role.ResourceVersion = resourceVersion
+	_, err = f.kube.RbacV1().ClusterRoles().Update(f.t.Context(), role, metav1.UpdateOptions{})
+	require.NoError(f.t, err)
+	require.NoError(f.t, f.controller.rbacInformers.ClusterRoles().Informer().GetStore().Update(role.DeepCopy()))
+
+	binding, err := f.kube.RbacV1().ClusterRoleBindings().Get(f.t.Context(), autoApproverRBACName, metav1.GetOptions{})
+	require.NoError(f.t, err)
+	binding.ResourceVersion = resourceVersion
+	_, err = f.kube.RbacV1().ClusterRoleBindings().Update(f.t.Context(), binding, metav1.UpdateOptions{})
+	require.NoError(f.t, err)
+	require.NoError(f.t, f.controller.rbacInformers.ClusterRoleBindings().Informer().GetStore().Update(binding.DeepCopy()))
 }
 
 // Exercise the actual library-go Deployment apply path, including all existing
