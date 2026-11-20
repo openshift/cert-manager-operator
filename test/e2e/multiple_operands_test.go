@@ -253,7 +253,7 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 func multiOperandTrustManagerCR() *trustManagerCRBuilder {
 	return newTrustManagerCR().
 		WithLabels(map[string]string{"env": "trustmanager-test"}).
-		WithAnnotations(map[string]string{"trustmanager.operator.openshift.io/cluster": "trustmanager-test"}).
+		WithAnnotations(map[string]string{"example.com/cluster": "trustmanager-test"}).
 		WithDefaultCAPackage(v1alpha1.Enabled).
 		WithFilterExpiredCertificates(v1alpha1.Enabled).
 		WithSecretTargets(v1alpha1.SecretTargetsPolicyCustom, []string{"ca-bundle-secret", multiOperandBundleName}).

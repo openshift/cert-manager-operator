@@ -1446,7 +1446,7 @@ var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:Tru
 			if tm.Spec.ControllerConfig.Annotations == nil {
 				tm.Spec.ControllerConfig.Annotations = map[string]string{}
 			}
-			tm.Spec.ControllerConfig.Annotations["trustmanager.e2e.openshift.io/recovery"] = "true"
+			tm.Spec.ControllerConfig.Annotations["example.com/recovery"] = "true"
 			_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
