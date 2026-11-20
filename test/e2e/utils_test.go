@@ -778,6 +778,77 @@ func certManagerOperatorSubscriptionInstalled(ctx context.Context, loader librar
 	return len(subs.Items) > 0, nil
 }
 
+const operatorLogLevelEnvVarName = "OPERATOR_LOG_LEVEL"
+
+// getDeploymentEnvVar returns the value of envName from the named Deployment's first matching
+// container env entry, or "" if absent.
+func getDeploymentEnvVar(ctx context.Context, namespace, deploymentName, envName string) (string, error) {
+	deployment, err := k8sClientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == envName {
+				return env.Value, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// tryCaptureAndBumpOperatorLogLevelForSuite records the Subscription's OPERATOR_LOG_LEVEL and the
+// effective Deployment value on OLM-managed clusters, then patches the Subscription to level.
+// When no Subscription exists, outs are unchanged and hadSubscription is false.
+// subscriptionOriginal is the Subscription override (may be empty when only the CSV sets the var).
+// deploymentEffective is the live Deployment value used later to wait for a healthy restore.
+func tryCaptureAndBumpOperatorLogLevelForSuite(ctx context.Context, loader library.DynamicResourceLoader, level string, subscriptionOriginal, deploymentEffective *string, hadSubscription *bool) error {
+	installed, err := certManagerOperatorSubscriptionInstalled(ctx, loader)
+	if err != nil {
+		return err
+	}
+	*hadSubscription = installed
+	if !installed {
+		fmt.Fprintf(GinkgoWriter, "no OLM Subscription in cert-manager-operator; skipping subscription env patch\n")
+		return nil
+	}
+	By("capturing the Subscription's current OPERATOR_LOG_LEVEL")
+	*subscriptionOriginal, err = getSubscriptionEnvVar(ctx, loader, operatorLogLevelEnvVarName)
+	if err != nil {
+		return err
+	}
+	By("capturing the Deployment's effective OPERATOR_LOG_LEVEL")
+	*deploymentEffective, err = getDeploymentEnvVar(ctx, operatorNamespace, operatorDeploymentName, operatorLogLevelEnvVarName)
+	if err != nil {
+		return err
+	}
+	By("increase operator log verbosity when operator is OLM-managed")
+	return patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		operatorLogLevelEnvVarName: level,
+	})
+}
+
+// tryRestoreOperatorLogLevelForSuite restores the Subscription OPERATOR_LOG_LEVEL override captured
+// by tryCaptureAndBumpOperatorLogLevelForSuite, then waits for the Deployment to reach the
+// previously saved effective value. An empty subscriptionOriginal removes the Subscription
+// override so the CSV default can apply; waiting for removal is incorrect because the CSV still
+// sets OPERATOR_LOG_LEVEL (typically "2").
+func tryRestoreOperatorLogLevelForSuite(ctx context.Context, loader library.DynamicResourceLoader, subscriptionOriginal, deploymentEffective string, hadSubscription bool) error {
+	if !hadSubscription {
+		return nil
+	}
+	By("restoring the Subscription's original OPERATOR_LOG_LEVEL")
+	if err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+		operatorLogLevelEnvVarName: subscriptionOriginal,
+	}); err != nil {
+		return err
+	}
+	if deploymentEffective == "" {
+		return waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, operatorLogLevelEnvVarName, lowTimeout)
+	}
+	return waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName, operatorLogLevelEnvVarName, deploymentEffective, lowTimeout)
+}
+
 // tryPatchSubscriptionWithEnvVars patches subscription env on OLM clusters and is a no-op when
 // the operator was installed without a Subscription (e.g. make deploy + make local-run).
 func tryPatchSubscriptionWithEnvVars(ctx context.Context, loader library.DynamicResourceLoader, envVars map[string]string) error {

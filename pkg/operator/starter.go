@@ -172,13 +172,12 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext, tlsWa
 		go controller.Run(ctx, 1)
 	}
 
-	featureStatus, err := setupFeatureGates(ctx, configClient)
-	if err != nil {
+	if err := setupFeatureGates(); err != nil {
 		return err
 	}
 	controllerConfig := ControllerConfig{
 		EnableIstioCSR:              features.IsIstioCSRFeatureGateEnabled(),
-		EnableTrustManager:          featureStatus.IsTrustManagerFeatureGateEnabled(),
+		EnableTrustManager:          features.IsTrustManagerFeatureGateEnabled(),
 		EnableHTTP01Proxy:           features.DefaultFeatureGate.Enabled(v1alpha1.FeatureHTTP01Proxy),
 		EnableApproverPolicyManager: features.IsApproverPolicyManagerFeatureGateEnabled(),
 	}
@@ -233,44 +232,12 @@ func startTLSSecurityProfileWatcher(ctx context.Context, configClient configv1cl
 }
 
 // setupFeatureGates applies operator feature flags from UnsupportedAddonFeatures
-// (--unsupported-addon-features) and builds cluster-side FeatureGateState by reading
-// featuregates/cluster when served. Transient discovery or featuregates/cluster read errors
-// are retried up to three times with 30s backoff; persistent failure leaves stateErr set
-// on FeatureGateState without aborting the rest of startup. Returns an error only for invalid
-// addon feature syntax or if ctx is canceled while waiting between retries.
-func setupFeatureGates(ctx context.Context, configClient configv1client.Interface) (*features.FeatureGateState, error) {
-	const (
-		// maxFeatureGateAttempts caps how many times we call NewFeatureGateState when discovery or
-		// featuregates/cluster read fails (excluding ErrNilConfigClient, which is not retried).
-		maxFeatureGateAttempts = 3
-		featureGateRetryDelay  = 30 * time.Second
-	)
-
-	var featureStatus *features.FeatureGateState
-
+// (--unsupported-addon-features). Optional controllers are gated only by those internal
+// flags; cluster FeatureSet is not consulted. Returns an error only for invalid addon
+// feature syntax.
+func setupFeatureGates() error {
 	if err := features.SetupWithFlagValue(UnsupportedAddonFeatures); err != nil {
-		return nil, fmt.Errorf("failed to parse addon features: %w", err)
+		return fmt.Errorf("failed to parse addon features: %w", err)
 	}
-
-	for attempt := 1; attempt <= maxFeatureGateAttempts; attempt++ {
-		featureStatus = features.NewFeatureGateState(ctx, configClient)
-		err := featureStatus.Err()
-		if err == nil {
-			break
-		}
-		if attempt == maxFeatureGateAttempts {
-			ctrl.Log.Info("feature gate validation failed after max attempts; continuing with last state",
-				"error", err, "attempts", attempt)
-			break
-		}
-		ctrl.Log.Info("failed to validate featuregate settings, retrying",
-			"error", err, "attempt", attempt, "maxAttempts", maxFeatureGateAttempts)
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
-		case <-time.After(featureGateRetryDelay):
-		}
-	}
-
-	return featureStatus, nil
+	return nil
 }
