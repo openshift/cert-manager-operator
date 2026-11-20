@@ -46,6 +46,9 @@ const (
 	istioCSRServiceName        = "cert-manager-istio-csr"
 	istioCSRServiceAccountName = "cert-manager-istio-csr"
 
+	// ApproverPolicyManager remains TechPreview; IstioCSR and TrustManager are GA defaults.
+	approverPolicyFeatureGate = "ApproverPolicyManager=true"
+
 	multiOperandTestLabelKey   = "cert-manager.operator.openshift.io/e2e-test"
 	multiOperandTestLabelValue = "multi-operands"
 
@@ -70,16 +73,17 @@ var coreOperandDeployments = []operandDeployment{
 	{operandNamespace, trustManagerDeploymentName},
 }
 
-var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Feature:MultipleOperands", "Skipped:MicroShift"), func() {
+var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Feature:MultipleOperands", "TechPreview", "Skipped:MicroShift"), func() {
 	var (
 		ctx = context.Background()
 
-		clientset                 *kubernetes.Clientset
-		istioNS                   *corev1.Namespace
-		multiOperandBundlePEM     string
-		originalOperatorLogLevel  string
-		effectiveOperatorLogLevel string
-		operatorLogLevelPatched   bool
+		clientset                        *kubernetes.Clientset
+		istioNS                          *corev1.Namespace
+		multiOperandBundlePEM            string
+		originalUnsupportedAddonFeatures string
+		originalOperatorLogLevel         string
+		effectiveOperatorLogLevel        string
+		operatorLogLevelPatched          bool
 	)
 
 	BeforeAll(func() {
@@ -91,7 +95,19 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 			Skip("MicroShift: OLM not available")
 		}
 
+		originalUnsupportedAddonFeatures, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+		Expect(err).NotTo(HaveOccurred())
+
 		err = tryCaptureAndBumpOperatorLogLevelForSuite(ctx, loader, "4", &originalOperatorLogLevel, &effectiveOperatorLogLevel, &operatorLogLevelPatched)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("enabling ApproverPolicyManager feature gate")
+		err = patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"UNSUPPORTED_ADDON_FEATURES": approverPolicyFeatureGate,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName,
+			"UNSUPPORTED_ADDON_FEATURES", approverPolicyFeatureGate, highTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
 		caTweak := func(cert *x509.Certificate) {
@@ -110,6 +126,18 @@ var _ = Describe("Multiple operands", Ordered, Label("Platform:Generic", "Featur
 				fmt.Sprintf("IstioCSR %s/%s", istioNS.Name, istioCSRResourceName),
 			)
 		}
+
+		err := patchSubscriptionWithEnvVars(ctx, loader, map[string]string{
+			"UNSUPPORTED_ADDON_FEATURES": originalUnsupportedAddonFeatures,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		if originalUnsupportedAddonFeatures == "" {
+			err = waitForDeploymentEnvVarRemovedAndRollout(ctx, operatorNamespace, operatorDeploymentName, "UNSUPPORTED_ADDON_FEATURES", lowTimeout)
+		} else {
+			err = waitForDeploymentEnvVarAndRollout(ctx, operatorNamespace, operatorDeploymentName,
+				"UNSUPPORTED_ADDON_FEATURES", originalUnsupportedAddonFeatures, lowTimeout)
+		}
+		Expect(err).NotTo(HaveOccurred())
 
 		Expect(tryRestoreOperatorLogLevelForSuite(ctx, loader, originalOperatorLogLevel, effectiveOperatorLogLevel, operatorLogLevelPatched)).To(Succeed())
 	})
