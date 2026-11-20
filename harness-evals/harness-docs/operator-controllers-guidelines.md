@@ -3,7 +3,7 @@
 Contributor guide for `pkg/controller/{certmanager,istiocsr,trustmanager,common}`. This
 repo runs **two controller frameworks side by side** — read this before adding or
 modifying reconciliation logic. See `architecture/components.md` and
-`decisions/adr-0001-dual-controller-frameworks.md` / `adr-0002-apply-strategies.md`
+[`docs/adr/0001-dual-controller-frameworks.md`](../../docs/adr/0001-dual-controller-frameworks.md) / [`0002-apply-strategies.md`](../../docs/adr/0002-apply-strategies.md)
 for the full rationale; this doc is the actionable "how to work in this code" summary.
 
 ## 1. Dual Framework — know which one you're in

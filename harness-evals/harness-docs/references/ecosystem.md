@@ -69,7 +69,7 @@ Links to generic OpenShift/Kubernetes patterns in the Platform hub ([openshift/e
 
 **Location**: Platform `ai-docs/decisions/` may be incomplete; use hub [DESIGN_PHILOSOPHY.md](https://github.com/openshift/enhancements/blob/master/ai-docs/DESIGN_PHILOSOPHY.md) and [KNOWLEDGE_GRAPH.md](https://github.com/openshift/enhancements/blob/master/ai-docs/KNOWLEDGE_GRAPH.md).
 
-**Component-specific ADRs**: [decisions/](../decisions/)
+**Component-specific ADRs**: [docs/adr/](../../../docs/adr/)
 
 ---
 

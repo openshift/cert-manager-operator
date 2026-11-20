@@ -168,4 +168,4 @@ Generic envtest bootstrap theory and OpenShift e2e framework tutorials belong in
 
 - `CERT_MANAGER_OPERATOR_TESTING.md`
 - `architecture/components.md` (apply-strategy table)
-- `decisions/adr-0002-apply-strategies.md`
+- [`docs/adr/0002-apply-strategies.md`](../../docs/adr/0002-apply-strategies.md)

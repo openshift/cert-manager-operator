@@ -26,7 +26,7 @@ FIPS: `make build` sources `hack/go-fips.sh`. WARN (non-FIPS) builds are **local
 ### New controller-runtime operand (greenfield)
 
 1. Copy **TrustManager** (SSA `Patch` + unique `FieldOwner`), not IstioCSR Create+Update
-2. Feature gate — all five touchpoints ([ADR-0003](./decisions/adr-0003-feature-gates.md))
+2. Feature gate — all five touchpoints ([ADR-0003](../../docs/adr/0003-feature-gates.md))
 3. Image triple-sync (below) + bindata via `hack/update-*-manifests.sh` + `make update-manifests` / `verify-bindata`
 4. RBAC via `+kubebuilder:rbac` → `make manifests` → `make bundle` (never hand-edit CSV RBAC)
 5. Reuse `common.HandleReconcileResult` / `FromClientError` / validation helpers (`defaultRequeueTime=30s`)
