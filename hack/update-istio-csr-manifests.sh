@@ -55,3 +55,17 @@ mkdir -p bindata/istio-csr
   echo "$item" | ./bin/yq eval -P > "$output_file"
   echo "$output_file"
 done
+
+# split ConfigMap verbs so get/update are limited to istio-ca-root-cert while create/list/watch stay
+# unscoped (create cannot use resourceNames and list/watch are required for the operand ConfigMap informer).
+# Required until https://github.com/cert-manager/istio-csr/pull/982 or an alternate solution is accepted.
+CLUSTERROLE_FILE="bindata/istio-csr/cert-manager-istio-csr-clusterrole.yaml"
+./bin/yq e '
+  .rules = (
+    [
+      {"apiGroups": [""], "resources": ["configmaps"], "verbs": ["create", "list", "watch"]},
+      {"apiGroups": [""], "resources": ["configmaps"], "verbs": ["get", "update"], "resourceNames": ["istio-ca-root-cert"]}
+    ]
+    + [.rules[] | select(.resources[0] != "configmaps")]
+  )
+' -i "${CLUSTERROLE_FILE}"

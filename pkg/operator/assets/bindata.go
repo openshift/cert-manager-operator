@@ -3217,11 +3217,18 @@ rules:
     resources:
       - configmaps
     verbs:
-      - get
-      - list
       - create
-      - update
+      - list
       - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - update
+    resourceNames:
+      - istio-ca-root-cert
   - apiGroups:
       - ""
     resources:
