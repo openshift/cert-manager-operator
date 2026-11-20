@@ -75,7 +75,7 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 			"--acme-http01-solver-resource-request-cpu=100m",
 			"--acme-http01-solver-resource-request-memory=100Mi",
 		}
-		err = addOverrideArgs(certmanageroperatorclient, certmanagerControllerDeployment, solverResourceArgs)
+		err = addOverrideArgs(ctx, certmanageroperatorclient, certmanagerControllerDeployment, solverResourceArgs)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("waiting for the cert-manager controller to roll out with solver resource args")
@@ -137,16 +137,16 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 		DeferCleanup(cancel)
 
 		By("waiting for operator status to become available")
-		err := VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())
+		err := VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())
 		Expect(err).NotTo(HaveOccurred(), "Operator is expected to be available")
 
 		By("creating a test namespace")
-		namespace, err := loader.CreateTestingNS("e2e-acme-http01", false)
+		namespace, err := loader.CreateTestingNS(ctx, "e2e-acme-http01", false)
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
 		ns = namespace
 
-		DeferCleanup(func() {
-			loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() })
+		DeferCleanup(func(ctx SpecContext) {
+			loader.DeleteTestingNS(ctx, ns.Name, func() bool { return CurrentSpecReport().Failed() })
 		})
 	})
 
@@ -191,10 +191,10 @@ var _ = Describe("ACME Issuer HTTP01 solver", Label("Platform:Generic"), Ordered
 			})
 
 			By("creating hello-openshift deployment")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "acme", "deployment.yaml"), ns.Name)
 
 			By("creating service for hello-openshift deployment")
-			loader.CreateFromFile(testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
+			loader.CreateFromFile(ctx, testassets.ReadFile, filepath.Join("testdata", "acme", "service.yaml"), ns.Name)
 
 			By("creating Ingress object")
 			ingressHost = fmt.Sprintf("ahi-%s.%s", randomStr(3), appsDomain) // acronym for "ACME http-01 Ingress"
