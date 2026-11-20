@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -20,51 +21,51 @@ import (
 // namespace is active.
 const targetNamespaceSkippedReason = "TargetNamespaceSkipped"
 
-func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+func (r *Reconciler) createOrApplyRBACResources(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	// Create per-namespace target Roles before the ClusterRole drops its
 	// cluster-wide ConfigMap and Event rules. The running pod keeps those
 	// writes allowed in the listed namespaces across that update.
-	if err := r.createOrApplyTargetNamespaceRBAC(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+	if err := r.createOrApplyTargetNamespaceRBAC(ctx, trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
 		r.log.Error(err, "failed to reconcile target namespace RBAC resources")
 		return err
 	}
 
-	if err := r.createOrApplyClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyClusterRole(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile clusterrole resource")
 		return err
 	}
 
-	if err := r.createOrApplyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyClusterRoleBinding(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile clusterrolebinding resource")
 		return err
 	}
 
-	if err := r.createOrApplyTrustNamespaceRole(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+	if err := r.createOrApplyTrustNamespaceRole(ctx, trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
 		r.log.Error(err, "failed to reconcile role resource for trust namespace")
 		return err
 	}
 
-	if err := r.createOrApplyTrustNamespaceRoleBinding(trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
+	if err := r.createOrApplyTrustNamespaceRoleBinding(ctx, trustManager, resourceLabels, resourceAnnotations, trustNamespace); err != nil {
 		r.log.Error(err, "failed to reconcile rolebinding resource for trust namespace")
 		return err
 	}
 
-	if err := r.createOrApplyLeaderElectionRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyLeaderElectionRole(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile leader election role resource")
 		return err
 	}
 
-	if err := r.createOrApplyLeaderElectionRoleBinding(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyLeaderElectionRoleBinding(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile leader election rolebinding resource")
 		return err
 	}
 
-	if err := r.createOrApplyClusterViewClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyClusterViewClusterRole(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		r.log.Error(err, "failed to reconcile cluster-view clusterrole resource")
 		return err
 	}
 
-	if err := r.cleanupStaleTargetNamespaceRBAC(trustManager, trustNamespace); err != nil {
+	if err := r.cleanupStaleTargetNamespaceRBAC(ctx, trustManager, trustNamespace); err != nil {
 		r.log.Error(err, "failed to clean up stale target namespace RBAC resources")
 		return err
 	}
@@ -74,13 +75,13 @@ func (r *Reconciler) createOrApplyRBACResources(trustManager *v1alpha1.TrustMana
 
 // ClusterRole
 
-func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyClusterRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterRoleObject(trustManager.Spec.TrustManagerConfig, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling clusterrole resource", "name", resourceName)
 
 	existing := &rbacv1.ClusterRole{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
@@ -90,7 +91,7 @@ func (r *Reconciler) createOrApplyClusterRole(trustManager *v1alpha1.TrustManage
 	}
 
 	r.log.V(2).Info("clusterrole resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply clusterrole %q", resourceName)
 	}
 
@@ -153,13 +154,13 @@ const clusterReaderAggregateLabel = "rbac.authorization.k8s.io/aggregate-to-clus
 // User-provided labels with this prefix must be filtered to prevent privilege escalation.
 const rbacAggregationLabelPrefix = "rbac.authorization.k8s.io/aggregate-to-"
 
-func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyClusterViewClusterRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterViewClusterRoleObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling cluster-view clusterrole resource", "name", resourceName)
 
 	existing := &rbacv1.ClusterRole{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
@@ -169,7 +170,7 @@ func (r *Reconciler) createOrApplyClusterViewClusterRole(trustManager *v1alpha1.
 	}
 
 	r.log.V(2).Info("cluster-view clusterrole resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply clusterrole %q", resourceName)
 	}
 
@@ -226,13 +227,13 @@ func namespacedTargetRules(secretTargets v1alpha1.SecretTargetsConfig) []rbacv1.
 
 // ClusterRoleBinding
 
-func (r *Reconciler) createOrApplyClusterRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyClusterRoleBinding(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getClusterRoleBindingObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling clusterrolebinding resource", "name", resourceName)
 
 	existing := &rbacv1.ClusterRoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
 	}
@@ -242,7 +243,7 @@ func (r *Reconciler) createOrApplyClusterRoleBinding(trustManager *v1alpha1.Trus
 	}
 
 	r.log.V(2).Info("clusterrolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply clusterrolebinding %q", resourceName)
 	}
 
@@ -262,13 +263,13 @@ func getClusterRoleBindingObject(resourceLabels, resourceAnnotations map[string]
 
 // Role for trust namespace (secrets access)
 
-func (r *Reconciler) createOrApplyTrustNamespaceRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+func (r *Reconciler) createOrApplyTrustNamespaceRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	desired := getTrustNamespaceRoleObject(resourceLabels, resourceAnnotations, trustNamespace)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling role resource for trust namespace", "name", resourceName)
 
 	existing := &rbacv1.Role{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if role %q exists", resourceName)
 	}
@@ -278,7 +279,7 @@ func (r *Reconciler) createOrApplyTrustNamespaceRole(trustManager *v1alpha1.Trus
 	}
 
 	r.log.V(2).Info("role resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply role %q", resourceName)
 	}
 
@@ -297,13 +298,13 @@ func getTrustNamespaceRoleObject(resourceLabels, resourceAnnotations map[string]
 
 // RoleBinding for trust namespace (secrets access)
 
-func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	desired := getTrustNamespaceRoleBindingObject(resourceLabels, resourceAnnotations, trustNamespace)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling rolebinding resource for trust namespace", "name", resourceName)
 
 	existing := &rbacv1.RoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if rolebinding %q exists", resourceName)
 	}
@@ -313,7 +314,7 @@ func (r *Reconciler) createOrApplyTrustNamespaceRoleBinding(trustManager *v1alph
 	}
 
 	r.log.V(2).Info("rolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply rolebinding %q", resourceName)
 	}
 
@@ -334,13 +335,13 @@ func getTrustNamespaceRoleBindingObject(resourceLabels, resourceAnnotations map[
 
 // Leader election Role (in operand namespace)
 
-func (r *Reconciler) createOrApplyLeaderElectionRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyLeaderElectionRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getLeaderElectionRoleObject(resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling leader election role resource", "name", resourceName)
 
 	existing := &rbacv1.Role{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election role %q exists", resourceName)
 	}
@@ -350,7 +351,7 @@ func (r *Reconciler) createOrApplyLeaderElectionRole(trustManager *v1alpha1.Trus
 	}
 
 	r.log.V(2).Info("leader election role resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply leader election role %q", resourceName)
 	}
 
@@ -369,13 +370,13 @@ func getLeaderElectionRoleObject(resourceLabels, resourceAnnotations map[string]
 
 // Leader election RoleBinding (in operand namespace)
 
-func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling leader election rolebinding resource", "name", resourceName)
 
 	existing := &rbacv1.RoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if leader election rolebinding %q exists", resourceName)
 	}
@@ -385,7 +386,7 @@ func (r *Reconciler) createOrApplyLeaderElectionRoleBinding(trustManager *v1alph
 	}
 
 	r.log.V(2).Info("leader election rolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply leader election rolebinding %q", resourceName)
 	}
 
@@ -404,7 +405,7 @@ func getLeaderElectionRoleBindingObject(resourceLabels, resourceAnnotations map[
 	return roleBinding
 }
 
-func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
+func (r *Reconciler) createOrApplyTargetNamespaceRBAC(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, trustNamespace string) error {
 	var skipped []string
 	defer func() {
 		if len(skipped) == 0 {
@@ -419,7 +420,7 @@ func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.Tru
 		// RBAC. Other targetNamespaces entries may be missing or terminating.
 		// Skip those so one namespace does not block the Deployment.
 		if ns != trustNamespace {
-			accepts, err := r.targetNamespaceAcceptsRBAC(ns)
+			accepts, err := r.targetNamespaceAcceptsRBAC(ctx, ns)
 			if err != nil {
 				return common.FromClientError(err, "failed to check if target namespace %q is active", ns)
 			}
@@ -429,10 +430,10 @@ func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.Tru
 				continue
 			}
 		}
-		if err := r.createOrApplyTargetNamespaceRole(trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
+		if err := r.createOrApplyTargetNamespaceRole(ctx, trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
 			return err
 		}
-		if err := r.createOrApplyTargetNamespaceRoleBinding(trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
+		if err := r.createOrApplyTargetNamespaceRoleBinding(ctx, trustManager, resourceLabels, resourceAnnotations, ns); err != nil {
 			return err
 		}
 	}
@@ -441,9 +442,9 @@ func (r *Reconciler) createOrApplyTargetNamespaceRBAC(trustManager *v1alpha1.Tru
 
 // targetNamespaceAcceptsRBAC reports whether a Role can be created in namespace.
 // A missing namespace and a namespace that is terminating both reject the apply.
-func (r *Reconciler) targetNamespaceAcceptsRBAC(namespace string) (bool, error) {
+func (r *Reconciler) targetNamespaceAcceptsRBAC(ctx context.Context, namespace string) (bool, error) {
 	ns := &corev1.Namespace{}
-	exists, err := r.Exists(r.ctx, client.ObjectKey{Name: namespace}, ns)
+	exists, err := r.Exists(ctx, client.ObjectKey{Name: namespace}, ns)
 	if err != nil {
 		return false, err
 	}
@@ -469,13 +470,13 @@ func targetRBACNamespaces(trustManager *v1alpha1.TrustManager, trustNamespace st
 	return slices.Compact(ns)
 }
 
-func (r *Reconciler) createOrApplyTargetNamespaceRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
+func (r *Reconciler) createOrApplyTargetNamespaceRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
 	desired := getTargetNamespaceRoleObject(namespace, trustManager.Spec.TrustManagerConfig.SecretTargets, resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling target namespace role resource", "name", resourceName)
 
 	existing := &rbacv1.Role{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if target namespace role %q exists", resourceName)
 	}
@@ -485,7 +486,7 @@ func (r *Reconciler) createOrApplyTargetNamespaceRole(trustManager *v1alpha1.Tru
 	}
 
 	r.log.V(2).Info("target namespace role resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply target namespace role %q", resourceName)
 	}
 
@@ -503,13 +504,13 @@ func getTargetNamespaceRoleObject(namespace string, secretTargets v1alpha1.Secre
 	return role
 }
 
-func (r *Reconciler) createOrApplyTargetNamespaceRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
+func (r *Reconciler) createOrApplyTargetNamespaceRoleBinding(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, namespace string) error {
 	desired := getTargetNamespaceRoleBindingObject(namespace, resourceLabels, resourceAnnotations)
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info("reconciling target namespace rolebinding resource", "name", resourceName)
 
 	existing := &rbacv1.RoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if target namespace rolebinding %q exists", resourceName)
 	}
@@ -519,7 +520,7 @@ func (r *Reconciler) createOrApplyTargetNamespaceRoleBinding(trustManager *v1alp
 	}
 
 	r.log.V(2).Info("target namespace rolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply target namespace rolebinding %q", resourceName)
 	}
 
@@ -542,21 +543,21 @@ func getTargetNamespaceRoleBindingObject(namespace string, resourceLabels, resou
 // and RoleBindings in namespaces that are no longer in the desired set.
 // Shrinking targetNamespaces does not delete leftover target ConfigMaps/Secrets;
 // leftover write permission would, so the Roles must go.
-func (r *Reconciler) cleanupStaleTargetNamespaceRBAC(trustManager *v1alpha1.TrustManager, trustNamespace string) error {
+func (r *Reconciler) cleanupStaleTargetNamespaceRBAC(ctx context.Context, trustManager *v1alpha1.TrustManager, trustNamespace string) error {
 	desired := make(map[string]struct{})
 	for _, ns := range targetRBACNamespaces(trustManager, trustNamespace) {
 		desired[ns] = struct{}{}
 	}
 
-	if err := r.deleteStaleTargetRoles(trustManager, desired); err != nil {
+	if err := r.deleteStaleTargetRoles(ctx, trustManager, desired); err != nil {
 		return err
 	}
-	return r.deleteStaleTargetRoleBindings(trustManager, desired)
+	return r.deleteStaleTargetRoleBindings(ctx, trustManager, desired)
 }
 
-func (r *Reconciler) deleteStaleTargetRoles(trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
+func (r *Reconciler) deleteStaleTargetRoles(ctx context.Context, trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
 	var roles rbacv1.RoleList
-	if err := r.List(r.ctx, &roles, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
+	if err := r.List(ctx, &roles, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
 		return common.FromClientError(err, "failed to list target namespace roles")
 	}
 	for i := range roles.Items {
@@ -567,7 +568,7 @@ func (r *Reconciler) deleteStaleTargetRoles(trustManager *v1alpha1.TrustManager,
 		if _, keep := desired[role.Namespace]; keep {
 			continue
 		}
-		if err := r.Delete(r.ctx, role); err != nil && !apierrors.IsNotFound(err) {
+		if err := r.Delete(ctx, role); err != nil && !apierrors.IsNotFound(err) {
 			return common.FromClientError(err, "failed to delete target namespace role %s/%s", role.Namespace, role.Name)
 		}
 		r.log.V(2).Info("deleted stale target namespace role", "namespace", role.Namespace, "name", role.Name)
@@ -576,9 +577,9 @@ func (r *Reconciler) deleteStaleTargetRoles(trustManager *v1alpha1.TrustManager,
 	return nil
 }
 
-func (r *Reconciler) deleteStaleTargetRoleBindings(trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
+func (r *Reconciler) deleteStaleTargetRoleBindings(ctx context.Context, trustManager *v1alpha1.TrustManager, desired map[string]struct{}) error {
 	var roleBindings rbacv1.RoleBindingList
-	if err := r.List(r.ctx, &roleBindings, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
+	if err := r.List(ctx, &roleBindings, client.MatchingLabels{common.ManagedResourceLabelKey: RequestEnqueueLabelValue}); err != nil {
 		return common.FromClientError(err, "failed to list target namespace rolebindings")
 	}
 	for i := range roleBindings.Items {
@@ -589,7 +590,7 @@ func (r *Reconciler) deleteStaleTargetRoleBindings(trustManager *v1alpha1.TrustM
 		if _, keep := desired[rb.Namespace]; keep {
 			continue
 		}
-		if err := r.Delete(r.ctx, rb); err != nil && !apierrors.IsNotFound(err) {
+		if err := r.Delete(ctx, rb); err != nil && !apierrors.IsNotFound(err) {
 			return common.FromClientError(err, "failed to delete target namespace rolebinding %s/%s", rb.Namespace, rb.Name)
 		}
 		r.log.V(2).Info("deleted stale target namespace rolebinding", "namespace", rb.Namespace, "name", rb.Name)

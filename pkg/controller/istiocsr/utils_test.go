@@ -697,7 +697,7 @@ func TestUpdateCondition(t *testing.T) {
 			r.CtrlClient = fakeClient
 
 			istiocsr := testIstioCSR()
-			err := r.updateCondition(istiocsr, tt.prependErr)
+			err := r.updateCondition(context.Background(), istiocsr, tt.prependErr)
 
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")

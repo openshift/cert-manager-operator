@@ -1082,7 +1082,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			if !tt.skipEnvVar {
 				t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", image)
 			}
-			err := r.createOrApplyDeployments(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyDeployments(context.Background(), istiocsr, controllerDefaultResourceLabels, false)
 			if tt.wantErrSubstring {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Errorf("createOrApplyDeployments() err: %v, want substring: %q", err, tt.wantErr)
@@ -1349,7 +1349,7 @@ func TestGetIssuerUnsupportedKind(t *testing.T) {
 	istiocsr := testIstioCSR()
 	istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "bogus"
 
-	obj, err := r.getIssuer(istiocsr)
+	obj, err := r.getIssuer(context.Background(), istiocsr)
 	if obj != nil {
 		t.Errorf("expected nil object for unsupported kind, got %T", obj)
 	}
@@ -1381,7 +1381,7 @@ func TestGetIssuerValidKinds(t *testing.T) {
 			istiocsr := testIstioCSR()
 			istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = tt.kind
 
-			obj, err := r.getIssuer(istiocsr)
+			obj, err := r.getIssuer(context.Background(), istiocsr)
 			if err != nil {
 				t.Fatalf("unexpected error for kind %q: %v", tt.kind, err)
 			}
