@@ -9,7 +9,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -130,10 +129,6 @@ func updateCertificateParams(istiocsr *v1alpha1.IstioCSR, certificate *certmanag
 		return fmt.Errorf("certificate parameters PrivateKeySize and PrivateKeyAlgorithm do not comply")
 	}
 
-	certificate.Spec.IssuerRef = certmanagermetav1.IssuerReference{
-		Kind:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind,
-		Group: istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Group,
-		Name:  istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name,
-	}
+	certificate.Spec.IssuerRef = issuerRefForIstioCSR(istiocsr)
 	return nil
 }

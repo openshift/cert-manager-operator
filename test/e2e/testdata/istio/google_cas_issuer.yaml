@@ -1,0 +1,6 @@
+apiVersion: cas-issuer.jetstack.io/v1
+kind: GoogleCASIssuer
+metadata:
+  name: google-cas-issuer
+spec:
+  project: e2e-placeholder

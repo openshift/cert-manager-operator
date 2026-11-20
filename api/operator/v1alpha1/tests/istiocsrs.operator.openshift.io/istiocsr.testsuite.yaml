@@ -107,7 +107,7 @@ tests:
           logFormat: text
           logLevel: 1
 
-  - name: Should not allow issuerRef kind other than Issuer or ClusterIssuer
+  - name: Should create with external issuerRef kind and group
     resourceName: default
     initial: |
       apiVersion: operator.openshift.io/v1alpha1
@@ -116,16 +116,38 @@ tests:
         istioCSRConfig:
           certManager:
             issuerRef:
-              name: my-issuer
-              kind: InvalidKind
-              group: cert-manager.io
+              name: google-cas-issuer
+              kind: GoogleCASIssuer
+              group: cas-issuer.jetstack.io
           istio:
             namespace: istio-system
           istiodTLSConfig:
             trustDomain: cluster.local
-    expectedError: "kind must be either 'Issuer' or 'ClusterIssuer'"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: google-cas-issuer
+              kind: GoogleCASIssuer
+              group: cas-issuer.jetstack.io
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
 
-  - name: Should not allow issuerRef group other than cert-manager.io
+  - name: Should create with name-only issuerRef
     resourceName: default
     initial: |
       apiVersion: operator.openshift.io/v1alpha1
@@ -135,13 +157,31 @@ tests:
           certManager:
             issuerRef:
               name: my-issuer
-              kind: ClusterIssuer
-              group: invalid-group.io
           istio:
             namespace: istio-system
           istiodTLSConfig:
             trustDomain: cluster.local
-    expectedError: "group must be 'cert-manager.io'"
+    expected: |
+      apiVersion: operator.openshift.io/v1alpha1
+      kind: IstioCSR
+      spec:
+        istioCSRConfig:
+          certManager:
+            issuerRef:
+              name: my-issuer
+          istio:
+            namespace: istio-system
+            revisions:
+              - default
+          istiodTLSConfig:
+            trustDomain: cluster.local
+            certificateDuration: 1h
+            certificateRenewBefore: 30m
+            maxCertificateDuration: 1h
+            privateKeyAlgorithm: RSA
+            privateKeySize: 2048
+          logFormat: text
+          logLevel: 1
 
   # ==========================================
   # IstioCSRConfig - IstiodTLSConfig Tests

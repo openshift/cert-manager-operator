@@ -1,0 +1,28 @@
+# Keep in sync with config/rbac/istiocsr_external_issuer_clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-operator-istiocsr-external-issuer
+rules:
+- apiGroups:
+  - cas-issuer.jetstack.io
+  resources:
+  - googlecasissuers
+  - googlecasclusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - awspca.cert-manager.io
+  resources:
+  - awspcaissuers
+  - awspcaclusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
