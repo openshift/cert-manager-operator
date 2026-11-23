@@ -71,9 +71,15 @@ func slicesbackward(pass *analysis.Pass) (any, error) {
 		for curLoop := range curFile.Preorder((*ast.ForStmt)(nil)) {
 			loop := curLoop.Node().(*ast.ForStmt)
 
-			// Match init:  i := len(s) - 1   or   i = len(s) - 1
+			// Match init:  i := len(s) - 1.
 			init, ok := loop.Init.(*ast.AssignStmt)
 			if !ok || !isSimpleAssign(init) {
+				continue
+			}
+			// We only modernize if the loop defines a new variable with :=.
+			// Rewriting an assignment to a pre-existing variable would change
+			// its value after the loop (the original loop leaves it at -1).
+			if init.Tok != token.DEFINE {
 				continue
 			}
 			indexIdent, ok := init.Lhs[0].(*ast.Ident)
@@ -178,9 +184,18 @@ func slicesbackward(pass *analysis.Pass) (any, error) {
 						// "name := s[i]", save it so we can use "name" as the value
 						// variable in slices.Backward. We can also remove the entire assign
 						// statement.
+						//
+						// The declaration must be the first statement of the loop
+						// body. Anywhere else it may execute more than once per
+						// iteration--in an inner loop or function literal, or after
+						// a backward goto--or not at all, whereas the range variable
+						// is assigned exactly once per iteration; deleting it would
+						// thus changes the meaning of any subsequent assignment to
+						// the variable.
 						if firstSliceIdxAssign == nil && curIdx.ParentEdgeKind() == edge.AssignStmt_Rhs {
 							assignStmt := curIdx.Parent().Node().(*ast.AssignStmt)
-							if len(assignStmt.Lhs) == 1 && assignStmt.Tok == token.DEFINE {
+							if len(assignStmt.Lhs) == 1 && assignStmt.Tok == token.DEFINE &&
+								len(loop.Body.List) > 0 && loop.Body.List[0] == assignStmt {
 								// The condition above implies that assignStmt.Lhs[0] is a valid
 								// identifier.
 								firstSliceIdxAssign = assignStmt
@@ -194,6 +209,12 @@ func slicesbackward(pass *analysis.Pass) (any, error) {
 					}
 				}
 				otherUses++
+			}
+
+			// The body reads neither i nor s[i], so the loop direction is not
+			// observable and there is nothing for slices.Backward to express.
+			if otherUses == 0 && sliceIdxs == 0 {
+				continue nextLoop
 			}
 
 			// Build the suggested fix.
@@ -224,9 +245,9 @@ func slicesbackward(pass *analysis.Pass) (any, error) {
 				})
 			}
 
-			// Replace the loop header with a range over slices.Backward. In
-			// well-typed code, at least one of the index or value variables must be
-			// referenced inside the loop body (otherUses + sliceIndexes > 0).
+			// Replace the loop header with a range over slices.Backward. By the
+			// check above, at least one of the index or value variables is
+			// referenced inside the loop body (otherUses + sliceIdxs > 0).
 			var vars string
 			if otherUses == 0 { // sliceIdxs > 0
 				// All uses of i are s[i]; drop the index variable.
@@ -267,7 +288,7 @@ func chooseValueName(assign *ast.AssignStmt, sliceStr string) string {
 	// Heuristic: remove plural s suffix from slice var
 	// if present, otherwise use first letter.
 	if token.IsIdentifier(sliceStr) && len(sliceStr) > 1 {
-		if single, ok := strings.CutSuffix(sliceStr, "s"); ok {
+		if single, ok := strings.CutSuffix(sliceStr, "s"); ok && !token.IsKeyword(single) {
 			return single
 		}
 		return sliceStr[:1] // first letter (assuming ASCII)
