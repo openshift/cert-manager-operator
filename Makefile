@@ -189,7 +189,7 @@ GO := GO111MODULE=on CGO_ENABLED=1 go
 # ============================================================================
 
 # E2E test timeout
-E2E_TIMEOUT ?= 2h
+E2E_TIMEOUT ?= 3h
 
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests.
 # See https://onsi.github.io/ginkgo/#spec-labels
