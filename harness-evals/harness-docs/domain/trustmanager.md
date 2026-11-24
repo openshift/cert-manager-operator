@@ -10,7 +10,7 @@
 
 Deploys and configures the **trust-manager** operand, which reconciles cluster-scoped `Bundle` (`trust.cert-manager.io/v1alpha1`) resources to distribute CA bundles into ConfigMaps/Secrets.
 
-**Key Principle**: TechPreview feature gate `TrustManager` (default **false**). Reference controller-runtime implementation using **Server-Side Apply** with field owner `trust-manager-controller`.
+**Key Principle**: GA feature gate `TrustManager` (default **true**). Reference controller-runtime implementation using **Server-Side Apply** with field owner `trust-manager-controller`.
 
 ## Spec Structure
 
@@ -55,7 +55,7 @@ Same `Ready` / `Degraded` condition types as IstioCSR (`conditions.go`).
 
 ## Lifecycle
 
-1. **Enable**: `--unsupported-addon-features=TrustManager=true` → `IsTrustManagerFeatureGateEnabled()` → `setupTrustManagerController` (`setup_manager.go`).
+1. **Enable**: gate defaults on (`IsTrustManagerFeatureGateEnabled()`); optional disable via `--unsupported-addon-features=TrustManager=false`. When enabled → `setupTrustManagerController` (`setup_manager.go`).
 2. **Install pipeline** (`install_trustmanager.go`): validate → CA ConfigMap → SA → RBAC → Services → Issuer → Certificate → Deployment → ValidatingWebhook → status observed fields.
 3. **Delete**: Finalizer TODO / warn-only cleanup (same class of gap as IstioCSR).
 
@@ -71,7 +71,7 @@ Same `Ready` / `Degraded` condition types as IstioCSR (`conditions.go`).
 | Bundle CRD | Shipped in `config/crd/`; reconciled by trust-manager operand, not operator primary loop | `config/crd/bases/customresourcedefinition_bundles...` |
 | Finalizer | `trustmanager.openshift.operator.io/cert-manager-trust-manager-controller` | `constants.go` |
 
-**Cluster FeatureSet**: Previously required for TechPreview; **removed** (CM-1141 / `pkg/features` comments). Enablement is internal gate only.
+**Cluster FeatureSet**: Previously required for TechPreview; **removed**. Enablement is internal gate only (`IsTrustManagerFeatureGateEnabled`).
 
 ## Common Mistakes
 

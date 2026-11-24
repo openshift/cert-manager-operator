@@ -18,7 +18,7 @@ Deploys/configures upstream **cert-manager** (and optionally **istio-csr** / **t
 |----|--------------|-------|------|
 | [CertManager](harness-evals/harness-docs/domain/certmanager.md) | Cluster / `cluster` | library-go `resourceapply` | Always on |
 | [IstioCSR](harness-evals/harness-docs/domain/istiocsr.md) | Namespaced / `default` | Create+Update | `IstioCSR` GA default true |
-| [TrustManager](harness-evals/harness-docs/domain/trustmanager.md) | Cluster / `cluster` | **SSA** | `TrustManager` TP default false |
+| [TrustManager](harness-evals/harness-docs/domain/trustmanager.md) | Cluster / `cluster` | **SSA** | `TrustManager` GA default true |
 
 **Operands**: Certificate/Issuer/… → cert-manager; Bundle → trust-manager.  
 **Quick Start**: `oc get certmanager cluster -o yaml` | `make local-run`
@@ -28,7 +28,7 @@ Deploys/configures upstream **cert-manager** (and optionally **istio-csr** / **t
 1. **Never assume uniform SSA** — CertManager library-go; IstioCSR Create+`UpdateWithRetry`; TrustManager only SSA + field owner `trust-manager-controller`. [components.md](harness-evals/harness-docs/architecture/components.md)
 2. **Never hand-edit generated assets** — bindata.go, clients, regenerated `bindata/` / `bundle/` (`make generate`, `update-manifests`, `bundle`, `verify-bindata`).
 3. **Greenfield = TrustManager** — copy SSA + `HandleReconcileResult`/`FromClientError` (30s requeue); not IstioCSR. [ADR-0002](harness-evals/harness-docs/decisions/adr-0002-apply-strategies.md)
-4. **Feature gates** — `--unsupported-addon-features`; five touchpoints; no cluster FeatureSet for TrustManager (CM-1141). [ADR-0003](harness-evals/harness-docs/decisions/adr-0003-feature-gates.md)
+4. **Feature gates** — `--unsupported-addon-features`; five touchpoints; no cluster FeatureSet for TrustManager. [ADR-0003](harness-evals/harness-docs/decisions/adr-0003-feature-gates.md)
 5. **Ignore** `certmanager_controller.go` placeholder — RBAC markers only, never started.
 6. **RELATED_IMAGE triple-sync** — manager.yaml env ↔ controller constants ↔ CSV `relatedImages` + `make bundle`.
 7. **Cache** — no label-filtered ConfigMap/Issuer caches; use predicates when unlabeled watches are required.

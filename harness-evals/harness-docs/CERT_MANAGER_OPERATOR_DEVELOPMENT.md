@@ -57,7 +57,8 @@ the packaged operand-version env value in `manager.yaml` omits `v`.
 
 ### Enable TrustManager locally
 
-`--unsupported-addon-features=TrustManager=true`; create `TrustManager` named `cluster`.
+TrustManager is GA (default enabled). Create `TrustManager` named `cluster`.
+To disable: `--unsupported-addon-features=TrustManager=false`.
 
 ## Common Mistakes
 

@@ -111,12 +111,13 @@ Build-tagged `e2e`; run via `go test -tags e2e ./test/e2e/...` (wrapped by `make
 
 ### Ginkgo Label Conventions
 
-Every top-level `Describe` carries at least a `Platform:*` label; feature-gated suites add `Feature:*` and `TechPreview`:
+Every top-level `Describe` carries at least a `Platform:*` label; feature suites add `Feature:*`. Pre-GA suites also add `TechPreview` (and `TechPreview:Inverted` for gate-disabled coverage):
 
 ```go
-var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview"), func() { ... })
-var _ = Describe("TrustManager with operator feature gate disabled", Ordered, Label("Platform:Generic", "Feature:TrustManager", "TechPreview:Inverted"), func() { ... })
+var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() { ... })
 var _ = Describe("Istio-CSR", Ordered, Label("Platform:Generic", "Feature:IstioCSR"), func() { ... })
+var _ = Describe("ApproverPolicyManager", Ordered, Label("Platform:Generic", "Feature:ApproverPolicyManager", "TechPreview"), func() { ... })
+var _ = Describe("ApproverPolicyManager with operator feature gate disabled", Ordered, Label("Platform:Generic", "Feature:ApproverPolicyManager", "TechPreview:Inverted"), func() { ... })
 ```
 
 Cloud-provider-specific `Context`s inside ACME DNS-01 tests add `Platform:<Cloud>` + `CredentialsMode:*`:
@@ -126,7 +127,7 @@ Context("with AWS Route53", Label("Platform:AWS", "CredentialsMode:Mint"), func(
 Context("with AWS Route53 in STS environment", Label("Platform:AWS", "CredentialsMode:Manual"), func() { ... })
 ```
 
-Individual `It`s may add case IDs (`Label("ISTIOCSR-001")`, `Label("OSM-SMOKE-TC-001")`) for traceability. `TechPreview:Inverted` labels a suite that verifies behavior when a feature gate is **disabled**, distinct from the normal `TechPreview` (gate enabled) suite for the same feature — don't merge these into one `Describe`.
+Individual `It`s may add case IDs (`Label("ISTIOCSR-001")`, `Label("OSM-SMOKE-TC-001")`) for traceability. `TechPreview:Inverted` labels a suite that verifies behavior when a pre-GA feature gate is **disabled**, distinct from the normal `TechPreview` (gate enabled) suite for the same feature — don't merge these into one `Describe`.
 
 ### Default & Custom Label Filters
 
@@ -145,12 +146,12 @@ passed through as:
 **Quoting matters**: the filter is a single shell argument containing spaces, `{}`, `&&`, `!`. Always single-quote the whole `-ginkgo.label-filter='...'` value (as the Makefile does) — don't split it across unquoted `make VAR=...` tokens, or the shell will word-split on spaces/braces and silently pass a truncated filter. When overriding from the CLI, quote the override too:
 
 ```bash
-make test-e2e E2E_GINKGO_LABEL_FILTER='Feature:TrustManager && !TechPreview:Inverted'
+make test-e2e E2E_GINKGO_LABEL_FILTER='Feature:TrustManager'
 ```
 
 ### Component-Specific E2E Tips
 
-1. TrustManager e2e assumes the `TrustManager` feature gate is enabled (`--unsupported-addon-features=TrustManager=true`) unless running the `TechPreview:Inverted` suite.
+1. TrustManager is GA (default enabled); e2e suites do not need to set `--unsupported-addon-features=TrustManager=true`.
 2. Create operator CRs with singleton names matching production (`cluster` for CertManager/TrustManager, `default` for IstioCSR) — non-standard names are rejected by controller logic, not just tested.
 3. Operand pods live in `cert-manager` namespace; operator logs in `cert-manager-operator`. `make test-e2e-wait-for-stable-state` gates the run on `cert-manager{,-cainjector,-webhook}` deployments being `Available`.
 4. ServiceMesh smoke specs (`Feature:IstioCSR-ServiceMesh`) are excluded by the default filter (`!Feature:ServiceMesh`) — they need `E2E_OSM_ISTIO_VERSION`/`E2E_OSM_OPERATOR_VERSION` and a real OSM install; run them explicitly.
