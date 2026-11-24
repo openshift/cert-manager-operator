@@ -52,10 +52,7 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 		return common.FromClientError(err, "failed to read CertManager auto-approver status")
 	}
 	if !certManager.Status.AutoApproverDisabled {
-		if err := r.deleteApproverPolicyResources(trustManager); err != nil {
-			return err
-		}
-		return r.updateCertificateRequestPolicyStatus(trustManager, "")
+		return r.deleteApproverPolicyResources(trustManager)
 	}
 
 	if err := r.createOrApplyCertificateRequestPolicy(trustManager, resourceLabels, resourceAnnotations); err != nil {
@@ -64,24 +61,7 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	if err := r.createOrApplyPolicyClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
 		return err
 	}
-	if err := r.createOrApplyPolicyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations); err != nil {
-		return err
-	}
-	return r.updateCertificateRequestPolicyStatus(trustManager, trustManagerCertificateRequestPolicyName)
-}
-
-// updateCertificateRequestPolicyStatus persists a completed policy/RBAC transition.
-// The condition handler only writes when Ready/Degraded changes, so policy status
-// must be saved separately when an otherwise healthy TrustManager changes approvers.
-func (r *Reconciler) updateCertificateRequestPolicyStatus(trustManager *v1alpha1.TrustManager, policyName string) error {
-	if trustManager.Status.CertificateRequestPolicy == policyName {
-		return nil
-	}
-	trustManager.Status.CertificateRequestPolicy = policyName
-	if err := r.updateStatus(r.ctx, trustManager); err != nil {
-		return common.FromClientError(err, "failed to update certificate request policy status")
-	}
-	return nil
+	return r.createOrApplyPolicyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations)
 }
 
 // deleteApproverPolicyResources removes operator-managed CertificateRequestPolicy and
@@ -168,6 +148,17 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 	if exists && !certificateRequestPolicyModified(desired, existing) {
 		r.log.V(4).Info("certificaterequestpolicy resource exists and is in desired state", "name", resourceName)
 		return nil
+	}
+	if exists && !reflect.DeepEqual(desired.Spec, existing.Spec) {
+		// SSA cannot remove fields introduced by another manager, even with
+		// ForceOwnership. Explicitly restore the managed spec before applying
+		// metadata; the resource version protects against a stale cached read.
+		repaired := existing.DeepCopy()
+		desired.Spec.DeepCopyInto(&repaired.Spec)
+		patch := client.MergeFromWithOptions(existing, client.MergeFromWithOptimisticLock{})
+		if err := r.Patch(r.ctx, repaired, patch, client.FieldOwner(fieldOwner)); err != nil {
+			return common.FromClientError(err, "failed to restore certificaterequestpolicy %q spec", resourceName)
+		}
 	}
 
 	r.log.V(2).Info("certificaterequestpolicy resource has been modified, updating to desired state", "name", resourceName)
@@ -292,6 +283,19 @@ func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha
 	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
+	}
+	if exists && existing.RoleRef != desired.RoleRef {
+		// roleRef is immutable, even with forced SSA. Replace only an operator-
+		// managed binding and wait for deletion before applying the desired one.
+		if !operatorManagesObject(existing) {
+			return common.NewIrrecoverableError(fmt.Errorf("existing binding is not operator-managed"), "cannot replace clusterrolebinding %q with a different roleRef", resourceName)
+		}
+		if existing.DeletionTimestamp.IsZero() {
+			if err := r.Delete(r.ctx, existing, client.Preconditions{UID: &existing.UID}); err != nil && !apierrors.IsNotFound(err) {
+				return common.FromClientError(err, "failed to delete clusterrolebinding %q with a different roleRef", resourceName)
+			}
+		}
+		return common.NewRetryRequiredError(fmt.Errorf("roleRef is immutable"), "waiting to recreate clusterrolebinding %q", resourceName)
 	}
 	if exists && !common.ClusterRoleBindingModified(desired, existing, fieldOwner) {
 		r.log.V(4).Info("approver-policy clusterrolebinding resource exists and is in desired state", "name", resourceName)

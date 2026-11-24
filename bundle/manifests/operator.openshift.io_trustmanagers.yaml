@@ -1423,12 +1423,6 @@ spec:
           status:
             description: status is the most recently observed status of the TrustManager.
             properties:
-              certificateRequestPolicy:
-                description: |-
-                  certificateRequestPolicy is the name of the policy last successfully reconciled
-                  for the webhook certificate. Managed clears it after policy/RBAC cleanup when
-                  built-in approval returns. Unmanaged preserves the last observation.
-                type: string
               conditions:
                 description: conditions holds information about the current state
                   of the operand deployment.

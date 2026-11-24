@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -14,6 +15,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -55,6 +58,37 @@ func TestApproverPolicyIntegration(t *testing.T) {
 	operatorConfig.Impersonate.UserName = "trust-manager-operator-test"
 	operator, err := client.New(operatorConfig, client.Options{Scheme: testutil.Scheme})
 	require.NoError(t, err)
+
+	// The RBAC authorizer may not have observed the new role and binding yet.
+	// CertManager is absent, so NotFound confirms the operator's read permission.
+	err = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
+		err := operator.Get(ctx, client.ObjectKey{Name: "cluster"}, &v1alpha1.CertManager{})
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		if apierrors.IsForbidden(err) {
+			return false, nil
+		}
+		return false, err
+	})
+	require.NoError(t, err, "operator RBAC grant must be visible before reconciliation")
+
+	for _, verb := range []string{"get", "patch", "delete", "use"} {
+		t.Run("operator cannot "+verb+" unrelated policies", func(t *testing.T) {
+			review := &authv1.SubjectAccessReview{Spec: authv1.SubjectAccessReviewSpec{
+				User: operatorConfig.Impersonate.UserName,
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Group:    "policy.cert-manager.io",
+					Resource: "certificaterequestpolicies",
+					Name:     "unrelated-policy",
+					Verb:     verb,
+				},
+			}}
+			require.NoError(t, admin.Create(t.Context(), review))
+			assert.False(t, review.Status.Allowed, "operator must not %s an unrelated policy", verb)
+		})
+	}
+
 	r := testReconciler(t)
 	c := &fakes.FakeCtrlClient{}
 	c.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
@@ -64,9 +98,6 @@ func TestApproverPolicyIntegration(t *testing.T) {
 		err := c.Get(ctx, key, obj)
 		return err == nil, client.IgnoreNotFound(err)
 	})
-	c.StatusUpdateCalls(func(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
-		return operator.Status().Update(ctx, obj, opts...)
-	})
 	c.PatchCalls(operator.Patch)
 	c.DeleteCalls(operator.Delete)
 	r.CtrlClient = c
@@ -74,8 +105,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 	tm := testTrustManager().Build()
 	require.NoError(t, admin.Create(ctx, tm))
 	assert.Equal(t, v1alpha1.ApproverPolicyManagementStateManaged, tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState)
-	// Seed healthy conditions so the test cannot rely on a readiness change
-	// to persist later policy status transitions.
+	// Verify that policy/RBAC transitions preserve the existing readiness conditions.
 	tm.Status.SetCondition(v1alpha1.Ready, metav1.ConditionTrue, v1alpha1.ReasonReady, "reconciliation successful")
 	tm.Status.SetCondition(v1alpha1.Degraded, metav1.ConditionFalse, v1alpha1.ReasonReady, "")
 	require.NoError(t, admin.Status().Update(ctx, tm))
@@ -99,7 +129,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 		prepare       func(*testing.T)
 		wantResources bool
 		wantReads     int
-		wantApplies   int
+		wantPatches   int
 		wantDeletes   int
 		verify        func(*testing.T)
 	}{
@@ -121,8 +151,8 @@ func TestApproverPolicyIntegration(t *testing.T) {
 				require.NoError(t, admin.Status().Update(ctx, cm))
 			},
 			wantResources: true,
-			wantReads:     5,
-			wantApplies:   3,
+			wantReads:     4,
+			wantPatches:   3,
 			verify: func(t *testing.T) {
 				assertTrustManagerPolicyScope(t, admin, resources)
 			},
@@ -147,7 +177,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			},
 			wantResources: true,
 			wantReads:     4,
-			wantApplies:   3,
+			wantPatches:   4,
 		},
 		{
 			name: "policy selector follows a configured ClusterIssuer",
@@ -156,7 +186,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			},
 			wantResources: true,
 			wantReads:     4,
-			wantApplies:   1,
+			wantPatches:   2,
 		},
 		{
 			name: "removing the override restores the default issuer selector",
@@ -165,7 +195,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			},
 			wantResources: true,
 			wantReads:     4,
-			wantApplies:   1,
+			wantPatches:   2,
 		},
 		{
 			name: "Unmanaged retains resources when built-in approval returns",
@@ -181,7 +211,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			prepare: func(t *testing.T) {
 				tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
 			},
-			wantReads:   5,
+			wantReads:   4,
 			wantDeletes: 3,
 		},
 	}
@@ -191,12 +221,12 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			if tc.prepare != nil {
 				tc.prepare(t)
 			}
-			reads, applies, deletes := c.GetCallCount(), c.PatchCallCount(), c.DeleteCallCount()
+			reads, patches, deletes := c.GetCallCount(), c.PatchCallCount(), c.DeleteCallCount()
 
 			require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
 
 			assert.Equal(t, tc.wantReads, c.GetCallCount()-reads, "read calls")
-			assert.Equal(t, tc.wantApplies, c.PatchCallCount()-applies, "apply calls")
+			assert.Equal(t, tc.wantPatches, c.PatchCallCount()-patches, "patch calls")
 			assert.Equal(t, tc.wantDeletes, c.DeleteCallCount()-deletes, "delete calls")
 			for i, desired := range desiredResources() {
 				live := resources[i]
@@ -217,11 +247,6 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			}
 			persisted := &v1alpha1.TrustManager{}
 			require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(tm), persisted))
-			if tc.wantResources {
-				assert.Equal(t, trustManagerCertificateRequestPolicyName, persisted.Status.CertificateRequestPolicy)
-			} else {
-				assert.Empty(t, persisted.Status.CertificateRequestPolicy)
-			}
 			assert.Equal(t, tm.Status.Conditions, persisted.Status.Conditions)
 			if tc.verify != nil {
 				tc.verify(t)
@@ -231,6 +256,92 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			return
 		}
 	}
+
+	cm.Status.AutoApproverDisabled = true
+	require.NoError(t, admin.Status().Update(ctx, cm))
+
+	for _, state := range []v1alpha1.ApproverPolicyManagementState{
+		v1alpha1.ApproverPolicyManagementStateUnmanaged,
+		v1alpha1.ApproverPolicyManagementStateManaged,
+	} {
+		t.Run("repairs policy fields added while "+string(state), func(t *testing.T) {
+			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
+			require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = state
+
+			// A separate manager owns only the added validation and annotation.
+			// Reapplying the operator's manifest must remove the validation but
+			// retain unrelated metadata and the operand's status observation.
+			policy := getCertificateRequestPolicyObject(tm.Spec.TrustManagerConfig.WebhookTLS.CertManager, labels, annotations)
+			require.NoError(t, admin.Patch(ctx, policy, client.RawPatch(types.ApplyPatchType, []byte(`{
+				"apiVersion": "policy.cert-manager.io/v1alpha1",
+				"kind": "CertificateRequestPolicy",
+				"metadata": {
+					"name": "trust-manager-policy",
+					"annotations": {"example.com/user-note": "keep"}
+				},
+				"spec": {"allowed": {"commonName": {"validations": [{"rule": "false"}]}}}
+			}`)), client.FieldOwner("test-policy-user")))
+			policy.Status.Conditions = []metav1.Condition{{
+				Type: policyv1alpha1.ConditionTypeReady, Status: metav1.ConditionTrue,
+				Reason: "Ready", LastTransitionTime: metav1.Now(),
+			}}
+			require.NoError(t, admin.Status().Update(ctx, policy))
+			before := policy.DeepCopy()
+			if state == v1alpha1.ApproverPolicyManagementStateUnmanaged {
+				patches := c.PatchCallCount()
+				require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+				assert.Equal(t, patches, c.PatchCallCount())
+				require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+				assert.Equal(t, before.Spec, policy.Spec)
+			}
+
+			// A fresh reconciler proves recovery does not depend on remembering
+			// a Managed/Unmanaged transition in memory.
+			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
+			fresh := testReconciler(t)
+			fresh.CtrlClient = c
+			require.NoError(t, fresh.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+			assert.Equal(t, getCertificateRequestPolicyObject(tm.Spec.TrustManagerConfig.WebhookTLS.CertManager, labels, annotations).Spec, policy.Spec)
+			assert.Equal(t, before.UID, policy.UID, "policy must be repaired in place")
+			assert.Equal(t, "keep", policy.Annotations["example.com/user-note"])
+			assert.Equal(t, before.Status, policy.Status)
+
+			patches := c.PatchCallCount()
+			require.NoError(t, fresh.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			assert.Equal(t, patches, c.PatchCallCount(), "repaired policy must converge without repeated writes")
+		})
+	}
+
+	t.Run("recreates a managed binding with an immutable roleRef", func(t *testing.T) {
+		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateUnmanaged
+		binding := getPolicyClusterRoleBindingObject(labels, annotations)
+		require.NoError(t, admin.Delete(ctx, binding))
+		binding.RoleRef.Name = "custom-policy-role"
+		require.NoError(t, admin.Create(ctx, binding))
+		originalUID := binding.UID
+		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(binding), binding))
+		assert.Equal(t, "custom-policy-role", binding.RoleRef.Name)
+
+		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
+		deletes, patches := c.DeleteCallCount(), c.PatchCallCount()
+		err := r.createOrApplyApproverPolicyResources(tm, labels, annotations)
+		require.True(t, common.IsRetryRequiredError(err), "expected deletion/recreation retry, got %v", err)
+		assert.Equal(t, deletes+1, c.DeleteCallCount())
+		assert.Equal(t, patches, c.PatchCallCount(), "must not apply an immutable roleRef")
+
+		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(binding), binding))
+		assert.NotEqual(t, originalUID, binding.UID)
+		assert.Equal(t, getPolicyClusterRoleBindingObject(labels, annotations).RoleRef, binding.RoleRef)
+		assert.Equal(t, getPolicyClusterRoleBindingObject(labels, annotations).Subjects, binding.Subjects)
+
+		patches = c.PatchCallCount()
+		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		assert.Equal(t, patches, c.PatchCallCount(), "replacement binding must converge without repeated writes")
+	})
 }
 
 func assertTrustManagerPolicyScope(t *testing.T, admin client.Client, resources []client.Object) {
@@ -266,7 +377,7 @@ func assertTrustManagerPolicyScope(t *testing.T, admin client.Client, resources 
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		passed := t.Run(tc.name, func(t *testing.T) {
 			review := &authv1.SubjectAccessReview{Spec: authv1.SubjectAccessReviewSpec{
 				User: tc.user,
 				ResourceAttributes: &authv1.ResourceAttributes{
@@ -276,8 +387,24 @@ func assertTrustManagerPolicyScope(t *testing.T, admin client.Client, resources 
 					Verb:     "use",
 				},
 			}}
+			if tc.wantAllowed {
+				// Confirm the new grant is active before testing denied access.
+				// Otherwise, those checks could pass against stale RBAC caches.
+				err := wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
+					current := review.DeepCopy()
+					if err := admin.Create(ctx, current); err != nil {
+						return false, err
+					}
+					return current.Status.Allowed, nil
+				})
+				require.NoError(t, err, "cert-manager service account must be allowed to use the policy")
+				return
+			}
 			require.NoError(t, admin.Create(t.Context(), review))
 			assert.Equal(t, tc.wantAllowed, review.Status.Allowed)
 		})
+		if tc.wantAllowed && !passed {
+			return
+		}
 	}
 }

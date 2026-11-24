@@ -392,9 +392,4 @@ type TrustManagerStatus struct {
 
 	// trustManagerImage is the container image (name:tag) used for trust-manager.
 	TrustManagerImage string `json:"trustManagerImage,omitempty"`
-
-	// certificateRequestPolicy is the name of the policy last successfully reconciled
-	// for the webhook certificate. Managed clears it after policy/RBAC cleanup when
-	// built-in approval returns. Unmanaged preserves the last observation.
-	CertificateRequestPolicy string `json:"certificateRequestPolicy,omitempty"`
 }

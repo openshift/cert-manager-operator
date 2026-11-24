@@ -492,11 +492,24 @@ func trustManagerApproverPolicyAfterEach(ctx context.Context, client crclient.Cl
 	if client == nil {
 		return
 	}
+	// Still clean up if an assertion fails, before AfterAll restores feature gates.
+	defer deleteTrustManager(ctx)
 
 	By("restoring Managed integration before removing approver-policy")
-	if _, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{}); err == nil {
-		setTrustManagerApproverPolicyState(ctx, v1alpha1.ApproverPolicyManagementStateManaged)
-	}
+	// Only NotFound means there is nothing to restore; retry read/update failures.
+	Eventually(func() error {
+		tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return crclient.IgnoreNotFound(err)
+		}
+		if tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState == v1alpha1.ApproverPolicyManagementStateManaged {
+			return nil
+		}
+		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
+		_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+		return crclient.IgnoreNotFound(err)
+	}, highTimeout, fastPollInterval).Should(Succeed(), "failed to restore Managed integration before teardown")
+
 	Expect(crclient.IgnoreNotFound(approverPolicyClient().Delete(ctx, "cluster", metav1.DeleteOptions{}))).To(Succeed())
 	Eventually(func() bool {
 		_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
@@ -504,7 +517,6 @@ func trustManagerApproverPolicyAfterEach(ctx context.Context, client crclient.Cl
 	}, highTimeout, fastPollInterval).Should(BeTrue())
 	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
 	Eventually(func(g Gomega) { verifyTrustManagerPolicyResources(ctx, g, client, false) }, highTimeout, fastPollInterval).Should(Succeed())
-	deleteTrustManager(ctx)
 }
 
 // trustManagerPolicyResources returns name-only objects for TrustManager's
@@ -562,27 +574,35 @@ func trustManagerCertificateRequestUIDs(ctx context.Context) map[types.UID]bool 
 	return uids
 }
 
-// waitForTrustManagerPolicyApproval waits for a webhook request outside the supplied
-// UID snapshot to be approved by trust-manager-policy and contain the issued certificate.
-func waitForTrustManagerPolicyApproval(ctx context.Context, previousRequests map[types.UID]bool) {
+// waitForTrustManagerPolicyApproval returns a new webhook request approved by
+// trust-manager-policy and signed, so callers can verify its resulting TLS Secret.
+func waitForTrustManagerPolicyApproval(ctx context.Context, previousRequests map[types.UID]bool) *cmv1.CertificateRequest {
+	var approved *cmv1.CertificateRequest
 	Eventually(func(g Gomega) {
 		requests, err := certmanagerClient.CertmanagerV1().CertificateRequests(operandNamespace).List(ctx, metav1.ListOptions{})
 		g.Expect(err).NotTo(HaveOccurred())
-		for _, request := range requests.Items {
-			if previousRequests[request.UID] || request.Annotations["cert-manager.io/certificate-name"] != trustManagerCertificateName {
-				continue
-			}
-			for _, condition := range request.Status.Conditions {
-				if condition.Type == cmv1.CertificateRequestConditionApproved && condition.Status == cmmeta.ConditionTrue {
-					g.Expect(condition.Reason).To(Equal("policy.cert-manager.io"))
-					g.Expect(condition.Message).To(ContainSubstring("trust-manager-policy"))
-					g.Expect(request.Status.Certificate).NotTo(BeEmpty(), "approved request must also be signed")
-					return
-				}
+		approved = findTrustManagerPolicyApprovedRequest(requests.Items, previousRequests)
+		g.Expect(approved).NotTo(BeNil(), "expected a new signed webhook CertificateRequest approved by trust-manager-policy")
+	}, highTimeout, fastPollInterval).Should(Succeed())
+	return approved
+}
+
+// findTrustManagerPolicyApprovedRequest checks every candidate before declaring
+// that approval is pending; an earlier unsigned request must not hide a signed one.
+func findTrustManagerPolicyApprovedRequest(requests []cmv1.CertificateRequest, previousRequests map[types.UID]bool) *cmv1.CertificateRequest {
+	for i := range requests {
+		request := &requests[i]
+		if previousRequests[request.UID] || request.Annotations["cert-manager.io/certificate-name"] != trustManagerCertificateName || len(request.Status.Certificate) == 0 {
+			continue
+		}
+		for _, condition := range request.Status.Conditions {
+			if condition.Type == cmv1.CertificateRequestConditionApproved && condition.Status == cmmeta.ConditionTrue &&
+				condition.Reason == "policy.cert-manager.io" && strings.Contains(condition.Message, "trust-manager-policy") {
+				return request
 			}
 		}
-		g.Expect(false).To(BeTrue(), "expected a new signed webhook CertificateRequest approved by trust-manager-policy")
-	}, highTimeout, fastPollInterval).Should(Succeed())
+	}
+	return nil
 }
 
 // waitForTrustManagerCertificateRequest returns a webhook request created after

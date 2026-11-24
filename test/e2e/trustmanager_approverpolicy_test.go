@@ -10,6 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +26,7 @@ var _ = Describe("TrustManager approver-policy integration", Serial, Ordered,
 			client                   crclient.Client
 			originalGates            string
 			originalOperatorLogLevel string
+			originalSettingsCaptured bool
 		)
 
 		BeforeAll(func() {
@@ -32,16 +34,24 @@ var _ = Describe("TrustManager approver-policy integration", Serial, Ordered,
 			_, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
 			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "integration suite requires no pre-existing TrustManager")
 
-			client = approverPolicyManagerBeforeAll(ctx, &originalGates, &originalOperatorLogLevel, true)
+			By("capturing the Subscription settings before enabling either feature gate")
+			originalGates, err = getSubscriptionEnvVar(ctx, loader, "UNSUPPORTED_ADDON_FEATURES")
+			Expect(err).NotTo(HaveOccurred())
+			originalOperatorLogLevel, err = getSubscriptionEnvVar(ctx, loader, "OPERATOR_LOG_LEVEL")
+			Expect(err).NotTo(HaveOccurred())
+			originalSettingsCaptured = true
+
+			// Preserve the snapshot for AfterAll even if a setup helper fails
+			// after changing the Subscription but before returning the client.
+			var intermediateGates, intermediateOperatorLogLevel string
+			client = approverPolicyManagerBeforeAll(ctx, &intermediateGates, &intermediateOperatorLogLevel, true)
 			Expect(policyv1alpha1.AddToScheme(client.Scheme())).To(Succeed())
 
-			// AfterAll restores the values captured before either gate was changed.
-			var intermediateGates, intermediateOperatorLogLevel string
 			enableOperatorFeatureGateForSuite(ctx, loader, "TrustManager", true, true, &intermediateGates, &intermediateOperatorLogLevel)
 		})
 
 		AfterAll(func() {
-			if client != nil {
+			if originalSettingsCaptured {
 				approverPolicyManagerAfterAll(ctx, &originalGates, &originalOperatorLogLevel)
 			}
 		})
@@ -68,7 +78,6 @@ var _ = Describe("TrustManager approver-policy integration", Serial, Ordered,
 				createTrustManager(ctx, newTrustManagerCR())
 				Expect(waitForCertificateReadiness(ctx, trustManagerCertificateName, operandNamespace)).To(Succeed())
 				verifyTrustManagerPolicyResources(ctx, Default, client, false)
-				previousRequests := trustManagerCertificateRequestUIDs(ctx)
 
 				By("installing approver-policy and waiting for the automatic handoff")
 				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
@@ -76,8 +85,17 @@ var _ = Describe("TrustManager approver-policy integration", Serial, Ordered,
 				Eventually(func(g Gomega) { verifyTrustManagerPolicyResources(ctx, g, client, true) }, highTimeout, fastPollInterval).Should(Succeed())
 
 				By("requesting a fresh webhook certificate after the handoff")
+				previousSecret, err := k8sClientSet.CoreV1().Secrets(operandNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				previousRequests := trustManagerCertificateRequestUIDs(ctx)
 				Expect(k8sClientSet.CoreV1().Secrets(operandNamespace).Delete(ctx, trustManagerTLSSecretName, metav1.DeleteOptions{})).To(Succeed())
-				waitForTrustManagerPolicyApproval(ctx, previousRequests)
+				request := waitForTrustManagerPolicyApproval(ctx, previousRequests)
+				Eventually(func(g Gomega) {
+					secret, err := k8sClientSet.CoreV1().Secrets(operandNamespace).Get(ctx, trustManagerTLSSecretName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(secret.UID).NotTo(Equal(previousSecret.UID), "the TLS Secret must be recreated")
+					g.Expect(secret.Data[corev1.TLSCertKey]).To(Equal(request.Status.Certificate), "the replacement Secret must contain the new request's certificate")
+				}, highTimeout, fastPollInterval).Should(Succeed())
 				Expect(waitForCertificateReadiness(ctx, trustManagerCertificateName, operandNamespace)).To(Succeed())
 				Expect(pollTillDeploymentAvailable(ctx, k8sClientSet, operandNamespace, trustManagerDeploymentName)).To(Succeed())
 

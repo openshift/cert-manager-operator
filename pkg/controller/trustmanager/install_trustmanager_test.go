@@ -15,7 +15,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 
 	wantImageStatus := v1alpha1.TrustManagerStatus{TrustManagerImage: testImage}
-	wantPolicyStatus := v1alpha1.TrustManagerStatus{TrustManagerImage: testImage, CertificateRequestPolicy: trustManagerCertificateRequestPolicyName}
 
 	tests := []struct {
 		name             string
@@ -46,7 +45,7 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			wantStatus:       wantImageStatus,
 		},
 		{
-			name: "does not infer policy existence from Managed spec",
+			name: "skips status update when the image is unchanged",
 			trustManager: func() *v1alpha1.TrustManager {
 				tm := testTrustManager().Build()
 				tm.Status.TrustManagerImage = testImage
@@ -54,17 +53,6 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			},
 			wantStatusUpdate: 0,
 			wantStatus:       wantImageStatus,
-		},
-		{
-			name: "Unmanaged preserves the last policy observation",
-			trustManager: func() *v1alpha1.TrustManager {
-				tm := testTrustManager().WithApproverPolicy(v1alpha1.ApproverPolicyManagementStateUnmanaged).Build()
-				tm.Status.TrustManagerImage = testImage
-				tm.Status.CertificateRequestPolicy = trustManagerCertificateRequestPolicyName
-				return tm
-			},
-			wantStatusUpdate: 0,
-			wantStatus:       wantPolicyStatus,
 		},
 	}
 
