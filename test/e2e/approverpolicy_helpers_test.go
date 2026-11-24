@@ -486,8 +486,8 @@ func certificateRequestHasDecision(cr *cmv1.CertificateRequest) bool {
 	return false
 }
 
-// createAllowingCertificateRequestPolicy creates the handoff scenario's policy
-// through the same typed creation, readiness, and cleanup helpers as operand tests.
+// createAllowingCertificateRequestPolicy creates a policy for the given namespace,
+// issuer, and DNS name, waits for readiness, and registers cleanup.
 func createAllowingCertificateRequestPolicy(
 	ctx context.Context,
 	client crclient.Client,

@@ -122,41 +122,6 @@ var _ = Describe("ApproverPolicyManager", Serial, Ordered,
 				}, 5*time.Second, fastPollInterval).Should(Succeed())
 			})
 
-			It("should leave requests pending until a matching policy exists, then approve and sign", func() {
-				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
-				Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, true) }, highTimeout, fastPollInterval).Should(Succeed())
-
-				ns, err := loader.CreateTestingNS("auto-approver-policy-sign", false)
-				Expect(err).NotTo(HaveOccurred())
-				DeferCleanup(func() { loader.DeleteTestingNS(ns.Name, func() bool { return CurrentSpecReport().Failed() }) })
-
-				issuerName := "handoff-selfsigned-" + string(uuid.NewUUID())
-				createSelfSignedClusterIssuer(ctx, issuerName)
-
-				const (
-					certName   = "pending-then-signed"
-					secretName = "pending-then-signed-tls"
-					dnsName    = "policy-sign.handoff.example.com"
-				)
-				By("creating a Certificate with no CertificateRequestPolicy")
-				createDNSCertificate(ctx, ns.Name, certName, secretName, issuerName, dnsName)
-				request := waitForCertificateOwnedRequest(ctx, ns.Name, certName, "")
-				Consistently(func(g Gomega) {
-					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(ns.Name).Get(ctx, request.Name, metav1.GetOptions{})
-					g.Expect(err).NotTo(HaveOccurred())
-					g.Expect(certificateRequestHasDecision(current)).To(BeFalse())
-				}, 15*time.Second, fastPollInterval).Should(Succeed())
-
-				By("creating a matching CertificateRequestPolicy and use RBAC")
-				policyName := "handoff-allow-" + string(uuid.NewUUID())
-				createAllowingCertificateRequestPolicy(ctx, client, policyName, ns.Name, issuerName, dnsName)
-				createCertificateRequestPolicyUseRBAC(ctx, policyName)
-
-				By("waiting for approver-policy to approve and cert-manager to sign")
-				waitForApproverPolicyDecision(ctx, request, cmv1.CertificateRequestConditionApproved)
-				Expect(waitForCertificateReadiness(ctx, certName, ns.Name)).To(Succeed())
-			})
-
 			It("should restore built-in auto-approval after ApproverPolicyManager deletion", func() {
 				createApproverPolicyManager(ctx, newApproverPolicyManagerCR())
 				waitForAutoApproverHandoff(ctx)

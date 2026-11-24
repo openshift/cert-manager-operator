@@ -136,6 +136,35 @@ var _ = Describe(
 				waitForOperandSecret(ctx, namespace.Name, certificate.Spec.SecretName, certificate.Spec.DNSNames[0], original.Raw)
 			})
 
+			// With neither a policy nor use permission, the request stays pending.
+			// Adding the policy and a ClusterRoleBinding allows approval and issuance.
+			It("should issue a pending Certificate after adding a policy and cluster-scoped use permission", func() {
+				const (
+					certName   = "pending-then-signed"
+					secretName = "pending-then-signed-tls"
+					dnsName    = "policy-sign.handoff.example.com"
+				)
+
+				By("creating a Certificate with no CertificateRequestPolicy or use permission")
+				createDNSCertificate(ctx, namespace.Name, certName, secretName, issuer.Name, dnsName)
+				request := waitForCertificateOwnedRequest(ctx, namespace.Name, certName, "")
+				Consistently(func(g Gomega) {
+					current, err := certmanagerClient.CertmanagerV1().CertificateRequests(namespace.Name).Get(
+						ctx, request.Name, metav1.GetOptions{},
+					)
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(certificateRequestHasDecision(current)).To(BeFalse())
+				}, 15*time.Second, fastPollInterval).Should(Succeed())
+
+				By("creating a matching CertificateRequestPolicy and cluster-scoped use RBAC")
+				createAllowingCertificateRequestPolicy(ctx, client, policy.Name, namespace.Name, issuer.Name, dnsName)
+				createCertificateRequestPolicyUseRBAC(ctx, policy.Name)
+
+				By("waiting for approver-policy to approve and cert-manager to sign")
+				waitForApproverPolicyDecision(ctx, request, cmv1.CertificateRequestConditionApproved)
+				Expect(waitForCertificateReadiness(ctx, certName, namespace.Name)).To(Succeed())
+			})
+
 			// With no policy, issuance stays pending. Adding a matching policy releases
 			// the existing request without recreating the Certificate.
 			It("should wait for a matching policy before issuing a Certificate", func() {
@@ -452,9 +481,8 @@ var _ = Describe(
 				By("registering an external issuer API and restricting approval to built-in issuers")
 				externalIssuer := createOperandExternalIssuerAPI(ctx, client, namespace.Name)
 				internalSigners := []string{"issuers.cert-manager.io/*", "clusterissuers.cert-manager.io/*"}
-				DeferCleanup(func() {
-					updateApproverPolicySignerNames(ctx, nil)
-				})
+				// Restore signer permissions before AfterAll deletes the singleton, even if the test fails.
+				defer updateApproverPolicySignerNames(ctx, nil)
 				updateApproverPolicySignerNames(ctx, internalSigners)
 				externalSigner := "externalissuers." + externalIssuer.Group
 
