@@ -47,7 +47,7 @@ func TestNetworkPolicyFromAsset(t *testing.T) {
 		},
 	}
 
-	r := testReconciler(t)
+	r := testReconciler()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			policy, err := r.getNetworkPolicyFromAsset(tt.assetPath, testResourceLabels(), testResourceAnnotations())
@@ -203,7 +203,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := testReconciler(t)
+			r := testReconciler()
 			mock := &fakes.FakeCtrlClient{}
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
@@ -235,7 +235,7 @@ func TestCreateOrApplyNetworkPolicies(t *testing.T) {
 }
 
 func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 	tm := testTrustManager().WithLabels(map[string]string{
 		"app":                                    "user-app",
 		"app.kubernetes.io/name":                 "user-name",
@@ -262,7 +262,7 @@ func TestGetNetworkPolicyFromAsset_operatorOwnedByLabelWinsOverUserLabels(t *tes
 }
 
 func TestGetNetworkPolicyFromAsset_appliesUserAnnotations(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 	tm := testTrustManager().WithAnnotations(map[string]string{
 		"user-annotation": "test-value",
 	}).Build()
@@ -287,7 +287,7 @@ func TestGetNetworkPolicyFromAsset_appliesUserAnnotations(t *testing.T) {
 func TestReconcileTrustManagerDeployment_appliesFourPoliciesWithoutCertManager(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 
-	r := testReconciler(t)
+	r := testReconciler()
 	mock := &fakes.FakeCtrlClient{}
 	mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 		if _, ok := obj.(*corev1.Namespace); ok {
@@ -350,7 +350,7 @@ func TestReconcileTrustManagerDeployment_appliesFourPoliciesWithoutCertManager(t
 }
 
 func TestCreateOrApplyNetworkPolicies_doesNotDeleteUnrelatedNetworkPolicy(t *testing.T) {
-	r := testReconciler(t)
+	r := testReconciler()
 	mock := &fakes.FakeCtrlClient{}
 	mock.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 		return false, nil
