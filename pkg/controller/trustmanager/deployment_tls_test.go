@@ -284,7 +284,7 @@ func TestApplyClusterTLSProfile_adherence(t *testing.T) {
 			r.CtrlClient = fakeCtrlClientWithAPIServer(tt.apiServer)
 
 			tm := testTrustManager().Build()
-			dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
+			dep, err := r.getDeploymentObject(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -335,7 +335,7 @@ func TestApplyClusterTLSProfile_invalidCustomPropagates(t *testing.T) {
 			},
 		},
 	}
-	if err := r.applyClusterTLSProfile(dep); err == nil {
+	if err := r.applyClusterTLSProfile(context.Background(), dep); err == nil {
 		t.Fatal("expected error for custom profile missing custom settings")
 	}
 }
@@ -360,7 +360,7 @@ func TestApplyClusterTLSProfile_forbiddenPropagates(t *testing.T) {
 			},
 		},
 	}
-	if err := r.applyClusterTLSProfile(dep); err == nil {
+	if err := r.applyClusterTLSProfile(context.Background(), dep); err == nil {
 		t.Fatal("expected Forbidden to propagate")
 	}
 }
@@ -382,7 +382,7 @@ func TestApplyClusterTLSProfile_nilClientIsNoop(t *testing.T) {
 			},
 		},
 	}
-	if err := r.applyClusterTLSProfile(dep); err != nil {
+	if err := r.applyClusterTLSProfile(context.Background(), dep); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(dep.Spec.Template.Spec.Containers[0].Args) != 1 {
@@ -422,7 +422,7 @@ func TestApplyClusterTLSProfile_legacyStripsStaleArgs(t *testing.T) {
 			},
 		},
 	}
-	if err := r.applyClusterTLSProfile(dep); err != nil {
+	if err := r.applyClusterTLSProfile(context.Background(), dep); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := dep.Spec.Template.Spec.Containers[0].Args
@@ -494,7 +494,7 @@ func TestCreateOrApplyDeployment_legacyStripsStaleTLSArgs(t *testing.T) {
 	r.CtrlClient = mock
 
 	tm := testTrustManager().Build()
-	if err := r.createOrApplyDeployment(tm, getResourceLabels(tm), getResourceAnnotations(tm), ""); err != nil {
+	if err := r.createOrApplyDeployment(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if patched == nil {
@@ -524,7 +524,7 @@ func TestApplyClusterTLSProfile_intermediateCiphers(t *testing.T) {
 	r.CtrlClient = fakeCtrlClientWithAPIServer(apiServer)
 
 	tm := testTrustManager().Build()
-	dep, err := r.getDeploymentObject(tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
+	dep, err := r.getDeploymentObject(context.Background(), tm, getResourceLabels(tm), getResourceAnnotations(tm), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

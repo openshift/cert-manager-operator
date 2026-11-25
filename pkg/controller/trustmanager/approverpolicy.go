@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -40,7 +41,7 @@ func certManagerAutoApproverPredicate() predicate.Predicate {
 // Managed creates policy/RBAC when CertManager reports autoApproverDisabled=true
 // and removes operator-managed resources when it is false. Unmanaged skips all
 // CertManager and approval-resource checks, leaving existing resources untouched.
-func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyApproverPolicyResources(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	if !approverPolicyManaged(trustManager) {
 		return nil
 	}
@@ -48,27 +49,27 @@ func (r *Reconciler) createOrApplyApproverPolicyResources(trustManager *v1alpha1
 	// A missing CertManager has the same meaning as its default false status.
 	// Other read errors must not trigger cleanup based on an unknown state.
 	certManager := &v1alpha1.CertManager{}
-	if err := r.Get(r.ctx, client.ObjectKey{Name: "cluster"}, certManager); err != nil && !apierrors.IsNotFound(err) {
+	if err := r.Get(ctx, client.ObjectKey{Name: "cluster"}, certManager); err != nil && !apierrors.IsNotFound(err) {
 		return common.FromClientError(err, "failed to read CertManager auto-approver status")
 	}
 	if !certManager.Status.AutoApproverDisabled {
-		return r.deleteApproverPolicyResources(trustManager)
+		return r.deleteApproverPolicyResources(ctx, trustManager)
 	}
 
-	if err := r.createOrApplyCertificateRequestPolicy(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyCertificateRequestPolicy(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		return err
 	}
-	if err := r.createOrApplyPolicyClusterRole(trustManager, resourceLabels, resourceAnnotations); err != nil {
+	if err := r.createOrApplyPolicyClusterRole(ctx, trustManager, resourceLabels, resourceAnnotations); err != nil {
 		return err
 	}
-	return r.createOrApplyPolicyClusterRoleBinding(trustManager, resourceLabels, resourceAnnotations)
+	return r.createOrApplyPolicyClusterRoleBinding(ctx, trustManager, resourceLabels, resourceAnnotations)
 }
 
 // deleteApproverPolicyResources removes operator-managed CertificateRequestPolicy and
 // RBAC for the fixed names used by this controller. Same-named objects without
 // app.kubernetes.io/managed-by=cert-manager-operator are left unchanged.
-func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustManager) error {
-	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRoleBinding{
+func (r *Reconciler) deleteApproverPolicyResources(ctx context.Context, trustManager *v1alpha1.TrustManager) error {
+	if err := r.deleteApproverPolicyObject(ctx, trustManager, &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "ClusterRoleBinding",
@@ -77,7 +78,7 @@ func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustM
 	}, "clusterrolebinding", false); err != nil {
 		return err
 	}
-	if err := r.deleteApproverPolicyObject(trustManager, &rbacv1.ClusterRole{
+	if err := r.deleteApproverPolicyObject(ctx, trustManager, &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "ClusterRole",
@@ -86,7 +87,7 @@ func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustM
 	}, "clusterrole", false); err != nil {
 		return err
 	}
-	return r.deleteApproverPolicyObject(trustManager, &policyv1alpha1.CertificateRequestPolicy{
+	return r.deleteApproverPolicyObject(ctx, trustManager, &policyv1alpha1.CertificateRequestPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: policyv1alpha1.SchemeGroupVersion.String(),
 			Kind:       policyv1alpha1.CertificateRequestPolicyKind,
@@ -95,10 +96,10 @@ func (r *Reconciler) deleteApproverPolicyResources(trustManager *v1alpha1.TrustM
 	}, "certificaterequestpolicy", true)
 }
 
-func (r *Reconciler) deleteApproverPolicyObject(trustManager *v1alpha1.TrustManager, obj client.Object, resourceKind string, ignoreNoMatch bool) error {
+func (r *Reconciler) deleteApproverPolicyObject(ctx context.Context, trustManager *v1alpha1.TrustManager, obj client.Object, resourceKind string, ignoreNoMatch bool) error {
 	resourceName := obj.GetName()
 	r.log.V(4).Info("ensuring approver-policy resource is absent", "kind", resourceKind, "name", resourceName)
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(obj), obj)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(obj), obj)
 	if err != nil {
 		if ignoreNoMatch && meta.IsNoMatchError(err) {
 			return nil
@@ -113,7 +114,7 @@ func (r *Reconciler) deleteApproverPolicyObject(trustManager *v1alpha1.TrustMana
 		r.log.V(2).Info("leaving approver-policy resource that this operator does not manage", "kind", resourceKind, "name", resourceName)
 		return nil
 	}
-	if err := r.Delete(r.ctx, obj); err != nil {
+	if err := r.Delete(ctx, obj); err != nil {
 		if apierrors.IsNotFound(err) || (ignoreNoMatch && meta.IsNoMatchError(err)) {
 			return nil
 		}
@@ -132,13 +133,13 @@ func operatorManagesObject(obj client.Object) bool {
 // trust-manager-policy so approver-policy can auto-approve the webhook cert.
 // A missing CRP CRD is treated as a reconcile error (install approver-policy
 // or set approverPolicy.managementState to Unmanaged).
-func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyCertificateRequestPolicy(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getCertificateRequestPolicyObject(trustManager.Spec.TrustManagerConfig.WebhookTLS.CertManager, resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling certificaterequestpolicy resource", "name", resourceName)
 
 	existing := &policyv1alpha1.CertificateRequestPolicy{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.managementState to Unmanaged")
@@ -156,13 +157,13 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 		repaired := existing.DeepCopy()
 		desired.Spec.DeepCopyInto(&repaired.Spec)
 		patch := client.MergeFromWithOptions(existing, client.MergeFromWithOptimisticLock{})
-		if err := r.Patch(r.ctx, repaired, patch, client.FieldOwner(fieldOwner)); err != nil {
+		if err := r.Patch(ctx, repaired, patch, client.FieldOwner(fieldOwner)); err != nil {
 			return common.FromClientError(err, "failed to restore certificaterequestpolicy %q spec", resourceName)
 		}
 	}
 
 	r.log.V(2).Info("certificaterequestpolicy resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		if meta.IsNoMatchError(err) {
 			return common.FromClientError(err, "CertificateRequestPolicy CRD is not installed; install cert-manager-approver-policy or set spec.trustManagerConfig.webhookTLS.approverPolicy.managementState to Unmanaged")
 		}
@@ -225,13 +226,13 @@ func certificateRequestPolicyModified(desired, existing *policyv1alpha1.Certific
 		!reflect.DeepEqual(desired.Spec, existing.Spec)
 }
 
-func (r *Reconciler) createOrApplyPolicyClusterRole(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyPolicyClusterRole(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getPolicyClusterRoleObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling approver-policy clusterrole resource", "name", resourceName)
 
 	existing := &rbacv1.ClusterRole{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrole %q exists", resourceName)
 	}
@@ -241,7 +242,7 @@ func (r *Reconciler) createOrApplyPolicyClusterRole(trustManager *v1alpha1.Trust
 	}
 
 	r.log.V(2).Info("approver-policy clusterrole resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply clusterrole %q", resourceName)
 	}
 
@@ -274,13 +275,13 @@ func getPolicyClusterRoleObject(resourceLabels, resourceAnnotations map[string]s
 	return role
 }
 
-func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
+func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string) error {
 	desired := getPolicyClusterRoleBindingObject(resourceLabels, resourceAnnotations)
 	resourceName := desired.GetName()
 	r.log.V(4).Info("reconciling approver-policy clusterrolebinding resource", "name", resourceName)
 
 	existing := &rbacv1.ClusterRoleBinding{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if clusterrolebinding %q exists", resourceName)
 	}
@@ -291,7 +292,7 @@ func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha
 			return common.NewIrrecoverableError(fmt.Errorf("existing binding is not operator-managed"), "cannot replace clusterrolebinding %q with a different roleRef", resourceName)
 		}
 		if existing.DeletionTimestamp.IsZero() {
-			if err := r.Delete(r.ctx, existing, client.Preconditions{UID: &existing.UID}); err != nil && !apierrors.IsNotFound(err) {
+			if err := r.Delete(ctx, existing, client.Preconditions{UID: &existing.UID}); err != nil && !apierrors.IsNotFound(err) {
 				return common.FromClientError(err, "failed to delete clusterrolebinding %q with a different roleRef", resourceName)
 			}
 		}
@@ -303,7 +304,7 @@ func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha
 	}
 
 	r.log.V(2).Info("approver-policy clusterrolebinding resource has been modified, updating to desired state", "name", resourceName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply clusterrolebinding %q", resourceName)
 	}
 

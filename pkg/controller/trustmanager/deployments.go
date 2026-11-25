@@ -1,6 +1,7 @@
 package trustmanager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -16,8 +17,8 @@ import (
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
-func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
-	desired, err := r.getDeploymentObject(trustManager, resourceLabels, resourceAnnotations, caBundleHash)
+func (r *Reconciler) createOrApplyDeployment(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) error {
+	desired, err := r.getDeploymentObject(ctx, trustManager, resourceLabels, resourceAnnotations, caBundleHash)
 	if err != nil {
 		return err
 	}
@@ -26,7 +27,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	r.log.V(4).Info("reconciling deployment resource", "name", deploymentName)
 
 	existing := &appsv1.Deployment{}
-	exists, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), existing)
+	exists, err := r.Exists(ctx, client.ObjectKeyFromObject(desired), existing)
 	if err != nil {
 		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
 	}
@@ -36,7 +37,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	}
 
 	r.log.V(2).Info("deployment resource has been modified, updating to desired state", "name", deploymentName)
-	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := r.Patch(ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply deployment %q", deploymentName)
 	}
 
@@ -44,7 +45,7 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 	return nil
 }
 
-func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {
+func (r *Reconciler) getDeploymentObject(ctx context.Context, trustManager *v1alpha1.TrustManager, resourceLabels, resourceAnnotations map[string]string, caBundleHash string) (*appsv1.Deployment, error) {
 	deployment := common.DecodeObjBytes[*appsv1.Deployment](codecs, appsv1.SchemeGroupVersion, assets.MustAsset(deploymentAssetName))
 
 	if err := validateDeploymentManifest(deployment); err != nil {
@@ -56,10 +57,10 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	common.UpdateResourceLabels(deployment, resourceLabels)
 	updateResourceAnnotations(deployment, resourceAnnotations)
 	updatePodTemplateLabels(deployment, resourceLabels)
-	if err := r.updateDeploymentArgs(deployment, trustManager); err != nil {
+	if err := r.updateDeploymentArgs(ctx, deployment, trustManager); err != nil {
 		return nil, err
 	}
-	if err := r.applyClusterTLSProfile(deployment); err != nil {
+	if err := r.applyClusterTLSProfile(ctx, deployment); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 	if err := updateNodeSelector(deployment, trustManager); err != nil {
 		return nil, err
 	}
-	if err := r.setServiceAccountUIDAnnotation(deployment); err != nil {
+	if err := r.setServiceAccountUIDAnnotation(ctx, deployment); err != nil {
 		return nil, err
 	}
 
@@ -127,7 +128,7 @@ func updatePodTemplateLabels(deployment *appsv1.Deployment, resourceLabels map[s
 	deployment.Spec.Template.Labels = resourceLabels
 }
 
-func (r *Reconciler) updateDeploymentArgs(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
+func (r *Reconciler) updateDeploymentArgs(ctx context.Context, deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	config := trustManager.Spec.TrustManagerConfig
 	trustNamespace := getTrustNamespace(trustManager)
 
@@ -167,7 +168,7 @@ func (r *Reconciler) updateDeploymentArgs(deployment *appsv1.Deployment, trustMa
 	// the arg until a listed namespace becomes active; the namespace
 	// create watch then reconciles and the Deployment rolls.
 	if len(config.TargetNamespaces) > 0 {
-		ns, err := r.activeTargetNamespaces(config.TargetNamespaces)
+		ns, err := r.activeTargetNamespaces(ctx, config.TargetNamespaces)
 		if err != nil {
 			return err
 		}
@@ -190,10 +191,10 @@ func (r *Reconciler) updateDeploymentArgs(deployment *appsv1.Deployment, trustMa
 
 // activeTargetNamespaces is the sorted subset of listed that currently accept
 // a namespaced Role (exist and are not terminating).
-func (r *Reconciler) activeTargetNamespaces(listed []string) ([]string, error) {
+func (r *Reconciler) activeTargetNamespaces(ctx context.Context, listed []string) ([]string, error) {
 	var active []string
 	for _, ns := range listed {
-		accepts, err := r.targetNamespaceAcceptsRBAC(ns)
+		accepts, err := r.targetNamespaceAcceptsRBAC(ctx, ns)
 		if err != nil {
 			return nil, common.FromClientError(err, "failed to check if target namespace %q is active", ns)
 		}
@@ -333,10 +334,10 @@ func updateServiceAccountName(deployment *appsv1.Deployment) {
 // pod template. A new UID means the account was recreated, so the deployment
 // must roll. Otherwise the existing pod keeps a projected token for the
 // deleted account and CrashLoopBackOffs with an unauthenticated API client.
-func (r *Reconciler) setServiceAccountUIDAnnotation(deployment *appsv1.Deployment) error {
+func (r *Reconciler) setServiceAccountUIDAnnotation(ctx context.Context, deployment *appsv1.Deployment) error {
 	serviceAccount := &corev1.ServiceAccount{}
 	serviceAccountKey := client.ObjectKey{Namespace: operandNamespace, Name: trustManagerServiceAccountName}
-	if err := r.Get(r.ctx, serviceAccountKey, serviceAccount); err != nil {
+	if err := r.Get(ctx, serviceAccountKey, serviceAccount); err != nil {
 		return common.FromClientError(err, "failed to get serviceaccount %q", serviceAccountKey.String())
 	}
 	// The apiserver assigns a UID when the ServiceAccount is stored. Clients

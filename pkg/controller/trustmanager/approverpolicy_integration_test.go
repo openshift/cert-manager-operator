@@ -223,7 +223,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			}
 			reads, patches, deletes := c.GetCallCount(), c.PatchCallCount(), c.DeleteCallCount()
 
-			require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 
 			assert.Equal(t, tc.wantReads, c.GetCallCount()-reads, "read calls")
 			assert.Equal(t, tc.wantPatches, c.PatchCallCount()-patches, "patch calls")
@@ -266,7 +266,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 	} {
 		t.Run("repairs policy fields added while "+string(state), func(t *testing.T) {
 			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
-			require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = state
 
 			// A separate manager owns only the added validation and annotation.
@@ -290,7 +290,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			before := policy.DeepCopy()
 			if state == v1alpha1.ApproverPolicyManagementStateUnmanaged {
 				patches := c.PatchCallCount()
-				require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+				require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 				assert.Equal(t, patches, c.PatchCallCount())
 				require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(policy), policy))
 				assert.Equal(t, before.Spec, policy.Spec)
@@ -301,7 +301,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
 			fresh := testReconciler(t)
 			fresh.CtrlClient = c
-			require.NoError(t, fresh.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			require.NoError(t, fresh.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 			require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(policy), policy))
 			assert.Equal(t, getCertificateRequestPolicyObject(tm.Spec.TrustManagerConfig.WebhookTLS.CertManager, labels, annotations).Spec, policy.Spec)
 			assert.Equal(t, before.UID, policy.UID, "policy must be repaired in place")
@@ -309,7 +309,7 @@ func TestApproverPolicyIntegration(t *testing.T) {
 			assert.Equal(t, before.Status, policy.Status)
 
 			patches := c.PatchCallCount()
-			require.NoError(t, fresh.createOrApplyApproverPolicyResources(tm, labels, annotations))
+			require.NoError(t, fresh.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 			assert.Equal(t, patches, c.PatchCallCount(), "repaired policy must converge without repeated writes")
 		})
 	}
@@ -321,25 +321,25 @@ func TestApproverPolicyIntegration(t *testing.T) {
 		binding.RoleRef.Name = "custom-policy-role"
 		require.NoError(t, admin.Create(ctx, binding))
 		originalUID := binding.UID
-		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 		require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(binding), binding))
 		assert.Equal(t, "custom-policy-role", binding.RoleRef.Name)
 
 		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
 		deletes, patches := c.DeleteCallCount(), c.PatchCallCount()
-		err := r.createOrApplyApproverPolicyResources(tm, labels, annotations)
+		err := r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations)
 		require.True(t, common.IsRetryRequiredError(err), "expected deletion/recreation retry, got %v", err)
 		assert.Equal(t, deletes+1, c.DeleteCallCount())
 		assert.Equal(t, patches, c.PatchCallCount(), "must not apply an immutable roleRef")
 
-		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 		require.NoError(t, admin.Get(ctx, client.ObjectKeyFromObject(binding), binding))
 		assert.NotEqual(t, originalUID, binding.UID)
 		assert.Equal(t, getPolicyClusterRoleBindingObject(labels, annotations).RoleRef, binding.RoleRef)
 		assert.Equal(t, getPolicyClusterRoleBindingObject(labels, annotations).Subjects, binding.Subjects)
 
 		patches = c.PatchCallCount()
-		require.NoError(t, r.createOrApplyApproverPolicyResources(tm, labels, annotations))
+		require.NoError(t, r.createOrApplyApproverPolicyResources(ctx, tm, labels, annotations))
 		assert.Equal(t, patches, c.PatchCallCount(), "replacement binding must converge without repeated writes")
 	})
 }
