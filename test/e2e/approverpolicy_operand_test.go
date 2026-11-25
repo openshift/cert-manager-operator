@@ -83,16 +83,16 @@ var _ = Describe(
 			}
 		})
 
-		BeforeEach(func() {
+		BeforeEach(func(ctx SpecContext) {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 
 			By("creating an isolated namespace for the user workflow")
 			var err error
-			namespace, err = loader.CreateTestingNS("e2e-approver-policy", false)
+			namespace, err = loader.CreateTestingNS(ctx, "e2e-approver-policy", false)
 			Expect(err).NotTo(HaveOccurred())
-			DeferCleanup(func() {
-				loader.DeleteTestingNS(namespace.Name, func() bool {
+			DeferCleanup(func(ctx SpecContext) {
+				loader.DeleteTestingNS(ctx, namespace.Name, func() bool {
 					return CurrentSpecReport().Failed()
 				})
 			})

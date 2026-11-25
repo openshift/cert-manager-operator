@@ -150,7 +150,7 @@ func TestVerifyOperatorStatusCondition(t *testing.T) {
 				{controllerPrefix, tt.matchAny},
 			}, tt.expectedConditions)
 
-			err := verifyOperatorStatusConditionWithTimeout(fakeClient.OperatorV1alpha1(), matchers, 100*time.Millisecond)
+			err := verifyOperatorStatusConditionWithTimeout(t.Context(), fakeClient.OperatorV1alpha1(), matchers, 100*time.Millisecond)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected an error, but got nil")

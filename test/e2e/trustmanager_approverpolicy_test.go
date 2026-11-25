@@ -56,9 +56,9 @@ var _ = Describe("TrustManager approver-policy integration", Serial, Ordered,
 			}
 		})
 
-		BeforeEach(func() {
+		BeforeEach(func(ctx SpecContext) {
 			By("waiting for operator status to become available")
-			Expect(VerifyHealthyOperatorConditions(certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
+			Expect(VerifyHealthyOperatorConditions(ctx, certmanageroperatorclient.OperatorV1alpha1())).To(Succeed())
 
 			By("removing webhook certificate fixtures from the previous spec")
 			// TrustManager's existing cleanup leaves its Certificate and Secret behind.
