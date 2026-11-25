@@ -326,12 +326,19 @@ rules:
   - certificaterequestpolicies
   verbs:
   - create
+  - list
+  - watch
+- apiGroups:
+  - policy.cert-manager.io
+  resourceNames:
+  - trust-manager-policy
+  resources:
+  - certificaterequestpolicies
+  verbs:
   - delete
   - get
-  - list
   - patch
   - use
-  - watch
 - apiGroups:
   - policy.cert-manager.io
   resources:

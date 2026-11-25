@@ -53,6 +53,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=operator.openshift.io,resources=certmanagers,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
@@ -65,7 +66,8 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;patch
-// +kubebuilder:rbac:groups=policy.cert-manager.io,resources=certificaterequestpolicies,verbs=get;list;watch;create;patch;delete;use
+// +kubebuilder:rbac:groups=policy.cert-manager.io,resources=certificaterequestpolicies,verbs=list;watch;create
+// +kubebuilder:rbac:groups=policy.cert-manager.io,resources=certificaterequestpolicies,resourceNames=trust-manager-policy,verbs=get;patch;delete;use
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles,verbs=get;list;watch
 // +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles/finalizers,verbs=update
@@ -150,6 +152,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
+		Watches(&v1alpha1.CertManager{}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(certManagerAutoApproverPredicate())).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
@@ -170,7 +173,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Watch CertificateRequestPolicy only when discovery serves it. The CRD is in
 	// the operator bundle, but SetupWithManager can run before it is visible (or
-	// after bootstrapResources Disabled + CRD removal); an informer fails if the
+	// after the CRD has been removed); an informer fails if the
 	// type is absent. Status-only updates are ignored; spec/metadata drift
 	// requeues TrustManager.
 	if _, err := mgr.GetRESTMapper().RESTMapping(certificateRequestPolicyGVK.GroupKind(), certificateRequestPolicyGVK.Version); err == nil {

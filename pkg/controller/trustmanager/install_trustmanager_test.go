@@ -14,11 +14,7 @@ import (
 func TestUpdateStatusObservedState(t *testing.T) {
 	t.Setenv(trustManagerImageNameEnvVarName, testImage)
 
-	wantImageStatus := v1alpha1.TrustManagerStatus{
-		TrustManagerImage:        testImage,
-		CertificateRequestPolicy: trustManagerCertificateRequestPolicyName,
-	}
-	wantImageOnlyStatus := v1alpha1.TrustManagerStatus{TrustManagerImage: testImage}
+	wantImageStatus := v1alpha1.TrustManagerStatus{TrustManagerImage: testImage}
 
 	tests := []struct {
 		name             string
@@ -49,25 +45,14 @@ func TestUpdateStatusObservedState(t *testing.T) {
 			wantStatus:       wantImageStatus,
 		},
 		{
-			name: "updates certificateRequestPolicy when image already matches env",
+			name: "skips status update when the image is unchanged",
 			trustManager: func() *v1alpha1.TrustManager {
 				tm := testTrustManager().Build()
 				tm.Status.TrustManagerImage = testImage
 				return tm
 			},
-			wantStatusUpdate: 1,
+			wantStatusUpdate: 0,
 			wantStatus:       wantImageStatus,
-		},
-		{
-			name: "clears certificateRequestPolicy when approver-policy bootstrap is disabled",
-			trustManager: func() *v1alpha1.TrustManager {
-				tm := testTrustManager().WithApproverPolicy(v1alpha1.Disabled).Build()
-				tm.Status.TrustManagerImage = testImage
-				tm.Status.CertificateRequestPolicy = trustManagerCertificateRequestPolicyName
-				return tm
-			},
-			wantStatusUpdate: 1,
-			wantStatus:       wantImageOnlyStatus,
 		},
 	}
 

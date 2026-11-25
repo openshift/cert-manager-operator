@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
+	cmv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	trustapi "github.com/cert-manager/trust-manager/pkg/apis/trust/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,10 +21,13 @@ import (
 	"github.com/openshift/cert-manager-operator/test/library"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -35,21 +41,11 @@ type trustManagerCRBuilder struct {
 }
 
 func newTrustManagerCR() *trustManagerCRBuilder {
-	// TrustManager e2e enables only the TrustManager gate. CertificateRequestPolicy
-	// is served when ApproverPolicyManager/approver-policy is installed. Disable
-	// bootstrap by default so reconciliation succeeds without that CRD. Tests that
-	// cover bootstrap (and the CRP watch) enable it explicitly when the CRD exists.
 	return &trustManagerCRBuilder{
 		tm: &v1alpha1.TrustManager{
 			ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
 			Spec: v1alpha1.TrustManagerSpec{
-				TrustManagerConfig: v1alpha1.TrustManagerConfig{
-					WebhookTLS: v1alpha1.WebhookTLSConfig{
-						ApproverPolicy: v1alpha1.ApproverPolicyConfig{
-							BootstrapResources: v1alpha1.Disabled,
-						},
-					},
-				},
+				TrustManagerConfig: v1alpha1.TrustManagerConfig{},
 			},
 		},
 	}
@@ -115,11 +111,6 @@ func (b *trustManagerCRBuilder) WithFilterNonCACerts(policy v1alpha1.Mode) *trus
 
 func (b *trustManagerCRBuilder) WithTargetNamespaces(namespaces ...string) *trustManagerCRBuilder {
 	b.tm.Spec.TrustManagerConfig.TargetNamespaces = namespaces
-	return b
-}
-
-func (b *trustManagerCRBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerCRBuilder {
-	b.tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
 	return b
 }
 
@@ -488,4 +479,161 @@ func verifyBundleNeverSynced(ctx context.Context, bundleName string) {
 		}
 		return true
 	}, "60s", fastPollInterval).Should(BeTrue())
+}
+
+// ---------------------------------------------------------------------------
+// TrustManager approver-policy integration helpers
+// ---------------------------------------------------------------------------
+
+// trustManagerApproverPolicyAfterEach restores Managed integration and deletes
+// ApproverPolicyManager. It waits for built-in approval and policy/RBAC cleanup
+// before deleting TrustManager, keeping its controller active during cleanup.
+func trustManagerApproverPolicyAfterEach(ctx context.Context, client crclient.Client) {
+	if client == nil {
+		return
+	}
+	// Still clean up if an assertion fails, before AfterAll restores feature gates.
+	defer deleteTrustManager(ctx)
+
+	By("restoring Managed integration before removing approver-policy")
+	// Only NotFound means there is nothing to restore; retry read/update failures.
+	Eventually(func() error {
+		tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return crclient.IgnoreNotFound(err)
+		}
+		if tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState == v1alpha1.ApproverPolicyManagementStateManaged {
+			return nil
+		}
+		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = v1alpha1.ApproverPolicyManagementStateManaged
+		_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+		return crclient.IgnoreNotFound(err)
+	}, highTimeout, fastPollInterval).Should(Succeed(), "failed to restore Managed integration before teardown")
+
+	Expect(crclient.IgnoreNotFound(approverPolicyClient().Delete(ctx, "cluster", metav1.DeleteOptions{}))).To(Succeed())
+	Eventually(func() bool {
+		_, err := approverPolicyClient().Get(ctx, "cluster", metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, highTimeout, fastPollInterval).Should(BeTrue())
+	Eventually(func(g Gomega) { verifyAutoApproverState(ctx, g, false) }, highTimeout, fastPollInterval).Should(Succeed())
+	Eventually(func(g Gomega) { verifyTrustManagerPolicyResources(ctx, g, client, false) }, highTimeout, fastPollInterval).Should(Succeed())
+}
+
+// trustManagerPolicyResources returns name-only objects for TrustManager's
+// CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding for use in API calls.
+func trustManagerPolicyResources() []crclient.Object {
+	return []crclient.Object{
+		&policyv1alpha1.CertificateRequestPolicy{ObjectMeta: metav1.ObjectMeta{Name: "trust-manager-policy"}},
+		&rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "trust-manager-policy-role"}},
+		&rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "trust-manager-policy-binding"}},
+	}
+}
+
+// verifyTrustManagerPolicyResources checks whether all integration resources are
+// present or absent as requested. When present, the binding must reference only
+// the cert-manager ServiceAccount in the cert-manager namespace.
+func verifyTrustManagerPolicyResources(ctx context.Context, g Gomega, c crclient.Client, present bool) {
+	for _, obj := range trustManagerPolicyResources() {
+		err := c.Get(ctx, crclient.ObjectKeyFromObject(obj), obj)
+		if !present {
+			g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "%s should be absent: %v", obj.GetName(), err)
+			continue
+		}
+		g.Expect(err).NotTo(HaveOccurred())
+		if binding, ok := obj.(*rbacv1.ClusterRoleBinding); ok {
+			g.Expect(binding.Subjects).To(Equal([]rbacv1.Subject{{Kind: "ServiceAccount", Name: "cert-manager", Namespace: "cert-manager"}}))
+		}
+	}
+}
+
+// setTrustManagerApproverPolicyState updates the singleton's approver-policy
+// management state, re-reading the CR on update conflicts to preserve other fields.
+func setTrustManagerApproverPolicyState(ctx context.Context, state v1alpha1.ApproverPolicyManagementState) {
+	Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		tm, err := trustManagerClient().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		tm.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = state
+		_, err = trustManagerClient().Update(ctx, tm, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
+}
+
+// trustManagerCertificateRequestUIDs snapshots the current webhook CertificateRequest
+// UIDs so issuance and renewal checks can exclude requests that already exist.
+func trustManagerCertificateRequestUIDs(ctx context.Context) map[types.UID]bool {
+	requests, err := certmanagerClient.CertmanagerV1().CertificateRequests(operandNamespace).List(ctx, metav1.ListOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	uids := map[types.UID]bool{}
+	for _, request := range requests.Items {
+		if request.Annotations["cert-manager.io/certificate-name"] == trustManagerCertificateName {
+			uids[request.UID] = true
+		}
+	}
+	return uids
+}
+
+// waitForTrustManagerPolicyApproval returns a new webhook request approved by
+// trust-manager-policy and signed, so callers can verify its resulting TLS Secret.
+func waitForTrustManagerPolicyApproval(ctx context.Context, previousRequests map[types.UID]bool) *cmv1.CertificateRequest {
+	var approved *cmv1.CertificateRequest
+	Eventually(func(g Gomega) {
+		requests, err := certmanagerClient.CertmanagerV1().CertificateRequests(operandNamespace).List(ctx, metav1.ListOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		approved = findTrustManagerPolicyApprovedRequest(requests.Items, previousRequests)
+		g.Expect(approved).NotTo(BeNil(), "expected a new signed webhook CertificateRequest approved by trust-manager-policy")
+	}, highTimeout, fastPollInterval).Should(Succeed())
+	return approved
+}
+
+// findTrustManagerPolicyApprovedRequest checks every candidate before declaring
+// that approval is pending; an earlier unsigned request must not hide a signed one.
+func findTrustManagerPolicyApprovedRequest(requests []cmv1.CertificateRequest, previousRequests map[types.UID]bool) *cmv1.CertificateRequest {
+	for i := range requests {
+		request := &requests[i]
+		if previousRequests[request.UID] || request.Annotations["cert-manager.io/certificate-name"] != trustManagerCertificateName || len(request.Status.Certificate) == 0 {
+			continue
+		}
+		for _, condition := range request.Status.Conditions {
+			if condition.Type == cmv1.CertificateRequestConditionApproved && condition.Status == cmmeta.ConditionTrue &&
+				condition.Reason == "policy.cert-manager.io" && strings.Contains(condition.Message, "trust-manager-policy") {
+				return request
+			}
+		}
+	}
+	return nil
+}
+
+// waitForTrustManagerCertificateRequest returns a webhook request created after
+// the supplied UID snapshot, avoiding requests left behind by earlier specs.
+func waitForTrustManagerCertificateRequest(ctx context.Context, previousRequests map[types.UID]bool) *cmv1.CertificateRequest {
+	var request *cmv1.CertificateRequest
+	Eventually(func(g Gomega) {
+		requests, err := certmanagerClient.CertmanagerV1().CertificateRequests(operandNamespace).List(ctx, metav1.ListOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		for i := range requests.Items {
+			candidate := &requests.Items[i]
+			if !previousRequests[candidate.UID] && candidate.Annotations["cert-manager.io/certificate-name"] == trustManagerCertificateName {
+				request = candidate
+				return
+			}
+		}
+		g.Expect(request).NotTo(BeNil(), "expected a new webhook CertificateRequest")
+	}, highTimeout, fastPollInterval).Should(Succeed())
+	return request
+}
+
+// verifyTrustManagerPolicyResourceRecreation deletes each integration resource in
+// turn and waits for it to return with a new UID, without modifying TrustManager.
+func verifyTrustManagerPolicyResourceRecreation(ctx context.Context, client crclient.Client) {
+	for _, obj := range trustManagerPolicyResources() {
+		Expect(client.Get(ctx, crclient.ObjectKeyFromObject(obj), obj)).To(Succeed())
+		uid := obj.GetUID()
+		Expect(client.Delete(ctx, obj)).To(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(client.Get(ctx, crclient.ObjectKeyFromObject(obj), obj)).To(Succeed())
+			g.Expect(obj.GetUID()).NotTo(Equal(uid))
+		}, highTimeout, fastPollInterval).Should(Succeed())
+	}
 }

@@ -10,12 +10,10 @@ type WebhookTLSConfigApplyConfiguration struct {
 	// certManager configures the cert-manager Certificate issued for the webhook.
 	// When unset, the operator uses its self-signed Issuer and cert-manager defaults.
 	CertManager *TrustManagerCertConfigApplyConfiguration `json:"certManager,omitempty"`
-	// approverPolicy configures a CertificateRequestPolicy so that
-	// cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-	// Resources are created when bootstrapResources is Enabled (the default) and removed when it is Disabled.
-	// If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
-	// approver-policy is installed or bootstrapResources is set to Disabled.
-	// Default {} so bootstrapResources defaults to Enabled when approverPolicy is omitted.
+	// approverPolicy configures approval of trust-manager's webhook TLS certificate.
+	// By default, the operator manages the CertificateRequestPolicy and RBAC needed
+	// by approver-policy when CertManager reports autoApproverDisabled=true.
+	// Default {} lets managementState default to Managed when approverPolicy is omitted.
 	ApproverPolicy *ApproverPolicyConfigApplyConfiguration `json:"approverPolicy,omitempty"`
 }
 

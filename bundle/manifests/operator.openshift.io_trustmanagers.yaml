@@ -1269,34 +1269,30 @@ spec:
                     description: |-
                       webhookTLS configures the cert-manager Certificate used for the
                       trust-manager validating webhook serving certificate.
-                      Default {} so nested defaults (e.g. approverPolicy.bootstrapResources) apply when
-                      users omit webhookTLS entirely (Kubernetes only applies nested defaults after parent
-                      structural defaults are materialized).
+                      Default {} lets approverPolicy.managementState default to Managed even when
+                      webhookTLS is omitted.
                     properties:
                       approverPolicy:
                         default: {}
                         description: |-
-                          approverPolicy configures a CertificateRequestPolicy so that
-                          cert-manager-approver-policy can auto-approve the webhook CertificateRequest.
-                          Resources are created when bootstrapResources is Enabled (the default) and removed when it is Disabled.
-                          If Enabled while the CertificateRequestPolicy CRD is not installed, reconciliation fails until
-                          approver-policy is installed or bootstrapResources is set to Disabled.
-                          Default {} so bootstrapResources defaults to Enabled when approverPolicy is omitted.
+                          approverPolicy configures approval of trust-manager's webhook TLS certificate.
+                          By default, the operator manages the CertificateRequestPolicy and RBAC needed
+                          by approver-policy when CertManager reports autoApproverDisabled=true.
+                          Default {} lets managementState default to Managed when approverPolicy is omitted.
                         properties:
-                          bootstrapResources:
-                            default: Enabled
+                          managementState:
+                            default: Managed
                             description: |-
-                              bootstrapResources controls whether the operator provisions the CertificateRequestPolicy
-                              and associated RBAC required for approver-policy to approve the webhook certificate.
-
-                              Enabled (default) creates the CertificateRequestPolicy, ClusterRole, and ClusterRoleBinding.
-                              Disabled does not create them. Flipping from Enabled to Disabled deletes those
-                              resources. A missing CertificateRequestPolicy CRD is ignored while this is Disabled.
-
-                              When set to Enabled, cert-manager approver-policy must be installed.
+                              managementState controls whether the operator manages the webhook's approval
+                              policy and RBAC. Managed (default) creates these resources when CertManager's
+                              status.autoApproverDisabled is true and removes them when it is false or the
+                              CertManager CR is absent. The binding always uses the cert-manager ServiceAccount
+                              in the cert-manager namespace.
+                              Unmanaged leaves existing resources untouched, ignores CertManager changes,
+                              and performs no approver-policy checks. The administrator manages approval.
                             enum:
-                            - Enabled
-                            - Disabled
+                            - Managed
+                            - Unmanaged
                             type: string
                         type: object
                       certManager:
@@ -1342,7 +1338,7 @@ spec:
                               When kind is omitted it defaults to Issuer. When group is omitted it
                               defaults to cert-manager.io. If set, kind must be Issuer or ClusterIssuer
                               and group must be cert-manager.io.
-                              When bootstrapResources is Enabled, the CertificateRequestPolicy selector uses this same issuer.
+                              When approverPolicy is Managed, its CertificateRequestPolicy selector uses this same issuer.
                               An ACME or public ClusterIssuer leaves ca.crt empty in the Secret, so
                               inject-ca-from-secret cannot populate the webhook caBundle.
                             properties:
@@ -1436,12 +1432,6 @@ spec:
           status:
             description: status is the most recently observed status of the TrustManager.
             properties:
-              certificateRequestPolicy:
-                description: |-
-                  certificateRequestPolicy is the name of the CertificateRequestPolicy created
-                  for the webhook certificate when webhookTLS.approverPolicy.bootstrapResources
-                  is Enabled. Empty when bootstrapResources is Disabled.
-                type: string
               conditions:
                 description: conditions holds information about the current state
                   of the operand deployment.

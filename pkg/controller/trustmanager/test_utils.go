@@ -136,13 +136,8 @@ func (b *trustManagerBuilder) WithWebhookPrivateKey(algorithm, rotationPolicy st
 	return b
 }
 
-func (b *trustManagerBuilder) WithApproverPolicy(policy v1alpha1.Mode) *trustManagerBuilder {
-	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.BootstrapResources = policy
-	return b
-}
-
-func (b *trustManagerBuilder) WithCertificateRequestPolicyStatus(name string) *trustManagerBuilder {
-	b.Status.CertificateRequestPolicy = name
+func (b *trustManagerBuilder) WithApproverPolicy(state v1alpha1.ApproverPolicyManagementState) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.WebhookTLS.ApproverPolicy.ManagementState = state
 	return b
 }
 
