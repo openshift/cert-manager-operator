@@ -10,7 +10,7 @@
 
 Deploys and configures the **cert-manager-istio-csr** operand so Istio mesh workloads can obtain certificates via cert-manager issuers.
 
-**Key Principle**: Enabled by operator feature gate `IstioCSR` (GA, default **true**) via `--unsupported-addon-features`. Controller uses **Create + UpdateWithRetry**, not SSA.
+**Key Principle**: Enabled by operator feature gate `IstioCSR` (GA, default **true**) via `--unsupported-addon-features`. Controller is **mixed**: SSA via `common.ApplyResource` for most resources, Create + `UpdateWithRetry` for the rest (see Apply below).
 
 ## Spec Structure
 
@@ -66,7 +66,7 @@ Condition types (`conditions.go`): `Ready`, `Degraded`. Reasons: `Failed`, `Read
 | Concern | Behavior | Code |
 |---------|----------|------|
 | Image | `RELATED_IMAGE_CERT_MANAGER_ISTIOCSR` | `istiocsr/constants.go` |
-| Apply | Exists? update via `UpdateWithRetry`; else Create | e.g. `services.go`, `deployments.go` |
+| Apply | SSA via `common.ApplyResource` (field owner `istio-csr-controller`) for Service, ServiceAccount, Certificate, Role/RoleBinding, NetworkPolicy; Create + `UpdateWithRetry` for Deployment, CA ConfigMap, ClusterRole/ClusterRoleBinding | SSA: `services.go`, `serviceaccounts.go`, `certificates.go`, `rbacs.go`, `networkpolicies.go`; Create+Update: `deployments.go`, `rbacs.go` |
 | Singleton | Disallows multiple IstioCSR instances | `disallowMultipleIstioCSRInstances` |
 | Watches | Certificate, Deployment, RBAC, Service, SA, ConfigMap, Secret (metadata), NetworkPolicy, Issuer, ClusterIssuer | `controller.go` |
 | Labels | Managed label value `cert-manager-istio-csr`; watch label `istiocsr.openshift.operator.io/watched-by` | `constants.go` |

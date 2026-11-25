@@ -87,7 +87,7 @@ func TestServiceReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name: "successful apply of both services",
@@ -97,7 +97,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  2,
+			wantApplyCount:  2,
 		},
 		{
 			name: "skip apply when both services match desired",
@@ -116,7 +116,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "apply when existing has label drift",
@@ -136,7 +136,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -160,7 +160,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has port drift",
@@ -180,7 +180,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "apply when existing has selector drift",
@@ -200,7 +200,7 @@ func TestServiceReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 2,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "exists error propagates on first service",
@@ -209,9 +209,9 @@ func TestServiceReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if service",
+			wantErr:         "failed to check if Service",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name: "webhook service patch error propagates",
@@ -219,13 +219,13 @@ func TestServiceReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply service",
+			wantErr:         "failed to apply Service",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name: "metrics service patch error propagates on second call",
@@ -234,7 +234,7 @@ func TestServiceReconciliation(t *testing.T) {
 					return false, nil
 				})
 				callCount := 0
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					callCount++
 					if callCount == 2 {
 						return errTestClient
@@ -242,9 +242,9 @@ func TestServiceReconciliation(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr:         "failed to apply service",
+			wantErr:         "failed to apply Service",
 			wantExistsCount: 2,
-			wantPatchCount:  2,
+			wantApplyCount:  2,
 		},
 	}
 
@@ -268,8 +268,8 @@ func TestServiceReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}

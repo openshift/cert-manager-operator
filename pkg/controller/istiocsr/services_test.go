@@ -50,18 +50,12 @@ func TestCreateOrApplyServices(t *testing.T) {
 					return false, nil
 				})
 			},
-			wantErr: `failed to check istiocsr-test-ns/cert-manager-istio-csr service resource already exists: test client error`,
+			wantErr: `failed to check if Service "istiocsr-test-ns/cert-manager-istio-csr" exists: test client error`,
 		},
 		{
-			name: "service reconciliation fails while updating to desired state",
+			name: "service reconciliation fails while applying to desired state",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.UpdateWithRetryCalls(func(ctx context.Context, obj client.Object, option ...client.UpdateOption) error {
-					switch obj.(type) {
-					case *corev1.Service:
-						return errTestClient
-					}
-					return nil
-				})
+				m.ApplyReturns(errTestClient)
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
 					switch o := obj.(type) {
 					case *corev1.Service:
@@ -72,21 +66,17 @@ func TestCreateOrApplyServices(t *testing.T) {
 					}
 					return false, nil
 				})
+				// The merge-patch fallback for the drifted object fails too.
+				m.PatchReturns(errTestClient)
 			},
-			wantErr: `failed to update istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
+			wantErr: `failed to apply Service "istiocsr-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
 			name: "service reconciliation fails while creating",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-					switch obj.(type) {
-					case *corev1.Service:
-						return errTestClient
-					}
-					return nil
-				})
+				m.ApplyReturns(errTestClient)
 			},
-			wantErr: `failed to create istiocsr-test-ns/cert-manager-istio-csr service resource: test client error`,
+			wantErr: `failed to apply Service "istiocsr-test-ns/cert-manager-istio-csr": test client error`,
 		},
 		{
 			name: "service reconciliation when server config is not empty",
@@ -111,7 +101,7 @@ func TestCreateOrApplyServices(t *testing.T) {
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
-			err := r.createOrApplyServices(istiocsr, controllerDefaultResourceLabels, false)
+			err := r.createOrApplyServices(istiocsr, controllerDefaultResourceLabels)
 			if (tt.wantErr != "" || err != nil) && (err == nil || err.Error() != tt.wantErr) {
 				t.Errorf("createOrApplyServices() err: %v, wantErr: %v", err, tt.wantErr)
 			}

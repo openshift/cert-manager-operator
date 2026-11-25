@@ -644,7 +644,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 		preReq          func(*Reconciler, *fakes.FakeCtrlClient)
 		wantErr         string
 		wantExistsCount int
-		wantPatchCount  int
+		wantApplyCount  int
 	}{
 		{
 			name:     "successful apply when not found",
@@ -655,7 +655,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "skip apply when existing matches desired",
@@ -672,7 +672,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "skip apply for unrelated pod metadata",
@@ -690,7 +690,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "apply to remove a node selector no longer configured",
@@ -712,7 +712,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply to remove a previously owned pod annotation",
@@ -733,7 +733,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply when service account uid changes",
@@ -750,7 +750,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "serviceaccount get error propagates",
@@ -765,7 +765,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			},
 			wantErr:         "failed to get serviceaccount",
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "apply when existing has label drift",
@@ -783,7 +783,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:      "apply when existing has annotation drift",
@@ -803,7 +803,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply when defaultCAPackage changed from Enabled to Disabled",
@@ -821,7 +821,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:         "apply when existing has pod template annotation drift",
@@ -842,7 +842,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply when existing has image drift",
@@ -860,7 +860,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply when existing has replicas drift",
@@ -878,7 +878,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "apply when existing has args drift",
@@ -898,7 +898,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 				})
 			},
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:     "exists error propagates",
@@ -908,9 +908,9 @@ func TestDeploymentReconciliation(t *testing.T) {
 					return false, errTestClient
 				})
 			},
-			wantErr:         "failed to check if deployment",
+			wantErr:         "failed to check if Deployment",
 			wantExistsCount: 1,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "patch error propagates",
@@ -919,20 +919,20 @@ func TestDeploymentReconciliation(t *testing.T) {
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					return false, nil
 				})
-				m.PatchCalls(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				m.ApplyCalls(func(ctx context.Context, obj client.Object, opts ...client.ApplyOption) error {
 					return errTestClient
 				})
 			},
-			wantErr:         "failed to apply deployment",
+			wantErr:         "failed to apply Deployment",
 			wantExistsCount: 1,
-			wantPatchCount:  1,
+			wantApplyCount:  1,
 		},
 		{
 			name:            "missing image error propagates",
 			setImage:        false,
 			wantErr:         "environment variable with trust-manager image not set",
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "invalid toleration config returns error",
@@ -946,7 +946,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			}),
 			wantErr:         `spec.trustManagerConfig.tolerations[0].operator: Invalid value: "should-be-empty-for-exists": value must be empty when ` + "`operator` is 'Exists'",
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "invalid nodeSelector config returns error",
@@ -956,7 +956,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			}),
 			wantErr:         `spec.trustManagerConfig.nodeSelector: Invalid value: "node/Label/2"`,
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "invalid affinity config returns error",
@@ -979,7 +979,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			}),
 			wantErr:         `spec.trustManagerConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when ` + "`operator` is 'In' or 'NotIn'",
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 		{
 			name:     "invalid resource requirements config returns error",
@@ -994,7 +994,7 @@ func TestDeploymentReconciliation(t *testing.T) {
 			}),
 			wantErr:         `spec.trustManagerConfig.resources.requests: Invalid value: "2": must be less than or equal to cpu limit of 1`,
 			wantExistsCount: 0,
-			wantPatchCount:  0,
+			wantApplyCount:  0,
 		},
 	}
 
@@ -1024,8 +1024,8 @@ func TestDeploymentReconciliation(t *testing.T) {
 			if got := mock.ExistsCallCount(); got != tt.wantExistsCount {
 				t.Errorf("expected %d Exists calls, got %d", tt.wantExistsCount, got)
 			}
-			if got := mock.PatchCallCount(); got != tt.wantPatchCount {
-				t.Errorf("expected %d Patch calls, got %d", tt.wantPatchCount, got)
+			if got := mock.ApplyCallCount(); got != tt.wantApplyCount {
+				t.Errorf("expected %d Apply calls, got %d", tt.wantApplyCount, got)
 			}
 		})
 	}

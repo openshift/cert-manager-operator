@@ -28,12 +28,12 @@ package you're editing; do not "fix" one to look like another without an ADR upd
 | Package | Apply method | Evidence |
 |---|---|---|
 | `certmanager` | library-go `resourceapply.*` / `staticresourcecontroller` / `DeploymentController` | `cert_manager_networkpolicy.go` (`resourceapply.ApplyNetworkPolicy`) |
-| `istiocsr` | Imperative **Create, then `UpdateWithRetry`** on diff | `services.go`, `deployments.go`: `r.Create(...)` / `r.UpdateWithRetry(...)` |
-| `trustmanager` | **Server-Side Apply (SSA)**: `client.Patch(obj, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership)` | `services.go`, `deployments.go`; field owner `trust-manager-controller` in `constants.go` |
+| `istiocsr` | **Mixed**: SSA via `common.ApplyResource` (field owner `istio-csr-controller`) for Service, ServiceAccount, Certificate, Role/RoleBinding, NetworkPolicy; imperative **Create, then `UpdateWithRetry`** for Deployment, CA ConfigMap, ClusterRole/ClusterRoleBinding | `services.go` (`ApplyResource`); `deployments.go`: `r.Create(...)` / `r.UpdateWithRetry(...)` |
+| `trustmanager` | **Server-Side Apply (SSA)**: `common.ApplyResource` → `CtrlClient.Apply(obj, client.FieldOwner(fieldOwner), client.ForceOwnership)` | `services.go`, `deployments.go`; field owner `trust-manager-controller` in `constants.go` |
 
 Do **not** claim "we use SSA everywhere" — this is a documented hallucination failure
-mode (ADR-0002). IstioCSR remains Create+Update until explicitly migrated; there is no
-committed timeline for that migration.
+mode (ADR-0002). IstioCSR's Deployment, CA ConfigMap and ClusterRole/ClusterRoleBinding
+remain Create+Update until explicitly migrated; there is no committed timeline for that.
 
 ## 3. Greenfield Rule: New ctrl-runtime Operand → Copy TrustManager
 
@@ -42,7 +42,7 @@ When adding a **new** feature-gated operand controller under `pkg/controller/`:
 1. **Copy the TrustManager package structure**, not IstioCSR:
    `controller.go` (Reconcile/SetupWithManager), `deployments.go`, `services.go`,
    `serviceaccounts.go`, `rbacs.go`, `webhooks.go`, `constants.go`, `install_*.go`, `utils.go`.
-2. Apply resources via `client.Patch(desired, client.Apply, client.FieldOwner(<name>-controller), client.ForceOwnership)`.
+2. Apply resources via `common.ApplyResource(ctx, r.CtrlClient, ..., fieldOwner, <kind>Modified)`, which server-side applies with `client.FieldOwner(<name>-controller)` + `client.ForceOwnership`.
    Pick a unique `fieldOwner` constant per controller.
 3. Diff only fields you manage via SSA (see `serviceModified` pattern in
    `trustmanager/services.go`) — do not `reflect.DeepEqual` the whole object.
