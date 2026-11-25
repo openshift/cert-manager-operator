@@ -183,7 +183,12 @@ func (d DynamicResourceLoader) DeleteFromFile(assetFunc func(name string) ([]byt
 func (d DynamicResourceLoader) CreateFromFile(assetFunc func(name string) ([]byte, error), filename string, overrideNamespace string) {
 	d.t.Logf("Creating resource %v\n", filename)
 	createFunc := func(t FailureReporter, unstructured *unstructured.Unstructured, dynamicResourceInterface dynamic.ResourceInterface) {
-		_, err := dynamicResourceInterface.Create(context.TODO(), unstructured, metav1.CreateOptions{})
+		// A retried Create that already succeeded server-side returns AlreadyExists,
+		// which stops the retry and is ignored by noErrorSkipExists.
+		err := retryRetriable(d.context, func(ctx context.Context) error {
+			_, err := dynamicResourceInterface.Create(ctx, unstructured, metav1.CreateOptions{})
+			return err
+		})
 		d.noErrorSkipExists(err)
 	}
 
