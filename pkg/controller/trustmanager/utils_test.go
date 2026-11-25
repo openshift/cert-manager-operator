@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -413,5 +414,13 @@ func TestManagedAnnotationsModified(t *testing.T) {
 				t.Errorf("expected modified=%v, got %v", tt.wantModified, got)
 			}
 		})
+	}
+}
+
+func TestNetworkPolicySpecModified(t *testing.T) {
+	desired := &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}}}
+	fetched := &networkingv1.NetworkPolicy{Spec: networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}}}
+	if !networkPolicySpecModified(desired, fetched) {
+		t.Fatal("networkPolicySpecModified() = false, want true for different policyTypes")
 	}
 }
