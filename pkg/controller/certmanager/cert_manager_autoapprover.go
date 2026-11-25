@@ -21,7 +21,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	rbacinformers "k8s.io/client-go/informers/rbac/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
@@ -48,8 +50,10 @@ const (
 // This loop runs independently of the operand feature gate: turning that gate off
 // must not release an established latch while ApproverPolicyManager still exists.
 type CertManagerAutoApproverController struct {
-	configClient operatorconfigclient.OperatorV1alpha1Interface
-	kubeClient   kubernetes.Interface
+	configClient  operatorconfigclient.OperatorV1alpha1Interface
+	kubeClient    kubernetes.Interface
+	rbacInformers rbacinformers.Interface
+	rbacCache     resourceapply.ResourceCache
 }
 
 func NewCertManagerAutoApproverController(
@@ -61,20 +65,38 @@ func NewCertManagerAutoApproverController(
 	recorder events.Recorder,
 ) factory.Controller {
 	policies := operatorInformers.Operator().V1alpha1().ApproverPolicyManagers()
+	rbacInformers := kubeInformers.InformersFor("").Rbac().V1()
 	c := &CertManagerAutoApproverController{
-		configClient: configClient,
-		kubeClient:   kubeClient,
+		configClient:  configClient,
+		kubeClient:    kubeClient,
+		rbacInformers: rbacInformers,
 	}
 	return factory.New().WithInformers(
 		operatorClient.Informer(),
 		// Status-only updates must enqueue the handoff, not just spec changes.
 		policies.Informer(),
-		kubeInformers.InformersFor(operatorclient.TargetNamespace).Apps().V1().Deployments().Informer(),
 		kubeInformers.InformersFor(operatorclient.TargetNamespace).Core().V1().Pods().Informer(),
-		kubeInformers.InformersFor("").Rbac().V1().ClusterRoles().Informer(),
-		kubeInformers.InformersFor("").Rbac().V1().ClusterRoleBindings().Informer(),
+	).WithFilteredEventsInformers(
+		autoApproverResourceFilter(certmanagerControllerDeployment),
+		kubeInformers.InformersFor(operatorclient.TargetNamespace).Apps().V1().Deployments().Informer(),
+	).WithFilteredEventsInformers(
+		autoApproverResourceFilter(autoApproverRBACName),
+		rbacInformers.ClusterRoles().Informer(),
+		rbacInformers.ClusterRoleBindings().Informer(),
 	).ResyncEvery(time.Minute).WithSync(c.sync).WithSyncDegradedOnError(operatorClient).
 		ToController(autoApproverControllerName, recorder.WithComponentSuffix("auto-approver"))
+}
+
+// autoApproverResourceFilter matches a dependent resource by name, including
+// deletion events delivered as tombstones when the informer missed the object.
+func autoApproverResourceFilter(name string) factory.EventFilterFunc {
+	filter := factory.NamesFilter(name)
+	return func(obj interface{}) bool {
+		if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+			obj = tombstone.Obj
+		}
+		return filter(obj)
+	}
 }
 
 // autoApproverState decides whether built-in approval should be disabled,
@@ -241,6 +263,11 @@ func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx fa
 	if err != nil {
 		return err
 	}
+	// The Deployment controller handles drift independently. Read its Deployment
+	// only when we need to confirm a change to the completed handoff status.
+	if cm.Status.AutoApproverDisabled == shouldDisable {
+		return nil
+	}
 	deployment, err := c.kubeClient.AppsV1().Deployments(operatorclient.TargetNamespace).Get(ctx, certmanagerControllerDeployment, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		// Wait for the Deployment controller to create or recreate the operand.
@@ -258,12 +285,6 @@ func (c *CertManagerAutoApproverController) sync(ctx context.Context, syncCtx fa
 		// Deployment apply errors are retried by its existing controller. Wait for
 		// its successful write before publishing the completed transition.
 		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), time.Second)
-		return nil
-	}
-	if policy != nil && !shouldDisable {
-		syncCtx.Queue().AddAfter(syncCtx.QueueKey(), 30*time.Second)
-	}
-	if cm.Status.AutoApproverDisabled == shouldDisable {
 		return nil
 	}
 	if shouldDisable {
@@ -361,10 +382,39 @@ func (c *CertManagerAutoApproverController) persistDisableIntent(ctx context.Con
 func (c *CertManagerAutoApproverController) reconcileRBAC(ctx context.Context, recorder events.Recorder, disabled bool) error {
 	rbac := c.kubeClient.RbacV1()
 	if !disabled {
-		_, _, roleErr := resourceapply.ApplyClusterRole(ctx, rbac, recorder, resourceread.ReadClusterRoleV1OrDie(assets.MustAsset(autoApproverRoleAsset)))
-		_, _, bindingErr := resourceapply.ApplyClusterRoleBinding(ctx, rbac, recorder, resourceread.ReadClusterRoleBindingV1OrDie(assets.MustAsset(autoApproverBindingAsset)))
+		if c.rbacCache == nil {
+			c.rbacCache = resourceapply.NewResourceCache()
+		}
+		requiredRole := resourceread.ReadClusterRoleV1OrDie(assets.MustAsset(autoApproverRoleAsset))
+		requiredBinding := resourceread.ReadClusterRoleBindingV1OrDie(assets.MustAsset(autoApproverBindingAsset))
+		role, err := c.rbacInformers.ClusterRoles().Lister().Get(autoApproverRBACName)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		binding, err := c.rbacInformers.ClusterRoleBindings().Lister().Get(autoApproverRBACName)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		// Skip the live apply reads only for resource versions already checked by
+		// library-go. Missing or changed objects still use its existing merge logic.
+		var roleErr, bindingErr error
+		if !c.rbacCache.SafeToSkipApply(requiredRole, role) {
+			role, _, roleErr = resourceapply.ApplyClusterRole(ctx, rbac, recorder, requiredRole)
+			if roleErr == nil {
+				c.rbacCache.UpdateCachedResourceMetadata(requiredRole, role)
+			}
+		}
+		if !c.rbacCache.SafeToSkipApply(requiredBinding, binding) {
+			binding, _, bindingErr = resourceapply.ApplyClusterRoleBinding(ctx, rbac, recorder, requiredBinding)
+			if bindingErr == nil {
+				c.rbacCache.UpdateCachedResourceMetadata(requiredBinding, binding)
+			}
+		}
 		return errors.Join(roleErr, bindingErr)
 	}
+	// Discard pre-handoff versions before deleting anything. On restoration the
+	// informer may still contain those objects, so they must be checked live again.
+	c.rbacCache = nil
 	// Delete the binding first, then the role. Try both even if one fails, and
 	// confirm absence since finalizers can delay deletion.
 	bindingErr := rbac.ClusterRoleBindings().Delete(ctx, autoApproverRBACName, metav1.DeleteOptions{})
