@@ -1,0 +1,42 @@
+# Optional ClusterRole for IstioCSR when issuerRef targets third-party cert-manager issuers.
+# The operator's default permissions cover cert-manager.io Issuer and ClusterIssuer only.
+#
+# When using an external issuer (for example GoogleCASIssuer or AWSPCAClusterIssuer), cluster
+# admins must grant the cert-manager-operator service account access to that issuer API group.
+# Bind this ClusterRole to the operator service account, for example:
+#
+#   oc adm policy add-cluster-role-to-user cert-manager-operator-istiocsr-external-issuer \
+#     -z controller-manager -n cert-manager-operator
+#
+# Add rules for additional issuer API groups when your issuer CRD is not listed below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-manager-operator
+    app.kubernetes.io/component: istiocsr
+    app.kubernetes.io/part-of: cert-manager-operator
+  name: cert-manager-operator-istiocsr-external-issuer
+rules:
+- apiGroups:
+  - cas-issuer.jetstack.io
+  resources:
+  - googlecasissuers
+  - googlecasclusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - awspca.cert-manager.io
+  resources:
+  - awspcaissuers
+  - awspcaclusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update

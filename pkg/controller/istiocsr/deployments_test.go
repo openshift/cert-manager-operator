@@ -2,6 +2,7 @@ package istiocsr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -13,11 +14,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common/fakes"
@@ -84,7 +88,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
 				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = certmanagerv1.ClusterIssuerKind
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch "istio-test-ns/istiocsr-test-resource" issuer: issuers.cert-manager.io "istiocsr-test-resource" not found`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch issuer "/istiocsr-test-resource": issuers.cert-manager.io "istiocsr-test-resource" not found`,
 		},
 		{
 			name: "deployment reconciliation fails as image env var is empty",
@@ -369,46 +373,6 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			wantErr: `failed to update istiocsr-test-ns/istiocsr-test-resource istiocsr status with image info: failed to update status for "istiocsr-test-ns/istiocsr-test-resource": failed to update istiocsr.openshift.operator.io "istiocsr-test-ns/istiocsr-test-resource" status: test client error`,
 		},
 		{
-			name: "deployment reconciliation fails as invalid kind in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						deployment := testDeployment()
-						deployment.DeepCopyInto(o)
-					case *corev1.ConfigMap:
-						configmap := testConfigMap()
-						configmap.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "invalid"
-			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.kind can be any of `clusterissuer` or `issuer`, configured: invalid: invalid issuerRef config",
-		},
-		{
-			name: "deployment reconciliation fails as invalid group in issuerRef",
-			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
-				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
-					switch o := obj.(type) {
-					case *appsv1.Deployment:
-						deployment := testDeployment()
-						deployment.DeepCopyInto(o)
-					case *corev1.ConfigMap:
-						configmap := testConfigMap()
-						configmap.DeepCopyInto(o)
-					}
-					return true, nil
-				})
-			},
-			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
-				i.Spec.IstioCSRConfig.CertManager.IssuerRef.Group = "invalid"
-			},
-			wantErr: "failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: spec.istioCSRConfig.certManager.issuerRef.group can be only `cert-manager.io`, configured: invalid: invalid issuerRef config",
-		},
-		{
 			name: "deployment reconciliation fails as unsupported ACME issuer is used",
 			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
 				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
@@ -458,7 +422,7 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch "istio-test-ns/istiocsr-test-resource" issuer: no access`,
+			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to verify issuer in istiocsr-test-ns/istiocsr-test-resource: failed to fetch issuer: failed to fetch issuer "istio-test-ns/istiocsr-test-resource": no access`,
 		},
 		{
 			name: "deployment reconciliation fails while fetching secret referenced in issuer",
@@ -1065,6 +1029,55 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			},
 			wantErr: `failed to generate deployment resource for creation in istiocsr-test-ns: failed to update volume istiocsr-test-ns/istiocsr-test-resource: failed to validate and mount CA certificate ConfigMap: invalid PEM data in CA certificate ConfigMap istiocsr-test-ns/ca-without-certsign-test key "ca-cert.pem": certificate does not have Certificate Sign key usage`,
 		},
+		{
+			name: "deployment reconciliation succeeds with external issuer and istiod certificate CA fallback",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) (bool, error) {
+					switch o := obj.(type) {
+					case *appsv1.Deployment:
+						deployment := testDeployment()
+						deployment.DeepCopyInto(o)
+					case *corev1.ConfigMap:
+						configmap := testConfigMap()
+						configmap.DeepCopyInto(o)
+					}
+					return true, nil
+				})
+				m.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+					switch o := obj.(type) {
+					case *unstructured.Unstructured:
+						o.SetUnstructuredContent(map[string]interface{}{
+							"apiVersion": "cas-issuer.jetstack.io/v1",
+							"kind":       "GoogleCASIssuer",
+							"metadata": map[string]interface{}{
+								"name":      testResourcesName,
+								"namespace": testIstiodNamespace,
+							},
+							"spec": map[string]interface{}{
+								"acme": map[string]interface{}{"email": "test@example.com"},
+							},
+						})
+						o.SetGroupVersionKind(schema.GroupVersionKind{Group: "cas-issuer.jetstack.io", Version: "v1", Kind: "GoogleCASIssuer"})
+					case *corev1.Secret:
+						if ns.Name != "istiod-tls" {
+							return apierrors.NewNotFound(corev1.Resource("secrets"), ns.Name)
+						}
+						secret := testSecret()
+						secret.Name = "istiod-tls"
+						secret.DeepCopyInto(o)
+					}
+					return nil
+				})
+			},
+			updateIstioCSR: func(i *v1alpha1.IstioCSR) {
+				i.Status.IstioCSRImage = image
+				i.Spec.IstioCSRConfig.CertManager.IssuerRef = certmanagermetav1.IssuerReference{
+					Name:  testResourcesName,
+					Kind:  "GoogleCASIssuer",
+					Group: "cas-issuer.jetstack.io",
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1074,11 +1087,11 @@ func TestCreateOrApplyDeployments(t *testing.T) {
 			if tt.preReq != nil {
 				tt.preReq(r, mock)
 			}
-			r.CtrlClient = mock
 			istiocsr := testIstioCSR()
 			if tt.updateIstioCSR != nil {
 				tt.updateIstioCSR(istiocsr)
 			}
+			attachTestIssuerClient(r, mock, istiocsr, mock.GetStub)
 			if !tt.skipEnvVar {
 				t.Setenv("RELATED_IMAGE_CERT_MANAGER_ISTIOCSR", image)
 			}
@@ -1343,21 +1356,22 @@ func TestUpdateVolumeWithIssuerCA(t *testing.T) {
 	}
 }
 
-func TestGetIssuerUnsupportedKind(t *testing.T) {
+func TestGetIssuerUnknownKind(t *testing.T) {
 	r := testReconciler(t)
+	r.restMapper = testRESTMapper()
 
 	istiocsr := testIstioCSR()
 	istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = "bogus"
 
 	obj, err := r.getIssuer(istiocsr)
 	if obj != nil {
-		t.Errorf("expected nil object for unsupported kind, got %T", obj)
+		t.Errorf("expected nil object for unknown kind, got %T", obj)
 	}
 	if err == nil {
-		t.Fatal("expected error for unsupported issuer kind")
+		t.Fatal("expected error for unknown issuer kind")
 	}
-	if !strings.Contains(err.Error(), "unsupported issuer kind") {
-		t.Errorf("unexpected error message: %v", err)
+	if !errors.Is(err, errUnsupportedIssuerRefKind) {
+		t.Errorf("expected unsupported issuerRef kind error, got: %v", err)
 	}
 }
 
@@ -1365,21 +1379,27 @@ func TestGetIssuerValidKinds(t *testing.T) {
 	tests := []struct {
 		name string
 		kind string
-		want client.Object
 	}{
-		{name: "issuer kind", kind: certmanagerv1.IssuerKind, want: &certmanagerv1.Issuer{}},
-		{name: "cluster issuer kind", kind: certmanagerv1.ClusterIssuerKind, want: &certmanagerv1.ClusterIssuer{}},
+		{name: "issuer kind", kind: certmanagerv1.IssuerKind},
+		{name: "cluster issuer kind", kind: certmanagerv1.ClusterIssuerKind},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeClient := &fakes.FakeCtrlClient{}
-			fakeClient.GetReturns(nil)
+			fakeClient.GetCalls(func(ctx context.Context, ns types.NamespacedName, obj client.Object) error {
+				switch o := obj.(type) {
+				case *certmanagerv1.Issuer:
+					testIssuer().DeepCopyInto(o)
+				case *certmanagerv1.ClusterIssuer:
+					testClusterIssuer().DeepCopyInto(o)
+				}
+				return nil
+			})
 
 			r := testReconciler(t)
-			r.CtrlClient = fakeClient
-
 			istiocsr := testIstioCSR()
 			istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Kind = tt.kind
+			attachTestIssuerClient(r, fakeClient, istiocsr, fakeClient.GetStub)
 
 			obj, err := r.getIssuer(istiocsr)
 			if err != nil {
@@ -1388,8 +1408,8 @@ func TestGetIssuerValidKinds(t *testing.T) {
 			if obj == nil {
 				t.Fatalf("expected non-nil object for kind %q", tt.kind)
 			}
-			if reflect.TypeOf(obj) != reflect.TypeOf(tt.want) {
-				t.Errorf("getIssuer() for kind %q returned %T, want %T", tt.kind, obj, tt.want)
+			if obj.GetKind() != tt.kind {
+				t.Errorf("getIssuer() for kind %q returned kind %q", tt.kind, obj.GetKind())
 			}
 		})
 	}
