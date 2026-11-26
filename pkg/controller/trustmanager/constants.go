@@ -148,3 +148,15 @@ const (
 
 	validatingWebhookConfigAssetName = "trust-manager/resources/validatingwebhookconfiguration_trust-manager.yml"
 )
+
+const (
+	trustManagerOwnedByLabelKey   = "trustmanager.operator.openshift.io/owned-by"
+	trustManagerOwnedByLabelValue = "trust-manager"
+)
+
+var trustManagerNetworkPolicyAssets = []string{
+	"networkpolicies/trust-manager-deny-all-networkpolicy.yaml",
+	"networkpolicies/trust-manager-allow-egress-to-api-server-networkpolicy.yaml",
+	"networkpolicies/trust-manager-allow-ingress-to-webhook-networkpolicy.yaml",
+	"networkpolicies/trust-manager-allow-ingress-to-metrics-networkpolicy.yaml",
+}

@@ -16,6 +16,11 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 	resourceLabels := getResourceLabels(trustManager)
 	resourceAnnotations := getResourceAnnotations(trustManager)
 
+	if err := r.createOrApplyNetworkPolicies(trustManager, resourceLabels); err != nil {
+		r.log.Error(err, "failed to reconcile network policy resources")
+		return err
+	}
+
 	trustNamespace := getTrustNamespace(trustManager)
 	if err := r.validateTrustNamespace(trustNamespace); err != nil {
 		return common.NewIrrecoverableError(err, "trust namespace %q validation failed", trustNamespace)

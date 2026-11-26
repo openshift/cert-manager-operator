@@ -7,6 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -233,14 +234,21 @@ func TestProcessReconcileRequest(t *testing.T) {
 					}
 					return nil
 				})
-				// Namespace Exists succeeds (passes validateTrustNamespace), but
-				// ServiceAccount Exists returns a FromClientError
+				// Namespace Exists succeeds; network policies are created first;
+				// ServiceAccount Exists returns a FromClientError.
 				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
 					switch obj.(type) {
 					case *corev1.Namespace:
 						return true, nil
+					case *networkingv1.NetworkPolicy:
+						return false, nil
+					case *corev1.ServiceAccount:
+						return false, errTestClient
 					}
-					return false, errTestClient
+					return false, nil
+				})
+				m.CreateCalls(func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+					return nil
 				})
 			},
 			wantConditions: []metav1.Condition{
