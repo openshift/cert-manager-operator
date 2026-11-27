@@ -75,19 +75,19 @@ spec:
             - name: OPERATOR_NAME
               value: cert-manager-operator
             - name: RELATED_IMAGE_CERT_MANAGER_WEBHOOK
-              value: quay.io/jetstack/cert-manager-webhook:v1.21.3
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:fc851c7419e0127778c56c085633fe96fd0d1fe4840f0ec297f03332d43130c0
             - name: RELATED_IMAGE_CERT_MANAGER_CA_INJECTOR
-              value: quay.io/jetstack/cert-manager-cainjector:v1.21.3
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:fc851c7419e0127778c56c085633fe96fd0d1fe4840f0ec297f03332d43130c0
             - name: RELATED_IMAGE_CERT_MANAGER_CONTROLLER
-              value: quay.io/jetstack/cert-manager-controller:v1.21.3
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-rhel9@sha256:fc851c7419e0127778c56c085633fe96fd0d1fe4840f0ec297f03332d43130c0
             - name: RELATED_IMAGE_CERT_MANAGER_ACMESOLVER
-              value: quay.io/jetstack/cert-manager-acmesolver:v1.21.3
+              value: registry.stage.redhat.io/cert-manager/jetstack-cert-manager-acmesolver-rhel9@sha256:4869bfc7b7f646925d337987d838c37aca6246b32c173156c961e25baef8571b
             - name: RELATED_IMAGE_CERT_MANAGER_ISTIOCSR
-              value: quay.io/jetstack/cert-manager-istio-csr:v0.19.1
+              value: registry.stage.redhat.io/cert-manager/cert-manager-istio-csr-rhel9@sha256:a55f74dc1cdec56f812ba9554b3482cbfea8f99e1cbb627a6c2846ca68f14ae8
             - name: RELATED_IMAGE_CERT_MANAGER_TRUST_MANAGER
-              value: quay.io/jetstack/trust-manager:v0.26.0
+              value: registry.stage.redhat.io/cert-manager/cert-manager-trust-manager-rhel9@sha256:18c2405fe1ed983c0eecd2df022b4745383d80552deba6aea67172ce3fe5c4af
             - name: RELATED_IMAGE_APPROVER_POLICY
-              value: quay.io/jetstack/cert-manager-approver-policy:v0.29.0
+              value: registry.stage.redhat.io/cert-manager/cert-manager-approver-policy-rhel9@sha256:e80f1e13df94f3a04d53eaafd3c41cedfdb42355734df91d14b19d76022cd22c
             - name: OPERAND_IMAGE_VERSION
               value: 1.21.3
             - name: ISTIOCSR_OPERAND_IMAGE_VERSION
@@ -103,7 +103,7 @@ spec:
             - name: TRUSTED_CA_CONFIGMAP_NAME
             - name: CLOUD_CREDENTIALS_SECRET_NAME
             - name: UNSUPPORTED_ADDON_FEATURES
-          image: controller:latest
+          image: registry.stage.redhat.io/cert-manager/cert-manager-operator-rhel9@sha256:a2ccb4ef658918f89c4e890ec2709c56d8bb97c2852b21f5bcbe077336037873
           imagePullPolicy: IfNotPresent
           name: cert-manager-operator
           securityContext:
