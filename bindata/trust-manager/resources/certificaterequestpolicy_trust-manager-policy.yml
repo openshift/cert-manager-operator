@@ -1,0 +1,30 @@
+---
+apiVersion: policy.cert-manager.io/v1alpha1
+kind: CertificateRequestPolicy
+metadata:
+  name: trust-manager-policy
+  labels:
+    app.kubernetes.io/instance: cert-manager-trust-manager
+    app.kubernetes.io/managed-by: cert-manager-operator
+    app.kubernetes.io/name: cert-manager-trust-manager
+    app.kubernetes.io/version: v0.26.0
+    app.kubernetes.io/part-of: cert-manager-operator
+spec:
+  allowed:
+    commonName:
+      value: "trust-manager.cert-manager.svc"
+      required: true
+    dnsNames:
+      values: ["trust-manager.cert-manager.svc"]
+      required: true
+    usages:
+      - digital signature
+      - key encipherment
+  selector:
+    issuerRef:
+      name: trust-manager
+      kind: Issuer
+      group: cert-manager.io
+    namespace:
+      matchNames:
+        - cert-manager

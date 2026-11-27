@@ -23,6 +23,9 @@ echo "---- Downloading trust-manager manifests ${TRUST_MANAGER_VERSION} ----"
   --version "${TRUST_MANAGER_VERSION}" \
   --set defaultPackage.enabled=false \
   --set namespace=cert-manager \
+  --set app.webhook.tls.approverPolicy.enabled=true \
+  --set app.webhook.tls.approverPolicy.certManagerNamespace=cert-manager \
+  --set app.webhook.tls.approverPolicy.certManagerServiceAccount=cert-manager \
   > ${MANIFESTS_PATH}/manifests.yaml
 
 echo "---- Patching manifest ----"
@@ -40,6 +43,11 @@ echo "---- Patching manifest ----"
 
 # add app.kubernetes.io/part-of to all labels objects (wherever app.kubernetes.io/name exists)
 ./bin/yq e '(.. | select(has("app.kubernetes.io/name"))."app.kubernetes.io/part-of") = "cert-manager-operator"' -i ${MANIFESTS_PATH}/manifests.yaml
+
+# The webhook Certificate uses these default key usages. Scope approval to its
+# namespace; the controller adjusts the issuer selector for a custom issuerRef.
+./bin/yq e '(select(.kind == "CertificateRequestPolicy" and .metadata.name == "trust-manager-policy") | .spec.allowed.usages) = ["digital signature", "key encipherment"]' -i ${MANIFESTS_PATH}/manifests.yaml
+./bin/yq e '(select(.kind == "CertificateRequestPolicy" and .metadata.name == "trust-manager-policy") | .spec.selector.namespace.matchNames) = ["cert-manager"]' -i ${MANIFESTS_PATH}/manifests.yaml
 
 # regenerate all bindata
 rm -rf bindata/trust-manager/resources
