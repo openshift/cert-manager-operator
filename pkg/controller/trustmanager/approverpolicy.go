@@ -15,10 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
 )
 
 // certManagerAutoApproverPredicate accepts creation and deletion of CertManager/cluster,
@@ -174,49 +174,22 @@ func (r *Reconciler) createOrApplyCertificateRequestPolicy(trustManager *v1alpha
 }
 
 func getCertificateRequestPolicyObject(certConfig v1alpha1.TrustManagerCertConfig, resourceLabels, resourceAnnotations map[string]string) *policyv1alpha1.CertificateRequestPolicy {
+	obj := common.DecodeObjBytes[*policyv1alpha1.CertificateRequestPolicy](codecs, policyv1alpha1.SchemeGroupVersion, assets.MustAsset(certificateRequestPolicyAssetName))
+	common.UpdateName(obj, trustManagerCertificateRequestPolicyName)
+	common.UpdateResourceLabels(obj, resourceLabels)
+	updateResourceAnnotations(obj, resourceAnnotations)
+
 	dnsName := fmt.Sprintf("%s.%s.svc", trustManagerServiceName, operandNamespace)
+	obj.Spec.Allowed.CommonName.Value = ptr.To(dnsName)
+	obj.Spec.Allowed.DNSNames.Values = ptr.To([]string{dnsName})
+
 	// Same issuer as the webhook Certificate. A fixed self-signed selector would
 	// never match a custom issuerRef, so the CertificateRequest would stay unapproved.
 	issuerRef := webhookCertificateIssuerRef(certConfig)
-	// cert-manager defaults an unset Certificate spec.usages to these two values.
-	// approver-policy treats an omitted allowed.usages list as permitting none.
-	usages := []certmanagerv1.KeyUsage{certmanagerv1.UsageDigitalSignature, certmanagerv1.UsageKeyEncipherment}
-	obj := &policyv1alpha1.CertificateRequestPolicy{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: policyv1alpha1.SchemeGroupVersion.String(),
-			Kind:       policyv1alpha1.CertificateRequestPolicyKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: trustManagerCertificateRequestPolicyName,
-		},
-		Spec: policyv1alpha1.CertificateRequestPolicySpec{
-			Allowed: &policyv1alpha1.CertificateRequestPolicyAllowed{
-				CommonName: &policyv1alpha1.CertificateRequestPolicyAllowedString{
-					Value:    ptr.To(dnsName),
-					Required: ptr.To(true),
-				},
-				DNSNames: &policyv1alpha1.CertificateRequestPolicyAllowedStringSlice{
-					Values:   ptr.To([]string{dnsName}),
-					Required: ptr.To(true),
-				},
-				Usages: &usages,
-			},
-			Selector: policyv1alpha1.CertificateRequestPolicySelector{
-				IssuerRef: &policyv1alpha1.CertificateRequestPolicySelectorIssuerRef{
-					Name:  ptr.To(issuerRef.Name),
-					Kind:  ptr.To(issuerRef.Kind),
-					Group: ptr.To(issuerRef.Group),
-				},
-				// Scope to the operand namespace where the webhook CertificateRequest is created.
-				// A nil selector namespace serializes as JSON null and fails CRD validation on apply.
-				Namespace: &policyv1alpha1.CertificateRequestPolicySelectorNamespace{
-					MatchNames: []string{operandNamespace},
-				},
-			},
-		},
-	}
-	common.UpdateResourceLabels(obj, resourceLabels)
-	updateResourceAnnotations(obj, resourceAnnotations)
+	obj.Spec.Selector.IssuerRef.Name = ptr.To(issuerRef.Name)
+	obj.Spec.Selector.IssuerRef.Kind = ptr.To(issuerRef.Kind)
+	obj.Spec.Selector.IssuerRef.Group = ptr.To(issuerRef.Group)
+	obj.Spec.Selector.Namespace.MatchNames = []string{operandNamespace}
 	return obj
 }
 
@@ -252,25 +225,11 @@ func (r *Reconciler) createOrApplyPolicyClusterRole(trustManager *v1alpha1.Trust
 // getPolicyClusterRoleObject returns ClusterRole trust-manager-policy-role,
 // granting the cert-manager ServiceAccount use of CertificateRequestPolicy trust-manager-policy.
 func getPolicyClusterRoleObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRole {
-	role := &rbacv1.ClusterRole{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: rbacv1.SchemeGroupVersion.String(),
-			Kind:       "ClusterRole",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: trustManagerPolicyClusterRoleName,
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups:     []string{"policy.cert-manager.io"},
-				Resources:     []string{"certificaterequestpolicies"},
-				Verbs:         []string{"use"},
-				ResourceNames: []string{trustManagerCertificateRequestPolicyName},
-			},
-		},
-	}
+	role := common.DecodeObjBytes[*rbacv1.ClusterRole](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(policyClusterRoleAssetName))
+	common.UpdateName(role, trustManagerPolicyClusterRoleName)
 	common.UpdateResourceLabels(role, resourceLabels)
 	updateResourceAnnotations(role, resourceAnnotations)
+	role.Rules[0].ResourceNames = []string{trustManagerCertificateRequestPolicyName}
 	return role
 }
 
@@ -314,28 +273,11 @@ func (r *Reconciler) createOrApplyPolicyClusterRoleBinding(trustManager *v1alpha
 // getPolicyClusterRoleBindingObject binds trust-manager-policy-role to the
 // cert-manager ServiceAccount in the operand namespace.
 func getPolicyClusterRoleBindingObject(resourceLabels, resourceAnnotations map[string]string) *rbacv1.ClusterRoleBinding {
-	binding := &rbacv1.ClusterRoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: rbacv1.SchemeGroupVersion.String(),
-			Kind:       "ClusterRoleBinding",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: trustManagerPolicyClusterRoleBindingName,
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: rbacv1.GroupName,
-			Kind:     "ClusterRole",
-			Name:     trustManagerPolicyClusterRoleName,
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      roleBindingSubjectKind,
-				Name:      certManagerControllerServiceAccountName,
-				Namespace: operandNamespace,
-			},
-		},
-	}
+	binding := common.DecodeObjBytes[*rbacv1.ClusterRoleBinding](codecs, rbacv1.SchemeGroupVersion, assets.MustAsset(policyClusterRoleBindingAssetName))
+	common.UpdateName(binding, trustManagerPolicyClusterRoleBindingName)
 	common.UpdateResourceLabels(binding, resourceLabels)
 	updateResourceAnnotations(binding, resourceAnnotations)
+	binding.RoleRef.Name = trustManagerPolicyClusterRoleName
+	updateBindingSubjects(binding.Subjects, certManagerControllerServiceAccountName, operandNamespace)
 	return binding
 }
