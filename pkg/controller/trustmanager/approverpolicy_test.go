@@ -44,14 +44,19 @@ func TestCertificateRequestPolicyObject(t *testing.T) {
 	}
 
 	expectedDNS := trustManagerServiceName + "." + operandNamespace + ".svc"
-	if obj.Spec.Allowed == nil || obj.Spec.Allowed.CommonName == nil || obj.Spec.Allowed.CommonName.Value == nil || *obj.Spec.Allowed.CommonName.Value != expectedDNS {
-		t.Errorf("expected commonName %q, got %#v", expectedDNS, obj.Spec.Allowed)
-	}
-	if obj.Spec.Allowed.Usages == nil || len(*obj.Spec.Allowed.Usages) != 2 ||
-		(*obj.Spec.Allowed.Usages)[0] != certmanagerv1.UsageDigitalSignature ||
-		(*obj.Spec.Allowed.Usages)[1] != certmanagerv1.UsageKeyEncipherment {
-		t.Errorf("expected usages [digital signature, key encipherment], got %#v", obj.Spec.Allowed.Usages)
-	}
+	// The generated policy must require the webhook identity and permit only its
+	// default key usages, including after a Helm chart update.
+	assert.Equal(t, &policyv1alpha1.CertificateRequestPolicyAllowed{
+		CommonName: &policyv1alpha1.CertificateRequestPolicyAllowedString{
+			Value:    ptr.To(expectedDNS),
+			Required: ptr.To(true),
+		},
+		DNSNames: &policyv1alpha1.CertificateRequestPolicyAllowedStringSlice{
+			Values:   ptr.To([]string{expectedDNS}),
+			Required: ptr.To(true),
+		},
+		Usages: ptr.To([]certmanagerv1.KeyUsage{certmanagerv1.UsageDigitalSignature, certmanagerv1.UsageKeyEncipherment}),
+	}, obj.Spec.Allowed)
 	assertPolicyIssuerRef(t, obj, certmanagermetav1.IssuerReference{
 		Name: trustManagerIssuerName, Kind: "Issuer", Group: "cert-manager.io",
 	})
@@ -71,6 +76,11 @@ func TestCertificateRequestPolicyIssuerSelector(t *testing.T) {
 		{
 			name: "uses a custom issuer",
 			ref:  &certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+			want: certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
+		},
+		{
+			name: "defaults kind and group for a custom issuer",
+			ref:  &certmanagermetav1.IssuerReference{Name: "corp-ca"},
 			want: certmanagermetav1.IssuerReference{Name: "corp-ca", Kind: "Issuer", Group: "cert-manager.io"},
 		},
 		{
@@ -105,20 +115,44 @@ func assertPolicyNamespaceSelector(t *testing.T, obj *policyv1alpha1.Certificate
 	}
 }
 
-func TestPolicyClusterRoleBindingSubjects(t *testing.T) {
-	binding := getPolicyClusterRoleBindingObject(testResourceLabels(), testResourceAnnotations())
-	if binding.Name != trustManagerPolicyClusterRoleBindingName {
-		t.Errorf("expected name %q, got %q", trustManagerPolicyClusterRoleBindingName, binding.Name)
-	}
-	if binding.RoleRef.Name != trustManagerPolicyClusterRoleName {
-		t.Errorf("expected roleRef %q, got %q", trustManagerPolicyClusterRoleName, binding.RoleRef.Name)
-	}
-	if len(binding.Subjects) != 1 {
-		t.Fatalf("expected 1 subject, got %d", len(binding.Subjects))
-	}
-	if binding.Subjects[0].Name != certManagerControllerServiceAccountName || binding.Subjects[0].Namespace != operandNamespace {
-		t.Errorf("expected subject %s/%s, got %s/%s", operandNamespace, certManagerControllerServiceAccountName, binding.Subjects[0].Namespace, binding.Subjects[0].Name)
-	}
+func TestPolicyClusterRoleObject(t *testing.T) {
+	labels := testResourceLabels()
+	annotations := map[string]string{"user-annotation": "test-value"}
+	role := getPolicyClusterRoleObject(labels, annotations)
+
+	assert.Equal(t, trustManagerPolicyClusterRoleName, role.Name)
+	assert.Equal(t, rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), role.GroupVersionKind())
+	assert.Equal(t, labels, role.Labels)
+	assert.Equal(t, annotations, role.Annotations)
+	assert.Nil(t, role.AggregationRule)
+	// Chart updates must not grant access beyond using this one policy.
+	assert.Equal(t, []rbacv1.PolicyRule{{
+		APIGroups:     []string{"policy.cert-manager.io"},
+		Resources:     []string{"certificaterequestpolicies"},
+		Verbs:         []string{"use"},
+		ResourceNames: []string{trustManagerCertificateRequestPolicyName},
+	}}, role.Rules)
+}
+
+func TestPolicyClusterRoleBindingObject(t *testing.T) {
+	labels := testResourceLabels()
+	annotations := map[string]string{"user-annotation": "test-value"}
+	binding := getPolicyClusterRoleBindingObject(labels, annotations)
+
+	assert.Equal(t, trustManagerPolicyClusterRoleBindingName, binding.Name)
+	assert.Equal(t, rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), binding.GroupVersionKind())
+	assert.Equal(t, labels, binding.Labels)
+	assert.Equal(t, annotations, binding.Annotations)
+	assert.Equal(t, rbacv1.RoleRef{
+		APIGroup: rbacv1.GroupName,
+		Kind:     "ClusterRole",
+		Name:     trustManagerPolicyClusterRoleName,
+	}, binding.RoleRef)
+	assert.Equal(t, []rbacv1.Subject{{
+		Kind:      "ServiceAccount",
+		Name:      certManagerControllerServiceAccountName,
+		Namespace: operandNamespace,
+	}}, binding.Subjects)
 }
 
 func markOperatorManaged(obj client.Object) {

@@ -168,6 +168,10 @@ const (
 	issuerAssetName      = "trust-manager/resources/issuer_trust-manager.yml"
 	certificateAssetName = "trust-manager/resources/certificate_trust-manager.yml"
 
+	certificateRequestPolicyAssetName = "trust-manager/resources/certificaterequestpolicy_trust-manager-policy.yml"
+	policyClusterRoleAssetName        = "trust-manager/resources/clusterrole_trust-manager-policy-role.yml"
+	policyClusterRoleBindingAssetName = "trust-manager/resources/clusterrolebinding_trust-manager-policy-binding.yml"
+
 	validatingWebhookConfigAssetName = "trust-manager/resources/validatingwebhookconfiguration_trust-manager.yml"
 
 	trustManagerDenyAllNetworkPolicyAssetName              = "networkpolicies/trust-manager-deny-all-networkpolicy.yaml"

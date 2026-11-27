@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	policyv1alpha1 "github.com/cert-manager/approver-policy/pkg/apis/policy/v1alpha1"
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
@@ -45,6 +46,9 @@ func init() {
 		panic(err)
 	}
 	if err := certmanagerv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := policyv1alpha1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 }
